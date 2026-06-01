@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed ZFS clone deletion not cleaning up the clone's source snapshot that was marked for deletion, leaving orphaned `CF_*` snapshots behind after the cloned resource was deleted
 - Fixed DRBD auto verify algorithm being recomputed over an incomplete node set while satellites reconnect, which could change the algorithm and force an already connected resource into StandAlone without automatic reconnect
 - Fixed implementation error ("attempt to replace an active transMgr") when creating or modifying a resource group concurrently with a backup restore/shipment that moves a resource definition into its target resource group
 

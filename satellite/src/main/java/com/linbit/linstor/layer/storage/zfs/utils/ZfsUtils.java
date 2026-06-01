@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -81,7 +82,9 @@ public class ZfsUtils
 
         // will be filled in updateStates method
         public final List<ZfsInfo> snapshots = new ArrayList<>();
-        public final List<String> clones = new ArrayList<>();
+        // full-qualified identifiers ("<pool>/<clone>") of the clones based on this snapshot.
+        // Populated both from the "clones" column (constructor) and the volume-walk below, hence a Set to deduplicate.
+        public final Set<String> clones = new LinkedHashSet<>();
 
         // properties, will be filled after object is initialized
         public boolean markedForDeletion = false;
@@ -338,13 +341,13 @@ public class ZfsUtils
                                     if (baseSnapInfo == null)
                                     {
                                         unprocessedZvols.computeIfAbsent(state.originStr, ignored -> new ArrayList<>())
-                                            .add(state.originStr);
+                                            .add(identifier);
                                     }
                                     else
                                     {
-                                        // technically we are only storing "<baseSnap> has clone <state>" but not
+                                        // technically we are only storing "<baseSnap> has clone <identifier>" but not
                                         // "<clone> is clone of <baseSnap>"
-                                        baseSnapInfo.clones.add(state.originStr);
+                                        baseSnapInfo.clones.add(identifier);
                                     }
                                 }
                             }

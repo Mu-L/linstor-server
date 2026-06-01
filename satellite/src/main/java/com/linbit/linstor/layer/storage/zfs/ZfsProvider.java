@@ -568,7 +568,7 @@ public class ZfsProvider
             }
             else
             {
-                originZfsInfo.clones.remove(zfsInfoRef.originStr);
+                originZfsInfo.clones.remove(zfsInfoRef.poolName + File.separator + zfsInfoRef.identifier);
             }
 
             if (originZfsInfo.markedForDeletion && canDelete(originZfsInfo))
