@@ -400,6 +400,11 @@ public class CtrlBackupL2LSrcApiCallHandler
                         lockGuardFactory.create()
                             .read(LockObj.NODES_MAP)
                             .write(LockObj.RSC_DFN_MAP)
+                            // Creating the snapshot-definition adds its ObjectProtection to the global ObjProtMap.
+                            // Lock REMOTE_MAP to serialize against the concurrent L2L shipping cleanup which deletes
+                            // a (stlt-)remote's ObjectProtection; otherwise the two transactions take disjoint locks
+                            // and race on the shared ObjProtMap ("attempt to replace an active transMgr").
+                            .write(LockObj.REMOTE_MAP)
                             .buildDeferred(),
                         () -> createSnapshot(resp, data, runInBackgroundRef, copySnapsForEvac)
                     )
@@ -456,6 +461,9 @@ public class CtrlBackupL2LSrcApiCallHandler
                     lockGuardFactory.create()
                         .read(LockObj.NODES_MAP)
                         .write(LockObj.RSC_DFN_MAP)
+                        // Creating the stlt-remote modifies the global RemoteMap and ObjProtMap. Lock REMOTE_MAP to
+                        // serialize against concurrent (stlt-)remote create/delete on those shared maps.
+                        .write(LockObj.REMOTE_MAP)
                         .buildDeferred(),
                     () -> createStltRemoteInTransaction(data, snap.getNode())
                 );
