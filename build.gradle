@@ -142,7 +142,33 @@ project(':server') {
         // toml parsing library
         api group: 'io.hotmoka', name: 'toml4j', version: '0.7.3'
 
-        api group: 'io.fabric8', name: 'kubernetes-client', version: '7.3.1'
+        // LINSTOR only uses the k8s client as a CRD-based database backend. The
+        // kubernetes-client(-api) pulls in a model module per k8s API group, but we only
+        // need the base types (model-core/-common) and CustomResourceDefinitions
+        // (model-apiextensions). We must additionally keep the model modules whose classes
+        // the fabric8 client loads regardless of which resource we operate on:
+        //  - eagerly, while building the KubernetesClient: KubernetesClientImpl
+        //    .registerDefaultHandlers() hard-references handler classes from apps
+        //    (Deployment/ReplicaSet/StatefulSet), batch (Job), certificates
+        //    (CertificateSigningRequest) and extensions (Deployment/ReplicaSet);
+        //  - reflectively, on any CRUD operation: BaseOperation/OperationSupport build
+        //    anonymous Jackson TypeReferences, so generic-signature reification calls
+        //    Class.getDeclaredMethods() on those classes and force-loads the model types
+        //    in their method descriptors, namely autoscaling (Scale) and extensions
+        //    (DeploymentRollback).
+        // Excluding any of those breaks startup/operations with a ClassNotFoundException.
+        // The remaining model modules are only reachable from typed DSL accessors
+        // (client.network()/.rbac()/.policy()/...) that LINSTOR never calls, so exclude
+        // the model modules for those API groups.
+        api(group: 'io.fabric8', name: 'kubernetes-client', version: '7.3.1') {
+            [
+                'admissionregistration', 'coordination', 'discovery', 'events',
+                'flowcontrol', 'gatewayapi', 'metrics', 'networking', 'node', 'policy',
+                'rbac', 'resource', 'scheduling', 'storageclass'
+            ].each { apiGroup ->
+                exclude group: 'io.fabric8', module: "kubernetes-model-$apiGroup"
+            }
+        }
 
         api group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: '4.9.8'
 
