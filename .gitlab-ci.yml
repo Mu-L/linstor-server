@@ -282,7 +282,7 @@ test:
     reports:
       junit: build/test-results/test/TEST-*.xml
       coverage_report:
-        coverage_format: cobertura
+        coverage_format: jacoco
         path: build/reports/jacoco/test/jacocoTestReport.xml
     paths:
       - build/distributions/linstor-server.tar
