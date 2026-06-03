@@ -335,11 +335,13 @@ test-e2e-all:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   tags:
     - libvirt
+  parallel:
+    matrix:
+      - TMP_VARIANTS: ["--variant nonstandard-1", "--variant nonstandard-2"]
   before_script:
     - echo "no before"
   script:
     - TEST_BRANCH=latest
-    - TMP_VARIANTS="--variant nonstandard"
     - !reference [.common_e2e, script]
   artifacts:
     # provide a convenient name so that the downloaded artifacts can be identified
