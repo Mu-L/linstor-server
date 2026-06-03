@@ -290,6 +290,15 @@ public class BalanceResources
             return true;
         }
 
+        if (hasUnexpectedlyNotUpToDateDiskful(rscDfn))
+        { // this should not trigger in case of SkipDisk
+            log.logDebug(
+                "BalanceResourcesTask/%s: Ignore because a non-skip-disk diskful resource is not UpToDate",
+                rscDfn.getName()
+            );
+            return true;
+        }
+
         { // check SkipDiskLimit
             PriorityProps prioProps = new PriorityProps(
                 rscDfn.getProps(sysCtx),
@@ -387,6 +396,36 @@ public class BalanceResources
             }
         }
         return true;
+    }
+
+    /**
+     * A resource the model considers diskful, that is NOT a skip-disk resource, but whose disk is not
+     * UpToDate (e.g. an in-progress or a failed toggle-disk that never attached, reporting Diskless).
+     * Such a resource inflates the diskful count and must not drive removals until it recovers or is
+     * cleaned up.
+     * Skip-disk resources are intentionally excluded so the existing skip-disk handling is unaffected.
+     */
+    private boolean hasUnexpectedlyNotUpToDateDiskful(ResourceDefinition rscDfn) throws AccessDeniedException
+    {
+        boolean ret = false;
+        List<Resource> diskful = rscDfn.getNotDeletedDiskful(sysCtx); // flag-diskful, excludes DRBD_DISKLESS
+        diskful.removeAll(getResourcesWithSkipDisk(diskful)); // do not test SkipDisk rscs
+        for (Resource rsc : diskful)
+        {
+            @Nullable Peer peer = rsc.getNode().getPeer(sysCtx);
+            if (peer != null && peer.getSatelliteState() != null)
+            {
+                @Nullable SatelliteResourceState rs = peer.getSatelliteState()
+                    .getResourceStates()
+                    .get(rscDfn.getName());
+                if (rs != null && !rs.allVolumesUpToDate())
+                {
+                    ret = true;
+                    break;
+                }
+            }
+        }
+        return ret;
     }
 
     /**
