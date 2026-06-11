@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed implementation error ("attempt to replace an active transMgr") when creating or modifying a resource group concurrently with a backup restore/shipment that moves a resource definition into its target resource group
 - Fixed BalanceResources counting an unhealthy diskful and possibly deleting therefore a healthy diskful
 - Fixed implementation error during DRBD .res file regeneration when the existing on-disk file was empty or truncated, which aborted the regeneration instead of rewriting the file
+- Fixed regular snapshot restore not setting DRBD_INITIALIZED on the restored volume definition, which could cause spurious metadata re-creation and split-brain
 
 ## [1.34.0-rc.1] - 2026-05-28
 
