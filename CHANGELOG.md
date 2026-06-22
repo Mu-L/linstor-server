@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- REST list endpoints now support regular-expression matching in their name filters (`nodes`, `resources`, `resource_definitions`, `resource_groups`, `storage_pools`, `snapshots`) and in `props` filters (on both the property key and value); the `props` filter is now also available on the per-node storage-pool and per-resource volume list endpoints
+
 ### Fixed
 
 - Fixed ZFS clone deletion not cleaning up the clone's source snapshot that was marked for deletion, leaving orphaned `CF_*` snapshots behind after the cloned resource was deleted

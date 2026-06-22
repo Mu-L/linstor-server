@@ -101,6 +101,7 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 import com.linbit.utils.CollectionUtils;
+import com.linbit.utils.RegexMatcher;
 import com.linbit.utils.PairNonNull;
 import com.linbit.utils.StringUtils;
 
@@ -128,6 +129,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
@@ -698,18 +700,12 @@ public class CtrlNodeApiCallHandler
     ArrayList<NodeApi> listNodes(List<String> nodeNames, List<String> propFilters)
     {
         ArrayList<NodeApi> nodes = new ArrayList<>();
-        final Set<NodeName> nodesFilter =
-            nodeNames.stream().map(LinstorParsingUtils::asNodeName).collect(Collectors.toSet());
+        final List<Pattern> nodesFilter = RegexMatcher.compileAll(nodeNames, true);
 
         try
         {
             nodeRepository.getMapForView(peerAccCtx.get()).values().stream()
-                .filter(node ->
-                    (
-                        nodesFilter.isEmpty() ||
-                        nodesFilter.contains(node.getName())
-                    )
-                )
+                .filter(node -> RegexMatcher.matchesAny(nodesFilter, node.getName().displayValue))
                 .forEach(node ->
                     {
                         try

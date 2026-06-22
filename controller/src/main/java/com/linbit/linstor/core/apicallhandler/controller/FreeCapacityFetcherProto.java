@@ -29,6 +29,7 @@ import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
+import com.linbit.utils.RegexMatcher;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -40,6 +41,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -98,10 +101,26 @@ public class FreeCapacityFetcherProto implements FreeCapacityFetcher
     @Override
     public Mono<Map<StorPool.Key, Tuple2<SpaceInfo, List<ApiCallRc>>>> fetchThinFreeSpaceInfo(Set<NodeName> nodesFilter)
     {
+        return fetchThinFreeSpaceInfo(() -> assembleRequests(nodesFilter));
+    }
+
+    @SuppressWarnings("resource")
+    @Override
+    public Mono<Map<StorPool.Key, Tuple2<SpaceInfo, List<ApiCallRc>>>> fetchThinFreeSpaceInfo(
+        List<Pattern> nodeNameFilters
+    )
+    {
+        return fetchThinFreeSpaceInfo(() -> assembleRequests(nodeNameFilters));
+    }
+
+    private Mono<Map<StorPool.Key, Tuple2<SpaceInfo, List<ApiCallRc>>>> fetchThinFreeSpaceInfo(
+        Callable<Flux<Tuple2<NodeName, ByteArrayInputStream>>> requestsSupplier
+    )
+    {
         return scopeRunner.fluxInTransactionalScope(
             "Fetch thin capacity info",
             lockGuardFactory.buildDeferred(LockType.READ, LockObj.NODES_MAP, LockObj.STOR_POOL_DFN_MAP),
-            () -> assembleRequests(nodesFilter).flatMap(this::parseFreeSpaces),
+            () -> requestsSupplier.call().flatMap(this::parseFreeSpaces),
             MDC.getCopyOfContextMap()
         )
             .collectMap(
@@ -117,6 +136,20 @@ public class FreeCapacityFetcherProto implements FreeCapacityFetcher
             nodeRepository.getMapForView(peerAccCtx.get()).values().stream() :
             nodesFilter.stream().map(nodeName -> ctrlApiDataLoader.loadNode(nodeName, true));
 
+        return buildFreeSpaceRequests(nodeStream);
+    }
+
+    private Flux<Tuple2<NodeName, ByteArrayInputStream>> assembleRequests(List<Pattern> nodeNameFilters)
+        throws AccessDeniedException
+    {
+        Stream<Node> nodeStream = nodeRepository.getMapForView(peerAccCtx.get()).values().stream()
+            .filter(node -> RegexMatcher.matchesAny(nodeNameFilters, node.getName().displayValue));
+
+        return buildFreeSpaceRequests(nodeStream);
+    }
+
+    private Flux<Tuple2<NodeName, ByteArrayInputStream>> buildFreeSpaceRequests(Stream<Node> nodeStream)
+    {
         Stream<Node> nodeWithThinStream = nodeStream.filter(this::hasThinPools);
 
         List<Tuple2<NodeName, Flux<ByteArrayInputStream>>> nameAndRequests = nodeWithThinStream

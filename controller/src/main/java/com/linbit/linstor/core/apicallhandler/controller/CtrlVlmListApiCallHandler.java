@@ -10,7 +10,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.ResourceList;
 import com.linbit.linstor.core.apis.ResourceConnectionApi;
 import com.linbit.linstor.core.apis.VolumeApi;
-import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -32,6 +31,7 @@ import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.utils.LayerUtils;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
+import com.linbit.utils.RegexMatcher;
 
 import static com.linbit.locks.LockGuardFactory.LockObj.NODES_MAP;
 import static com.linbit.locks.LockGuardFactory.LockObj.RSC_DFN_MAP;
@@ -42,11 +42,13 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
@@ -95,14 +97,15 @@ public class CtrlVlmListApiCallHandler
         List<String> propFilters
     )
     {
-        final Set<NodeName> nodesFilter =
-            nodeNames.stream().map(LinstorParsingUtils::asNodeName).collect(Collectors.toSet());
-        final Set<StorPoolName> storPoolsFilter =
-            storPools.stream().map(LinstorParsingUtils::asStorPoolName).collect(Collectors.toSet());
-        final Set<ResourceName> resourceFilter =
-            resources.stream().map(LinstorParsingUtils::asRscName).collect(Collectors.toSet());
+        final List<Pattern> nodesFilter = RegexMatcher.compileAll(nodeNames, true);
+        final List<Pattern> storPoolsFilter = RegexMatcher.compileAll(storPools, true);
+        final List<Pattern> resourceFilter = RegexMatcher.compileAll(resources, true);
 
-        return vlmAllocatedFetcher.fetchVlmAllocated(nodesFilter, storPoolsFilter, resourceFilter)
+        return vlmAllocatedFetcher.fetchVlmAllocated(
+                nodesFilter,
+                resolveFetchStorPools(storPools),
+                resolveFetchResources(resources)
+            )
             .flatMapMany(vlmAllocatedAnswers ->
                 scopeRunner.fluxInTransactionlessScope(
                     "Assemble volume list",
@@ -120,9 +123,9 @@ public class CtrlVlmListApiCallHandler
      * @return Filtered ResourceList result
      */
     private ResourceList assembleList(
-        Set<NodeName> nodesFilter,
-        Set<StorPoolName> storPoolsFilter,
-        Set<ResourceName> resourceFilter,
+        List<Pattern> nodesFilter,
+        List<Pattern> storPoolsFilter,
+        List<Pattern> resourceFilter,
         List<String> propFilters,
         final @Nullable Map<Volume.Key, VlmAllocatedResult> vlmAllocatedAnswers
     )
@@ -131,14 +134,14 @@ public class CtrlVlmListApiCallHandler
         try
         {
             resourceDefinitionRepository.getMapForView(peerAccCtx.get()).values().stream()
-                .filter(rscDfn -> resourceFilter.isEmpty() || resourceFilter.contains(rscDfn.getName()))
+                .filter(rscDfn -> RegexMatcher.matchesAny(resourceFilter, rscDfn.getName().displayValue))
                 .forEach(rscDfn ->
                 {
                     try
                     {
                         for (Resource rsc : rscDfn.streamResource(peerAccCtx.get())
-                            .filter(rsc -> nodesFilter.isEmpty() ||
-                                nodesFilter.contains(rsc.getNode().getName()))
+                            .filter(rsc -> RegexMatcher.matchesAny(
+                                nodesFilter, rsc.getNode().getName().displayValue))
                             .collect(toList()))
                         {
                             // prop filter
@@ -164,8 +167,10 @@ public class CtrlVlmListApiCallHandler
                                         VolumeNumber vlmNr = vlm.getVolumeDefinition().getVolumeNumber();
                                         for (AbsRscLayerObject<Resource> storageRsc : storageRscList)
                                         {
-                                            if (storPoolsFilter.contains(
-                                                storageRsc.getVlmProviderObject(vlmNr).getStorPool().getName())
+                                            if (RegexMatcher.matchesAny(
+                                                storPoolsFilter,
+                                                storageRsc.getVlmProviderObject(vlmNr).getStorPool().getName()
+                                                    .displayValue)
                                             )
                                             {
                                                 addToList = true;
@@ -346,17 +351,48 @@ public class CtrlVlmListApiCallHandler
         List<String> propFilters
     )
     {
-        final Set<NodeName> nodesFilter =
-            nodeNames.stream().map(LinstorParsingUtils::asNodeName).collect(Collectors.toSet());
-        final Set<StorPoolName> storPoolsFilter =
-            storPools.stream().map(LinstorParsingUtils::asStorPoolName).collect(Collectors.toSet());
-        final Set<ResourceName> resourceFilter =
-            resources.stream().map(LinstorParsingUtils::asRscName).collect(Collectors.toSet());
+        final List<Pattern> nodesFilter = RegexMatcher.compileAll(nodeNames, true);
+        final List<Pattern> storPoolsFilter = RegexMatcher.compileAll(storPools, true);
+        final List<Pattern> resourceFilter = RegexMatcher.compileAll(resources, true);
 
         try (LockGuard ignored = lockGuardFactory.build(READ, NODES_MAP, RSC_DFN_MAP))
         {
             return assembleList(nodesFilter, storPoolsFilter, resourceFilter, propFilters, null);
         }
+    }
+
+    /*
+     * Node filtering for the fetcher is done by regex (see fetchVlmAllocated(List<Pattern>, ...)), so only
+     * matching satellites are queried. The storage-pool and resource filters below are still resolved to
+     * exact-name sets: an exact (non-regex) filter narrows the satellite request, while a regex filter
+     * resolves to an empty set (= no narrowing) and assembleList applies the regex afterwards.
+     */
+    private Set<StorPoolName> resolveFetchStorPools(List<String> storPoolNames)
+    {
+        final Set<StorPoolName> result;
+        if (storPoolNames.isEmpty() || storPoolNames.stream().anyMatch(RegexMatcher::isRegex))
+        {
+            result = new HashSet<>();
+        }
+        else
+        {
+            result = storPoolNames.stream().map(LinstorParsingUtils::asStorPoolName).collect(Collectors.toSet());
+        }
+        return result;
+    }
+
+    private Set<ResourceName> resolveFetchResources(List<String> resourceNames)
+    {
+        final Set<ResourceName> result;
+        if (resourceNames.isEmpty() || resourceNames.stream().anyMatch(RegexMatcher::isRegex))
+        {
+            result = new HashSet<>();
+        }
+        else
+        {
+            result = resourceNames.stream().map(LinstorParsingUtils::asRscName).collect(Collectors.toSet());
+        }
+        return result;
     }
 
     public static String getVlmDescriptionInline(Volume vlm)

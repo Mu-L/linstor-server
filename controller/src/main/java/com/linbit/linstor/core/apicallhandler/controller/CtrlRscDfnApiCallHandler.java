@@ -99,6 +99,7 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.utils.Base64;
 import com.linbit.utils.CollectionUtils;
+import com.linbit.utils.RegexMatcher;
 import com.linbit.utils.StringUtils;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.getRscDescriptionInline;
@@ -129,6 +130,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -767,19 +769,12 @@ public class CtrlRscDfnApiCallHandler
     ArrayList<ResourceDefinitionApi> listResourceDefinitions(List<String> rscDfnNames, List<String> propFilters)
     {
         ArrayList<ResourceDefinitionApi> rscdfns = new ArrayList<>();
-        final Set<ResourceName> rscDfnsFilter =
-            rscDfnNames.stream().map(LinstorParsingUtils::asRscName).collect(Collectors.toSet());
+        final List<Pattern> rscDfnsFilter = RegexMatcher.compileAll(rscDfnNames, true);
 
         try
         {
             resourceDefinitionRepository.getMapForView(peerAccCtx.get()).values().stream()
-                .filter(
-                    rscDfn ->
-                    (
-                        rscDfnsFilter.isEmpty() ||
-                        rscDfnsFilter.contains(rscDfn.getName())
-                    )
-                )
+                .filter(rscDfn -> RegexMatcher.matchesAny(rscDfnsFilter, rscDfn.getName().displayValue))
                 .forEach(
                     rscDfn ->
                     {

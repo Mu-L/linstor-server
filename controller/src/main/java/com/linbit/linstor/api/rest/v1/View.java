@@ -227,9 +227,8 @@ public class View
         return requestHelper.doInScope(ApiConsts.API_LST_SNAPSHOT_DFN, request, () ->
         {
             List<String> nodesFilter = nodes != null ? nodes : Collections.emptyList();
-            List<String> resourcesFilter = resources != null ?
-                resources.parallelStream().map(String::toLowerCase).collect(Collectors.toList()) :
-                Collections.emptyList();
+            // name filters are matched case-insensitively and may be regular expressions, so no normalization needed
+            List<String> resourcesFilter = resources != null ? resources : Collections.emptyList();
 
             Response response;
 

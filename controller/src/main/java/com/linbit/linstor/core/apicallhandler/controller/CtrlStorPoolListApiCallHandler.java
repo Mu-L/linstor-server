@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
@@ -14,8 +13,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ResponseUtils;
 import com.linbit.linstor.core.apis.StorPoolApi;
-import com.linbit.linstor.core.identifier.NodeName;
-import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
@@ -28,6 +25,7 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 import com.linbit.utils.Base64;
+import com.linbit.utils.RegexMatcher;
 
 import static com.linbit.locks.LockGuardFactory.LockObj.STOR_POOL_DFN_MAP;
 import static com.linbit.locks.LockGuardFactory.LockType.READ;
@@ -41,8 +39,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 import org.slf4j.MDC;
 import reactor.core.publisher.Flux;
@@ -95,12 +92,8 @@ public class CtrlStorPoolListApiCallHandler
     )
     {
         Flux<List<StorPoolApi>> flux;
-        final Set<StorPoolName> storPoolsFilter = storPoolNames.stream()
-            .map(LinstorParsingUtils::asStorPoolName)
-            .collect(Collectors.toSet());
-        final Set<NodeName> nodesFilter = nodeNames.stream()
-            .map(LinstorParsingUtils::asNodeName)
-            .collect(Collectors.toSet());
+        final List<Pattern> storPoolsFilter = RegexMatcher.compileAll(storPoolNames, true);
+        final List<Pattern> nodesFilter = RegexMatcher.compileAll(nodeNames, true);
         if (fromCache)
         {
             flux = scopeRunner.fluxInTransactionlessScope(
@@ -130,10 +123,8 @@ public class CtrlStorPoolListApiCallHandler
         List<String> propFilters
     )
     {
-        final Set<StorPoolName> storPoolsFilter =
-            storPoolNames.stream().map(LinstorParsingUtils::asStorPoolName).collect(Collectors.toSet());
-        final Set<NodeName> nodesFilter =
-            nodeNames.stream().map(LinstorParsingUtils::asNodeName).collect(Collectors.toSet());
+        final List<Pattern> storPoolsFilter = RegexMatcher.compileAll(storPoolNames, true);
+        final List<Pattern> nodesFilter = RegexMatcher.compileAll(nodeNames, true);
 
         try (LockGuard ignored = lockGuardFactory.build(READ, STOR_POOL_DFN_MAP))
         {
@@ -177,8 +168,8 @@ public class CtrlStorPoolListApiCallHandler
     }
 
     private List<StorPoolApi> assembleList(
-        Set<NodeName> nodesFilter,
-        Set<StorPoolName> storPoolsFilter,
+        List<Pattern> nodesFilter,
+        List<Pattern> storPoolsFilter,
         List<String> propFilters,
         @Nullable Map<StorPool.Key, Tuple2<SpaceInfo, List<ApiCallRc>>> freeCapacityAnswers
     )
@@ -189,8 +180,7 @@ public class CtrlStorPoolListApiCallHandler
             ReadOnlyProps ctrlProps = sysCfgRepo.getCtrlConfForView(peerAccCtx.get());
             storPoolDefinitionRepository.getMapForView(peerAccCtx.get()).values().stream()
                 .filter(
-                    storPoolDfn -> storPoolsFilter.isEmpty() ||
-                    storPoolsFilter.contains(storPoolDfn.getName())
+                    storPoolDfn -> RegexMatcher.matchesAny(storPoolsFilter, storPoolDfn.getName().displayValue)
                 )
                 .forEach(
                     storPoolDfn ->
@@ -198,8 +188,8 @@ public class CtrlStorPoolListApiCallHandler
                         try
                         {
                             for (StorPool storPool : storPoolDfn.streamStorPools(peerAccCtx.get())
-                                .filter(storPool -> nodesFilter.isEmpty() ||
-                                    nodesFilter.contains(storPool.getNode().getName()))
+                                .filter(storPool -> RegexMatcher.matchesAny(
+                                    nodesFilter, storPool.getNode().getName().displayValue))
                                 .collect(toList()))
                             {
                                 ReadOnlyProps props = storPool.getProps(peerAccCtx.get());

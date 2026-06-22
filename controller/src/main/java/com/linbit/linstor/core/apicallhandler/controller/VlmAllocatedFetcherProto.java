@@ -32,6 +32,7 @@ import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.locks.LockGuard;
+import com.linbit.utils.RegexMatcher;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -45,7 +46,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -96,12 +99,29 @@ public class VlmAllocatedFetcherProto implements VlmAllocatedFetcher
         Set<ResourceName> resourceFilter
     )
     {
+        return fetchVlmAllocated(() -> requestVlmAllocated(nodesFilter, storPoolFilter, resourceFilter));
+    }
+
+    @Override
+    public Mono<Map<Volume.Key, VlmAllocatedResult>> fetchVlmAllocated(
+        List<Pattern> nodeNameFilters,
+        Set<StorPoolName> storPoolFilter,
+        Set<ResourceName> resourceFilter
+    )
+    {
+        return fetchVlmAllocated(() -> requestVlmAllocated(nodeNameFilters, storPoolFilter, resourceFilter));
+    }
+
+    private Mono<Map<Volume.Key, VlmAllocatedResult>> fetchVlmAllocated(
+        Callable<Flux<Tuple2<NodeName, ByteArrayInputStream>>> requestsSupplier
+    )
+    {
         return scopeRunner
             .fluxInTransactionlessScope(
                 "Fetch volume allocated",
                 LockGuard.createDeferred(
                     nodesMapLock.readLock(), rscDfnMapLock.readLock(), storPoolDfnMapLock.readLock()),
-                () -> requestVlmAllocated(nodesFilter, storPoolFilter, resourceFilter),
+                requestsSupplier,
                 MDC.getCopyOfContextMap()
             )
             .collect(Collectors.toList())
@@ -119,6 +139,28 @@ public class VlmAllocatedFetcherProto implements VlmAllocatedFetcher
             nodeRepository.getMapForView(peerAccCtx.get()).values().stream() :
             nodesFilter.stream().map(nodeName -> ctrlApiDataLoader.loadNode(nodeName, true));
 
+        return buildVlmAllocatedRequests(nodeStream, storPoolFilter, resourceFilter);
+    }
+
+    private Flux<Tuple2<NodeName, ByteArrayInputStream>> requestVlmAllocated(
+        List<Pattern> nodeNameFilters,
+        Set<StorPoolName> storPoolFilter,
+        Set<ResourceName> resourceFilter
+    )
+        throws AccessDeniedException
+    {
+        Stream<Node> nodeStream = nodeRepository.getMapForView(peerAccCtx.get()).values().stream()
+            .filter(node -> RegexMatcher.matchesAny(nodeNameFilters, node.getName().displayValue));
+
+        return buildVlmAllocatedRequests(nodeStream, storPoolFilter, resourceFilter);
+    }
+
+    private Flux<Tuple2<NodeName, ByteArrayInputStream>> buildVlmAllocatedRequests(
+        Stream<Node> nodeStream,
+        Set<StorPoolName> storPoolFilter,
+        Set<ResourceName> resourceFilter
+    )
+    {
         Stream<Node> nodeWithThinStream = nodeStream.filter(node -> hasThinVlms(node, storPoolFilter, resourceFilter));
 
         List<Tuple2<NodeName, Flux<ByteArrayInputStream>>> nameAndRequests = nodeWithThinStream

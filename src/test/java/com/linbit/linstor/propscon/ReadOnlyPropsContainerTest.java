@@ -21,7 +21,9 @@ import static com.linbit.linstor.propscon.CommonPropsTestUtils.generateValues;
 import static com.linbit.linstor.propscon.CommonPropsTestUtils.glue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1346,4 +1348,49 @@ public class ReadOnlyPropsContainerTest
         assertEquals(origHashCode, roValues.hashCode());
     }
     */
+
+    @Test
+    public void testContainsRegex() throws Exception
+    {
+        writableProp.clear();
+        writableProp.setProp("Aux/site", "dc1");
+        writableProp.setProp("Aux/zone", "z1");
+        writableProp.setProp("Aux/ip", "192.168.1.1");
+        writableProp.setProp("DrbdOptions/auto-quorum", "yes");
+
+        // empty filter matches everything
+        assertTrue(roProp.contains(Collections.emptyList()));
+
+        // backward-compatible exact matches
+        assertTrue(roProp.contains(Collections.singletonList("Aux/site")));
+        assertTrue(roProp.contains(Collections.singletonList("Aux/site=dc1")));
+        assertFalse(roProp.contains(Collections.singletonList("Aux/site=dc2")));
+        assertFalse(roProp.contains(Collections.singletonList("Aux/missing")));
+
+        // regex on the key
+        assertTrue(roProp.contains(Collections.singletonList("Aux/.*")));
+        assertTrue(roProp.contains(Collections.singletonList(".*/site")));
+        assertFalse(roProp.contains(Collections.singletonList("Missing/.*")));
+
+        // regex on the value
+        assertTrue(roProp.contains(Collections.singletonList("Aux/site=dc.*")));
+        assertFalse(roProp.contains(Collections.singletonList("Aux/site=z.*")));
+
+        // '.' is literal: a dotted value matches exactly and is not a wildcard
+        assertTrue(roProp.contains(Collections.singletonList("Aux/ip=192.168.1.1")));
+        assertFalse(roProp.contains(Collections.singletonList("Aux/ip=192x168y1z1")));
+
+        // regex on both key and value
+        assertTrue(roProp.contains(Collections.singletonList("Aux/.*=z1")));
+        assertTrue(roProp.contains(Collections.singletonList("DrbdOptions/.*=yes")));
+        // key matches but no matching value -> no match
+        assertFalse(roProp.contains(Collections.singletonList("Aux/.*=nope")));
+
+        // AND semantics across multiple filters
+        assertTrue(roProp.contains(Arrays.asList("Aux/site=dc1", "Aux/zone")));
+        assertFalse(roProp.contains(Arrays.asList("Aux/site=dc1", "Aux/missing")));
+
+        // keys are matched case-sensitively
+        assertFalse(roProp.contains(Collections.singletonList("aux/.*")));
+    }
 }

@@ -103,12 +103,13 @@ public class StoragePools
         @Context Request request,
         @Suspended final AsyncResponse asyncResponse,
         @PathParam("nodeName") String nodeName,
+        @QueryParam("props") List<String> propFilters,
         @DefaultValue("0") @QueryParam("limit") int limit,
         @DefaultValue("0") @QueryParam("offset") int offset,
         @DefaultValue("false") @QueryParam("cached") boolean fromCache
     )
     {
-        listStoragePools(request, asyncResponse, nodeName, null, limit, offset, fromCache);
+        listStoragePools(request, asyncResponse, nodeName, null, propFilters, limit, offset, fromCache);
     }
 
     @GET
@@ -118,6 +119,7 @@ public class StoragePools
         @Suspended final AsyncResponse asyncResponse,
         @PathParam("nodeName") String nodeName,
         @PathParam("storPoolName") @Nullable String storPoolName,
+        @QueryParam("props") List<String> propFilters,
         @DefaultValue("0") @QueryParam("limit") int limit,
         @DefaultValue("0") @QueryParam("offset") int offset,
         @DefaultValue("false") @QueryParam("cached") boolean fromCache
@@ -157,7 +159,12 @@ public class StoragePools
             if (nodeCheck == null)
             {
                 Flux<List<StorPoolApi>> flux = ctrlStorPoolListApiCallHandler
-                    .listStorPools(nodeNames, storPoolNames, Collections.emptyList(), fromCache);
+                    .listStorPools(
+                        nodeNames,
+                        storPoolNames,
+                        propFilters != null ? propFilters : Collections.emptyList(),
+                        fromCache
+                    );
 
                 requestHelper.doFlux(
                     ApiConsts.API_LST_STOR_POOL,

@@ -792,11 +792,13 @@ paths:
         - name: storage_pools
           in: query
           description: Filter only for the specified storage pools, if not specified
-            no filtering.
+            no filtering. Names may be Java regular expressions and are
+            matched case-insensitively.
           schema:
             type: array
             items:
               type: string
+        - $ref: '#/components/parameters/Props'
         - $ref: '#/components/parameters/Offset'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cached'
@@ -1203,7 +1205,8 @@ paths:
         - name: resource_definitions
           in: query
           description: Filter only for the specified resource definitions, if not
-            specified no filtering.
+            specified no filtering. Names may be Java regular expressions
+            and are matched case-insensitively.
           schema:
             type: array
             items:
@@ -2437,6 +2440,7 @@ paths:
 
         /v1/resource-definitions/rsc1/resources/nodeA/volumes/0
       parameters:
+        - $ref: '#/components/parameters/Props'
         - $ref: '#/components/parameters/Offset'
         - $ref: '#/components/parameters/Limit'
       responses:
@@ -3164,7 +3168,8 @@ paths:
         - name: resource_groups
           in: query
           description: Filter only for the specified resource groups, if not specified
-            no filtering.
+            no filtering. Names may be Java regular expressions and are
+            matched case-insensitively.
           schema:
             type: array
             items:
@@ -4992,7 +4997,8 @@ paths:
         - name: storage_pools
           in: query
           description: Filter only for the specified storage pools, if not specified
-            no filtering.
+            no filtering. Names may be Java regular expressions and are
+            matched case-insensitively.
           schema:
             type: array
             items:
@@ -5025,7 +5031,8 @@ paths:
         - name: storage_pools
           in: query
           description: Filter only for the specified storage pools, if not specified
-            no filtering.
+            no filtering. Names may be Java regular expressions and are
+            matched case-insensitively.
           schema:
             type: array
             items:
@@ -6226,6 +6233,7 @@ components:
       name: nodes
       in: query
       description: Filter only for the specified nodes, if not specified, no filtering.
+        Names may be Java regular expressions and are matched case-insensitively.
       schema:
         type: array
         items:
@@ -6234,6 +6242,7 @@ components:
       name: resources
       in: query
       description: Filter only for the specified resources, if not specified, no filtering.
+        Names may be Java regular expressions and are matched case-insensitively.
       schema:
         type: array
         items:
@@ -6278,7 +6287,10 @@ components:
     Props:
       name: props
       in: query
-      description: filter by given properties, full property path
+      description: 'Filter by given properties, full property path. A filter is either a property
+        key (matches if the property is set) or `key=value` (matches if the property has that value).
+        Both the key and the value may be Java regular expressions (matched in full), case-sensitively,
+        e.g. `Aux/.*` or `DrbdOptions/.*=yes`. Multiple filters are combined with AND.'
       schema:
         type: array
         items:

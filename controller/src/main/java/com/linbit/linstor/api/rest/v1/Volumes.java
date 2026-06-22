@@ -74,11 +74,12 @@ public class Volumes
         @Suspended AsyncResponse asyncResponse,
         @PathParam("rscName") String rscName,
         @PathParam("nodeName") String nodeName,
+        @QueryParam("props") List<String> propFilters,
         @DefaultValue("0") @QueryParam("limit") int limit,
         @DefaultValue("0") @QueryParam("offset") int offset
     )
     {
-        listVolumes(request, asyncResponse, rscName, nodeName, null, limit, offset);
+        listVolumes(request, asyncResponse, rscName, nodeName, null, propFilters, limit, offset);
     }
 
     @GET
@@ -89,6 +90,7 @@ public class Volumes
         @PathParam("rscName") String rscName,
         @PathParam("nodeName") String nodeName,
         @PathParam("vlmNr") @Nullable Integer vlmNr,
+        @QueryParam("props") List<String> propFilters,
         @DefaultValue("0") @QueryParam("limit") int limit,
         @DefaultValue("0") @QueryParam("offset") int offset
     )
@@ -100,7 +102,10 @@ public class Volumes
         {
             MDC.put(ErrorReporter.LOGID, ErrorReporter.getNewLogId());
             Flux<ResourceList> flux = ctrlVlmListApiCallHandler.listVlms(
-                    nodes, Collections.emptyList(), rscNames, Collections.emptyList());
+                    nodes,
+                    Collections.emptyList(),
+                    rscNames,
+                    propFilters != null ? propFilters : Collections.emptyList());
 
             requestHelper.doFlux(
                 ApiConsts.API_LST_VLM,

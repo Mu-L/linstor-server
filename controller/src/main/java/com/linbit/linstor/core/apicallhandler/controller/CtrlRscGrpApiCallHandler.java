@@ -82,6 +82,7 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 import com.linbit.utils.Base64;
+import com.linbit.utils.RegexMatcher;
 import com.linbit.utils.PairNonNull;
 import com.linbit.utils.StringUtils;
 
@@ -107,7 +108,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 import org.slf4j.MDC;
 import reactor.core.publisher.Flux;
@@ -207,18 +208,12 @@ public class CtrlRscGrpApiCallHandler
     List<ResourceGroupApi> listResourceGroups(List<String> rscGrpNames, List<String> propFilters)
     {
         List<ResourceGroupApi> ret = new ArrayList<>();
-        final Set<ResourceGroupName> rscGrpsFilter =
-            rscGrpNames.stream().map(LinstorParsingUtils::asRscGrpName).collect(Collectors.toSet());
+        final List<Pattern> rscGrpsFilter = RegexMatcher.compileAll(rscGrpNames, true);
 
         try
         {
             resourceGroupRepository.getMapForView(peerAccCtx.get()).values().stream()
-                .filter(rscGrp ->
-                    (
-                        rscGrpsFilter.isEmpty() ||
-                        rscGrpsFilter.contains(rscGrp.getName())
-                    )
-                )
+                .filter(rscGrp -> RegexMatcher.matchesAny(rscGrpsFilter, rscGrp.getName().displayValue))
                 .forEach(rscGrp ->
                     {
                         try

@@ -2,7 +2,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
-import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -32,6 +31,7 @@ import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
+import com.linbit.utils.RegexMatcher;
 
 import static com.linbit.locks.LockGuardFactory.LockObj.RSC_DFN_MAP;
 import static com.linbit.locks.LockGuardFactory.LockType.WRITE;
@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 import org.slf4j.MDC;
 import reactor.core.publisher.Flux;
@@ -92,21 +92,18 @@ public class CtrlSnapshotApiCallHandler
 
     private boolean shouldIncludeSnapshot(
         final SnapshotDefinitionListItemApi snapItem,
-        final List<String> nodeNameFilter
+        final List<Pattern> nodeNameFilter
     )
     {
         boolean includeFlag = nodeNameFilter.isEmpty();
         if (!includeFlag)
         {
-            for (final String node : nodeNameFilter)
+            for (final String snapNode : snapItem.getNodeNames())
             {
-                for (final String snapNode : snapItem.getNodeNames())
+                if (RegexMatcher.matchesAny(nodeNameFilter, snapNode))
                 {
-                    if (node.equalsIgnoreCase(snapNode))
-                    {
-                        includeFlag = true;
-                        break;
-                    }
+                    includeFlag = true;
+                    break;
                 }
             }
         }
@@ -116,14 +113,14 @@ public class CtrlSnapshotApiCallHandler
     ArrayList<SnapshotDefinitionListItemApi> listSnapshotDefinitions(List<String> nodeNames, List<String> resourceNames)
     {
         ArrayList<SnapshotDefinitionListItemApi> snapshotDfns = new ArrayList<>();
-        final Set<ResourceName> rscDfnsFilter =
-            resourceNames.stream().map(LinstorParsingUtils::asRscName).collect(Collectors.toSet());
+        final List<Pattern> rscDfnsFilter = RegexMatcher.compileAll(resourceNames, true);
+        final List<Pattern> nodesFilter = RegexMatcher.compileAll(nodeNames, true);
 
         try
         {
             for (ResourceDefinition rscDfn : resourceDefinitionRepository.getMapForView(peerAccCtx.get()).values())
             {
-                if (rscDfnsFilter.isEmpty() || rscDfnsFilter.contains(rscDfn.getName()))
+                if (RegexMatcher.matchesAny(rscDfnsFilter, rscDfn.getName().displayValue))
                 {
                     for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns(peerAccCtx.get()))
                     {
@@ -131,7 +128,7 @@ public class CtrlSnapshotApiCallHandler
                         {
                             final SnapshotDefinitionListItemApi snapItem =
                                 snapshotDfn.getListItemApiData(peerAccCtx.get());
-                            if (shouldIncludeSnapshot(snapItem, nodeNames))
+                            if (shouldIncludeSnapshot(snapItem, nodesFilter))
                             {
                                 snapshotDfns.add(snapItem);
                             }

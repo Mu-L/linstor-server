@@ -2,12 +2,14 @@ package com.linbit.linstor.propscon;
 
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.prop.LinStorObject;
+import com.linbit.utils.RegexMatcher;
 
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public interface ReadOnlyProps extends Iterable<Map.Entry<String, String>>
 {
@@ -73,32 +75,86 @@ public interface ReadOnlyProps extends Iterable<Map.Entry<String, String>>
      * Checks if all propFilters (key value pairs e.g 'prop=value') are present in the given Props container.
      * It is also possible to just check if a property is set at all.
      *
-     * @param propFilters List of filter pairs, e.g.: ['site=a', 'zfsnode']
+     * <p>
+     * Both the key and the value part of a filter may be regular expressions (see {@link RegexMatcher}); each is
+     * matched against the whole key/value. A regex key (e.g. {@code Aux/.*}) matches if at least one property
+     * whose full key matches it also satisfies the value part. Keys and values are matched case-sensitively.
+     * Filters without regex metacharacters behave exactly like the previous exact-match check, so a plain
+     * {@code site=a} still requires an exact key and value match.
+     *
+     * @param propFilters List of filter pairs, e.g.: ['site=a', 'Aux/.*', 'DrbdOptions/.*=yes']
      * @return True if all props match.
      */
     default boolean contains(List<String> propFilters)
     {
         boolean result = true;
-        if (!propFilters.isEmpty())
+        for (final String pFilter : propFilters)
         {
-            for (final String pFilter : propFilters)
+            final String[] split = pFilter.split("=", 2);
+            final String keyFilter = split[0];
+            final @Nullable String valueFilter = split.length > 1 ? split[1] : null;
+            // a regex value is compiled once; a plain value is compared with equals()
+            final @Nullable Pattern valuePattern =
+                valueFilter != null && RegexMatcher.isRegex(valueFilter) ? RegexMatcher.toPattern(valueFilter, false) :
+                null;
+
+            final boolean matched;
+            if (RegexMatcher.isRegex(keyFilter))
             {
-                String[] split = pFilter.split("=", 2);
-                @Nullable String value = getProp(split[0]);
-                if (value == null)
+                final Pattern keyPattern = RegexMatcher.toPattern(keyFilter, false);
+                boolean anyMatch = false;
+                for (final Map.Entry<String, String> entry : entrySet())
                 {
-                    result = false;
-                    break;
-                }
-                else if (split.length > 1)
-                {
-                    if (!value.equals(split[1]))
+                    if (keyPattern.matcher(entry.getKey()).matches() &&
+                        valueMatches(valuePattern, valueFilter, entry.getValue()))
                     {
-                        result = false;
+                        anyMatch = true;
                         break;
                     }
                 }
+                matched = anyMatch;
             }
+            else
+            {
+                final @Nullable String value = getProp(keyFilter);
+                matched = value != null && valueMatches(valuePattern, valueFilter, value);
+            }
+            if (!matched)
+            {
+                result = false;
+                break;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Helper for {@link #contains(List)}: checks the value part of a property filter against a property value.
+     *
+     * @param valuePattern precompiled regex pattern for the value, or {@code null} if {@code valueFilter} is not
+     *     a regex (or there is no value part)
+     * @param valueFilter the raw value filter, or {@code null} if the filter only checks for key existence
+     * @param value the actual property value
+     * @return true if the filter has no value part (existence-only), or the value matches
+     */
+    private static boolean valueMatches(
+        @Nullable Pattern valuePattern,
+        @Nullable String valueFilter,
+        String value
+    )
+    {
+        final boolean result;
+        if (valueFilter == null)
+        {
+            result = true;
+        }
+        else if (valuePattern != null)
+        {
+            result = valuePattern.matcher(value).matches();
+        }
+        else
+        {
+            result = value.equals(valueFilter);
         }
         return result;
     }
