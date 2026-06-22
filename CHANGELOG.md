@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed implementation error ("attempt to replace an active transMgr") during L2L backup shipping when a new shipment created its snapshot or temporary satellite-remote concurrently with the cleanup of a finished shipment deleting its temporary satellite-remote
 - Fixed implementation error ("attempt to replace an active transMgr") when creating or modifying a resource group concurrently with a backup restore/shipment that moves a resource definition into its target resource group
 - Fixed BalanceResources counting an unhealthy diskful and possibly deleting therefore a healthy diskful
+- Fixed implementation error during DRBD .res file regeneration when the existing on-disk file was empty or truncated, which aborted the regeneration instead of rewriting the file
 
 ## [1.34.0-rc.1] - 2026-05-28
 

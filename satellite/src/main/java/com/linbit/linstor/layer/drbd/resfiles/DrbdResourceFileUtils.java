@@ -264,23 +264,32 @@ public class DrbdResourceFileUtils
     /**
      * Compares the contents of 2 res files if they are equal
      * Starts comparing, after finding the 'resources "' section, because Linstor generates a header with date.
-     * @param resA String content of first res file to compare
-     * @param resB String content of second res file to compare
+     *
+     * @param onDiskContent String content of the existing res file on disk (may be empty or corrupt)
+     * @param newContent String content of the freshly generated res file
      * @return true if real res file content is the same
      */
-    private boolean isResFileEqual(String resA, String resB)
+    // package-private and static (uses no instance state) so it can be unit tested directly
+    static boolean isResFileEqual(String onDiskContent, String newContent)
     {
         boolean equal;
-        int beginA = resA.indexOf("resource \"");
-        int beginB = resB.indexOf("resource \"");
-
-        if (beginA >= 0 && beginB >= 0)
+        int beginNew = newContent.indexOf("resource \"");
+        if (beginNew < 0)
         {
-            equal = resA.substring(beginA).equals(resB.substring(beginB));
+            // The freshly generated content must always contain a resource section
+            throw new ImplementationError("isResFileEqual should only be used for DRBD res files.");
+        }
+
+        int beginOnDisk = onDiskContent.indexOf("resource \"");
+        if (beginOnDisk < 0)
+        {
+            // The on-disk file is empty, truncated or otherwise corrupt (no resource section).
+            // Treat it as not equal so the caller rewrites the file.
+            equal = false;
         }
         else
         {
-            throw new ImplementationError("isResFileEqual should only be used for DRBD res files.");
+            equal = onDiskContent.substring(beginOnDisk).equals(newContent.substring(beginNew));
         }
         return equal;
     }
