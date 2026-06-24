@@ -23,6 +23,7 @@ Pre-Depends: java-runtime-headless (>= 21)
 Depends: ${misc:Depends},
          linstor-common (= ${binary:Version}),
          tar,
+         libnss-systemd,
 Description: DRBD distributed resource management utility
  LINSTOR controller manages the configuration of the LINSTOR cluster
  and all of its managed storage resources.
