@@ -728,19 +728,19 @@ public abstract class AbsBackupShippingService implements SystemService
                         InternalApiConsts.VALUE_PREPARE_ABORT,
                         accCtx
                     );
-                    shipmentFailed &= BackupShippingUtils.hasShippingStatus(
+                    shipmentFailed |= BackupShippingUtils.hasShippingStatus(
                         snapDfn,
                         null,
                         InternalApiConsts.VALUE_ABORTING,
                         accCtx
                     );
-                    shipmentFailed &= BackupShippingUtils.hasShippingStatus(
+                    shipmentFailed |= BackupShippingUtils.hasShippingStatus(
                         snapDfn,
                         null,
                         InternalApiConsts.VALUE_ABORTED,
                         accCtx
                     );
-                    shipmentFailed &= BackupShippingUtils.hasShippingStatus(
+                    shipmentFailed |= BackupShippingUtils.hasShippingStatus(
                         snapDfn,
                         null,
                         InternalApiConsts.VALUE_FAILED,
