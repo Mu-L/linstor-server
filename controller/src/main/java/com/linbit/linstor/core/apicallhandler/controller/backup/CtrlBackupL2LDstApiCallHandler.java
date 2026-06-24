@@ -774,15 +774,31 @@ public class CtrlBackupL2LDstApiCallHandler
             for (String snapName : rscAndSnapNames.getValue())
             {
                 String actualSnapName;
+                String shippingStatus;
                 if (snapName.endsWith(otherClusterHash))
                 {
                     // we are src-cluster, target sent us snap-name + hash
                     actualSnapName = snapName.substring(0, snapName.length() - otherClusterHash.length());
+                    // on the source the in-progress shipment is actually aborted separately (setFlagsAndAbort),
+                    // so here the prepare-abort is only a heads-up that lets the sending satellite treat the
+                    // upcoming connection drop as an abort instead of an error.
+                    shippingStatus = InternalApiConsts.VALUE_PREPARE_ABORT;
                 }
                 else
                 {
                     // we are target cluster, src sent us snap-name, but we need snap-name + hash
                     actualSnapName = snapName + otherClusterHash;
+                    // VALUE_ABORTING (instead of the merely-passive VALUE_PREPARE_ABORT) makes the receiving
+                    // satellite actively tear down the running receive-daemon and send BackupShippingReceived,
+                    // which triggers shippingReceived() and releases the restore-lock (the BackupInfoManager
+                    // restore-entries and the RESTORE_TARGET flag) as well as deleting the partially received
+                    // snapshot. With VALUE_PREPARE_ABORT the satellite only marks the daemon and waits for the
+                    // sender's connection to drop on its own; if that never cleanly happens (e.g. the source
+                    // side is torn down while the receive is throttled) the notification never arrives,
+                    // restoreContainsRscDfn() stays true forever and any further restore/delete of this
+                    // resource is rejected with "is currently being restored from a backup" until the
+                    // controller is restarted.
+                    shippingStatus = InternalApiConsts.VALUE_ABORTING;
                 }
                 // no need to parse string into SnapshotName since the snap exists on other cluster with that name
                 SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, actualSnapName, false);
@@ -793,7 +809,7 @@ public class CtrlBackupL2LDstApiCallHandler
                         snapDfn.getSnapDfnProps(apiCtx)
                             .setProp(
                                 InternalApiConsts.KEY_SHIPPING_STATUS,
-                                InternalApiConsts.VALUE_PREPARE_ABORT,
+                                shippingStatus,
                                 BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC
                             );
                         snapsToUpdate.add(snapDfn);
@@ -823,7 +839,7 @@ public class CtrlBackupL2LDstApiCallHandler
                             errorReporter,
                             resp,
                             snapDfn.getResourceName(),
-                            "Preparing backup ''" + snapDfn.getName() + "'' of {1} on {0} for abort"
+                            "Aborting backup ''" + snapDfn.getName() + "'' of {1} on {0}"
                         )
                     )
             );

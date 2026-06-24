@@ -31,6 +31,7 @@ import com.linbit.linstor.core.BackupInfoManager;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlApiDataLoader;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRemoteApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotDeleteApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlTransactionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.FreeCapacityFetcher;
@@ -122,6 +123,7 @@ public class CtrlBackupApiCallHandler
     private final ResourceDefinitionRepository rscDfnRepo;
     private final CtrlBackupApiHelper backupHelper;
     private final BackupShippingRestClient backupClient;
+    private final Provider<CtrlRemoteApiCallHandler> ctrlRemoteApiCallHandler;
 
     @Inject
     public CtrlBackupApiCallHandler(
@@ -140,7 +142,8 @@ public class CtrlBackupApiCallHandler
         SystemConfProtectionRepository sysCfgRepoRef,
         ResourceDefinitionRepository rscDfnRepoRef,
         CtrlBackupApiHelper backupHelperRef,
-        BackupShippingRestClient backupClientRef
+        BackupShippingRestClient backupClientRef,
+        Provider<CtrlRemoteApiCallHandler> ctrlRemoteApiCallHandlerRef
     )
     {
         peerAccCtx = peerAccCtxRef;
@@ -159,6 +162,7 @@ public class CtrlBackupApiCallHandler
         rscDfnRepo = rscDfnRepoRef;
         backupHelper = backupHelperRef;
         backupClient = backupClientRef;
+        ctrlRemoteApiCallHandler = ctrlRemoteApiCallHandlerRef;
     }
 
     public Flux<ApiCallRc> deleteBackup(
@@ -1324,6 +1328,7 @@ public class CtrlBackupApiCallHandler
     {
         String srcNamespace = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName;
         String dstNamespace = BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC;
+        Set<RemoteName> remotesToCleanup = new HashSet<>();
         for (SnapshotDefinition snapDfn : snapDfnsToUpdateShippingPrepare.get(KEY_SRC))
         {
             // these snapDfns are still in VALUE_SHIPPING_PREPARE and therefore no action needs to be taken except
@@ -1345,6 +1350,18 @@ public class CtrlBackupApiCallHandler
                     InternalApiConsts.VALUE_ABORTED,
                     dstNamespace
                 );
+            // startReceiving registered this rscDfn in the BackupInfoManager (restoreMap + in-progress backups).
+            // A receive aborted while still in VALUE_SHIPPING_PREPARE never reaches the regular completion/abort
+            // cleanup, so without releasing it here restoreContainsRscDfn() stays true and every future restore of
+            // this rscDfn is rejected with "A backup is currently being restored ..." until the controller is
+            // restarted. Release it so the next shipment for this resource can proceed.
+            ResourceDefinition rscDfn = snapDfn.getResourceDefinition();
+            for (Snapshot snap : snapDfn.getAllSnapshots(peerAccCtx.get()))
+            {
+                remotesToCleanup.addAll(
+                    backupInfoMgr.removeAllRestoreEntries(rscDfn, rscDfn.getName().displayValue, snap)
+                );
+            }
         }
         for (SnapshotDefinition snapDfn : snapDfnsToUpdateShippingAbort.get(KEY_SRC))
         {
@@ -1388,7 +1405,7 @@ public class CtrlBackupApiCallHandler
                 " of resource " + rscName,
             ApiConsts.MASK_SUCCESS
         );
-        return flux.transform(
+        Flux<ApiCallRc> ret = flux.transform(
             responses -> CtrlResponseUtils.combineResponses(
                 errorReporter,
                 responses,
@@ -1396,6 +1413,13 @@ public class CtrlBackupApiCallHandler
                 "Abort backups of {1} on {0} started"
             )
         ).concatWith(Flux.just(success));
+        // releasing the restore-locks above may have left transient stlt-remotes without any in-progress
+        // backup; clean those up so they do not linger until the next controller restart
+        if (!remotesToCleanup.isEmpty())
+        {
+            ret = ret.concatWith(ctrlRemoteApiCallHandler.get().cleanupRemotesIfNeeded(remotesToCleanup));
+        }
+        return ret;
     }
 
     public Flux<BackupInfoPojo> backupInfo(
