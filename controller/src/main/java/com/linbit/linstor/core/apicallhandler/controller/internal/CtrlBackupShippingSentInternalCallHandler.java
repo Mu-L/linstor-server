@@ -177,11 +177,31 @@ public class CtrlBackupShippingSentInternalCallHandler
                 Props snapDfnProps = snapDfn.getSnapDfnProps(peerAccCtx.get());
                 String propsNamespc = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName;
                 if (
-                    !successRef && BackupShippingUtils.hasShippingStatus(
-                        snapDfn,
-                        remoteName,
-                        InternalApiConsts.VALUE_ABORTING,
-                        peerAccCtx.get()
+                    !successRef && (
+                        BackupShippingUtils.hasShippingStatus(
+                            snapDfn,
+                            remoteName,
+                            InternalApiConsts.VALUE_ABORTING,
+                            peerAccCtx.get()
+                        ) ||
+                        // A source-initiated abort might already have been requested but not yet have set
+                        // VALUE_ABORTING (that happens in a separate, later transaction of the abort). It does
+                        // however set the passive VALUE_PREPARE_ABORT heads-up in its first transaction. Since
+                        // 'remoteName' is non-null here, both checks look at the source namespace
+                        // (Source/<remote>/ShippingStatus), and VALUE_PREPARE_ABORT is only ever written into that
+                        // namespace by exactly that source-abort path - so reaching this branch always means an
+                        // abort really is in progress for this shipment.
+                        // Yes, it looks odd to treat an "abort prepare" as if it were an actual "abort": but the
+                        // shipment produces only a single shipping-sent notification, and in the racing case it
+                        // arrives before VALUE_ABORTING is set. If we did not handle it as an abort here, we would
+                        // miss it entirely - treating it as a normal failure, rescheduling it and leaving the
+                        // snapshot behind.
+                        BackupShippingUtils.hasShippingStatus(
+                            snapDfn,
+                            remoteName,
+                            InternalApiConsts.VALUE_PREPARE_ABORT,
+                            peerAccCtx.get()
+                        )
                     )
                 )
                 {

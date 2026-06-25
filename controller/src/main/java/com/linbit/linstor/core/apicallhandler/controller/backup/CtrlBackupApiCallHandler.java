@@ -1124,7 +1124,7 @@ public class CtrlBackupApiCallHandler
         boolean createPrm,
         String remoteNameRef
     )
-        throws AccessDeniedException, InvalidNameException
+        throws AccessDeniedException, InvalidNameException, DatabaseException, InvalidValueException
     {
         Flux<ApiCallRc> flux = Flux.empty();
         ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, true);
@@ -1229,6 +1229,23 @@ public class CtrlBackupApiCallHandler
                     }
                 }
             }
+            // The actual VALUE_ABORTING is only set later, in setFlagsAndAbort(). Since backupAbort and shippingSent
+            // are both serialized behind the RSC_DFN_MAP write-lock, a BackupShippingSent(success=false) racing in
+            // between those two transactions would otherwise still observe VALUE_SHIPPING and treat the
+            // abort-induced shipping failure as a normal, retryable error - rescheduling it and keeping the
+            // snapshot. Record the (passive) VALUE_PREPARE_ABORT heads-up already here, in this first transaction,
+            // mirroring what the remote-initiated abort sets on the source via prepareForAbort(). This lets
+            // shippingSent recognize the in-flight abort and route into the abort handling instead of rescheduling.
+            for (SnapshotDefinition snapDfn : snapDfnsToUpdateShippingAbort.get(KEY_SRC))
+            {
+                snapDfn.getSnapDfnProps(peerAccCtx.get())
+                    .setProp(
+                        InternalApiConsts.KEY_SHIPPING_STATUS,
+                        InternalApiConsts.VALUE_PREPARE_ABORT,
+                        BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteNameRef
+                    );
+            }
+            ctrlTransactionHelper.commit();
             if (!snapDfnsToUpdateShippingAbort.isEmpty() && !(remote instanceof S3Remote))
             {
                 if (remote instanceof StltRemote)
