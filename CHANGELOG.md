@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Another attempt to fix rare bug causing "shipping in progress" that can only be cleared by restarting the controller
 - Release the target-side restore-lock when a backup receive is aborted (both while still preparing and while actively shipping), so a stuck "backup is currently being restored" no longer blocks further shipments to a resource until the controller is restarted
 - Fixed shipmentFailed always being false in AbsBackupShippingService.waitForSnapCreateFinished
+- Fixed NullPointerException on the satellite when concurrently deleting multiple volumes with a `FileSystem/Type` property, which marked the resource as failed and returned the delete as an internal error
 
 ## [1.34.0-rc.1] - 2026-05-28
 

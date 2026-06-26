@@ -11,6 +11,7 @@ import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.ResourceGroup;
+import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
@@ -141,6 +142,14 @@ public class MkfsUtils
             {
                 vlmData.disableCheckFileSystem();
                 AbsVolume<Resource> vlm = vlmData.getVolume();
+
+                // A volume being deleted may already have lost its backing device, so never create a
+                // file system on it.
+                if (((Volume) vlm).getFlags().isSomeSet(wrkCtx, Volume.Flags.DELETE, Volume.Flags.DRBD_DELETE))
+                {
+                    continue;
+                }
+
                 VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
                 ResourceDefinition rscDfn = vlm.getResourceDefinition();
                 ResourceGroup rscGrp = rscDfn.getResourceGroup();
@@ -158,7 +167,17 @@ public class MkfsUtils
                     VlmProviderObject<Resource> vlmProviderObject = rsc.getLayerData(wrkCtx).getVlmProviderObject(
                         vlmDfn.getVolumeNumber()
                     );
-                    final String devicePath = vlmProviderObject.getDevicePath();
+                    final @Nullable String devicePath = vlmProviderObject.getDevicePath();
+                    if (devicePath == null)
+                    {
+                        // Not marked for deletion but still no device: unexpected, so warn and skip.
+                        errorReporter.logWarning(
+                            "Skipping file system creation for volume %d of resource '%s': no device path",
+                            vlmDfn.getVolumeNumber().value,
+                            rscDfn.getName().displayValue
+                        );
+                        continue;
+                    }
                     Optional<String> optFsType = MkfsUtils.hasFileSystem(
                         extCmdFactory.create(),
                         devicePath
