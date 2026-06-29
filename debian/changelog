@@ -1,3 +1,41 @@
+linstor-server (1.34.0-1) experimental; urgency=medium
+
+  [ Rene Peinthor ]
+  * Backup: Suppress expected NoSuchUpload error when aborting S3 shipment
+  * gradle: update lockfile
+  * auto-verify-algo: only (re)compute once all DRBD nodes reported their crypto
+  * Backup: lock RSC_GRP_MAP when restore moves the target resource group
+  * update debian files
+  * openapi: add correct security scheme(token auth)
+  * ZFS: fix cleanup of marked-for-deletion clone source snapshot
+  * Backup: lock REMOTE_MAP during L2L source ship snapshot/stlt-remote creation
+  * gitlab-ci: fix coverage report format
+  * gitlab-ci: run nonstandard tests in 2 parallel groups
+  * DrbdResourceFileUtils: handle empty/corrupt on-disk .res file in diff check
+  * debian: add libnss-systemd dependency
+  * REST: Support regex patterns in list filters
+
+  [ ohotnikov.ivan ]
+  * satellite: retry drbdadm secondary after mkfs on transient EBUSY
+
+  [ Gabor Hernadi ]
+  * DrbdLayer: Fix checkstyle issues
+  * BalanceRsc: Do not balance with non-UpToDate resource
+  * Snap,restore: Make sure DRBD_INITIALIZED is handled correctly
+  * BackupShipping: Release target sided lock on abort
+  * BackupShipping: Fix shipmentFailed always being false in waitForSnapCr [...]
+  * Backup,abort: Fix source snapshot left over when shipping fails during abort
+  * K8s: Remove unused dependencies
+
+  [ LINBOT ]
+  * Update dependency checkstyle to v13.5.0
+  * Update dependency ch.qos.logback:logback-classic to v1.5.34
+
+  [ Moritz Tanner ]
+  * MkfsUtils: skip mkfs on volume marked for deletion
+
+ -- Rene Peinthor <rene.peinthor@linbit.com>  Mon, 29 Jun 2026 19:24:28 +0000
+
 linstor-server (1.34.0~rc.1-1) experimental; urgency=medium
 
   [ Rene Peinthor ]
