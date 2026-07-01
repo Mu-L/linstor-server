@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed ArrayIndexOutOfBoundsException in the file storage provider when parsing `losetup` output, which broke the device manager whenever a loop device was present
+
 ## [1.34.0] - 2026-06-29
 
 ### Added

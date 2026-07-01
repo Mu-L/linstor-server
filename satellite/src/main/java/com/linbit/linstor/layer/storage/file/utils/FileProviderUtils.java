@@ -89,8 +89,15 @@ public class FileProviderUtils
     )
         throws StorageException
     {
-        OutputData outputData = LosetupCommands.list(extCmd);
+        return parseLosetupList(LosetupCommands.list(extCmd), allocatedSizeGetter);
+    }
 
+    static Map<String, FileInfo> parseLosetupList(
+        OutputData outputData,
+        ExceptionThrowingFunction<String, Long, StorageException> allocatedSizeGetter
+    )
+        throws StorageException
+    {
         final Map<String, FileInfo> ret = new HashMap<>();
         final String stdOut = new String(outputData.stdoutData, StandardCharsets.UTF_8);
         if (!stdOut.trim().isEmpty())
@@ -101,6 +108,12 @@ public class FileProviderUtils
             {
                 final String line = lines[idx];
                 final String[] data = StringUtils.split(line.trim(), "\\s+");
+                // Skip blank lines (e.g. the trailing empty line from losetup's output) as well as
+                // loop devices that have no backing file
+                if (data.length <= LosetupCommands.LOSETUP_LIST_BACK_FILE_IDX)
+                {
+                    continue;
+                }
                 if (!data[LosetupCommands.LOSETUP_LIST_BACK_FILE_IDX].equals("BACK_FILE"))
                 {
                     ret.put(
