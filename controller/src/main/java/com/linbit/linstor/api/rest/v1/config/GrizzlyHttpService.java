@@ -12,7 +12,10 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.rest.v1.utils.ApiCallRcRestUtils;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.cfg.LinstorConfig.RestAccessLogMode;
+import com.linbit.linstor.core.objects.NetInterface;
+import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.repository.AuthTokenRepository;
+import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.security.AccessContext;
@@ -31,13 +34,28 @@ import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.core.JsonParseException;
@@ -66,6 +84,8 @@ public class GrizzlyHttpService implements SystemService
 {
     private static final int COMPRESSION_MIN_SIZE = 1000; // didn't find a good default, so lets say 1000
     private static final Path AUTO_HTTPS_KEYSTORE_PATH = Paths.get("/var/lib/linstor/autohttps-keystore.p12");
+    private static final int GENERAL_NAME_DNS = 2;
+    private static final int GENERAL_NAME_IP = 7;
 
     private final ErrorReporter errorReporter;
     private final String listenAddress;
@@ -77,6 +97,7 @@ public class GrizzlyHttpService implements SystemService
     private final ResourceConfig restResourceConfig;
     private final Path restAccessLogPath;
     private final SystemConfRepository systemConfRepository;
+    private final NodeRepository nodeRepository;
     private final AccessContext sysCtx;
     private final LockGuardFactory lockGuardFactory;
     private final String webUiDirectory;
@@ -130,6 +151,7 @@ public class GrizzlyHttpService implements SystemService
         registerExceptionMappers(restResourceConfig);
         lockGuardFactory = injector.getInstance(LockGuardFactory.class);
         systemConfRepository = injector.getInstance(SystemConfRepository.class);
+        nodeRepository = injector.getInstance(NodeRepository.class);
     }
 
     private static class HTTPSForwarder extends HttpHandler
@@ -218,6 +240,10 @@ public class GrizzlyHttpService implements SystemService
         Files.delete(tempKeyStore); // keytool requires the file to not exist
         try
         {
+            // SubjectAlternativeName covering every address a client might use to
+            // reach the controller (see buildSubjectAltNames).
+            String subjectAltNames = buildSubjectAltNames();
+
             // Use keytool to generate a self-signed certificate
             ProcessBuilder pb = new ProcessBuilder(
                 "keytool",
@@ -227,6 +253,8 @@ public class GrizzlyHttpService implements SystemService
                 "-keysize", "2048",
                 "-validity", "365",
                 "-dname", "CN=LINSTOR Controller, O=LINBIT, C=AT",
+                "-ext", "san=" + subjectAltNames,
+                "-ext", "eku=serverAuth",
                 "-keystore", tempKeyStore.toString(),
                 "-storepass", password,
                 "-keypass", password,
@@ -247,6 +275,213 @@ public class GrizzlyHttpService implements SystemService
         {
             Files.deleteIfExists(tempKeyStore);
         }
+    }
+
+    /**
+     * Builds the keytool "san=" value used when generating the certificate: the
+     * cluster-wide required names (see requiredSubjectAltNames) plus the running
+     * node's own local interface addresses and hostname(s). The local addresses
+     * help reach this specific node but are deliberately left out of the reuse
+     * decision, so an HA failover to a peer does not force a regeneration. An
+     * address the controller cannot learn at all, such as an external NAT or VIP
+     * address, still needs an operator-provided keystore (the [https] keystore
+     * option).
+     */
+    private String buildSubjectAltNames()
+    {
+        LinkedHashSet<String> sans = new LinkedHashSet<>(requiredSubjectAltNames());
+
+        try
+        {
+            InetAddress localHost = InetAddress.getLocalHost();
+            for (String name : new String[] {localHost.getCanonicalHostName(), localHost.getHostName()})
+            {
+                if (name != null && !name.isEmpty() && !isIpLiteral(name))
+                {
+                    sans.add("dns:" + name);
+                }
+            }
+        }
+        catch (UnknownHostException ignored)
+        {
+            // best-effort: no resolvable local hostname
+        }
+
+        try
+        {
+            Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+            while (ifaces != null && ifaces.hasMoreElements())
+            {
+                Enumeration<InetAddress> addrs = ifaces.nextElement().getInetAddresses();
+                while (addrs.hasMoreElements())
+                {
+                    InetAddress addr = addrs.nextElement();
+                    // loopback is in the required set; link-local/scoped are not useful in a cert
+                    if (!addr.isLoopbackAddress() && !addr.isLinkLocalAddress() && !addr.isMulticastAddress())
+                    {
+                        String ip = addr.getHostAddress();
+                        int scope = ip.indexOf('%');
+                        if (scope >= 0)
+                        {
+                            ip = ip.substring(0, scope);
+                        }
+                        sans.add("ip:" + ip);
+                    }
+                }
+            }
+        }
+        catch (SocketException ignored)
+        {
+            // best-effort: could not enumerate interfaces
+        }
+
+        return String.join(",", sans);
+    }
+
+    /**
+     * The cluster-wide SubjectAlternativeName entries the certificate must cover:
+     * localhost plus every controller-capable node's name and registered
+     * addresses from the node database. These are the addresses a client uses to
+     * reach any controller and are identical on every node, so a certificate that
+     * covers them can be reused across an HA failover instead of regenerated.
+     * Returned as "ip:x"/"dns:y" tokens. Best-effort: if the node database is not
+     * readable yet, only localhost is returned.
+     */
+    private LinkedHashSet<String> requiredSubjectAltNames()
+    {
+        LinkedHashSet<String> sans = new LinkedHashSet<>();
+        sans.add("dns:localhost");
+        sans.add("ip:127.0.0.1");
+        sans.add("ip:::1");
+
+        try
+        {
+            for (Node node : nodeRepository.getMapForView(sysCtx).values())
+            {
+                Node.Type nodeType = node.getNodeType(sysCtx);
+                if (nodeType == Node.Type.CONTROLLER || nodeType == Node.Type.COMBINED)
+                {
+                    String nodeName = node.getName().displayValue;
+                    if (nodeName != null && !nodeName.isEmpty() && !isIpLiteral(nodeName))
+                    {
+                        sans.add("dns:" + nodeName);
+                    }
+                    Iterator<NetInterface> netIfs = node.iterateNetInterfaces(sysCtx);
+                    while (netIfs.hasNext())
+                    {
+                        String addr = netIfs.next().getAddress(sysCtx).getAddress();
+                        if (addr != null && !addr.isEmpty())
+                        {
+                            sans.add((isIpLiteral(addr) ? "ip:" : "dns:") + addr);
+                        }
+                    }
+                }
+            }
+        }
+        catch (AccessDeniedException ignored)
+        {
+            // best-effort: node database not readable in this context
+        }
+
+        return sans;
+    }
+
+    private static boolean isIpLiteral(String host)
+    {
+        // Do not emit a dns: entry for a name that is really an IP literal
+        return host.indexOf(':') >= 0 || host.matches("^[0-9.]+$");
+    }
+
+    /**
+     * Returns true if the persisted keystore can be reused: its certificate
+     * covers the cluster-wide required SubjectAlternativeNames (see
+     * requiredSubjectAltNames). Otherwise it is regenerated, for example after
+     * a new controller node was added. The per-node local addresses are
+     * excluded from the SAN check so an HA failover to a peer reuses the
+     * certificate instead of regenerating it. If the keystore cannot be read,
+     * returns false so it gets regenerated.
+     */
+    private boolean canReuseKeystore(byte[] keystoreBytes, String password)
+    {
+        boolean reuse = false;
+        try
+        {
+            KeyStore ks = KeyStore.getInstance("PKCS12");
+            ks.load(new ByteArrayInputStream(keystoreBytes), password.toCharArray());
+            Certificate cert = ks.getCertificate("linstor");
+            if (cert instanceof X509Certificate x509)
+            {
+                Set<String> present = new HashSet<>();
+                Collection<List<?>> certSans = x509.getSubjectAlternativeNames();
+                if (certSans != null)
+                {
+                    for (List<?> entry : certSans)
+                    {
+                        // entry is [Integer generalNameType, value]
+                        if (entry.size() >= 2 &&
+                            entry.get(0) instanceof Integer generalNameType &&
+                            entry.get(1) instanceof String value)
+                        {
+                            present.add(normalizeSanValue(generalNameType, value));
+                        }
+                    }
+                }
+                reuse = present.containsAll(sanValues(requiredSubjectAltNames()));
+            }
+        }
+        catch (Exception exc)
+        {
+            errorReporter.logWarning(
+                "Could not inspect the existing AutoHTTPS keystore, regenerating it: %s",
+                exc.getMessage()
+            );
+        }
+        return reuse;
+    }
+
+    /**
+     * Normalizes "ip:x"/"dns:y" tokens into a set for comparison against a
+     * certificate's SubjectAlternativeName entries.
+     */
+    private Set<String> sanValues(Collection<String> tokens)
+    {
+        Set<String> out = new HashSet<>();
+        for (String token : tokens)
+        {
+            int colon = token.indexOf(':');
+            if (colon >= 0)
+            {
+                int type = token.substring(0, colon).equalsIgnoreCase("ip") ? GENERAL_NAME_IP : GENERAL_NAME_DNS;
+                out.add(normalizeSanValue(type, token.substring(colon + 1)));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Normalizes a SAN value so the two sides compare equal regardless of form.
+     * IP addresses are canonicalized through InetAddress (so ::1 and its expanded
+     * form match); names are lower-cased.
+     */
+    private static String normalizeSanValue(int generalNameType, String value)
+    {
+        String normalized = null;
+        if (generalNameType == GENERAL_NAME_IP)
+        {
+            try
+            {
+                normalized = "ip:" + InetAddress.getByName(value).getHostAddress();
+            }
+            catch (UnknownHostException ignored)
+            {
+                // not a parseable literal, fall through to a plain compare
+            }
+        }
+        if (normalized == null)
+        {
+            normalized = "dns:" + value.toLowerCase(Locale.ROOT);
+        }
+        return normalized;
     }
 
     private void initGrizzly(final String bindAddress, final String httpsBindAddress)
@@ -306,9 +541,11 @@ public class GrizzlyHttpService implements SystemService
                 try
                 {
                     byte[] keyStoreBytes;
-                    if (Files.exists(AUTO_HTTPS_KEYSTORE_PATH))
+                    byte[] existingKeyStore = Files.exists(AUTO_HTTPS_KEYSTORE_PATH) ?
+                        Files.readAllBytes(AUTO_HTTPS_KEYSTORE_PATH) : null;
+                    if (existingKeyStore != null && canReuseKeystore(existingKeyStore, selfSignedPassword))
                     {
-                        keyStoreBytes = Files.readAllBytes(AUTO_HTTPS_KEYSTORE_PATH);
+                        keyStoreBytes = existingKeyStore;
                         errorReporter.logInfo(
                             "Reusing existing AutoHTTPS keystore from %s",
                             AUTO_HTTPS_KEYSTORE_PATH
@@ -319,7 +556,10 @@ public class GrizzlyHttpService implements SystemService
                         keyStoreBytes = generateSelfSignedKeyStore(selfSignedPassword);
                         Files.write(AUTO_HTTPS_KEYSTORE_PATH, keyStoreBytes);
                         errorReporter.logInfo(
-                            "Generated new AutoHTTPS keystore and saved to %s",
+                            existingKeyStore == null ?
+                                "Generated new AutoHTTPS keystore and saved to %s" :
+                                "Regenerated the AutoHTTPS keystore at %s because the existing certificate" +
+                                    " no longer covered all controller addresses",
                             AUTO_HTTPS_KEYSTORE_PATH
                         );
                     }

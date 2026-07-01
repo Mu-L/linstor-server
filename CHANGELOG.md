@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed ArrayIndexOutOfBoundsException in the file storage provider when parsing `losetup` output, which broke the device manager whenever a loop device was present
+- Fixed AutoHTTPS certificate missing SubjectAlternativeName entries
 
 ## [1.34.0] - 2026-06-29
 
