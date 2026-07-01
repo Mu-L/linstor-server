@@ -47,6 +47,8 @@ import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
@@ -84,6 +86,7 @@ public class GrizzlyHttpService implements SystemService
 {
     private static final int COMPRESSION_MIN_SIZE = 1000; // didn't find a good default, so lets say 1000
     private static final Path AUTO_HTTPS_KEYSTORE_PATH = Paths.get("/var/lib/linstor/autohttps-keystore.p12");
+    private static final Duration KEYSTORE_RENEW_MARGIN = Duration.ofDays(90);
     private static final int GENERAL_NAME_DNS = 2;
     private static final int GENERAL_NAME_IP = 7;
 
@@ -251,7 +254,7 @@ public class GrizzlyHttpService implements SystemService
                 "-alias", "linstor",
                 "-keyalg", "RSA",
                 "-keysize", "2048",
-                "-validity", "365",
+                "-validity", "1825",
                 "-dname", "CN=LINSTOR Controller, O=LINBIT, C=AT",
                 "-ext", "san=" + subjectAltNames,
                 "-ext", "eku=serverAuth",
@@ -393,13 +396,15 @@ public class GrizzlyHttpService implements SystemService
     }
 
     /**
-     * Returns true if the persisted keystore can be reused: its certificate
-     * covers the cluster-wide required SubjectAlternativeNames (see
-     * requiredSubjectAltNames). Otherwise it is regenerated, for example after
-     * a new controller node was added. The per-node local addresses are
-     * excluded from the SAN check so an HA failover to a peer reuses the
-     * certificate instead of regenerating it. If the keystore cannot be read,
-     * returns false so it gets regenerated.
+     * Returns true if the persisted keystore can be reused: its certificate is
+     * not expired or close to expiring, and it covers the cluster-wide required
+     * SubjectAlternativeNames (see requiredSubjectAltNames). Otherwise it is
+     * regenerated, for example after a new controller node was added, or as the
+     * certificate nears its validity end - a restart alone would otherwise reuse
+     * it indefinitely. The per-node local addresses are excluded from the SAN
+     * check so an HA failover to a peer reuses the certificate instead of
+     * regenerating it. If the keystore cannot be read, returns false so it gets
+     * regenerated.
      */
     private boolean canReuseKeystore(byte[] keystoreBytes, String password)
     {
@@ -409,7 +414,9 @@ public class GrizzlyHttpService implements SystemService
             KeyStore ks = KeyStore.getInstance("PKCS12");
             ks.load(new ByteArrayInputStream(keystoreBytes), password.toCharArray());
             Certificate cert = ks.getCertificate("linstor");
-            if (cert instanceof X509Certificate x509)
+            // Regenerate before the certificate expires; a restart alone reuses it.
+            if (cert instanceof X509Certificate x509 &&
+                x509.getNotAfter().toInstant().isAfter(Instant.now().plus(KEYSTORE_RENEW_MARGIN)))
             {
                 Set<String> present = new HashSet<>();
                 Collection<List<?>> certSans = x509.getSubjectAlternativeNames();
@@ -559,7 +566,7 @@ public class GrizzlyHttpService implements SystemService
                             existingKeyStore == null ?
                                 "Generated new AutoHTTPS keystore and saved to %s" :
                                 "Regenerated the AutoHTTPS keystore at %s because the existing certificate" +
-                                    " no longer covered all controller addresses",
+                                    " no longer covered all controller addresses or was near expiry",
                             AUTO_HTTPS_KEYSTORE_PATH
                         );
                     }
