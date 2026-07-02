@@ -280,7 +280,7 @@ test:
   coverage: '/Total (\d+.\d+) % covered/'
   artifacts:
     reports:
-      junit: build/test-results/test/TEST-*.xml
+      junit: "**/build/test-results/test/TEST-*.xml"
       coverage_report:
         coverage_format: jacoco
         path: build/reports/jacoco/test/jacocoTestReport.xml
