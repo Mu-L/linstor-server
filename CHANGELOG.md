@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed ArrayIndexOutOfBoundsException in the file storage provider when parsing `losetup` output, which broke the device manager whenever a loop device was present
 - Fixed AutoHTTPS certificate missing SubjectAlternativeName entries
 - Fixed AutoHTTPS certificate never being renewed, now valid for 5 years and automatically renews at controller startup within 90 days of expiry
+- Fixed missing 3370 -> 3371 redirect for the /ui endpoint with AutoHTTPS enabled
 
 ## [1.34.0] - 2026-06-29
 

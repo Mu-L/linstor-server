@@ -181,6 +181,7 @@ public class GrizzlyHttpService implements SystemService
     {
         ArrayList<String> fwdMappings = new ArrayList<>();
         fwdMappings.add("/v1");
+        fwdMappings.add("/ui");
 
         boolean disableHttpMetrics = false;
         try (LockGuard ignored = lockGuardFactory.build(READ, CTRL_CONFIG))
