@@ -22,26 +22,6 @@ public class ControllerSecurityModule extends AbstractModule
     {
     }
 
-    @Provides
-    public <T extends ControllerDatabase> SecurityLevelSetter securityLevelSetter(
-        final ControllerDatabase dbConnectionPool,
-        final DbAccessor<? extends ControllerDatabase> securityDbDriver
-    )
-    {
-        return (accCtx, newLevel) ->
-        SecurityLevel.set(accCtx, newLevel, (T) dbConnectionPool, (DbAccessor<T>) securityDbDriver);
-    }
-
-    @Provides
-    public <T extends ControllerDatabase> MandatoryAuthSetter mandatoryAuthSetter(
-        final ControllerDatabase dbConnectionPool,
-        final DbAccessor<? extends ControllerDatabase> securityDbDriver
-    )
-    {
-        return (accCtx, newPolicy) ->
-        Authentication.setRequired(accCtx, newPolicy, (T) dbConnectionPool, (DbAccessor<T>) securityDbDriver);
-    }
-
     @SuppressWarnings("unchecked")
     @Provides
     @Singleton

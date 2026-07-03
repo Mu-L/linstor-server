@@ -28,8 +28,6 @@ import com.linbit.linstor.netcom.TcpConnector;
 import com.linbit.linstor.proto.MsgHeaderOuterClass.MsgHeader.MsgType;
 import com.linbit.linstor.proto.common.ApiCallResponseOuterClass;
 import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.Authentication;
-import com.linbit.linstor.security.Identity;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.locks.LockGuard;
 import com.linbit.utils.MathUtils;
@@ -396,10 +394,8 @@ public class CommonMessageProcessor implements MessageProcessor
             AccessContext peerAccCtx = peer.getAccessContext();
             // API will execute
             // - if no authentication is required for that specific API
-            // - if authentication is turned off globally by the security subsystem
-            // - if the peer's access context has non-public (= authenticated) identity
-            if (!(apiMapEntry.reqAuth && Authentication.isRequired()) ||
-                !peerAccCtx.subjectId.equals(Identity.PUBLIC_ID))
+            // - if the peer has completed the authentication handshake
+            if (!apiMapEntry.reqAuth || peer.isAuthenticated())
             {
                 Long apiCallId = respond ? getApiCallId(header) : 0L;
 

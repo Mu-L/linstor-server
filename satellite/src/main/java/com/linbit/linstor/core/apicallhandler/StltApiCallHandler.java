@@ -258,27 +258,9 @@ public class StltApiCallHandler
             nodeName
         );
 
-        // FIXME In the absence of any means of identification, assume the identity of the privileged API context
-        // for the peer.
-        AccessContext curCtx = controllerPeer.getAccessContext();
-        try
-        {
-            AccessContext newCtx = apiCtx.impersonate(
-                apiCtx.subjectId, curCtx.subjectRole, curCtx.subjectDomain
-            );
-            controllerPeer.setAccessContext(apiCtx, newCtx);
-        }
-        catch (AccessDeniedException accExc)
-        {
-            errorReporter.reportError(
-                Level.ERROR,
-                new ImplementationError(
-                    "Creation of an access context for a Controller by the " +
-                    apiCtx.subjectRole.name.displayValue + " role failed",
-                    accExc
-                )
-            );
-        }
+        // the controller successfully passed the CtrlAuth handshake, mark the peer as authenticated
+        // so that it may call APIs that require authentication
+        controllerPeer.setAuthenticated(true);
         try
         {
             // this will be cleared and re-set in fullsync. This is just for safety so that this property
