@@ -302,19 +302,8 @@ public class ReadOnlyPropsImpl implements Props
 
     private void denyAccess()
     {
-        throw new AccessDeniedException(
-            "Permission to modify a read-only properties container was denied",
-            // Description
-            "Permission to modify the properties of an object was denied",
-            // Cause
-            "A read-only view of the object properties was provided. The common reason is " +
-            "that the role that was used to fetch the object properties does not have " +
-            "write access to the protected object that the properties belong to.",
-            // Correction
-            "Write access must be granted to the protected object to fetch a modifiable " +
-            "view of the object properties",
-            // No error detail
-            null
+        throw new UnsupportedOperationException(
+            "Permission to modify a read-only properties container was denied"
         );
     }
 

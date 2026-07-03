@@ -8,7 +8,6 @@ import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine.DataToString;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.utils.ExceptionThrowingFunction;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -20,10 +19,10 @@ class SQLSingleColumnDriver<DATA, INPUT_TYPE, DB_TYPE> implements SingleColumnDa
 {
     private final SQLEngine sqlEngine;
     private final ErrorReporter errorReporter;
-    private final Map<Column, ExceptionThrowingFunction<DATA, Object>> setters;
+    private final Map<Column, Function<DATA, Object>> setters;
     private final Column colToUpdate;
     private final DataToString<DATA> dataToString;
-    private final ExceptionThrowingFunction<DATA, String> dataValueToString;
+    private final Function<DATA, String> dataValueToString;
 
     private final DatabaseTable table;
     private final String updateStatement;
@@ -33,11 +32,11 @@ class SQLSingleColumnDriver<DATA, INPUT_TYPE, DB_TYPE> implements SingleColumnDa
     SQLSingleColumnDriver(
         SQLEngine sqlEngineRef,
         ErrorReporter errorReporterRef,
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         Column colToUpdateRef,
         Function<INPUT_TYPE, DB_TYPE> mapperRef,
         DataToString<DATA> dataToStringRef,
-        ExceptionThrowingFunction<DATA, String> dataValueToStringRef,
+        Function<DATA, String> dataValueToStringRef,
         DataToString<INPUT_TYPE> inputToStringRef
     )
     {
@@ -65,7 +64,7 @@ class SQLSingleColumnDriver<DATA, INPUT_TYPE, DB_TYPE> implements SingleColumnDa
                     table.getName(),
                     colToUpdate.getName(),
                     "<Array of bytes>",
-                    dataValueToString.accept(parentRef) == null ? "null" : "<Array of bytes>",
+                    dataValueToString.apply(parentRef) == null ? "null" : "<Array of bytes>",
                     dataToString.toString(parentRef)
                 );
             }
@@ -76,13 +75,13 @@ class SQLSingleColumnDriver<DATA, INPUT_TYPE, DB_TYPE> implements SingleColumnDa
                     table.getName(),
                     colToUpdate.getName(),
                     oldElementRef == null ? "null" : inputToStringFct.toString(oldElementRef),
-                    dataValueToString.accept(parentRef),
+                    dataValueToString.apply(parentRef),
                     dataToString.toString(parentRef)
                 );
             }
             try (PreparedStatement stmt = sqlEngine.getConnection().prepareStatement(updateStatement))
             {
-                int idx = fillSetter(stmt, 1, (DB_TYPE) setters.get(colToUpdate).accept(parentRef));
+                int idx = fillSetter(stmt, 1, (DB_TYPE) setters.get(colToUpdate).apply(parentRef));
                 sqlEngine.setPrimaryValues(setters, stmt, idx, table, parentRef);
 
                 stmt.executeUpdate();
@@ -94,7 +93,7 @@ class SQLSingleColumnDriver<DATA, INPUT_TYPE, DB_TYPE> implements SingleColumnDa
                     table.getName(),
                     colToUpdate.getName(),
                     "<Array of bytes>",
-                    dataValueToString.accept(parentRef) == null ? "null" : "<Array of bytes>",
+                    dataValueToString.apply(parentRef) == null ? "null" : "<Array of bytes>",
                     dataToString.toString(parentRef)
                 );
             }
@@ -105,7 +104,7 @@ class SQLSingleColumnDriver<DATA, INPUT_TYPE, DB_TYPE> implements SingleColumnDa
                     table.getName(),
                     colToUpdate.getName(),
                     oldElementRef == null ? "null" : inputToStringFct.toString(oldElementRef),
-                    dataValueToString.accept(parentRef),
+                    dataValueToString.apply(parentRef),
                     dataToString.toString(parentRef)
                 );
             }

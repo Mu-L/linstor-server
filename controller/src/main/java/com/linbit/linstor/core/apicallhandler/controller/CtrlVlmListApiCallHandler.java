@@ -131,103 +131,96 @@ public class CtrlVlmListApiCallHandler
                 .filter(rscDfn -> RegexMatcher.matchesAny(resourceFilter, rscDfn.getName().displayValue))
                 .forEach(rscDfn ->
                 {
-                    try
+                    for (Resource rsc : rscDfn.streamResource()
+                        .filter(rsc -> RegexMatcher.matchesAny(
+                            nodesFilter, rsc.getNode().getName().displayValue))
+                        .collect(toList()))
                     {
-                        for (Resource rsc : rscDfn.streamResource()
-                            .filter(rsc -> RegexMatcher.matchesAny(
-                                nodesFilter, rsc.getNode().getName().displayValue))
-                            .collect(toList()))
+                        // prop filter
+                        final ReadOnlyProps props = rsc.getProps();
+                        if (props.contains(propFilters))
                         {
-                            // prop filter
-                            final ReadOnlyProps props = rsc.getProps();
-                            if (props.contains(propFilters))
+                            // create our api object ourselves to filter the volumes by storage pools
+
+                            // build volume list filtered by storage pools (if provided)
+                            List<VolumeApi> volumes = new ArrayList<>();
+                            List<AbsRscLayerObject<Resource>> storageRscList = LayerUtils
+                                .getChildLayerDataByKind(
+                                rsc.getLayerData(),
+                                DeviceLayerKind.STORAGE
+                            );
+                            Iterator<Volume> itVolumes = rsc.iterateVolumes();
+                            while (itVolumes.hasNext())
                             {
-                                // create our api object ourselves to filter the volumes by storage pools
-
-                                // build volume list filtered by storage pools (if provided)
-                                List<VolumeApi> volumes = new ArrayList<>();
-                                List<AbsRscLayerObject<Resource>> storageRscList = LayerUtils
-                                    .getChildLayerDataByKind(
-                                    rsc.getLayerData(),
-                                    DeviceLayerKind.STORAGE
-                                );
-                                Iterator<Volume> itVolumes = rsc.iterateVolumes();
-                                while (itVolumes.hasNext())
+                                Volume vlm = itVolumes.next();
+                                boolean addToList = storPoolsFilter.isEmpty();
+                                if (!addToList)
                                 {
-                                    Volume vlm = itVolumes.next();
-                                    boolean addToList = storPoolsFilter.isEmpty();
-                                    if (!addToList)
+                                    VolumeNumber vlmNr = vlm.getVolumeDefinition().getVolumeNumber();
+                                    for (AbsRscLayerObject<Resource> storageRsc : storageRscList)
                                     {
-                                        VolumeNumber vlmNr = vlm.getVolumeDefinition().getVolumeNumber();
-                                        for (AbsRscLayerObject<Resource> storageRsc : storageRscList)
+                                        if (RegexMatcher.matchesAny(
+                                            storPoolsFilter,
+                                            storageRsc.getVlmProviderObject(vlmNr).getStorPool().getName()
+                                                .displayValue)
+                                        )
                                         {
-                                            if (RegexMatcher.matchesAny(
-                                                storPoolsFilter,
-                                                storageRsc.getVlmProviderObject(vlmNr).getStorPool().getName()
-                                                    .displayValue)
-                                            )
-                                            {
-                                                addToList = true;
-                                                break;
-                                            }
+                                            addToList = true;
+                                            break;
                                         }
                                     }
-                                    if (addToList)
+                                }
+                                if (addToList)
+                                {
+                                    if (vlmAllocatedAnswers != null)
                                     {
-                                        if (vlmAllocatedAnswers != null)
+                                        VlmAllocatedResult vlmAllocResult = vlmAllocatedAnswers.get(vlm.getKey());
+                                        if (vlmAllocResult != null)
                                         {
-                                            VlmAllocatedResult vlmAllocResult = vlmAllocatedAnswers.get(vlm.getKey());
-                                            if (vlmAllocResult != null)
-                                            {
-                                                vlm.clearReports();
-                                                vlm.addReports(vlmAllocResult.getApiCallRc());
-                                            }
+                                            vlm.clearReports();
+                                            vlm.addReports(vlmAllocResult.getApiCallRc());
                                         }
-                                        volumes.add(vlm.getApiData(
-                                            getAllocated(
-                                                vlmAllocatedAnswers, vlm)
-                                            )
-                                        );
                                     }
-                                }
-
-                                List<ResourceConnectionApi> rscConns = new ArrayList<>();
-                                for (ResourceConnection rscConn : rsc.getAbsResourceConnections())
-                                {
-                                    rscConns.add(rscConn.getApiData());
-                                }
-
-                                if (!volumes.isEmpty())
-                                {
-                                    EffectivePropertiesPojo propsPojo = rsc.getEffectiveProps(
-                                        stltCfgAccessor
+                                    volumes.add(vlm.getApiData(
+                                        getAllocated(
+                                            vlmAllocatedAnswers, vlm)
+                                        )
                                     );
-
-                                    RscPojo filteredRscVlms = new RscPojo(
-                                        rscDfn.getName().getDisplayName(),
-                                        rsc.getNode().getName().getDisplayName(),
-                                        rsc.getNode().getUuid(),
-                                        rscDfn.getApiData(),
-                                        rsc.getUuid(),
-                                        rsc.getStateFlags().getFlagsBits(),
-                                        rsc.getProps().map(),
-                                        volumes,
-                                        null,
-                                        rscConns,
-                                        null,
-                                        null,
-                                        rsc.getLayerData().asPojo(),
-                                        rsc.getCreateTimestamp().orElse(null),
-                                        propsPojo
-                                    );
-                                    rscList.addResource(filteredRscVlms);
                                 }
                             }
+
+                            List<ResourceConnectionApi> rscConns = new ArrayList<>();
+                            for (ResourceConnection rscConn : rsc.getAbsResourceConnections())
+                            {
+                                rscConns.add(rscConn.getApiData());
+                            }
+
+                            if (!volumes.isEmpty())
+                            {
+                                EffectivePropertiesPojo propsPojo = rsc.getEffectiveProps(
+                                    stltCfgAccessor
+                                );
+
+                                RscPojo filteredRscVlms = new RscPojo(
+                                    rscDfn.getName().getDisplayName(),
+                                    rsc.getNode().getName().getDisplayName(),
+                                    rsc.getNode().getUuid(),
+                                    rscDfn.getApiData(),
+                                    rsc.getUuid(),
+                                    rsc.getStateFlags().getFlagsBits(),
+                                    rsc.getProps().map(),
+                                    volumes,
+                                    null,
+                                    rscConns,
+                                    null,
+                                    null,
+                                    rsc.getLayerData().asPojo(),
+                                    rsc.getCreateTimestamp().orElse(null),
+                                    propsPojo
+                                );
+                                rscList.addResource(filteredRscVlms);
+                            }
                         }
-                    }
-                    catch (AccessDeniedException accDeniedExc)
-                    {
-                        // don't add rsc without access
                     }
                 }
                 );

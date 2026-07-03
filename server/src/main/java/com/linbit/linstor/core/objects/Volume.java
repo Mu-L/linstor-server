@@ -111,7 +111,6 @@ public class Volume extends AbsVolume<Resource>
         );
 
         flags = transObjFactory.createStateFlagsImpl(
-            rscRef.getObjProt(),
             this,
             Flags.class,
             this.dbDriver.getStateFlagsPersistence(),

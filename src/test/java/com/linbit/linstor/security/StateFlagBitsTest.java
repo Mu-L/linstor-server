@@ -98,7 +98,7 @@ public class StateFlagBitsTest
             AccessType grantedAt = (AccessType) iteration[0];
             ObjectProtection objProt = createObjectProtection(grantedAt);
             FlagImpl[] preSetFlags = asFlagImplArray(iteration, 1, 2, 3);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -111,15 +111,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.enableAllFlags(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.enableAllFlags(accCtx);
+                fail("Exception expected");
                 assertEquals(preSet, stateFlags.getFlagsBits(rootCtx));
             }
         }
@@ -145,7 +138,7 @@ public class StateFlagBitsTest
             FlagImpl[] preSetFlags = asFlagImplArray(iteration, 1, 2, 3);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -158,15 +151,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.disableAllFlags(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.disableAllFlags(accCtx);
+                fail("Exception expected");
                 assertEquals(preSet, stateFlags.getFlagsBits(rootCtx));
             }
         }
@@ -198,7 +184,7 @@ public class StateFlagBitsTest
             FlagImpl[] flagsToSet = asFlagImplArray(iteration, 4, 5, 6);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -212,15 +198,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.enableFlags(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.enableFlags(accCtx);
+                fail("Exception expected");
                 assertEquals(preSet, stateFlags.getFlagsBits(rootCtx));
             }
         }
@@ -252,7 +231,7 @@ public class StateFlagBitsTest
             FlagImpl[] flagsToUnset = asFlagImplArray(iteration, 4, 5, 6);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -266,15 +245,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.disableFlags(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.disableFlags(accCtx);
+                fail("Exception expected");
                 assertEquals(preSet, stateFlags.getFlagsBits(rootCtx));
             }
         }
@@ -306,7 +278,7 @@ public class StateFlagBitsTest
             FlagImpl[] flagsToSetExcept = asFlagImplArray(iteration, 4, 5, 6);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -321,15 +293,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.enableFlagsExcept(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.enableFlagsExcept(accCtx);
+                fail("Exception expected");
                 assertEquals(preSet, stateFlags.getFlagsBits(rootCtx));
             }
         }
@@ -361,7 +326,7 @@ public class StateFlagBitsTest
             FlagImpl[] flagsToUnset = asFlagImplArray(iteration, 4, 5, 6);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -375,15 +340,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.disableFlagsExcept(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.disableFlagsExcept(accCtx);
+                fail("Exception expected");
                 assertEquals(preSet, stateFlags.getFlagsBits(rootCtx));
             }
         }
@@ -415,7 +373,7 @@ public class StateFlagBitsTest
             FlagImpl[] flagsIsSet = asFlagImplArray(iteration, 4, 5, 6);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -428,15 +386,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.isSet(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.isSet(accCtx);
+                fail("Exception expected");
             }
         }
     }
@@ -467,7 +418,7 @@ public class StateFlagBitsTest
             FlagImpl[] flagsIsUnset = asFlagImplArray(iteration, 4, 5, 6);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -480,15 +431,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.isUnset(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.isUnset(accCtx);
+                fail("Exception expected");
             }
         }
     }
@@ -519,7 +463,7 @@ public class StateFlagBitsTest
             FlagImpl[] flagsIsSomeSet = asFlagImplArray(iteration, 4, 5, 6);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -532,15 +476,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.isSomeSet(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.isSomeSet(accCtx);
+                fail("Exception expected");
             }
         }
     }
@@ -571,7 +508,7 @@ public class StateFlagBitsTest
             FlagImpl[] flagsIsSomeUnset = asFlagImplArray(iteration, 4, 5, 6);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -584,15 +521,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.isSomeUnset(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.isSomeUnset(accCtx);
+                fail("Exception expected");
             }
         }
     }
@@ -617,7 +547,7 @@ public class StateFlagBitsTest
             FlagImpl[] preSetFlags = asFlagImplArray(iteration, 1, 2, 3);
 
             ObjectProtection objProt = createObjectProtection(grantedAt);
-            StateFlagBitsImpl stateFlags = createStateflags(objProt, preSetFlags);
+            StateFlagBitsImpl stateFlags = createStateflags(preSetFlags);
 
             AccessContext accCtx = createUserDefaultAccessContext();
 
@@ -629,15 +559,8 @@ public class StateFlagBitsTest
             }
             else
             {
-                try
-                {
-                    stateFlags.getFlagsBits(accCtx);
-                    fail("Exception expected");
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.getFlagsBits(accCtx);
+                fail("Exception expected");
             }
         }
     }
@@ -655,19 +578,12 @@ public class StateFlagBitsTest
             AccessContext accCtx = createUserDefaultAccessContext();
 
             long expectedMask = 0;
-            StateFlagBitsImpl stateFlags = new StateFlagBitsImpl(objProt, 0);
+            StateFlagBitsImpl stateFlags = new StateFlagBitsImpl(0);
 
             boolean expectException = grantedAt == null || !grantedAt.hasAccess(VIEW);
             if (expectException)
             {
-                try
-                {
-                    stateFlags.getFlagsBits(accCtx);
-                }
-                catch (AccessDeniedException expected)
-                {
-                    // expected
-                }
+                stateFlags.getFlagsBits(accCtx);
             }
             else
             {
@@ -675,7 +591,7 @@ public class StateFlagBitsTest
                 for (int bitsSet = 0; bitsSet < 64; ++bitsSet)
                 {
                     expectedMask |= 1L << bitsSet;
-                    stateFlags = new StateFlagBitsImpl(objProt, expectedMask);
+                    stateFlags = new StateFlagBitsImpl(expectedMask);
                     assertEquals(expectedMask, stateFlags.getValidFlagsBits(accCtx));
                 }
             }
@@ -786,7 +702,7 @@ public class StateFlagBitsTest
                 Collections.singletonList(objProtRef),
                 new Object(),
                 validFlagsMask,
-                ((objProt, oldFlagBits, newFlagBits) -> {}),
+                ((oldFlagBits, newFlagBits) -> {}),
                 testTransMgrProvider
             );
             // as this test should not test persistence, this should be no problem.

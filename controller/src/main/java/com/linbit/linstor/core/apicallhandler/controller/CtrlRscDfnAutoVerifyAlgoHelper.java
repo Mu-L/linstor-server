@@ -71,17 +71,11 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
                 rsc ->
                 {
                     boolean result = false;
-                    try
+                    @Nullable Peer peer = rsc.getNode().getPeer();
+                    if (!rsc.getNode().isDeleted() && peer != null && peer.isFullSyncApplied())
                     {
-                        @Nullable Peer peer = rsc.getNode().getPeer();
-                        if (!rsc.getNode().isDeleted() && peer != null && peer.isFullSyncApplied())
-                        {
-                            result = LayerRscUtils.getLayerStack(rsc)
-                                .contains(DeviceLayerKind.DRBD);
-                        }
-                    }
-                    catch (AccessDeniedException ignored)
-                    {
+                        result = LayerRscUtils.getLayerStack(rsc)
+                            .contains(DeviceLayerKind.DRBD);
                     }
                     return result;
                 }

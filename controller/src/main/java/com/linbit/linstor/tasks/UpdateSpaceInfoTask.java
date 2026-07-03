@@ -83,37 +83,31 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
                     {
                         for (Map.Entry<Volume.Key, VlmAllocatedResult> entry : vlmAllocations.entrySet())
                         {
-                            try
+                            Volume.Key vlmKey = entry.getKey();
+                            ResourceDefinition rscDfn = rscDefRepo.get(vlmKey.getResourceName());
+                            if (rscDfn != null)
                             {
-                                Volume.Key vlmKey = entry.getKey();
-                                ResourceDefinition rscDfn = rscDefRepo.get(vlmKey.getResourceName());
-                                if (rscDfn != null)
+                                Resource rsc = rscDfn.getResource(vlmKey.getNodeName());
+                                if (rsc != null)
                                 {
-                                    Resource rsc = rscDfn.getResource(vlmKey.getNodeName());
-                                    if (rsc != null)
+                                    Volume vlm = rsc.getVolume(vlmKey.getVolumeNumber());
+                                    if (vlm != null && !entry.getValue().hasErrors())
                                     {
-                                        Volume vlm = rsc.getVolume(vlmKey.getVolumeNumber());
-                                        if (vlm != null && !entry.getValue().hasErrors())
+                                        if (vlm.isAllocatedSizeSet()) // avoid unboxing NPE
                                         {
-                                            if (vlm.isAllocatedSizeSet()) // avoid unboxing NPE
+                                            // safe some cpu cycles for noops
+                                            if (vlm.getAllocatedSize() != entry.getValue().getAllocatedSize())
                                             {
-                                                // safe some cpu cycles for noops
-                                                if (vlm.getAllocatedSize() != entry.getValue().getAllocatedSize())
-                                                {
-                                                    vlm.setAllocatedSize(entry.getValue().getAllocatedSize());
-                                                }
-                                            }
-                                            else
-                                            {
-                                                // set always if currently null
                                                 vlm.setAllocatedSize(entry.getValue().getAllocatedSize());
                                             }
                                         }
+                                        else
+                                        {
+                                            // set always if currently null
+                                            vlm.setAllocatedSize(entry.getValue().getAllocatedSize());
+                                        }
                                     }
                                 }
-                            }
-                            catch (AccessDeniedException ignored)
-                            {
                             }
                         }
                         ctrlTransactionHelper.commit();
@@ -143,9 +137,6 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
         {
             nextUpdate = Long.parseLong(systemConfRepository.getCtrlConfForView()
                 .getPropWithDefault(ApiConsts.KEY_UPDATE_CACHE_INTERVAL, DEFAULT_UPDATE_SLEEP));
-        }
-        catch (AccessDeniedException ignored)
-        {
         }
         catch (NumberFormatException nfe)
         {

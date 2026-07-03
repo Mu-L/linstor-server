@@ -41,8 +41,7 @@ public class SatelliteRetcodeDispatcherTest
         true,
         "",
         "INFO",
-        "TRACE",
-        () -> null
+        "TRACE"
     );
 
     private Resource rsc;

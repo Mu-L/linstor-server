@@ -221,7 +221,7 @@ public class TcpConnectorPeer implements Peer
                     // do nothing
                 },
                 exc -> errorReporterRef.reportError(
-                    exc, null, null, "Uncaught exception in processor for peer '" + this + "'")
+                    exc, null, "Uncaught exception in processor for peer '" + this + "'")
             );
     }
 
@@ -762,17 +762,6 @@ public class TcpConnectorPeer implements Peer
             }
             ++msgSentCtr;
         }
-    }
-
-    @Override
-    public AccessContext getAccessContext()
-    {
-        return peerAccCtx;
-    }
-
-    @Override
-    public void setAccessContext(AccessContext newAccCtx)
-    {
     }
 
     @Override

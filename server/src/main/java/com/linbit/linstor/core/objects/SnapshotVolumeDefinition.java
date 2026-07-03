@@ -117,7 +117,6 @@ public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinitio
         vlmDfnRoProps = new ReadOnlyPropsImpl(vlmDfnProps);
 
         flags = transObjFactory.createStateFlagsImpl(
-            snapshotDfnRef.getResourceDefinition().getObjProt(),
             this,
             Flags.class,
             dbDriverRef.getStateFlagsPersistence(),

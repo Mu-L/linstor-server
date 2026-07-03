@@ -312,26 +312,19 @@ public class CtrlRscApiCallHandler
                     upperFilterResources.contains(rscDfn.getName().value))
                 .forEach(rscDfn ->
                 {
-                    try
+                    for (Resource rsc : rscDfn.streamResource()
+                        .filter(rsc -> upperFilterNodes.isEmpty() ||
+                            upperFilterNodes.contains(rsc.getNode().getName().value))
+                        .collect(toList()))
                     {
-                        for (Resource rsc : rscDfn.streamResource()
-                            .filter(rsc -> upperFilterNodes.isEmpty() ||
-                                upperFilterNodes.contains(rsc.getNode().getName().value))
-                            .collect(toList()))
-                        {
-                            rscList.addResource(
-                                rsc.getApiData(
-                                    null,
-                                    null,
-                                    rsc.getEffectiveProps(stltCfgAccessor)
-                                )
-                            );
-                            // fullSyncId and updateId null, as they are not going to be serialized anyways
-                        }
-                    }
-                    catch (AccessDeniedException accDeniedExc)
-                    {
-                        // don't add storpooldfn without access
+                        rscList.addResource(
+                            rsc.getApiData(
+                                null,
+                                null,
+                                rsc.getEffectiveProps(stltCfgAccessor)
+                            )
+                        );
+                        // fullSyncId and updateId null, as they are not going to be serialized anyways
                     }
                 }
                 );

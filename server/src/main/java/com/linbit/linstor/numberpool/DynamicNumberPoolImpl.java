@@ -185,7 +185,6 @@ public class DynamicNumberPoolImpl implements DynamicNumberPool
                 errorReporter.reportError(
                     exc,
                     null,
-                    null,
                     range + " outside of allowed range"
                 );
                 rangesIt.remove();

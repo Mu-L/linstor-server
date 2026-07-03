@@ -63,7 +63,6 @@ public class StorPoolDefinition extends AbsCoreObj<StorPoolDefinition>
         );
 
         transObjs = Arrays.<TransactionObject>asList(
-            objProt,
             storPools,
             props,
             deleted
@@ -130,7 +129,6 @@ public class StorPoolDefinition extends AbsCoreObj<StorPoolDefinition>
             props.delete();
 
             activateTransMgr();
-            objProt.delete();
             dbDriver.delete(this);
 
             deleted.set(Boolean.TRUE);

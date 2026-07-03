@@ -198,31 +198,17 @@ public class CtrlRscGrpApiCallHandler
         List<ResourceGroupApi> ret = new ArrayList<>();
         final List<Pattern> rscGrpsFilter = RegexMatcher.compileAll(rscGrpNames, true);
 
-        try
-        {
-            resourceGroupRepository.getMapForView().values().stream()
-                .filter(rscGrp -> RegexMatcher.matchesAny(rscGrpsFilter, rscGrp.getName().displayValue))
-                .forEach(rscGrp ->
+        resourceGroupRepository.getMapForView().values().stream()
+            .filter(rscGrp -> RegexMatcher.matchesAny(rscGrpsFilter, rscGrp.getName().displayValue))
+            .forEach(rscGrp ->
+                {
+                    final ReadOnlyProps props = rscGrp.getProps();
+                    if (props.contains(propFilters))
                     {
-                        try
-                        {
-                            final ReadOnlyProps props = rscGrp.getProps();
-                            if (props.contains(propFilters))
-                            {
-                                ret.add(rscGrp.getApiData());
-                            }
-                        }
-                        catch (AccessDeniedException accDeniedExc)
-                        {
-                            // don't add resource group without access
-                        }
+                        ret.add(rscGrp.getApiData());
                     }
-                );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            // return an empty list
-        }
+                }
+            );
 
         return ret;
     }

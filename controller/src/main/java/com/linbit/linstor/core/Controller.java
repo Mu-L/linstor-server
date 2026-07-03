@@ -381,7 +381,7 @@ public final class Controller
             privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
             debugCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
 
-            DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(debugCtx, null);
+            DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(null);
             dbgConsole.stdStreamsConsole(DebugConsoleImpl.CONSOLE_PROMPT);
             System.out.println();
 
@@ -440,8 +440,7 @@ public final class Controller
             cfg.isLogPrintStackTrace(),
             LinStor.getHostName(),
             cfg.getLogLevel(),
-            cfg.getLogLevelLinstor(),
-            () -> null
+            cfg.getLogLevelLinstor()
         );
 
         // register CriticalError die error handler

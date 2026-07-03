@@ -110,7 +110,6 @@ public class SslTcpConnectorService extends TcpConnectorService
             commonSerializer,
             msgProcessorRef,
             bindAddress,
-            privAccCtxRef,
             connObserverRef
         );
         if (DEBUG_INIT)
@@ -253,7 +252,6 @@ public class SslTcpConnectorService extends TcpConnectorService
             peerId,
             this,
             connKey,
-            defaultPeerAccCtx,
             sslCtx,
             address,
             node

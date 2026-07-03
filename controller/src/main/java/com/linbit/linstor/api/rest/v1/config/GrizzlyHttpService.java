@@ -186,9 +186,6 @@ public class GrizzlyHttpService implements SystemService
                 .getPropWithDefault(ApiConsts.KEY_DISABLE_HTTP_METRICS, ApiConsts.NAMESPC_REST, "false")
                 .equalsIgnoreCase("true");
         }
-        catch (AccessDeniedException ignored)
-        {
-        }
         if (disableHttpMetrics)
         {
             fwdMappings.add("/metrics");
@@ -354,33 +351,26 @@ public class GrizzlyHttpService implements SystemService
         sans.add("ip:127.0.0.1");
         sans.add("ip:::1");
 
-        try
+        for (Node node : nodeRepository.getMapForView().values())
         {
-            for (Node node : nodeRepository.getMapForView().values())
+            Node.Type nodeType = node.getNodeType();
+            if (nodeType == Node.Type.CONTROLLER || nodeType == Node.Type.COMBINED)
             {
-                Node.Type nodeType = node.getNodeType();
-                if (nodeType == Node.Type.CONTROLLER || nodeType == Node.Type.COMBINED)
+                String nodeName = node.getName().displayValue;
+                if (nodeName != null && !nodeName.isEmpty() && !isIpLiteral(nodeName))
                 {
-                    String nodeName = node.getName().displayValue;
-                    if (nodeName != null && !nodeName.isEmpty() && !isIpLiteral(nodeName))
+                    sans.add("dns:" + nodeName);
+                }
+                Iterator<NetInterface> netIfs = node.iterateNetInterfaces();
+                while (netIfs.hasNext())
+                {
+                    String addr = netIfs.next().getAddress().getAddress();
+                    if (addr != null && !addr.isEmpty())
                     {
-                        sans.add("dns:" + nodeName);
-                    }
-                    Iterator<NetInterface> netIfs = node.iterateNetInterfaces();
-                    while (netIfs.hasNext())
-                    {
-                        String addr = netIfs.next().getAddress().getAddress();
-                        if (addr != null && !addr.isEmpty())
-                        {
-                            sans.add((isIpLiteral(addr) ? "ip:" : "dns:") + addr);
-                        }
+                        sans.add((isIpLiteral(addr) ? "ip:" : "dns:") + addr);
                     }
                 }
             }
-        }
-        catch (AccessDeniedException ignored)
-        {
-            // best-effort: node database not readable in this context
         }
 
         return sans;

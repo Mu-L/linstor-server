@@ -10,7 +10,6 @@ import com.linbit.linstor.annotation.Nullable;
 
 import javax.inject.Singleton;
 
-import java.lang.annotation.Annotation;
 import java.util.Map;
 
 import com.google.common.collect.Maps;
@@ -114,17 +113,9 @@ public class LinStorScope implements Scope
         @Nullable Map<Key<?>, Object> scopedObjects = values.get();
         if (scopedObjects == null)
         {
-            Annotation annotation = key.getAnnotation();
-            Class<? extends Annotation> annotationType = key.getAnnotationType();
-
-            boolean isErrorReporterContext = annotation != null && (annotation instanceof ErrorReporterContext);
-            isErrorReporterContext |= annotationType != null && annotationType.equals(ErrorReporterContext.class);
-            if (!isErrorReporterContext)
-            {
-                throw new OutOfScopeException(
-                    "Cannot access " + key + " outside of a scoping block"
-                );
-            }
+            throw new OutOfScopeException(
+                "Cannot access " + key + " outside of a scoping block"
+            );
         }
         return scopedObjects;
     }

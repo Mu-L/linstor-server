@@ -751,7 +751,7 @@ public class SslTcpConnectorPeer extends TcpConnectorPeer
                 // I/O error; typically through sslHandshake -> executeSslTasks,
                 // if spawning an asynchronous SSL task fails
                 getErrorReporter().reportError(
-                    Level.TRACE, ioExc, getAccessContext(), this,
+                    Level.TRACE, ioExc, this,
                     "I/O error during asynchronous SSL task completion"
                 );
                 if (DEBUG_SSL_STATE || DEBUG_IO)

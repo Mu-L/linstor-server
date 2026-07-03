@@ -36,7 +36,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
-import com.linbit.utils.ExceptionThrowingIterator;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -48,6 +47,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -142,7 +142,7 @@ public class CtrlBackupQueueInternalCallHandler
                 {
                     if (backupCrtHandler.getFreeShippingSlots(currentNode) > 0)
                     {
-                        ExceptionThrowingIterator<QueueItem> next = new IteratorFromSingleItem(
+                        Iterator<QueueItem> next = new IteratorFromSingleItem(
                             queueItem
                         );
                         flux = flux.concatWith(startQueuedShippings(currentNode, next));
@@ -187,7 +187,7 @@ public class CtrlBackupQueueInternalCallHandler
      */
     public Flux<ApiCallRc> startMultipleQueuedShippings(
         Node node,
-        ExceptionThrowingIterator<QueueItem> nextItem
+        Iterator<QueueItem> nextItem
     )
     {
         return scopeRunner.fluxInTransactionalScope(
@@ -202,7 +202,7 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> startMultipleQueuedShippingsInTransaction(
         Node node,
-        ExceptionThrowingIterator<QueueItem> nextItem
+        Iterator<QueueItem> nextItem
     )
     {
         Flux<ApiCallRc> flux;
@@ -223,7 +223,7 @@ public class CtrlBackupQueueInternalCallHandler
      */
     private Flux<ApiCallRc> startQueuedShippings(
         Node node,
-        ExceptionThrowingIterator<QueueItem> nextItem
+        Iterator<QueueItem> nextItem
     )
     {
         return scopeRunner.fluxInTransactionalScope(
@@ -238,7 +238,7 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> startQueuedShippingsInTransaction(
         Node node,
-        ExceptionThrowingIterator<QueueItem> nextItem
+        Iterator<QueueItem> nextItem
     )
     {
         Flux<ApiCallRc> flux = Flux.empty();
@@ -307,7 +307,7 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> handleS3QueueItem(
         Node node,
-        ExceptionThrowingIterator<QueueItem> nextItem,
+        Iterator<QueueItem> nextItem,
         QueueItem current
     ) throws InvalidNameException, ImplementationError
     {
@@ -412,7 +412,7 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> handleL2LQueueItem(
         Node node,
-        ExceptionThrowingIterator<QueueItem> nextItem,
+        Iterator<QueueItem> nextItem,
         QueueItem current
     )
     {
@@ -465,7 +465,7 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> startQueuedL2LShippingInTransaction(
         Node node,
-        ExceptionThrowingIterator<QueueItem> nextItem,
+        Iterator<QueueItem> nextItem,
         QueueItem next,
         BackupShippingResponsePrevSnap resp
     ) throws ImplementationError
@@ -957,7 +957,7 @@ public class CtrlBackupQueueInternalCallHandler
     }
 
     public static class IteratorFromBackupNodeQueue
-        implements ExceptionThrowingIterator<QueueItem>
+        implements Iterator<QueueItem>
     {
         private Node node;
         private final BackupInfoManager backupInfoMgr;
@@ -981,7 +981,7 @@ public class CtrlBackupQueueInternalCallHandler
         }
     }
 
-    private class IteratorFromSingleItem implements ExceptionThrowingIterator<QueueItem>
+    private class IteratorFromSingleItem implements Iterator<QueueItem>
     {
         private @Nullable QueueItem item;
 

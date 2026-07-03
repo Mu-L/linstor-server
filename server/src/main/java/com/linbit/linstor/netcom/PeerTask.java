@@ -73,17 +73,6 @@ public class PeerTask implements Peer
     }
 
     @Override
-    public AccessContext getAccessContext()
-    {
-        return accCtx;
-    }
-
-    @Override
-    public void setAccessContext(AccessContext newAccCtx)
-    {
-    }
-
-    @Override
     public void attach(Object attachmentRef)
     {
     }

@@ -52,7 +52,7 @@ public class S3Remote extends AbsRemote
         Provider<? extends TransactionMgr> transMgrProvider
     )
     {
-        super(objIdRef, transObjFactory, transMgrProvider, objProtRef, remoteNameRef);
+        super(objIdRef, transObjFactory, transMgrProvider, remoteNameRef);
         driver = driverRef;
 
         endpoint = transObjFactory.createTransactionSimpleObject(this, endpointRef, driver.getEndpointDriver());
@@ -62,10 +62,9 @@ public class S3Remote extends AbsRemote
         secretKey = transObjFactory.createTransactionSimpleObject(this, secretKeyRef, driver.getSecretKeyDriver());
 
         flags = transObjFactory
-            .createStateFlagsImpl(objProt, this, Flags.class, driver.getStateFlagsPersistence(), initialFlags);
+            .createStateFlagsImpl(this, Flags.class, driver.getStateFlagsPersistence(), initialFlags);
 
         transObjs = Arrays.asList(
-            objProt,
             endpoint,
             bucket,
             region,
@@ -264,7 +263,6 @@ public class S3Remote extends AbsRemote
         if (!deleted.get())
         {
 
-            objProt.delete();
 
             activateTransMgr();
 

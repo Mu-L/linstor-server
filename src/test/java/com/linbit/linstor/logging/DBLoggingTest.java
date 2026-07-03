@@ -57,8 +57,7 @@ public class DBLoggingTest
             false,
             "testnode",
             "TRACE",
-            "TRACE",
-            () -> null
+            "TRACE"
         );
         ErrorReportResult reports;
         reports = errReporter.listReports(false, null, null, Collections.emptySet(), null, null);

@@ -101,20 +101,13 @@ public class CtrlExternalFilesApiCallHandler
     public List<ExternalFilePojo> listFiles(Predicate<String> includeExtFileRef)
     {
         ArrayList<ExternalFilePojo> ret = new ArrayList<>();
-        try
+        AccessContext pAccCtx = peerAccCtx.get();
+        for (Entry<ExternalFileName, ExternalFile> entry : extFileRepository.getMapForView().entrySet())
         {
-            AccessContext pAccCtx = peerAccCtx.get();
-            for (Entry<ExternalFileName, ExternalFile> entry : extFileRepository.getMapForView().entrySet())
+            if (includeExtFileRef.test(entry.getKey().extFileName))
             {
-                if (includeExtFileRef.test(entry.getKey().extFileName))
-                {
-                    ret.add(entry.getValue().getApiData(null, null));
-                }
+                ret.add(entry.getValue().getApiData(null, null));
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            // ignore, we will return an empty list
         }
         return ret;
     }

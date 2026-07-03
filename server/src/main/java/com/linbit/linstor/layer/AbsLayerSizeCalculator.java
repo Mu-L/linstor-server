@@ -60,7 +60,6 @@ public abstract class AbsLayerSizeCalculator<VLM_TYPE extends VlmProviderObject<
 
     protected AbsLayerSizeCalculator(AbsLayerSizeCalculatorInit initRef, DeviceLayerKind kindRef)
     {
-        sysCtx = initRef.sysCtx;
         errorReporter = initRef.errorReporter;
         stltProps = initRef.stltCfgAccessor.getReadonlyProps();
         layerSizeHelper = initRef.layerSizeHelper;

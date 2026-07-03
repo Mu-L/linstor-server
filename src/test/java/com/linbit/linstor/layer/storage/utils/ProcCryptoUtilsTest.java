@@ -58,8 +58,7 @@ public class ProcCryptoUtilsTest
             true,
             "",
             "INFO",
-            "TRACE",
-            () -> null
+            "TRACE"
         );
     }
 

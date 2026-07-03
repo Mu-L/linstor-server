@@ -86,17 +86,6 @@ public class PeerOffline implements Peer
     }
 
     @Override
-    public @Nullable AccessContext getAccessContext()
-    {
-        return null;
-    }
-
-    @Override
-    public void setAccessContext(AccessContext newAccCtx)
-    {
-    }
-
-    @Override
     public void attach(Object attachment)
     {
     }

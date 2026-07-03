@@ -183,8 +183,6 @@ public class TcpConnectorService implements Runnable, TcpConnector
     {
         ErrorCheck.ctorNotNull(TcpConnectorService.class, ErrorReporter.class, errorReporterRef);
         ErrorCheck.ctorNotNull(TcpConnectorService.class, MessageProcessor.class, msgProcessorRef);
-        ErrorCheck.ctorNotNull(TcpConnectorService.class, AccessContext.class, defaultPeerAccCtxRef);
-        ErrorCheck.ctorNotNull(TcpConnectorService.class, AccessContext.class, privilegedAccCtxRef);
         serviceInstanceName = SERVICE_NAME;
 
         serverSocket    = null;
@@ -258,7 +256,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
                     {
                         connObserver.outboundConnectionEstablishing(peer);
                     }
-                    node.setPeer(privilegedAccCtx, peer);
+                    node.setPeer(peer);
                 }
             }
             catch (IOException ioExc)
@@ -315,7 +313,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
             NetInterface activeStltConn;
             try
             {
-                activeStltConn = peer.getNode().getActiveStltConn(privilegedAccCtx);
+                activeStltConn = peer.getNode().getActiveStltConn();
                 if (activeStltConn == null)
                 {
                     // this might happen when the node was rolled back and thus no longer has any content
@@ -323,8 +321,8 @@ public class TcpConnectorService implements Runnable, TcpConnector
                 }
                 else
                 {
-                    final String host = activeStltConn.getAddress(privilegedAccCtx).getAddress();
-                    final int port = activeStltConn.getStltConnPort(privilegedAccCtx).value;
+                    final String host = activeStltConn.getAddress().getAddress();
+                    final int port = activeStltConn.getStltConnPort().value;
                     address = new InetSocketAddress(host, port);
                 }
             }
@@ -570,7 +568,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
                                 // Protocol error - I/O error while reading a message
                                 // Close the connection
                                 errorReporter.reportError(
-                                    Level.TRACE, ioExc, connPeer.getAccessContext(), connPeer,
+                                    Level.TRACE, ioExc, connPeer,
                                     "I/O exception while attempting to receive data from the peer"
                                 );
                                 closeConnection(currentKey, true);
@@ -618,7 +616,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
                             catch (IOException ioExc)
                             {
                                 errorReporter.reportError(
-                                    Level.TRACE, ioExc, null, null,
+                                    Level.TRACE, ioExc, null,
                                     "I/O exception while attempting to accept a peer connection"
                                 );
                             }
@@ -661,7 +659,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
                                 // Close channel / disconnect peer, invalidate SelectionKey
                                 // Close the connection
                                 errorReporter.reportError(
-                                    Level.TRACE, ioExc, connPeer.getAccessContext(), connPeer,
+                                    Level.TRACE, ioExc, connPeer,
                                     "I/O exception while attempting to send data to the peer"
                                 );
                                 closeConnection(currentKey, true);
@@ -678,11 +676,6 @@ public class TcpConnectorService implements Runnable, TcpConnector
                             }
                             catch (IOException ioExc)
                             {
-                                AccessContext peerAccCtx = null;
-                                if (connPeer != null)
-                                {
-                                    peerAccCtx = connPeer.getAccessContext();
-                                }
                                 errorReporter.reportError(
                                     Level.TRACE, ioExc, connPeer,
                                     "I/O exception while attempting to connect to the peer"
@@ -706,7 +699,6 @@ public class TcpConnectorService implements Runnable, TcpConnector
                                     "Unhandled IllegalStateException",
                                     illState
                                 ),
-                                null,
                                 (Peer) currentKey.attachment(),
                                 null
                             );
@@ -921,7 +913,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
     )
     {
         return new TcpConnectorPeer(
-            errorReporter, commonSerializer, peerHostAddr, peerId, this, connKey, defaultPeerAccCtx, node, outgoing
+            errorReporter, commonSerializer, peerHostAddr, peerId, this, connKey, node, outgoing
         );
     }
 
@@ -1471,7 +1463,6 @@ public class TcpConnectorService implements Runnable, TcpConnector
             {
                 errorReporter.reportError(
                     exc,
-                    null,
                     null,
                     "Exception thrown by connection observer when " + eventDescription
                 );

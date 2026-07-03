@@ -39,13 +39,11 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
 
     private final ReadWriteLock reconfigurationLock;
     private final ReadWriteLock storPoolDfnMapLock;
-    private final @Nullable Supplier<ObjectProtection> storPoolDfnMapProt;
     private final CoreModule.StorPoolDefinitionMap storPoolDfnMap;
 
     public CmdDisplayStorPoolDfn(
         ReadWriteLock reconfigurationLockRef,
         ReadWriteLock storPoolDfnMapLockRef,
-        @Nullable Supplier<ObjectProtection> storPoolDfnMapProtRef,
         CoreModule.StorPoolDefinitionMap storPoolDfnMapRef
     )
     {
@@ -62,7 +60,6 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
 
         reconfigurationLock = reconfigurationLockRef;
         storPoolDfnMapLock = storPoolDfnMapLockRef;
-        storPoolDfnMapProt = storPoolDfnMapProtRef;
         storPoolDfnMap = storPoolDfnMapRef;
 
         lister = new FilteredObjectLister<>(
@@ -94,9 +91,6 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
         @Override
         public void ensureSearchAccess()
         {
-            if (storPoolDfnMapProt != null)
-            {
-            }
         }
 
         @Override
@@ -122,51 +116,36 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
         public void displayObjects(
             final PrintStream output, final StorPoolDefinition storPoolDfnRef)
         {
-            try
+            TreePrinter.Builder treeBuilder = TreePrinter
+                .builder(
+                    "\u001b[1;37m%-40s\u001b[0m %-36s",
+                    storPoolDfnRef.getName().displayValue,
+                    storPoolDfnRef.getUuid().toString().toUpperCase()
+                )
+                .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPoolDfnRef));
+
+            Iterator<StorPool> storPoolIterator = storPoolDfnRef.iterateStorPools();
+
+            treeBuilder.branchHideEmpty("Storage pools");
+            while (storPoolIterator.hasNext())
             {
-                ObjectProtection objProt = storPoolDfnRef.getObjProt();
+                StorPool storPool = storPoolIterator.next();
 
-                TreePrinter.Builder treeBuilder = TreePrinter
-                    .builder(
-                        "\u001b[1;37m%-40s\u001b[0m %-36s",
-                        storPoolDfnRef.getName().displayValue,
-                        storPoolDfnRef.getUuid().toString().toUpperCase()
+                treeBuilder
+                    .branch(
+                        "\u001b[1;37mStorage pool\u001b[0m %-36s",
+                        storPool.getUuid().toString().toUpperCase()
                     )
-                    .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPoolDfnRef))
-                    .leaf(
-                        "Creator: %-24s Owner: %-24s",
-                        objProt.getCreator().name.displayValue,
-                        objProt.getOwner().name.displayValue
-                    )
-                    .leaf("Security type: %-24s", objProt.getSecurityType().name.displayValue);
-
-                Iterator<StorPool> storPoolIterator = storPoolDfnRef.iterateStorPools();
-
-                treeBuilder.branchHideEmpty("Storage pools");
-                while (storPoolIterator.hasNext())
-                {
-                    StorPool storPool = storPoolIterator.next();
-
-                    treeBuilder
-                        .branch(
-                            "\u001b[1;37mStorage pool\u001b[0m %-36s",
-                            storPool.getUuid().toString().toUpperCase()
-                        )
-                        .leaf("Node name: %s", storPool.getNode().getName().displayValue)
-                        .leaf("Node UUID: %s", storPool.getNode().getUuid().toString().toUpperCase())
-                        .leaf("Node volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPool.getNode()))
-                        .leaf("Driver name: %s", storPool.getDeviceProviderKind())
-                        .leaf("Volume count: %d", storPool.getVolumes().size())
-                        .endBranch();
-                }
-                treeBuilder.endBranch();
-
-                treeBuilder.print(output);
+                    .leaf("Node name: %s", storPool.getNode().getName().displayValue)
+                    .leaf("Node UUID: %s", storPool.getNode().getUuid().toString().toUpperCase())
+                    .leaf("Node volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPool.getNode()))
+                    .leaf("Driver name: %s", storPool.getDeviceProviderKind())
+                    .leaf("Volume count: %d", storPool.getVolumes().size())
+                    .endBranch();
             }
-            catch (AccessDeniedException accExc)
-            {
-                // No view access
-            }
+            treeBuilder.endBranch();
+
+            treeBuilder.print(output);
         }
 
         @Override

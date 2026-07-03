@@ -128,7 +128,6 @@ public class DrbdRscData<RSC extends AbsResource<RSC>>
         );
 
         flags = transObjFactory.createStateFlagsImpl(
-            rscRef.getObjProt(),
             this,
             DrbdRscFlags.class,
             drbdRscDbDriverRef.getRscStateFlagPersistence(),

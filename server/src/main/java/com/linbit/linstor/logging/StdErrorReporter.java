@@ -220,13 +220,13 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
     @Override
     public @Nullable String reportError(Throwable errorInfo)
     {
-        return reportError(Level.ERROR, errorInfo, null, null, null);
+        return reportError(Level.ERROR, errorInfo, null, null);
     }
 
     @Override
     public @Nullable String reportError(Level logLevel, Throwable errorInfo)
     {
-        return reportError(logLevel, errorInfo, null, null, null);
+        return reportError(logLevel, errorInfo, null, null);
     }
 
     @Override
@@ -610,31 +610,31 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
     @Override
     public void logTrace(String format, Object... args)
     {
-        mainLogger.trace(appendUserNameAndFormat(format, args));
+        mainLogger.trace(String.format(format, args));
     }
 
     @Override
     public void logDebug(String format, Object... args)
     {
-        mainLogger.debug(appendUserNameAndFormat(format, args));
+        mainLogger.debug(String.format(format, args));
     }
 
     @Override
     public void logInfo(String format, Object... args)
     {
-        mainLogger.info(appendUserNameAndFormat(format, args));
+        mainLogger.info(String.format(format, args));
     }
 
     @Override
     public void logWarning(String format, Object... args)
     {
-        mainLogger.warn(appendUserNameAndFormat(format, args));
+        mainLogger.warn(String.format(format, args));
     }
 
     @Override
     public void logError(String format, Object... args)
     {
-        mainLogger.error(appendUserNameAndFormat(format, args));
+        mainLogger.error(String.format(format, args));
     }
 
     public void shutdown() throws DatabaseException
@@ -649,20 +649,4 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
         }
     }
 
-    private String appendUserNameAndFormat(String formatRef, Object... args)
-    {
-        String user;
-        AccessContext peerCtx = peerCtxProvider.get();
-        if (peerCtx == null)
-        {
-            user = "SYSTEM";
-        }
-        else
-        {
-            user = peerCtx.subjectId.name.displayValue;
-        }
-        // extending the format with "%s" would be easy, but extending the var args would include
-        // a system array copy.
-        return String.format(user + " - " + formatRef, args);
-    }
 }

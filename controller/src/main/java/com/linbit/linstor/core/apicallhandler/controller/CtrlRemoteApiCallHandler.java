@@ -161,21 +161,14 @@ public class CtrlRemoteApiCallHandler
     )
     {
         ArrayList<RET_TYPE> ret = new ArrayList<>();
-        try
+        AccessContext pAccCtx = peerAccCtx.get();
+        for (Entry<RemoteName, AbsRemote> entry : remoteRepository.getMapForView().entrySet())
         {
-            AccessContext pAccCtx = peerAccCtx.get();
-            for (Entry<RemoteName, AbsRemote> entry : remoteRepository.getMapForView().entrySet())
+            AbsRemote remote = entry.getValue();
+            if (clazz.isInstance(remote))
             {
-                AbsRemote remote = entry.getValue();
-                if (clazz.isInstance(remote))
-                {
-                    ret.add(remoteToApiDataFunc.accept((REMOTE_CLASS) remote));
-                }
+                ret.add(remoteToApiDataFunc.accept((REMOTE_CLASS) remote));
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            // ignore, we will return an empty list
         }
         return ret;
     }

@@ -221,11 +221,7 @@ public class VolumeConnection extends AbsCoreObj<VolumeConnection>
     public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(
-            sourceVolume.getAbsResource().getObjProt(),
-            targetVolume.getAbsResource().getObjProt(),
-            props
-        );
+        return props;
     }
 
     @Override

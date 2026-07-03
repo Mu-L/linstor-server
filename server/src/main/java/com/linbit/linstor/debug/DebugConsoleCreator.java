@@ -46,8 +46,7 @@ public class DebugConsoleCreator
         @Nullable Peer client
     )
     {
-        DebugConsole peerDbgConsole = new DebugConsoleImpl(
-            debugCtx, errorReporter, debugScope, transactionMgrGenerator, debugCommands
+        DebugConsole peerDbgConsole = new DebugConsoleImpl(errorReporter, debugScope, transactionMgrGenerator, debugCommands
         );
         if (client != null)
         {

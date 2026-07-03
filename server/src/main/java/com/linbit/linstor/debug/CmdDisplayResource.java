@@ -47,7 +47,6 @@ public class CmdDisplayResource extends BaseDebugCmd
     private final ReadWriteLock reconfigurationLock;
     private final ReadWriteLock nodesMapLock;
     private final ReadWriteLock rscDfnMapLock;
-    private final @Nullable Supplier<ObjectProtection> rscDfnMapProt;
     private final CoreModule.ResourceDefinitionMap rscDfnMap;
 
     private final FilteredObjectLister<ResourceDefinition> lister;
@@ -56,7 +55,6 @@ public class CmdDisplayResource extends BaseDebugCmd
         ReadWriteLock reconfigurationLockRef,
         ReadWriteLock nodesMapLockRef,
         ReadWriteLock rscDfnMapLockRef,
-        @Nullable Supplier<ObjectProtection> rscDfnMapProtRef,
         CoreModule.ResourceDefinitionMap rscDfnMapRef
     )
     {
@@ -74,7 +72,6 @@ public class CmdDisplayResource extends BaseDebugCmd
         reconfigurationLock = reconfigurationLockRef;
         nodesMapLock = nodesMapLockRef;
         rscDfnMapLock = rscDfnMapLockRef;
-        rscDfnMapProt = rscDfnMapProtRef;
         rscDfnMap = rscDfnMapRef;
 
         lister = new FilteredObjectLister<>(
@@ -111,9 +108,6 @@ public class CmdDisplayResource extends BaseDebugCmd
         @Override
         public void ensureSearchAccess()
         {
-            if (rscDfnMapProt != null)
-            {
-            }
         }
 
         @Override
@@ -140,84 +134,62 @@ public class CmdDisplayResource extends BaseDebugCmd
             final PrintStream output, final ResourceDefinition rscDfn)
         {
             ResourceName rscName = rscDfn.getName();
-            try
+            if (rscDfn.getResourceCount() >= 1)
             {
-                if (rscDfn.getResourceCount() >= 1)
+                Iterator<Resource> rscIter = rscDfn.iterateResource();
+
+                TreePrinter.Builder treeBuilder = TreePrinter.builder(
+                    "\u001b[1;37m%-48s\u001b[0m %s",
+                    rscName.displayValue, rscDfn.getUuid().toString().toUpperCase()
+                );
+
+                while (rscIter.hasNext())
                 {
-                    Iterator<Resource> rscIter = rscDfn.iterateResource();
+                    Resource rsc = rscIter.next();
+                    Node peerNode = rsc.getNode();
+                    NodeName peerNodeName = peerNode.getName();
 
-                    TreePrinter.Builder treeBuilder = TreePrinter.builder(
-                        "\u001b[1;37m%-48s\u001b[0m %s",
-                        rscName.displayValue, rscDfn.getUuid().toString().toUpperCase()
-                    );
+                    treeBuilder.branch(peerNodeName.displayValue)
+                        .leaf("Resource UUID: %s", rsc.getUuid().toString().toUpperCase())
+                        .leaf("Resource volatile UUID: %s", UuidUtils.dbgInstanceIdString(rsc))
+                        .leaf("Resource definition UUID: %s", rscDfn.getUuid().toString().toUpperCase())
+                        .leaf("Resource definition volatile UUID: %s", UuidUtils.dbgInstanceIdString(rscDfn))
+                        .leaf("Node UUID: %s", peerNode.getUuid().toString().toUpperCase())
+                        .leaf("Node volatile UUID: %s", UuidUtils.dbgInstanceIdString(peerNode));
 
-                    while (rscIter.hasNext())
+
+                    long flagsBits = rsc.getStateFlags().getFlagsBits();
+                    treeBuilder.leaf("Flags: %016X", flagsBits);
+
+                    Iterator<Volume> vlmIter = rsc.iterateVolumes();
+                    while (vlmIter.hasNext())
                     {
-                        Resource rsc = rscIter.next();
-                        ObjectProtection rscProt = rsc.getObjProt();
-                        Node peerNode = rsc.getNode();
-                        NodeName peerNodeName = peerNode.getName();
-
-                        treeBuilder.branch(peerNodeName.displayValue)
-                            .leaf("Resource UUID: %s", rsc.getUuid().toString().toUpperCase())
-                            .leaf("Resource volatile UUID: %s", UuidUtils.dbgInstanceIdString(rsc))
-                            .leaf("Resource definition UUID: %s", rscDfn.getUuid().toString().toUpperCase())
-                            .leaf("Resource definition volatile UUID: %s", UuidUtils.dbgInstanceIdString(rscDfn))
-                            .leaf("Node UUID: %s", peerNode.getUuid().toString().toUpperCase())
-                            .leaf("Node volatile UUID: %s", UuidUtils.dbgInstanceIdString(peerNode));
-
-
-                        try
+                        Volume vlm = vlmIter.next();
+                        VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
+                        List<String> storPoolNames = new ArrayList<>();
                         {
-                            long flagsBits = rsc.getStateFlags().getFlagsBits();
-                            treeBuilder.leaf("Flags: %016X", flagsBits);
-                        }
-                        catch (AccessDeniedException ignored)
-                        {
-                        }
-
-                        treeBuilder
-                            .leaf(
-                                "Creator: %-24s Owner: %-24s",
-                                rscProt.getCreator().name.displayValue,
-                                rscProt.getOwner().name.displayValue
-                            )
-                            .leaf("Security type: %s", rscProt.getSecurityType().name.displayValue);
-
-                        Iterator<Volume> vlmIter = rsc.iterateVolumes();
-                        while (vlmIter.hasNext())
-                        {
-                            Volume vlm = vlmIter.next();
-                            VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
-                            List<String> storPoolNames = new ArrayList<>();
+                            Set<StorPool> vlmStorPools = LayerVlmUtils.getStorPoolSet(vlm, true);
+                            for (StorPool storPool : vlmStorPools)
                             {
-                                Set<StorPool> vlmStorPools = LayerVlmUtils.getStorPoolSet(vlm, true);
-                                for (StorPool storPool : vlmStorPools)
-                                {
-                                    storPoolNames.add(storPool.getName().displayValue);
-                                }
+                                storPoolNames.add(storPool.getName().displayValue);
                             }
-                            treeBuilder.branch("Volume %d", vlmDfn.getVolumeNumber().value)
-                                .leaf("Volume UUID: %s", vlm.getUuid().toString().toUpperCase())
-                                .leaf("Volume definition UUID: %s", vlmDfn.getUuid().toString().toUpperCase())
-                                .leaf("Size:     %16d", vlmDfn.getVolumeSize())
-                                .leaf("Flags:    %016x", vlm.getFlags().getFlagsBits())
-                                .leaf("Storage pool%s: %s",
-                                    storPoolNames.size() == 1 ? "" : "s",
-                                    storPoolNames.size() == 1 ? storPoolNames.get(0) : storPoolNames.toString()
-                                )
-                                .endBranch();
                         }
-
-                        treeBuilder.endBranch();
+                        treeBuilder.branch("Volume %d", vlmDfn.getVolumeNumber().value)
+                            .leaf("Volume UUID: %s", vlm.getUuid().toString().toUpperCase())
+                            .leaf("Volume definition UUID: %s", vlmDfn.getUuid().toString().toUpperCase())
+                            .leaf("Size:     %16d", vlmDfn.getVolumeSize())
+                            .leaf("Flags:    %016x", vlm.getFlags().getFlagsBits())
+                            .leaf("Storage pool%s: %s",
+                                storPoolNames.size() == 1 ? "" : "s",
+                                storPoolNames.size() == 1 ? storPoolNames.get(0) : storPoolNames.toString()
+                            )
+                            .endBranch();
                     }
 
-                    treeBuilder.print(output);
+                    treeBuilder.endBranch();
                 }
-            }
-            catch (AccessDeniedException ignored)
-            {
-                // Not authorized for the resource definition
+
+                treeBuilder.print(output);
             }
         }
 

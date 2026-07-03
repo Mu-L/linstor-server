@@ -53,13 +53,7 @@ public class ReplicationStateEventHandler implements EventHandler
     static @Nullable NodeName getMappedName(NodeRepository nodeRepo, String peerName)
     {
         @Nullable NodeName ret = null;
-        try
-        {
-            ret = nodeRepo.getUname(peerName);
-        }
-        catch (AccessDeniedException ignored)
-        {
-        }
+        ret = nodeRepo.getUname(peerName);
         return ret;
     }
 

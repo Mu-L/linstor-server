@@ -192,10 +192,6 @@ public class FilteredObjectLister<SearchType>
                 }
             }
         }
-        catch (AccessDeniedException accExc)
-        {
-            debugPrintHelper.printLsException(debugErr, accExc);
-        }
         catch (InvalidNameException nameExc)
         {
             debugPrintHelper.printError(

@@ -100,7 +100,6 @@ public class ResourceDbDriverTest extends GenericDbBase
     {
         Resource res = TestFactory.createResource(
             resUuid,
-            objProt,
             resDfn,
             node,
             initFlags,
@@ -165,7 +164,6 @@ public class ResourceDbDriverTest extends GenericDbBase
 
         Resource res = TestFactory.createResource(
             resUuid,
-            objProt,
             resDfn,
             node,
             initFlags,
@@ -196,7 +194,6 @@ public class ResourceDbDriverTest extends GenericDbBase
     {
         Resource res = TestFactory.createResource(
             resUuid,
-            objProt,
             resDfn,
             node,
             initFlags,
@@ -251,7 +248,6 @@ public class ResourceDbDriverTest extends GenericDbBase
     {
         Resource res = TestFactory.createResource(
             resUuid,
-            objProt,
             resDfn,
             node,
             initFlags,
@@ -281,7 +277,6 @@ public class ResourceDbDriverTest extends GenericDbBase
     {
         Resource res = TestFactory.createResource(
             resUuid,
-            objProt,
             resDfn,
             node,
             initFlags,
@@ -315,7 +310,6 @@ public class ResourceDbDriverTest extends GenericDbBase
     {
         Resource res = TestFactory.createResource(
             resUuid,
-            objProt,
             resDfn,
             node,
             initFlags,

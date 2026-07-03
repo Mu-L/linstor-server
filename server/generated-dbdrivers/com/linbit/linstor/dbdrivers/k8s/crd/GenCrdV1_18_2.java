@@ -4,12 +4,10 @@ import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.dbdrivers.DatabaseTable;
 import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.BaseControllerK8sCrdTransactionMgrContext;
 import com.linbit.linstor.transaction.K8sCrdMigrationContext;
 import com.linbit.linstor.transaction.K8sCrdSchemaUpdateContext;
 import com.linbit.linstor.utils.ByteUtils;
-import com.linbit.utils.ExceptionThrowingFunction;
 import com.linbit.utils.TimeUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -21,6 +19,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -459,10 +458,9 @@ public class GenCrdV1_18_2
 
     public static <DATA> LinstorCrd<?> dataToCrd(
         DatabaseTable table,
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA data
     )
-        throws AccessDeniedException
     {
         switch (table.getName())
         {
@@ -470,11 +468,11 @@ public class GenCrdV1_18_2
             {
                 return new Files(
                     new FilesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.Files.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Files.PATH).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.Files.FLAGS).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.Files.CONTENT).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Files.CONTENT_CHECKSUM).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.Files.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Files.PATH).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.Files.FLAGS).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.Files.CONTENT).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Files.CONTENT_CHECKSUM).apply(data)
                     )
                 );
             }
@@ -482,9 +480,9 @@ public class GenCrdV1_18_2
             {
                 return new KeyValueStore(
                     new KeyValueStoreSpec(
-                        (String) setters.get(GeneratedDatabaseTables.KeyValueStore.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.KeyValueStore.KVS_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.KeyValueStore.KVS_DSP_NAME).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.KeyValueStore.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.KeyValueStore.KVS_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.KeyValueStore.KVS_DSP_NAME).apply(data)
                     )
                 );
             }
@@ -492,11 +490,11 @@ public class GenCrdV1_18_2
             {
                 return new LayerBcacheVolumes(
                     new LayerBcacheVolumesSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.LAYER_RESOURCE_ID).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.VLM_NR).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.POOL_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.DEV_UUID).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.LAYER_RESOURCE_ID).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.VLM_NR).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.POOL_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerBcacheVolumes.DEV_UUID).apply(data)
                     )
                 );
             }
@@ -504,11 +502,11 @@ public class GenCrdV1_18_2
             {
                 return new LayerCacheVolumes(
                     new LayerCacheVolumesSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.LAYER_RESOURCE_ID).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.VLM_NR).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.POOL_NAME_CACHE).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.POOL_NAME_META).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.LAYER_RESOURCE_ID).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.VLM_NR).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.POOL_NAME_CACHE).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerCacheVolumes.POOL_NAME_META).apply(data)
                     )
                 );
             }
@@ -516,12 +514,12 @@ public class GenCrdV1_18_2
             {
                 return new LayerDrbdResources(
                     new LayerDrbdResourcesSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResources.LAYER_RESOURCE_ID).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResources.PEER_SLOTS).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResources.AL_STRIPES).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.LayerDrbdResources.AL_STRIPE_SIZE).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.LayerDrbdResources.FLAGS).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResources.NODE_ID).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResources.LAYER_RESOURCE_ID).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResources.PEER_SLOTS).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResources.AL_STRIPES).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.LayerDrbdResources.AL_STRIPE_SIZE).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.LayerDrbdResources.FLAGS).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResources.NODE_ID).apply(data)
                     )
                 );
             }
@@ -529,15 +527,15 @@ public class GenCrdV1_18_2
             {
                 return new LayerDrbdResourceDefinitions(
                     new LayerDrbdResourceDefinitionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.RESOURCE_NAME_SUFFIX).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.SNAPSHOT_NAME).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.PEER_SLOTS).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.AL_STRIPES).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.AL_STRIPE_SIZE).accept(data),
-                        (Integer) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.TCP_PORT).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.TRANSPORT_TYPE).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.SECRET).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.RESOURCE_NAME_SUFFIX).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.SNAPSHOT_NAME).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.PEER_SLOTS).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.AL_STRIPES).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.AL_STRIPE_SIZE).apply(data),
+                        (Integer) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.TCP_PORT).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.TRANSPORT_TYPE).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdResourceDefinitions.SECRET).apply(data)
                     )
                 );
             }
@@ -545,10 +543,10 @@ public class GenCrdV1_18_2
             {
                 return new LayerDrbdVolumes(
                     new LayerDrbdVolumesSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdVolumes.LAYER_RESOURCE_ID).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdVolumes.VLM_NR).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumes.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumes.POOL_NAME).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdVolumes.LAYER_RESOURCE_ID).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdVolumes.VLM_NR).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumes.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumes.POOL_NAME).apply(data)
                     )
                 );
             }
@@ -556,11 +554,11 @@ public class GenCrdV1_18_2
             {
                 return new LayerDrbdVolumeDefinitions(
                     new LayerDrbdVolumeDefinitionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.RESOURCE_NAME_SUFFIX).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.SNAPSHOT_NAME).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.VLM_NR).accept(data),
-                        (Integer) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.VLM_MINOR_NR).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.RESOURCE_NAME_SUFFIX).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.SNAPSHOT_NAME).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.VLM_NR).apply(data),
+                        (Integer) setters.get(GeneratedDatabaseTables.LayerDrbdVolumeDefinitions.VLM_MINOR_NR).apply(data)
                     )
                 );
             }
@@ -568,9 +566,9 @@ public class GenCrdV1_18_2
             {
                 return new LayerLuksVolumes(
                     new LayerLuksVolumesSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerLuksVolumes.LAYER_RESOURCE_ID).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerLuksVolumes.VLM_NR).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerLuksVolumes.ENCRYPTED_PASSWORD).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerLuksVolumes.LAYER_RESOURCE_ID).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerLuksVolumes.VLM_NR).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerLuksVolumes.ENCRYPTED_PASSWORD).apply(data)
                     )
                 );
             }
@@ -578,10 +576,10 @@ public class GenCrdV1_18_2
             {
                 return new LayerOpenflexResourceDefinitions(
                     new LayerOpenflexResourceDefinitionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexResourceDefinitions.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexResourceDefinitions.SNAPSHOT_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexResourceDefinitions.RESOURCE_NAME_SUFFIX).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexResourceDefinitions.NQN).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexResourceDefinitions.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexResourceDefinitions.SNAPSHOT_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexResourceDefinitions.RESOURCE_NAME_SUFFIX).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexResourceDefinitions.NQN).apply(data)
                     )
                 );
             }
@@ -589,10 +587,10 @@ public class GenCrdV1_18_2
             {
                 return new LayerOpenflexVolumes(
                     new LayerOpenflexVolumesSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerOpenflexVolumes.LAYER_RESOURCE_ID).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerOpenflexVolumes.VLM_NR).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexVolumes.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexVolumes.POOL_NAME).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerOpenflexVolumes.LAYER_RESOURCE_ID).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerOpenflexVolumes.VLM_NR).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexVolumes.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerOpenflexVolumes.POOL_NAME).apply(data)
                     )
                 );
             }
@@ -600,14 +598,14 @@ public class GenCrdV1_18_2
             {
                 return new LayerResourceIds(
                     new LayerResourceIdsSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_ID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.SNAPSHOT_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_KIND).accept(data),
-                        (Integer) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_PARENT_ID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_SUFFIX).accept(data),
-                        (boolean) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_SUSPENDED).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_ID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.SNAPSHOT_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_KIND).apply(data),
+                        (Integer) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_PARENT_ID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_SUFFIX).apply(data),
+                        (boolean) setters.get(GeneratedDatabaseTables.LayerResourceIds.LAYER_RESOURCE_SUSPENDED).apply(data)
                     )
                 );
             }
@@ -615,11 +613,11 @@ public class GenCrdV1_18_2
             {
                 return new LayerStorageVolumes(
                     new LayerStorageVolumesSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.LAYER_RESOURCE_ID).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.VLM_NR).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.PROVIDER_KIND).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.STOR_POOL_NAME).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.LAYER_RESOURCE_ID).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.VLM_NR).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.PROVIDER_KIND).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerStorageVolumes.STOR_POOL_NAME).apply(data)
                     )
                 );
             }
@@ -627,10 +625,10 @@ public class GenCrdV1_18_2
             {
                 return new LayerWritecacheVolumes(
                     new LayerWritecacheVolumesSpec(
-                        (int) setters.get(GeneratedDatabaseTables.LayerWritecacheVolumes.LAYER_RESOURCE_ID).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.LayerWritecacheVolumes.VLM_NR).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerWritecacheVolumes.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LayerWritecacheVolumes.POOL_NAME).accept(data)
+                        (int) setters.get(GeneratedDatabaseTables.LayerWritecacheVolumes.LAYER_RESOURCE_ID).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.LayerWritecacheVolumes.VLM_NR).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerWritecacheVolumes.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LayerWritecacheVolumes.POOL_NAME).apply(data)
                     )
                 );
             }
@@ -638,13 +636,13 @@ public class GenCrdV1_18_2
             {
                 return new LinstorRemotes(
                     new LinstorRemotesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.DSP_NAME).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.LinstorRemotes.FLAGS).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.URL).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.LinstorRemotes.ENCRYPTED_PASSPHRASE).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.CLUSTER_ID).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.DSP_NAME).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.LinstorRemotes.FLAGS).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.URL).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.LinstorRemotes.ENCRYPTED_PASSPHRASE).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.LinstorRemotes.CLUSTER_ID).apply(data)
                     )
                 );
             }
@@ -652,11 +650,11 @@ public class GenCrdV1_18_2
             {
                 return new Nodes(
                     new NodesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.Nodes.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Nodes.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Nodes.NODE_DSP_NAME).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.Nodes.NODE_FLAGS).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.Nodes.NODE_TYPE).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.Nodes.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Nodes.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Nodes.NODE_DSP_NAME).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.Nodes.NODE_FLAGS).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.Nodes.NODE_TYPE).apply(data)
                     )
                 );
             }
@@ -664,9 +662,9 @@ public class GenCrdV1_18_2
             {
                 return new NodeConnections(
                     new NodeConnectionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.NodeConnections.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeConnections.NODE_NAME_SRC).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeConnections.NODE_NAME_DST).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.NodeConnections.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeConnections.NODE_NAME_SRC).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeConnections.NODE_NAME_DST).apply(data)
                     )
                 );
             }
@@ -674,13 +672,13 @@ public class GenCrdV1_18_2
             {
                 return new NodeNetInterfaces(
                     new NodeNetInterfacesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.NODE_NET_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.NODE_NET_DSP_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.INET_ADDRESS).accept(data),
-                        (Short) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.STLT_CONN_PORT).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.STLT_CONN_ENCR_TYPE).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.NODE_NET_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.NODE_NET_DSP_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.INET_ADDRESS).apply(data),
+                        (Short) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.STLT_CONN_PORT).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeNetInterfaces.STLT_CONN_ENCR_TYPE).apply(data)
                     )
                 );
             }
@@ -688,13 +686,13 @@ public class GenCrdV1_18_2
             {
                 return new NodeStorPool(
                     new NodeStorPoolSpec(
-                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.POOL_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.DRIVER_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.FREE_SPACE_MGR_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.FREE_SPACE_MGR_DSP_NAME).accept(data),
-                        (boolean) setters.get(GeneratedDatabaseTables.NodeStorPool.EXTERNAL_LOCKING).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.POOL_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.DRIVER_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.FREE_SPACE_MGR_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.NodeStorPool.FREE_SPACE_MGR_DSP_NAME).apply(data),
+                        (boolean) setters.get(GeneratedDatabaseTables.NodeStorPool.EXTERNAL_LOCKING).apply(data)
                     )
                 );
             }
@@ -702,9 +700,9 @@ public class GenCrdV1_18_2
             {
                 return new PropsContainers(
                     new PropsContainersSpec(
-                        (String) setters.get(GeneratedDatabaseTables.PropsContainers.PROPS_INSTANCE).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.PropsContainers.PROP_KEY).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.PropsContainers.PROP_VALUE).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.PropsContainers.PROPS_INSTANCE).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.PropsContainers.PROP_KEY).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.PropsContainers.PROP_VALUE).apply(data)
                     )
                 );
             }
@@ -712,12 +710,12 @@ public class GenCrdV1_18_2
             {
                 return new Resources(
                     new ResourcesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.Resources.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Resources.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Resources.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Resources.SNAPSHOT_NAME).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.Resources.RESOURCE_FLAGS).accept(data),
-                        (Long) setters.get(GeneratedDatabaseTables.Resources.CREATE_TIMESTAMP).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.Resources.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Resources.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Resources.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Resources.SNAPSHOT_NAME).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.Resources.RESOURCE_FLAGS).apply(data),
+                        (Long) setters.get(GeneratedDatabaseTables.Resources.CREATE_TIMESTAMP).apply(data)
                     )
                 );
             }
@@ -725,13 +723,13 @@ public class GenCrdV1_18_2
             {
                 return new ResourceConnections(
                     new ResourceConnectionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.NODE_NAME_SRC).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.NODE_NAME_DST).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.SNAPSHOT_NAME).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.ResourceConnections.FLAGS).accept(data),
-                        (Integer) setters.get(GeneratedDatabaseTables.ResourceConnections.TCP_PORT).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.NODE_NAME_SRC).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.NODE_NAME_DST).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceConnections.SNAPSHOT_NAME).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.ResourceConnections.FLAGS).apply(data),
+                        (Integer) setters.get(GeneratedDatabaseTables.ResourceConnections.TCP_PORT).apply(data)
                     )
                 );
             }
@@ -739,16 +737,16 @@ public class GenCrdV1_18_2
             {
                 return new ResourceDefinitions(
                     new ResourceDefinitionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.SNAPSHOT_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_DSP_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.SNAPSHOT_DSP_NAME).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_FLAGS).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.LAYER_STACK).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_EXTERNAL_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_GROUP_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.PARENT_UUID).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.SNAPSHOT_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_DSP_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.SNAPSHOT_DSP_NAME).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_FLAGS).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.LAYER_STACK).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_EXTERNAL_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.RESOURCE_GROUP_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceDefinitions.PARENT_UUID).apply(data)
                     )
                 );
             }
@@ -756,21 +754,21 @@ public class GenCrdV1_18_2
             {
                 return new ResourceGroups(
                     new ResourceGroupsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.RESOURCE_GROUP_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.RESOURCE_GROUP_DSP_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.DESCRIPTION).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.LAYER_STACK).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.ResourceGroups.REPLICA_COUNT).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.NODE_NAME_LIST).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.POOL_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.POOL_NAME_DISKLESS).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.DO_NOT_PLACE_WITH_RSC_REGEX).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.DO_NOT_PLACE_WITH_RSC_LIST).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.REPLICAS_ON_SAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.REPLICAS_ON_DIFFERENT).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.ALLOWED_PROVIDER_LIST).accept(data),
-                        (Boolean) setters.get(GeneratedDatabaseTables.ResourceGroups.DISKLESS_ON_REMAINING).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.RESOURCE_GROUP_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.RESOURCE_GROUP_DSP_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.DESCRIPTION).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.LAYER_STACK).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.ResourceGroups.REPLICA_COUNT).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.NODE_NAME_LIST).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.POOL_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.POOL_NAME_DISKLESS).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.DO_NOT_PLACE_WITH_RSC_REGEX).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.DO_NOT_PLACE_WITH_RSC_LIST).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.REPLICAS_ON_SAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.REPLICAS_ON_DIFFERENT).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.ResourceGroups.ALLOWED_PROVIDER_LIST).apply(data),
+                        (Boolean) setters.get(GeneratedDatabaseTables.ResourceGroups.DISKLESS_ON_REMAINING).apply(data)
                     )
                 );
             }
@@ -778,15 +776,15 @@ public class GenCrdV1_18_2
             {
                 return new S3Remotes(
                     new S3RemotesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.DSP_NAME).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.S3Remotes.FLAGS).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.ENDPOINT).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.BUCKET).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.REGION).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.S3Remotes.ACCESS_KEY).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.S3Remotes.SECRET_KEY).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.DSP_NAME).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.S3Remotes.FLAGS).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.ENDPOINT).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.BUCKET).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.S3Remotes.REGION).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.S3Remotes.ACCESS_KEY).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.S3Remotes.SECRET_KEY).apply(data)
                     )
                 );
             }
@@ -794,11 +792,11 @@ public class GenCrdV1_18_2
             {
                 return new SatellitesCapacity(
                     new SatellitesCapacitySpec(
-                        (String) setters.get(GeneratedDatabaseTables.SatellitesCapacity.NODE_NAME).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.SatellitesCapacity.CAPACITY).accept(data),
-                        (boolean) setters.get(GeneratedDatabaseTables.SatellitesCapacity.FAIL_FLAG).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.SatellitesCapacity.ALLOCATED).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.SatellitesCapacity.USABLE).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SatellitesCapacity.NODE_NAME).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.SatellitesCapacity.CAPACITY).apply(data),
+                        (boolean) setters.get(GeneratedDatabaseTables.SatellitesCapacity.FAIL_FLAG).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.SatellitesCapacity.ALLOCATED).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.SatellitesCapacity.USABLE).apply(data)
                     )
                 );
             }
@@ -806,16 +804,16 @@ public class GenCrdV1_18_2
             {
                 return new Schedules(
                     new SchedulesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.Schedules.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Schedules.NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Schedules.DSP_NAME).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.Schedules.FLAGS).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Schedules.FULL_CRON).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Schedules.INC_CRON).accept(data),
-                        (Integer) setters.get(GeneratedDatabaseTables.Schedules.KEEP_LOCAL).accept(data),
-                        (Integer) setters.get(GeneratedDatabaseTables.Schedules.KEEP_REMOTE).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.Schedules.ON_FAILURE).accept(data),
-                        (Integer) setters.get(GeneratedDatabaseTables.Schedules.MAX_RETRIES).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.Schedules.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Schedules.NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Schedules.DSP_NAME).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.Schedules.FLAGS).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Schedules.FULL_CRON).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Schedules.INC_CRON).apply(data),
+                        (Integer) setters.get(GeneratedDatabaseTables.Schedules.KEEP_LOCAL).apply(data),
+                        (Integer) setters.get(GeneratedDatabaseTables.Schedules.KEEP_REMOTE).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.Schedules.ON_FAILURE).apply(data),
+                        (Integer) setters.get(GeneratedDatabaseTables.Schedules.MAX_RETRIES).apply(data)
                     )
                 );
             }
@@ -823,8 +821,8 @@ public class GenCrdV1_18_2
             {
                 return new SecAccessTypes(
                     new SecAccessTypesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecAccessTypes.ACCESS_TYPE_NAME).accept(data),
-                        (short) setters.get(GeneratedDatabaseTables.SecAccessTypes.ACCESS_TYPE_VALUE).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecAccessTypes.ACCESS_TYPE_NAME).apply(data),
+                        (short) setters.get(GeneratedDatabaseTables.SecAccessTypes.ACCESS_TYPE_VALUE).apply(data)
                     )
                 );
             }
@@ -832,9 +830,9 @@ public class GenCrdV1_18_2
             {
                 return new SecAclMap(
                     new SecAclMapSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecAclMap.OBJECT_PATH).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecAclMap.ROLE_NAME).accept(data),
-                        (short) setters.get(GeneratedDatabaseTables.SecAclMap.ACCESS_TYPE).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecAclMap.OBJECT_PATH).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecAclMap.ROLE_NAME).apply(data),
+                        (short) setters.get(GeneratedDatabaseTables.SecAclMap.ACCESS_TYPE).apply(data)
                     )
                 );
             }
@@ -842,9 +840,9 @@ public class GenCrdV1_18_2
             {
                 return new SecConfiguration(
                     new SecConfigurationSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecConfiguration.ENTRY_KEY).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecConfiguration.ENTRY_DSP_KEY).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecConfiguration.ENTRY_VALUE).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecConfiguration.ENTRY_KEY).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecConfiguration.ENTRY_DSP_KEY).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecConfiguration.ENTRY_VALUE).apply(data)
                     )
                 );
             }
@@ -852,8 +850,8 @@ public class GenCrdV1_18_2
             {
                 return new SecDfltRoles(
                     new SecDfltRolesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecDfltRoles.IDENTITY_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecDfltRoles.ROLE_NAME).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecDfltRoles.IDENTITY_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecDfltRoles.ROLE_NAME).apply(data)
                     )
                 );
             }
@@ -861,12 +859,12 @@ public class GenCrdV1_18_2
             {
                 return new SecIdentities(
                     new SecIdentitiesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecIdentities.IDENTITY_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecIdentities.IDENTITY_DSP_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecIdentities.PASS_SALT).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecIdentities.PASS_HASH).accept(data),
-                        (boolean) setters.get(GeneratedDatabaseTables.SecIdentities.ID_ENABLED).accept(data),
-                        (boolean) setters.get(GeneratedDatabaseTables.SecIdentities.ID_LOCKED).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecIdentities.IDENTITY_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecIdentities.IDENTITY_DSP_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecIdentities.PASS_SALT).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecIdentities.PASS_HASH).apply(data),
+                        (boolean) setters.get(GeneratedDatabaseTables.SecIdentities.ID_ENABLED).apply(data),
+                        (boolean) setters.get(GeneratedDatabaseTables.SecIdentities.ID_LOCKED).apply(data)
                     )
                 );
             }
@@ -874,8 +872,8 @@ public class GenCrdV1_18_2
             {
                 return new SecIdRoleMap(
                     new SecIdRoleMapSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecIdRoleMap.IDENTITY_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecIdRoleMap.ROLE_NAME).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecIdRoleMap.IDENTITY_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecIdRoleMap.ROLE_NAME).apply(data)
                     )
                 );
             }
@@ -883,10 +881,10 @@ public class GenCrdV1_18_2
             {
                 return new SecObjectProtection(
                     new SecObjectProtectionSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecObjectProtection.OBJECT_PATH).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecObjectProtection.CREATOR_IDENTITY_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecObjectProtection.OWNER_ROLE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecObjectProtection.SECURITY_TYPE_NAME).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecObjectProtection.OBJECT_PATH).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecObjectProtection.CREATOR_IDENTITY_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecObjectProtection.OWNER_ROLE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecObjectProtection.SECURITY_TYPE_NAME).apply(data)
                     )
                 );
             }
@@ -894,11 +892,11 @@ public class GenCrdV1_18_2
             {
                 return new SecRoles(
                     new SecRolesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecRoles.ROLE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecRoles.ROLE_DSP_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecRoles.DOMAIN_NAME).accept(data),
-                        (boolean) setters.get(GeneratedDatabaseTables.SecRoles.ROLE_ENABLED).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.SecRoles.ROLE_PRIVILEGES).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecRoles.ROLE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecRoles.ROLE_DSP_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecRoles.DOMAIN_NAME).apply(data),
+                        (boolean) setters.get(GeneratedDatabaseTables.SecRoles.ROLE_ENABLED).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.SecRoles.ROLE_PRIVILEGES).apply(data)
                     )
                 );
             }
@@ -906,9 +904,9 @@ public class GenCrdV1_18_2
             {
                 return new SecTypes(
                     new SecTypesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecTypes.TYPE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecTypes.TYPE_DSP_NAME).accept(data),
-                        (boolean) setters.get(GeneratedDatabaseTables.SecTypes.TYPE_ENABLED).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecTypes.TYPE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecTypes.TYPE_DSP_NAME).apply(data),
+                        (boolean) setters.get(GeneratedDatabaseTables.SecTypes.TYPE_ENABLED).apply(data)
                     )
                 );
             }
@@ -916,9 +914,9 @@ public class GenCrdV1_18_2
             {
                 return new SecTypeRules(
                     new SecTypeRulesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.SecTypeRules.DOMAIN_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.SecTypeRules.TYPE_NAME).accept(data),
-                        (short) setters.get(GeneratedDatabaseTables.SecTypeRules.ACCESS_TYPE).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.SecTypeRules.DOMAIN_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.SecTypeRules.TYPE_NAME).apply(data),
+                        (short) setters.get(GeneratedDatabaseTables.SecTypeRules.ACCESS_TYPE).apply(data)
                     )
                 );
             }
@@ -926,8 +924,8 @@ public class GenCrdV1_18_2
             {
                 return new SpaceHistory(
                     new SpaceHistorySpec(
-                        (Date) setters.get(GeneratedDatabaseTables.SpaceHistory.ENTRY_DATE).accept(data),
-                        (byte[]) setters.get(GeneratedDatabaseTables.SpaceHistory.CAPACITY).accept(data)
+                        (Date) setters.get(GeneratedDatabaseTables.SpaceHistory.ENTRY_DATE).apply(data),
+                        (byte[]) setters.get(GeneratedDatabaseTables.SpaceHistory.CAPACITY).apply(data)
                     )
                 );
             }
@@ -935,9 +933,9 @@ public class GenCrdV1_18_2
             {
                 return new StorPoolDefinitions(
                     new StorPoolDefinitionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.StorPoolDefinitions.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.StorPoolDefinitions.POOL_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.StorPoolDefinitions.POOL_DSP_NAME).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.StorPoolDefinitions.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.StorPoolDefinitions.POOL_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.StorPoolDefinitions.POOL_DSP_NAME).apply(data)
                     )
                 );
             }
@@ -945,7 +943,7 @@ public class GenCrdV1_18_2
             {
                 return new TrackingDate(
                     new TrackingDateSpec(
-                        (Date) setters.get(GeneratedDatabaseTables.TrackingDate.ENTRY_DATE).accept(data)
+                        (Date) setters.get(GeneratedDatabaseTables.TrackingDate.ENTRY_DATE).apply(data)
                     )
                 );
             }
@@ -953,12 +951,12 @@ public class GenCrdV1_18_2
             {
                 return new Volumes(
                     new VolumesSpec(
-                        (String) setters.get(GeneratedDatabaseTables.Volumes.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Volumes.NODE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Volumes.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.Volumes.SNAPSHOT_NAME).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.Volumes.VLM_NR).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.Volumes.VLM_FLAGS).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.Volumes.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Volumes.NODE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Volumes.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.Volumes.SNAPSHOT_NAME).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.Volumes.VLM_NR).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.Volumes.VLM_FLAGS).apply(data)
                     )
                 );
             }
@@ -966,12 +964,12 @@ public class GenCrdV1_18_2
             {
                 return new VolumeConnections(
                     new VolumeConnectionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.NODE_NAME_SRC).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.NODE_NAME_DST).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.SNAPSHOT_NAME).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.VolumeConnections.VLM_NR).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.NODE_NAME_SRC).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.NODE_NAME_DST).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.VolumeConnections.SNAPSHOT_NAME).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.VolumeConnections.VLM_NR).apply(data)
                     )
                 );
             }
@@ -979,12 +977,12 @@ public class GenCrdV1_18_2
             {
                 return new VolumeDefinitions(
                     new VolumeDefinitionsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.VolumeDefinitions.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.VolumeDefinitions.RESOURCE_NAME).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.VolumeDefinitions.SNAPSHOT_NAME).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.VolumeDefinitions.VLM_NR).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.VolumeDefinitions.VLM_SIZE).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.VolumeDefinitions.VLM_FLAGS).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.VolumeDefinitions.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.VolumeDefinitions.RESOURCE_NAME).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.VolumeDefinitions.SNAPSHOT_NAME).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.VolumeDefinitions.VLM_NR).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.VolumeDefinitions.VLM_SIZE).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.VolumeDefinitions.VLM_FLAGS).apply(data)
                     )
                 );
             }
@@ -992,10 +990,10 @@ public class GenCrdV1_18_2
             {
                 return new VolumeGroups(
                     new VolumeGroupsSpec(
-                        (String) setters.get(GeneratedDatabaseTables.VolumeGroups.UUID).accept(data),
-                        (String) setters.get(GeneratedDatabaseTables.VolumeGroups.RESOURCE_GROUP_NAME).accept(data),
-                        (int) setters.get(GeneratedDatabaseTables.VolumeGroups.VLM_NR).accept(data),
-                        (long) setters.get(GeneratedDatabaseTables.VolumeGroups.FLAGS).accept(data)
+                        (String) setters.get(GeneratedDatabaseTables.VolumeGroups.UUID).apply(data),
+                        (String) setters.get(GeneratedDatabaseTables.VolumeGroups.RESOURCE_GROUP_NAME).apply(data),
+                        (int) setters.get(GeneratedDatabaseTables.VolumeGroups.VLM_NR).apply(data),
+                        (long) setters.get(GeneratedDatabaseTables.VolumeGroups.FLAGS).apply(data)
                     )
                 );
             }

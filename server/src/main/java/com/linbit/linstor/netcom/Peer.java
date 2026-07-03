@@ -58,21 +58,6 @@ public interface Peer
     ServiceName getConnectorInstanceName();
 
     /**
-     * Returns the security context of the connected peer
-     *
-     * @return AccessContext object representing the connected peer's security context
-     */
-    AccessContext getAccessContext();
-
-    /**
-     * Sets a new access context for the connected peer
-     *
-     * @param privilegedCtx The access context of the subject changing the peer's access context
-     * @param newAccCtx The new access context to associate with the peer
-     */
-    void setAccessContext(AccessContext newAccCtx);
-
-    /**
      * Attaches the object to the peer
      *
      * @param attachment The object to attach to the peer

@@ -40,13 +40,11 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
 
     private final ReadWriteLock reconfigurationLock;
     private final ReadWriteLock rscDfnMapLock;
-    private final @Nullable Supplier<ObjectProtection> rscDfnMapProt;
     private final CoreModule.ResourceDefinitionMap rscDfnMap;
 
     public CmdDisplayResourceDfn(
         ReadWriteLock reconfigurationLockRef,
         ReadWriteLock rscDfnMapLockRef,
-        @Nullable Supplier<ObjectProtection> rscDfnMapProtRef,
         CoreModule.ResourceDefinitionMap rscDfnMapRef
     )
     {
@@ -63,7 +61,6 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
 
         reconfigurationLock = reconfigurationLockRef;
         rscDfnMapLock = rscDfnMapLockRef;
-        rscDfnMapProt = rscDfnMapProtRef;
         rscDfnMap = rscDfnMapRef;
 
         lister = new FilteredObjectLister<>(
@@ -95,9 +92,6 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
         @Override
         public void ensureSearchAccess()
         {
-            if (rscDfnMapProt != null)
-            {
-            }
         }
 
         @Override
@@ -123,60 +117,45 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
         public void displayObjects(
             final PrintStream output, final ResourceDefinition rscDfnRef)
         {
-            try
+            TreePrinter.Builder treeBuilder = TreePrinter
+                .builder(
+                    "\u001b[1;37m%-40s\u001b[0m %-36s",
+                    rscDfnRef.getName().displayValue,
+                    rscDfnRef.getUuid().toString().toUpperCase()
+                )
+                .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(rscDfnRef))
+                .leaf("Flags: %016x", rscDfnRef.getFlags().getFlagsBits());
+
+            byte[] extName = rscDfnRef.getExternalName();
+            if (extName != null)
             {
-                ObjectProtection objProt = rscDfnRef.getObjProt();
-
-                TreePrinter.Builder treeBuilder = TreePrinter
-                    .builder(
-                        "\u001b[1;37m%-40s\u001b[0m %-36s",
-                        rscDfnRef.getName().displayValue,
-                        rscDfnRef.getUuid().toString().toUpperCase()
-                    )
-                    .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(rscDfnRef))
-                    .leaf("Flags: %016x", rscDfnRef.getFlags().getFlagsBits())
-                    .leaf(
-                        "Creator: %-24s Owner: %-24s",
-                        objProt.getCreator().name.displayValue,
-                        objProt.getOwner().name.displayValue
-                    )
-                    .leaf("Security type: %-24s", objProt.getSecurityType().name.displayValue);
-
-                byte[] extName = rscDfnRef.getExternalName();
-                if (extName != null)
-                {
-                    String extNameDump = AutoIndent.formatWithIndent(
-                        4,
-                        HexViewer.binaryToHexDump(extName)
-                    );
-                    treeBuilder.leaf("External name:\n%s", extNameDump);
-                }
-
-                Iterator<VolumeDefinition> vlmDfnIter = rscDfnRef.iterateVolumeDfn();
-
-                treeBuilder.branchHideEmpty("Volume definitions");
-                while (vlmDfnIter.hasNext())
-                {
-                    VolumeDefinition vlmDfnRef = vlmDfnIter.next();
-
-                    treeBuilder
-                        .branch(
-                            "\u001b[1;37mVolume %6d\u001b[0m %-36s",
-                            vlmDfnRef.getVolumeNumber().value,
-                            vlmDfnRef.getUuid().toString().toUpperCase()
-                        )
-                        .leaf("Size:     %16d", vlmDfnRef.getVolumeSize())
-                        .leaf("Flags:    %016x", vlmDfnRef.getFlags().getFlagsBits())
-                        .endBranch();
-                }
-                treeBuilder.endBranch();
-
-                treeBuilder.print(output);
+                String extNameDump = AutoIndent.formatWithIndent(
+                    4,
+                    HexViewer.binaryToHexDump(extName)
+                );
+                treeBuilder.leaf("External name:\n%s", extNameDump);
             }
-            catch (AccessDeniedException accExc)
+
+            Iterator<VolumeDefinition> vlmDfnIter = rscDfnRef.iterateVolumeDfn();
+
+            treeBuilder.branchHideEmpty("Volume definitions");
+            while (vlmDfnIter.hasNext())
             {
-                // No view access
+                VolumeDefinition vlmDfnRef = vlmDfnIter.next();
+
+                treeBuilder
+                    .branch(
+                        "\u001b[1;37mVolume %6d\u001b[0m %-36s",
+                        vlmDfnRef.getVolumeNumber().value,
+                        vlmDfnRef.getUuid().toString().toUpperCase()
+                    )
+                    .leaf("Size:     %16d", vlmDfnRef.getVolumeSize())
+                    .leaf("Flags:    %016x", vlmDfnRef.getFlags().getFlagsBits())
+                    .endBranch();
             }
+            treeBuilder.endBranch();
+
+            treeBuilder.print(output);
         }
 
         @Override

@@ -119,7 +119,7 @@ public class CommonMessageProcessor implements MessageProcessor
             .subscribe(
                 ignored -> {
                     // do nothing
-                }, exc -> errorLog.reportError(exc, null, null, "Uncaught exception in sink"));
+                }, exc -> errorLog.reportError(exc, null, "Uncaught exception in sink"));
 
         apiCallMap = new TreeMap<>();
         for (Map.Entry<String, BaseApiCall> entry : apiCalls.entrySet())
@@ -219,7 +219,6 @@ public class CommonMessageProcessor implements MessageProcessor
             errorLog.reportError(
                 Level.ERROR,
                 exc,
-                peer.getAccessContext(),
                 peer,
                 null
             );
@@ -252,7 +251,6 @@ public class CommonMessageProcessor implements MessageProcessor
                 .doOnError(exc -> errorLog.reportError(
                     Level.ERROR,
                     exc,
-                    peer.getAccessContext(),
                     peer,
                     null
                 ))
@@ -263,7 +261,6 @@ public class CommonMessageProcessor implements MessageProcessor
             errorLog.reportError(
                 Level.ERROR,
                 exc,
-                peer.getAccessContext(),
                 peer,
                 null
             );
@@ -389,7 +386,6 @@ public class CommonMessageProcessor implements MessageProcessor
 
         if (apiMapEntry != null)
         {
-            AccessContext peerAccCtx = peer.getAccessContext();
             // API will execute
             // - if no authentication is required for that specific API
             // - if the peer has completed the authentication handshake
@@ -408,16 +404,11 @@ public class CommonMessageProcessor implements MessageProcessor
                         exc -> handleApiException(exc, peer, apiCallId)
                     )
                     .onErrorResume(
-                        ApiAccessDeniedException.class,
-                        exc -> handleApiAccessDeniedException(exc, peer, apiCallId)
-                    )
-                    .onErrorResume(
                         TransactionException.class,
                         exc -> handleTransactionException(exc, peer, apiCallId)
                     )
                     .contextWrite(Context.of(
                         ApiModule.API_CALL_NAME, apiCallName,
-                        AccessContext.class,
                         Peer.class, peer,
                         ApiModule.API_CALL_ID, apiCallId
                     ));
@@ -452,7 +443,6 @@ public class CommonMessageProcessor implements MessageProcessor
                     "The API call name specified by the client was:\n" +
                         apiCallName
                 ),
-                peer.getAccessContext(),
                 peer,
                 "The request was received on connector service '" + connector.getInstanceName() + "' " +
                     "of type '" + connector.getServiceName() + "'"
@@ -551,7 +541,6 @@ public class CommonMessageProcessor implements MessageProcessor
         String errorId = errorLog.reportError(
             Level.ERROR,
             exc,
-            peer.getAccessContext(),
             peer,
             "Unable to parse protobuf protocol for '" + apiCallName + "'"
         );
@@ -568,41 +557,11 @@ public class CommonMessageProcessor implements MessageProcessor
         String errorId = errorLog.reportError(
             Level.ERROR,
             exc,
-            peer.getAccessContext(),
             peer,
             exc.getMessage()
         );
 
         return Flux.just(makeApiErrorMessage(exc, apiCallId, errorId));
-    }
-
-    private Flux<byte[]> handleApiAccessDeniedException(
-        ApiAccessDeniedException exc,
-        Peer peer,
-        Long apiCallId
-    )
-    {
-        String message = ResponseUtils.getAccDeniedMsg(peer.getAccessContext(), exc.getAction());
-
-        String errorId = errorLog.reportError(
-            Level.ERROR,
-            exc.getCause(),
-            peer.getAccessContext(),
-            peer,
-            message
-        );
-
-        ApiCallRc.RcEntry entry = ApiCallRcImpl
-            .entryBuilder(
-                exc.getRetCode(),
-                message
-            )
-            .setCause(exc.getCause().getMessage())
-            .addErrorId(errorId)
-            .build();
-
-        return Flux.just(commonSerializer.answerBuilder(ApiConsts.API_REPLY, apiCallId)
-            .apiCallRcSeries(ApiCallRcImpl.singletonApiCallRc(entry)).build());
     }
 
     private Flux<byte[]> handleTransactionException(
@@ -620,7 +579,6 @@ public class CommonMessageProcessor implements MessageProcessor
             false,
             responses,
             errorLog,
-            peer.getAccessContext(),
             peer
         );
 
@@ -636,7 +594,6 @@ public class CommonMessageProcessor implements MessageProcessor
     {
         String errorId = errorLog.reportError(
             exc,
-            peer.getAccessContext(),
             peer,
             "Unhandled error executing API call '" + header.getMsgContent() + "'."
         );

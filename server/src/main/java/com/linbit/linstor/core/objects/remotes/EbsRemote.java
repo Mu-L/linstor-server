@@ -50,7 +50,7 @@ public class EbsRemote extends AbsRemote
         Provider<? extends TransactionMgr> transMgrProvider
     )
     {
-        super(objIdRef, transObjFactory, transMgrProvider, objProtRef, remoteNameRef);
+        super(objIdRef, transObjFactory, transMgrProvider, remoteNameRef);
         dbDriver = dbDriverRef;
         url = transObjFactory.createTransactionSimpleObject(this, urlRef, dbDriverRef.getUrlDriver());
         availabilityZone = transObjFactory.createTransactionSimpleObject(
@@ -77,7 +77,6 @@ public class EbsRemote extends AbsRemote
         );
         decryptedAccessKey = transObjFactory.createTransactionSimpleObject(this, null, null);
         flags = transObjFactory.createStateFlagsImpl(
-            objProtRef,
             this,
             Flags.class,
             dbDriverRef.getStateFlagsPersistence(),
@@ -85,7 +84,6 @@ public class EbsRemote extends AbsRemote
         );
 
         transObjs = Arrays.asList(
-            objProt,
             flags,
             url,
             availabilityZone,
@@ -239,7 +237,6 @@ public class EbsRemote extends AbsRemote
         if (!deleted.get())
         {
 
-            objProt.delete();
 
             activateTransMgr();
 

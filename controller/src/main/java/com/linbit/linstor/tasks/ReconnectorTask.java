@@ -429,14 +429,7 @@ public class ReconnectorTask implements Task
                 // Check if the Node's current peer is connected, not the stale peer in config.
                 // The node might have reconnected via a different Peer object.
                 @Nullable Peer currentPeer = null;
-                try
-                {
-                    currentPeer = node.getPeer();
-                }
-                catch (AccessDeniedException ignored)
-                {
-                    // should not happen with apiCtx
-                }
+                currentPeer = node.getPeer();
                 if (currentPeer != null && currentPeer.isConnected(false))
                 {
                     errorReporter.logInfo(

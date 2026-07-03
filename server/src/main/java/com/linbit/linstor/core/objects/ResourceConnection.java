@@ -107,7 +107,6 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
         );
 
         flags = transObjFactory.createStateFlagsImpl(
-            Arrays.asList(source.getObjProt(), target.getObjProt()),
             this,
             Flags.class,
             dbDriver.getStateFlagPersistence(),
@@ -265,11 +264,7 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
     public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(
-            source.getObjProt(),
-            target.getObjProt(),
-            props
-        );
+        return props;
     }
 
     public StateFlags<Flags> getStateFlags()
@@ -354,10 +349,6 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
             throw new ImplementationError("Auto-allocated TCP port number out of range", exc);
         }
         drbdProxyPortFieldRef.set(portNr);
-    }
-
-    private void requireAccess(AccessType accType)
-    {
     }
 
     @Override

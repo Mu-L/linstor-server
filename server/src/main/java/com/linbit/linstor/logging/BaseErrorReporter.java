@@ -171,15 +171,6 @@ public abstract class BaseErrorReporter
         outputRef.println("\nEND OF ERROR REPORT.");
     }
 
-    void reportAccessContext(ErrorReportRenderer output)
-    {
-        output.println("Access context information\n");
-        output.printf(ERROR_FIELD_FORMAT, "Identity:", accCtx.subjectDomain.name.displayValue);
-        output.printf(ERROR_FIELD_FORMAT, "Role:", accCtx.subjectRole.name.displayValue);
-        output.printf(ERROR_FIELD_FORMAT, "Domain:", accCtx.subjectDomain.name.displayValue);
-        output.println();
-    }
-
     void reportPeer(ErrorReportRenderer output, Peer client)
     {
         String peerAddress = null;
@@ -229,10 +220,6 @@ public abstract class BaseErrorReporter
         );
         output.printf(ERROR_FIELD_FORMAT, "Node:", nodeName);
         output.printf(ERROR_FIELD_FORMAT, "Thread:", Thread.currentThread().getName());
-        if (accCtxRef != null)
-        {
-            reportAccessContext(output);
-        }
         if (client != null)
         {
             output.printf(ERROR_FIELD_FORMAT, "Peer:", client.toString());

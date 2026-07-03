@@ -118,7 +118,7 @@ public interface ErrorReporter
 
     /**
      * Reports any kind of error, especially ones that are not expected during normal operation.
-     * Calls {@link ErrorReporter#reportError(Level, Throwable, AccessContext, Peer, String)}
+     * Calls {@link ErrorReporter#reportError(Level, Throwable, Peer, String)}
      * with {@link Level#ERROR} as default logLevel.
      *
      *

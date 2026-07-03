@@ -55,7 +55,6 @@ public class StorPoolDefinitionDbDriverTest extends GenericDbBase
         objProt = objectProtectionFactory.getInstance(ObjectProtection.buildPath(spName), true);
         spdd = TestFactory.createStorPoolDefinition(
             uuid,
-            objProt,
             spName,
             driver,
             propsContainerFactory,

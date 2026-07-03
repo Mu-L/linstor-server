@@ -199,13 +199,7 @@ public class ZfsProvider
 
     protected String asSnapLvIdentifierPrivileged(ZfsData<Snapshot> snapVlmDataRef)
     {
-        try
-        {
-            return asSnapLvIdentifier(snapVlmDataRef, false);
-        }
-        catch (AccessDeniedException ignored)
-        {
-        }
+        return asSnapLvIdentifier(snapVlmDataRef, false);
         return "";
     }
 

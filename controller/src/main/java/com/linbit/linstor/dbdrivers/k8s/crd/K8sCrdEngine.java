@@ -29,7 +29,6 @@ import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.K8sCrdTransaction;
 import com.linbit.linstor.transaction.manager.TransactionMgrK8sCrd;
-import com.linbit.utils.ExceptionThrowingFunction;
 import com.linbit.utils.Pair;
 
 import javax.inject.Inject;
@@ -88,7 +87,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA> void create(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA data,
         DatabaseTable table,
         DataToString<DATA> dataIdToString
@@ -115,7 +114,7 @@ public class K8sCrdEngine implements DbEngine
 
     private <DATA> void update(
         DatabaseTable table,
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA data,
         DataToString<DATA> dataIdToString
     )
@@ -141,7 +140,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA> void upsert(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         DATA dataRef,
         DatabaseTable tableRef,
         DataToString<DATA> dataToStringRef
@@ -170,7 +169,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA> void delete(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA data,
         DatabaseTable table,
         DataToString<DATA> dataIdToString
@@ -269,7 +268,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA, FLAG extends Enum<FLAG> & Flags> StateFlagsPersistence<DATA> generateFlagsDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         Column colRef,
         Class<FLAG> ignoredFlagsClass,
         DataToString<DATA> dataIdToString
@@ -282,11 +281,11 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA, INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         Column colRef,
         Function<INPUT_TYPE, DB_TYPE> ignoredTypeMapper,
         DataToString<DATA> dataIdToString,
-        ExceptionThrowingFunction<DATA, String> dataValueToStringRef,
+        Function<DATA, String> dataValueToStringRef,
         DataToString<INPUT_TYPE> ignoredInputToString
     )
     {
@@ -297,7 +296,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA, LIST_TYPE> CollectionDatabaseDriver<DATA, LIST_TYPE> generateCollectionToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         Column colRef,
         DataToString<DATA> dataIdToString
     )
@@ -324,7 +323,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA, KEY, VALUE> MapDatabaseDriver<DATA, KEY, VALUE> generateMapToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         Column colRef,
         DataToString<DATA> dataIdToString
         )

@@ -126,7 +126,6 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup>
         peerSlots = transObjFactory.createTransactionSimpleObject(this, peerSlotsRef, dbDriver.getPeerSlotsDriver());
 
         transObjs = Arrays.asList(
-            objProt,
             rscGrpProps,
             autoPlaceConfig,
             vlmMap,
@@ -327,7 +326,6 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup>
 
             rscGrpProps.delete();
 
-            objProt.delete();
             activateTransMgr();
             dbDriver.delete(this);
 

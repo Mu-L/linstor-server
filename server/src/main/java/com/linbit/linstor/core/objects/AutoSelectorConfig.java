@@ -334,38 +334,12 @@ public class AutoSelectorConfig extends BaseTransactionObject
         List<T> list
     )
     {
-        ObjectProtection objProt = getObjProt();
-
-        List<T> ret;
-        AccessType queryAccess = objProt.queryAccess();
-
-        if (queryAccess.hasAccess(AccessType.CHANGE))
-        {
-            ret = list;
-        }
-        else
-        {
-            ret = Collections.unmodifiableList(list);
-        }
-        return ret;
+        return list;
     }
 
     private <K, V> Map<K, V> protectedMap(Map<K, V> map)
     {
-        ObjectProtection objProt = getObjProt();
-
-        Map<K, V> ret;
-        AccessType queryAccess = objProt.queryAccess();
-
-        if (queryAccess.hasAccess(AccessType.CHANGE))
-        {
-            ret = map;
-        }
-        else
-        {
-            ret = Collections.unmodifiableMap(map);
-        }
-        return ret;
+        return map;
     }
 
     @Override

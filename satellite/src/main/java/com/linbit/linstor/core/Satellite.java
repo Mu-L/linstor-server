@@ -318,7 +318,7 @@ public final class Satellite
             privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
             debugCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
 
-            DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(debugCtx, null);
+            DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(null);
             dbgConsole.stdStreamsConsole(DebugConsoleImpl.CONSOLE_PROMPT);
             System.out.println();
 
@@ -352,8 +352,7 @@ public final class Satellite
             cfg.isLogPrintStackTrace(),
             cfg.getStltOverrideNodeName() != null ? cfg.getStltOverrideNodeName() : LinStor.getHostName(),
             cfg.getLogLevel(),
-            cfg.getLogLevelLinstor(),
-            () -> null
+            cfg.getLogLevelLinstor()
         );
 
         // register CriticalError die error handler

@@ -418,27 +418,20 @@ public class CtrlScheduledBackupsApiCallHandler
         List<SnapshotDefinition> snapDfns = new ArrayList<>();
         for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
         {
-            try
+            ReadOnlyProps props = snapDfn.getSnapDfnProps();
+            if (
+                isFullBackupOfSchedule(
+                    props.map(),
+                    scheduleName,
+                    s3orLinRemoteName,
+                    snapDfn.getName().displayValue
+                ) && props.getProp(
+                    InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
+                    BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + s3orLinRemoteName
+                ) != null
+            )
             {
-                ReadOnlyProps props = snapDfn.getSnapDfnProps();
-                if (
-                    isFullBackupOfSchedule(
-                        props.map(),
-                        scheduleName,
-                        s3orLinRemoteName,
-                        snapDfn.getName().displayValue
-                    ) && props.getProp(
-                        InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
-                        BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + s3orLinRemoteName
-                    ) != null
-                )
-                {
-                    snapDfns.add(snapDfn);
-                }
-            }
-            catch (AccessDeniedException ignored)
-            {
-                // user has no access, so don't add to list
+                snapDfns.add(snapDfn);
             }
         }
         return snapDfns;

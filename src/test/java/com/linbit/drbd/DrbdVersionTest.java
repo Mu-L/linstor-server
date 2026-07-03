@@ -45,8 +45,7 @@ public class DrbdVersionTest
             true,
             "",
             null,
-            null,
-            () -> null
+            null
         );
     }
 

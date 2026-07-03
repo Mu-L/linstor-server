@@ -35,7 +35,7 @@ public class StderrErrorReporter extends BaseErrorReporter implements ErrorRepor
     }
 
     @Override
-    public void setLogLevel(@Nullable AccessContext accCtx, @Nullable Level levelRef, @Nullable Level linstorLevelRef)
+    public void setLogLevel(@Nullable Level levelRef, @Nullable Level linstorLevelRef)
     {
     }
 
@@ -78,13 +78,13 @@ public class StderrErrorReporter extends BaseErrorReporter implements ErrorRepor
     @Override
     public @Nullable String reportError(Throwable errorInfo)
     {
-        return reportError(Level.ERROR, errorInfo, null, null, null);
+        return reportError(Level.ERROR, errorInfo, null, null);
     }
 
     @Override
     public @Nullable String reportError(Level logLevel, Throwable errorInfo)
     {
-        return reportError(logLevel, errorInfo, null, null, null);
+        return reportError(logLevel, errorInfo, null, null);
     }
 
     @Override

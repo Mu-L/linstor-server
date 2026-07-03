@@ -2,12 +2,12 @@ package com.linbit.linstor.core.objects;
 
 
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.utils.ExceptionThrowingBiFunction;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.Function;
 
 public class AutoUnselectorConfig
 {
@@ -16,13 +16,12 @@ public class AutoUnselectorConfig
 
     private final ResourceDefinition rscDfn;
     private final Map<Resource, AutoUnselectRscConfig> unplaceSettingMap;
-    private final ExceptionThrowingBiFunction<
-        AccessContext, Resource, @Nullable String> filter;
+    private final Function<Resource, @Nullable String> filter;
 
     public AutoUnselectorConfig(
         ResourceDefinition rscDfnRef,
         Map<Resource, AutoUnselectRscConfig> unplaceSettingMapRef,
-        ExceptionThrowingBiFunction<AccessContext, Resource, @Nullable String> filterRef
+        Function<Resource, @Nullable String> filterRef
     )
     {
         rscDfn = rscDfnRef;
@@ -35,7 +34,7 @@ public class AutoUnselectorConfig
         return rscDfn;
     }
 
-    public ExceptionThrowingBiFunction<AccessContext, Resource, String> getFilter()
+    public Function<Resource, String> getFilter()
     {
         return filter;
     }
@@ -74,7 +73,7 @@ public class AutoUnselectorConfig
         private final ResourceDefinition rscDfn;
         private final Map<Resource, RscConfigBuilder> rscCfgMap = new HashMap<>();
 
-        private ExceptionThrowingBiFunction<AccessContext, Resource, @Nullable String> filter;
+        private Function<Resource, @Nullable String> filter;
 
         public CfgBuilder(ResourceDefinition rscDfnRef)
         {
@@ -94,7 +93,7 @@ public class AutoUnselectorConfig
         }
 
         public CfgBuilder setFilter(
-            ExceptionThrowingBiFunction<AccessContext, Resource, String> filterRef
+            Function<Resource, String> filterRef
         )
         {
             filter = filterRef;
@@ -129,7 +128,7 @@ public class AutoUnselectorConfig
                 @Nullable String alreadySetIgnoreReason = rscCfgBuilder.ignoreReason;
                 if (alreadySetIgnoreReason == null)
                 {
-                    rscCfgBuilder.setIgnoreReason(filter.accept(rsc));
+                    rscCfgBuilder.setIgnoreReason(filter.apply(rsc));
                 }
             }
         }

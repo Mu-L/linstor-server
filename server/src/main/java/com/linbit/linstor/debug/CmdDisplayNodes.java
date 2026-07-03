@@ -36,7 +36,6 @@ public class CmdDisplayNodes extends BaseDebugCmd
 
     private final ReadWriteLock reconfigurationLock;
     private final ReadWriteLock nodesMapLock;
-    private final @Nullable Supplier<ObjectProtection> nodesMapProt;
     private final CoreModule.NodesMap nodesMap;
 
     private final FilteredObjectLister<Node> lister;
@@ -44,7 +43,6 @@ public class CmdDisplayNodes extends BaseDebugCmd
     public CmdDisplayNodes(
         ReadWriteLock reconfigurationLockRef,
         ReadWriteLock nodesMapLockRef,
-        @Nullable Supplier<ObjectProtection> nodesMapProtRef,
         CoreModule.NodesMap nodesMapRef
     )
     {
@@ -61,7 +59,6 @@ public class CmdDisplayNodes extends BaseDebugCmd
 
         reconfigurationLock = reconfigurationLockRef;
         nodesMapLock = nodesMapLockRef;
-        nodesMapProt = nodesMapProtRef;
         nodesMap = nodesMapRef;
 
         lister = new FilteredObjectLister<>(
@@ -93,9 +90,6 @@ public class CmdDisplayNodes extends BaseDebugCmd
         @Override
         public void ensureSearchAccess()
         {
-            if (nodesMapProt != null)
-            {
-            }
         }
 
         @Override
@@ -120,55 +114,37 @@ public class CmdDisplayNodes extends BaseDebugCmd
         @Override
         public void displayObjects(final PrintStream output, final Node nodeRef)
         {
-            try
-            {
-                ObjectProtection objProt = nodeRef.getObjProt();
+            TreePrinter.Builder treeBuilder = TreePrinter
+                .builder(
+                    "\u001b[1;37m%-40s\u001b[0m %-36s",
+                    nodeRef.getName().displayValue,
+                    nodeRef.getUuid().toString().toUpperCase()
+                )
+                .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(nodeRef))
+                .leaf("Flags: %016x", nodeRef.getFlags().getFlagsBits());
 
-                TreePrinter.Builder treeBuilder = TreePrinter
-                    .builder(
-                        "\u001b[1;37m%-40s\u001b[0m %-36s",
-                        nodeRef.getName().displayValue,
-                        nodeRef.getUuid().toString().toUpperCase()
+            treeBuilder.branchHideEmpty("Network interfaces:");
+            nodeRef.streamNetInterfaces().forEach(netIf ->
+            {
+                String address = "<No authorized>";
+                LsIpAddress lsIp = netIf.getAddress();
+                String addrStr = lsIp.getAddress();
+                address = addrStr;
+
+                treeBuilder
+                    .branch(
+                        "\u001b[1;37m%-24s\u001b[0m %s",
+                        netIf.getName().displayValue,
+                        netIf.getUuid().toString().toUpperCase()
                     )
-                    .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(nodeRef))
-                    .leaf("Flags: %016x", nodeRef.getFlags().getFlagsBits())
-                    .leaf("Creator: %-24s Owner: %-24s",
-                        objProt.getCreator().name.displayValue, objProt.getOwner().name.displayValue)
-                    .leaf("Security type: %-24s", objProt.getSecurityType().name.displayValue);
-
-                treeBuilder.branchHideEmpty("Network interfaces:");
-                nodeRef.streamNetInterfaces().forEach(netIf ->
-                {
-                    String address = "<No authorized>";
-                    try
-                    {
-                        LsIpAddress lsIp = netIf.getAddress();
-                        String addrStr = lsIp.getAddress();
-                        address = addrStr;
-                    }
-                    catch (AccessDeniedException ignored)
-                    {
-                    }
-
-                    treeBuilder
-                        .branch(
-                            "\u001b[1;37m%-24s\u001b[0m %s",
-                            netIf.getName().displayValue,
-                            netIf.getUuid().toString().toUpperCase()
-                        )
-                        .leaf("Address: %s", address)
-                        .endBranch();
-                }
-                );
-
-                treeBuilder.endBranch();
-
-                treeBuilder.print(output);
+                    .leaf("Address: %s", address)
+                    .endBranch();
             }
-            catch (AccessDeniedException accExc)
-            {
-                // No view access
-            }
+            );
+
+            treeBuilder.endBranch();
+
+            treeBuilder.print(output);
         }
 
         @Override

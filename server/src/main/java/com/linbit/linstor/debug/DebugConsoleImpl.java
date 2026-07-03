@@ -297,7 +297,7 @@ public class DebugConsoleImpl implements DebugConsole
                                 );
                             }
                         }
-                        debugCmd.execute(debugOut, debugErr, debugCtx, parameters);
+                        debugCmd.execute(debugOut, debugErr, parameters);
                     }
                     catch (Exception exc)
                     {

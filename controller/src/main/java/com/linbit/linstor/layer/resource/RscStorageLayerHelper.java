@@ -676,26 +676,14 @@ public class RscStorageLayerHelper extends
     private boolean areAllVolumeFlagsSetPrivileged(Volume vlm, Volume.Flags... flags)
     {
         boolean isSet = false;
-        try
-        {
-            isSet = vlm.getFlags().isSet(flags);
-        }
-        catch (AccessDeniedException ignored)
-        {
-        }
+        isSet = vlm.getFlags().isSet(flags);
         return isSet;
     }
 
     private boolean isAnyVolumeFlagSetPrivileged(Volume vlm, Volume.Flags... flags)
     {
         boolean isSet = false;
-        try
-        {
-            isSet = vlm.getFlags().isSomeSet(flags);
-        }
-        catch (AccessDeniedException ignored)
-        {
-        }
+        isSet = vlm.getFlags().isSomeSet(flags);
         return isSet;
     }
 

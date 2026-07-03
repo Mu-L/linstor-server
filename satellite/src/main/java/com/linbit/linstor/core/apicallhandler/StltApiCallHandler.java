@@ -906,15 +906,9 @@ public class StltApiCallHandler
         stltCfg.setLogLevel(logLevel);
         stltCfg.setLogLevelLinstor(logLevelLinstor);
         boolean successFlag = false;
-        try
-        {
-            errorReporter.setLogLevel(Level.valueOf(logLevel.toUpperCase()), Level.valueOf(logLevelLinstor.toUpperCase())
-            );
-            successFlag = true;
-        }
-        catch (AccessDeniedException ignored)
-        {
-        }
+        errorReporter.setLogLevel(Level.valueOf(logLevel.toUpperCase()), Level.valueOf(logLevelLinstor.toUpperCase())
+        );
+        successFlag = true;
         return successFlag;
     }
 

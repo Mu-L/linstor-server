@@ -28,8 +28,7 @@ public class ChangeLogLevelTest
             true,
             "node",
             "INFO",
-            "DEBUG",
-            () -> TestAccessContextProvider.INIT_CTX
+            "DEBUG"
         );
         reporter = Mockito.spy(reporter);
         Mockito.doAnswer(invoc ->
@@ -50,9 +49,9 @@ public class ChangeLogLevelTest
     @Test
     public void testChangeLogLevel() throws Exception
     {
-        reporter.setLogLevel(TestAccessContextProvider.INIT_CTX, Level.DEBUG, Level.ERROR);
-        reporter.setLogLevel(TestAccessContextProvider.INIT_CTX, Level.INFO, null);
-        reporter.setLogLevel(TestAccessContextProvider.INIT_CTX, null, Level.TRACE);
-        reporter.setLogLevel(TestAccessContextProvider.INIT_CTX, null, null);
+        reporter.setLogLevel(Level.DEBUG, Level.ERROR);
+        reporter.setLogLevel(Level.INFO, null);
+        reporter.setLogLevel(null, Level.TRACE);
+        reporter.setLogLevel(null, null);
     }
 }

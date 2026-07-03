@@ -32,8 +32,6 @@ import com.linbit.linstor.tasks.AutoSnapshotTask;
 import com.linbit.linstor.tasks.ScheduleBackupService;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
-import com.linbit.utils.ExceptionThrowingFunction;
-import com.linbit.utils.ExceptionThrowingPredicate;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescription;
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
@@ -49,6 +47,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import reactor.core.publisher.Flux;
 
@@ -294,7 +294,7 @@ public class CtrlRscDfnTruncateApiCallHandler
         @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(truncateCtxRef.rscName, false);
         if (rscDfn != null)
         {
-            @Nullable Flux<ApiCallRc> preMarkDeleteFlux = truncateCtxRef.preMarkForDeleteAction.accept(rscDfn);
+            @Nullable Flux<ApiCallRc> preMarkDeleteFlux = truncateCtxRef.preMarkForDeleteAction.apply(rscDfn);
             if (preMarkDeleteFlux != null)
             {
                 flux = preMarkDeleteFlux;
@@ -319,7 +319,7 @@ public class CtrlRscDfnTruncateApiCallHandler
     private Flux<ApiCallRc> deleteResourcesMultiStep(
         TruncateContext truncateCtxRef,
         String subScopeDescrRef,
-        ExceptionThrowingFunction<Resource, /* Nullable */ Flux<ApiCallRc>> actionRef,
+        Function<Resource, /* Nullable */ Flux<ApiCallRc>> actionRef,
         String updateStltsFormatRef,
         Flux<ApiCallRc> nextStepRef
     )
@@ -340,8 +340,7 @@ public class CtrlRscDfnTruncateApiCallHandler
 
     private Flux<ApiCallRc> deleteResourcesMultiStepInTx(
         TruncateContext truncateCtxRef,
-        String subScopeDescrRef,
-        ExceptionThrowingFunction<Resource, /* TODO: @Nullable */ Flux<ApiCallRc>> actionRef,
+        Function<Resource, /* TODO: @Nullable */ Flux<ApiCallRc>> actionRef,
         String updateStltsFormatRef,
         Flux<ApiCallRc> nextStepRef
     )
@@ -351,7 +350,7 @@ public class CtrlRscDfnTruncateApiCallHandler
         if (rscDfn != null)
         {
             flux = Flux.empty();
-            ExceptionThrowingPredicate<Resource> predicate = truncateCtxRef.rscFilter;
+            Predicate<Resource> predicate = truncateCtxRef.rscFilter;
 
             // copy resources into dedicated map / collection since the actionRef might delete the resources, which
             // would cause us here a ConcurrentModificationException
@@ -359,7 +358,7 @@ public class CtrlRscDfnTruncateApiCallHandler
 
             if (truncateCtxRef.preMarkForDeleteAction != null)
             {
-                @Nullable Flux<ApiCallRc> preMarkFlux = truncateCtxRef.preMarkForDeleteAction.accept(rscDfn);
+                @Nullable Flux<ApiCallRc> preMarkFlux = truncateCtxRef.preMarkForDeleteAction.apply(rscDfn);
                 if (preMarkFlux != null)
                 {
                     flux = flux.concatWith(preMarkFlux);
@@ -371,7 +370,7 @@ public class CtrlRscDfnTruncateApiCallHandler
             {
                 if (predicate.test(rsc))
                 {
-                    @Nullable Flux<ApiCallRc> actionFlux = actionRef.accept(rsc);
+                    @Nullable Flux<ApiCallRc> actionFlux = actionRef.apply(rsc);
                     if (actionFlux != null)
                     {
                         flux = flux.concatWith(actionFlux);
@@ -540,20 +539,22 @@ public class CtrlRscDfnTruncateApiCallHandler
     private static class TruncateContext
     {
         private final ResourceName rscName;
-        private final ExceptionThrowingPredicate<Resource> rscFilter;
+        private final Predicate<Resource> rscFilter;
         @SuppressWarnings("LineLength")
-        private final @Nullable ExceptionThrowingFunction<ResourceDefinition, Flux<ApiCallRc>> preMarkForDeleteAction;
-        private final ExceptionThrowingFunction<Resource, Flux<ApiCallRc>> markForDeleteAction;
-        private final ExceptionThrowingFunction<Resource, Flux<ApiCallRc>> deleteAction;
+        private final @Nullable Function<ResourceDefinition, Flux<ApiCallRc>>
+            preMarkForDeleteAction;
+        private final Function<Resource, Flux<ApiCallRc>> markForDeleteAction;
+        private final Function<Resource, Flux<ApiCallRc>> deleteAction;
         private final String scopeDescription;
 
         private TruncateContext(
             ResourceName rscNameRef,
-            ExceptionThrowingPredicate<Resource> rscFilterRef,
+            Predicate<Resource> rscFilterRef,
             @SuppressWarnings("LineLength")
-            @Nullable ExceptionThrowingFunction<ResourceDefinition, Flux<ApiCallRc>> preMarkForDeleteActionRef,
-            ExceptionThrowingFunction<Resource, Flux<ApiCallRc>> markForDeleteActionRef,
-            ExceptionThrowingFunction<Resource, Flux<ApiCallRc>> deleteActionRef,
+            @Nullable Function<ResourceDefinition, Flux<ApiCallRc>>
+                preMarkForDeleteActionRef,
+            Function<Resource, Flux<ApiCallRc>> markForDeleteActionRef,
+            Function<Resource, Flux<ApiCallRc>> deleteActionRef,
             String scopeDescriptionRef
         )
         {

@@ -121,7 +121,7 @@ public interface DbEngine
      *     Converts the DATA to a String (only for logging)
      */
     <DATA, FLAG extends Enum<FLAG> & Flags> StateFlagsPersistence<DATA> generateFlagsDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         Column colRef,
         Class<FLAG> flagsClassRef,
         DataToString<DATA> idFormatterRef
@@ -157,11 +157,11 @@ public interface DbEngine
      *     Converts the INPUT_TYPE to {@link String} (only for logging)
      */
     <DATA, INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         Column colRef,
         Function<INPUT_TYPE, DB_TYPE> typeMapperRef,
         DataToString<DATA> dataToStringRef,
-        ExceptionThrowingFunction<DATA, String> dataValueToStringRef,
+        Function<DATA, String> dataValueToStringRef,
         DataToString<INPUT_TYPE> inputToStringRef
     );
 
@@ -184,7 +184,7 @@ public interface DbEngine
      *     Converts the DATA to a String (only for logging)
      */
     <DATA, LIST_TYPE> CollectionDatabaseDriver<DATA, LIST_TYPE> generateCollectionToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         Column colRef,
         DataToString<DATA> dataToStringRef
     );
@@ -210,7 +210,7 @@ public interface DbEngine
      *     Converts the DATA to a String (only for logging)
      */
     <DATA, KEY, VALUE> MapDatabaseDriver<DATA, KEY, VALUE> generateMapToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         Column colRef,
         DataToString<DATA> dataToStringRef
     );
@@ -235,7 +235,7 @@ public interface DbEngine
      *
      */
     <DATA> void create(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA dataRef,
         DatabaseTable table,
         DataToString<DATA> dataToString
@@ -262,7 +262,7 @@ public interface DbEngine
      *
      */
     <DATA> void upsert(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         DATA dataRef,
         DatabaseTable tableRef,
         DataToString<DATA> dataToString
@@ -290,7 +290,7 @@ public interface DbEngine
      *
      */
     <DATA> void delete(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA dataRef,
         DatabaseTable table,
         DataToString<DATA> dataToString

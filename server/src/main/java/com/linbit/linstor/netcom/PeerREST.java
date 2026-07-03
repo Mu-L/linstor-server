@@ -87,17 +87,6 @@ public class PeerREST implements Peer
     }
 
     @Override
-    public AccessContext getAccessContext()
-    {
-        return accessContext;
-    }
-
-    @Override
-    public void setAccessContext(AccessContext newAccCtx)
-    {
-    }
-
-    @Override
     public void attach(Object attachment)
     {
     }

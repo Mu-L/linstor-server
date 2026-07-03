@@ -367,10 +367,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         {
             handleIOException(exc);
         }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
-        }
         return this;
     }
 
@@ -417,10 +413,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         {
             handleIOException(exc);
         }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
-        }
         return this;
     }
 
@@ -466,10 +458,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         catch (IOException exc)
         {
             handleIOException(exc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
         }
         return this;
     }
@@ -518,10 +506,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         catch (IOException exc)
         {
             handleIOException(exc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
         }
         return this;
     }
@@ -646,10 +630,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         {
             handleIOException(exc);
         }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
-        }
         return this;
     }
 
@@ -690,10 +670,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         catch (IOException exc)
         {
             handleIOException(exc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
         }
         return this;
     }
@@ -761,10 +737,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         catch (IOException exc)
         {
             handleIOException(exc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
         }
         return this;
     }
@@ -948,10 +920,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         {
             handleIOException(exc);
         }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
-        }
         return this;
     }
 
@@ -1113,10 +1081,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         {
             handleIOException(exc);
         }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
-        }
         return this;
     }
 
@@ -1159,10 +1123,6 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         catch (IOException exc)
         {
             handleIOException(exc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            handleAccessDeniedException(exc);
         }
         return this;
     }

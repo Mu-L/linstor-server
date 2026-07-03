@@ -149,7 +149,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
     {
         this(
             uuidRef,
-            objProtRef,
             nameRef,
             type,
             initialFlags,
@@ -208,7 +207,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         nodeConnections = transObjFactory.createTransactionMap(this, nodeConnMapRef, null);
 
         flags = transObjFactory.createStateFlagsImpl(
-            objProt,
             this,
             Flags.class,
             dbDriver.getStateFlagPersistence(),
@@ -229,7 +227,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
             flags,
             nodeType,
             // tcpPortPool, // TODO: tcpPortPool does not implement TransactionObject!
-            objProt,
             resourceMap,
             snapshotMap,
             netInterfaceMap,
@@ -724,7 +721,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
             }
 
             nodeProps.delete();
-            objProt.delete();
 
             activateTransMgr();
             dbDriver.delete(this);
@@ -749,7 +745,7 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
     {
         checkDeleted();
         // We can't use isUnset here, because EVICTED contains DELETE
-        return getFlags().isSet(accessCtx, Flags.EVICTED);
+        return getFlags().isSet(Flags.EVICTED);
     }
 
     public NodePojo getApiData(@Nullable Long fullSyncId, @Nullable Long updateId)

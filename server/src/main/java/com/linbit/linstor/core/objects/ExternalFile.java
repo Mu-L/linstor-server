@@ -76,7 +76,6 @@ public class ExternalFile extends AbsCoreObj<ExternalFile>
         );
 
         flags = transObjFactory.createStateFlagsImpl(
-            objProt,
             this,
             Flags.class,
             dbDriver.getStateFlagPersistence(),
@@ -209,7 +208,6 @@ public class ExternalFile extends AbsCoreObj<ExternalFile>
         if (!deleted.get())
         {
 
-            objProt.delete();
 
             activateTransMgr();
             dbDriver.delete(this);

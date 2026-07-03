@@ -44,13 +44,11 @@ public class CmdDisplayStorPool extends BaseDebugCmd
 
     private final ReadWriteLock reconfigurationLock;
     private final ReadWriteLock storPoolDfnMapLock;
-    private final @Nullable Supplier<ObjectProtection> storPoolDfnMapProt;
     private final CoreModule.StorPoolDefinitionMap storPoolDfnMap;
 
     public CmdDisplayStorPool(
         ReadWriteLock reconfigurationLockRef,
         ReadWriteLock storPoolDfnMapLockRef,
-        @Nullable Supplier<ObjectProtection> storPoolDfnMapProtRef,
         CoreModule.StorPoolDefinitionMap storPoolDfnMapRef
     )
     {
@@ -67,7 +65,6 @@ public class CmdDisplayStorPool extends BaseDebugCmd
 
         reconfigurationLock = reconfigurationLockRef;
         storPoolDfnMapLock = storPoolDfnMapLockRef;
-        storPoolDfnMapProt = storPoolDfnMapProtRef;
         storPoolDfnMap = storPoolDfnMapRef;
 
         lister = new FilteredObjectLister<>(
@@ -99,9 +96,6 @@ public class CmdDisplayStorPool extends BaseDebugCmd
         @Override
         public void ensureSearchAccess()
         {
-            if (storPoolDfnMapProt != null)
-            {
-            }
         }
 
         @Override
@@ -127,72 +121,63 @@ public class CmdDisplayStorPool extends BaseDebugCmd
         public void displayObjects(
             final PrintStream output, final StorPoolDefinition storPoolDfnRef)
         {
-            try
+            TreePrinter.Builder treeBuilder = TreePrinter.builder(
+                "\u001b[1;37m%-40s\u001b[0m %s",
+                storPoolDfnRef.getName().displayValue,
+                storPoolDfnRef.getUuid().toString().toUpperCase()
+            );
+
+            Iterator<StorPool> storPoolIterator = storPoolDfnRef.iterateStorPools();
+            while (storPoolIterator.hasNext())
             {
-                ObjectProtection objProt = storPoolDfnRef.getObjProt();
+                StorPool storPool = storPoolIterator.next();
 
-                TreePrinter.Builder treeBuilder = TreePrinter.builder(
-                    "\u001b[1;37m%-40s\u001b[0m %s",
-                    storPoolDfnRef.getName().displayValue,
-                    storPoolDfnRef.getUuid().toString().toUpperCase()
-                );
+                treeBuilder
+                    .branch(
+                        "\u001b[1;37mStorage pool\u001b[0m %s",
+                        storPool.getUuid().toString().toUpperCase()
+                    )
+                    .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPool))
+                    .leaf("Node name: %s", storPool.getNode().getName().displayValue)
+                    .leaf("Node UUID: %s", storPool.getNode().getUuid().toString().toUpperCase())
+                    .leaf("Node volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPool.getNode()))
+                    .leaf("Driver name: %s", storPool.getDeviceProviderKind());
 
-                Iterator<StorPool> storPoolIterator = storPoolDfnRef.iterateStorPools();
-                while (storPoolIterator.hasNext())
+                Collection<VlmProviderObject<Resource>> vlmLayerDataCollection = storPool
+                    .getVolumes();
+                Collection<VlmProviderObject<Snapshot>> snapVlmLayerDataCollection = storPool
+                    .getSnapVolumes();
+
+                treeBuilder.branch("Volumes (count: %d)", vlmLayerDataCollection.size());
+
+                for (VlmProviderObject<Resource> vlmLayerData : vlmLayerDataCollection)
                 {
-                    StorPool storPool = storPoolIterator.next();
-
+                    Volume vlm = (Volume) vlmLayerData.getVolume();
                     treeBuilder
-                        .branch(
-                            "\u001b[1;37mStorage pool\u001b[0m %s",
-                            storPool.getUuid().toString().toUpperCase()
-                        )
-                        .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPool))
-                        .leaf("Node name: %s", storPool.getNode().getName().displayValue)
-                        .leaf("Node UUID: %s", storPool.getNode().getUuid().toString().toUpperCase())
-                        .leaf("Node volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPool.getNode()))
-                        .leaf("Driver name: %s", storPool.getDeviceProviderKind());
-
-                    Collection<VlmProviderObject<Resource>> vlmLayerDataCollection = storPool
-                        .getVolumes();
-                    Collection<VlmProviderObject<Snapshot>> snapVlmLayerDataCollection = storPool
-                        .getSnapVolumes();
-
-                    treeBuilder.branch("Volumes (count: %d)", vlmLayerDataCollection.size());
-
-                    for (VlmProviderObject<Resource> vlmLayerData : vlmLayerDataCollection)
-                    {
-                        Volume vlm = (Volume) vlmLayerData.getVolume();
-                        treeBuilder
-                            .branch("Volume %s", vlm.getUuid().toString().toUpperCase())
-                            .leaf("Flags: %016X", vlm.getFlags().getFlagsBits())
-                            .leaf("Volume number: %s", vlm.getVolumeNumber())
-                            .endBranch();
-                    }
-
-                    treeBuilder.branch("Snapshots (count: %d)", snapVlmLayerDataCollection.size());
-
-                    for (VlmProviderObject<Snapshot> snapVlmData : snapVlmLayerDataCollection)
-                    {
-                        SnapshotVolume snapVlm = (SnapshotVolume) snapVlmData.getVolume();
-                        treeBuilder
-                            .branch("SnapshotVolume %s", snapVlm.getUuid().toString().toUpperCase())
-                            .leaf("Volume number: %s", snapVlm.getVolumeNumber())
-                            .endBranch();
-                    }
-
-                    treeBuilder
-                        .endBranch()
-                        .endBranch()
+                        .branch("Volume %s", vlm.getUuid().toString().toUpperCase())
+                        .leaf("Flags: %016X", vlm.getFlags().getFlagsBits())
+                        .leaf("Volume number: %s", vlm.getVolumeNumber())
                         .endBranch();
                 }
 
-                treeBuilder.print(output);
+                treeBuilder.branch("Snapshots (count: %d)", snapVlmLayerDataCollection.size());
+
+                for (VlmProviderObject<Snapshot> snapVlmData : snapVlmLayerDataCollection)
+                {
+                    SnapshotVolume snapVlm = (SnapshotVolume) snapVlmData.getVolume();
+                    treeBuilder
+                        .branch("SnapshotVolume %s", snapVlm.getUuid().toString().toUpperCase())
+                        .leaf("Volume number: %s", snapVlm.getVolumeNumber())
+                        .endBranch();
+                }
+
+                treeBuilder
+                    .endBranch()
+                    .endBranch()
+                    .endBranch();
             }
-            catch (AccessDeniedException accExc)
-            {
-                // No view access
-            }
+
+            treeBuilder.print(output);
         }
 
         @Override

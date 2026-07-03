@@ -283,11 +283,7 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
     public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(
-            sourceNode.getObjProt(),
-            targetNode.getObjProt(),
-            props
-        );
+        return props;
     }
 
     @Override

@@ -9,18 +9,18 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
-import com.linbit.utils.ExceptionThrowingFunction;
 import com.linbit.utils.StringUtils;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.function.Function;
 
 class SQLFlagsDriver<DATA, FLAG extends Enum<FLAG> & Flags> implements StateFlagsPersistence<DATA>
 {
     private final ErrorReporter errorReporter;
     private final SQLEngine sqlEngine;
-    private final Map<Column, ExceptionThrowingFunction<DATA, Object>> setters;
+    private final Map<Column, Function<DATA, Object>> setters;
     private final DataToString<DATA> dataToString;
 
     private final DatabaseTable table;
@@ -30,7 +30,7 @@ class SQLFlagsDriver<DATA, FLAG extends Enum<FLAG> & Flags> implements StateFlag
     SQLFlagsDriver(
         SQLEngine sqlEngineRef,
         ErrorReporter errorReporterRef,
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         Column flagColumnRef,
         Class<FLAG> flagsClassRef,
         DataToString<DATA> dataToStringRef

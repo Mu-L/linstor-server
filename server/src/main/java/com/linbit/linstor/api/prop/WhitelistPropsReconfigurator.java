@@ -59,7 +59,6 @@ public class WhitelistPropsReconfigurator
             errLog.reportError(
                 exc,
                 null,
-                null,
                 "An exception occurred while reconfiguring drbd-whitelist properties"
             );
         }

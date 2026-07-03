@@ -14,9 +14,9 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.storage.interfaces.categories.LayerObject;
 import com.linbit.linstor.storage.interfaces.layers.State;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
-import com.linbit.utils.ExceptionThrowingSupplier;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Provides volume-level storage layer information for a resource.
@@ -70,7 +70,7 @@ public interface VlmProviderObject<RSC extends AbsResource<RSC>> extends LayerOb
 
     AbsRscLayerObject<RSC> getRscLayerObject();
 
-    default long getParentAllocatedSizeOrElse(ExceptionThrowingSupplier<Long> orElse)
+    default long getParentAllocatedSizeOrElse(Supplier<Long> orElse)
     {
         long ret;
         AbsRscLayerObject<RSC> parent = getRscLayerObject().getParent();
@@ -80,7 +80,7 @@ public interface VlmProviderObject<RSC extends AbsResource<RSC>> extends LayerOb
         }
         else
         {
-            ret = orElse.supply();
+            ret = orElse.get();
         }
         return ret;
     }

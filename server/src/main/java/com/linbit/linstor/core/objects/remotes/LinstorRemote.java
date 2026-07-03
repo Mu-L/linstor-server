@@ -44,7 +44,7 @@ public class LinstorRemote extends AbsRemote
         Provider<? extends TransactionMgr> transMgrProvider
     )
     {
-        super(objIdRef, transObjFactory, transMgrProvider, objProtRef, remoteNameRef);
+        super(objIdRef, transObjFactory, transMgrProvider, remoteNameRef);
         driver = driverRef;
 
         url = transObjFactory.createTransactionSimpleObject(this, urlRef, driver.getUrlDriver());
@@ -56,7 +56,6 @@ public class LinstorRemote extends AbsRemote
         clusterId = transObjFactory.createTransactionSimpleObject(this, clusterIdRef, driver.getClusterIdDriver());
 
         flags = transObjFactory.createStateFlagsImpl(
-            objProt,
             this,
             Flags.class,
             driver.getStateFlagsPersistence(),
@@ -64,7 +63,6 @@ public class LinstorRemote extends AbsRemote
         );
 
         transObjs = Arrays.asList(
-            objProt,
             url,
             encryptedRemotePassphrase,
             clusterId,
@@ -205,7 +203,6 @@ public class LinstorRemote extends AbsRemote
         if (!deleted.get())
         {
 
-            objProt.delete();
 
             activateTransMgr();
 

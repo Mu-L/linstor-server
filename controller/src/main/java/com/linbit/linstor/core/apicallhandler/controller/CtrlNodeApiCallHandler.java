@@ -670,31 +670,17 @@ public class CtrlNodeApiCallHandler
         ArrayList<NodeApi> nodes = new ArrayList<>();
         final List<Pattern> nodesFilter = RegexMatcher.compileAll(nodeNames, true);
 
-        try
-        {
-            nodeRepository.getMapForView().values().stream()
-                .filter(node -> RegexMatcher.matchesAny(nodesFilter, node.getName().displayValue))
-                .forEach(node ->
+        nodeRepository.getMapForView().values().stream()
+            .filter(node -> RegexMatcher.matchesAny(nodesFilter, node.getName().displayValue))
+            .forEach(node ->
+                {
+                    final ReadOnlyProps props = node.getProps();
+                    if (props.contains(propFilters))
                     {
-                        try
-                        {
-                            final ReadOnlyProps props = node.getProps();
-                            if (props.contains(propFilters))
-                            {
-                                nodes.add(node.getApiData(null, null));
-                            }
-                        }
-                        catch (AccessDeniedException accDeniedExc)
-                        {
-                            // don't add node without access
-                        }
+                        nodes.add(node.getApiData(null, null));
                     }
-                );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            // for now return an empty list.
-        }
+                }
+            );
 
         return nodes;
     }

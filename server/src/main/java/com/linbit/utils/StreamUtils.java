@@ -30,23 +30,6 @@ public class StreamUtils
         );
     }
 
-    public static <E> Consumer<E> accChecked(
-        AccessCheckedConsumer<E> consumer,
-        Consumer<AccessDeniedException> excHandler
-    )
-    {
-        return elem ->
-        {
-            try
-            {
-                consumer.accept(elem);
-            }
-            catch (AccessDeniedException accDeniedExc)
-            {
-                excHandler.accept(accDeniedExc);
-            }
-        };
-    }
 
     private StreamUtils()
     {

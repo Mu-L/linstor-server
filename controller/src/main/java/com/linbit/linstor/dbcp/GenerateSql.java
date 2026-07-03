@@ -73,8 +73,7 @@ public class GenerateSql
                 true,
                 "",
                 "DEBUG",
-                "DEBUG",
-                () -> null
+                "DEBUG"
             );
             DbMigrater migrater = new DbMigrater(errorLog);
             var dbInfo = new H2DatabaseInfo();

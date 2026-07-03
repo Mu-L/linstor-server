@@ -163,8 +163,7 @@ public class LinstorDatabaseTool
             cfg.isLogPrintStackTrace(),
             "",
             cfg.getLogLevel(),
-            cfg.getLogLevelLinstor(),
-            () -> null
+            cfg.getLogLevelLinstor()
         );
 
         DatabaseDriverInfo.DatabaseType dbType = Controller.checkDatabaseConfig(errorLog, cfg);

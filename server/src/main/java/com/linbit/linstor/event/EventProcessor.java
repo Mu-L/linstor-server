@@ -91,7 +91,6 @@ public class EventProcessor
         {
             if (!inScope)
             {
-                linstorScope.seed(Key.get(AccessContext.class, PeerContext.class));
                 seedTxMgr = true;
             }
             else
@@ -145,7 +144,6 @@ public class EventProcessor
                             {
                                 errorReporter.reportError(
                                     exc,
-                                    null,
                                     null,
                                     "Event handler for " + eventIdentifier + " failed on connection closed"
                                 );

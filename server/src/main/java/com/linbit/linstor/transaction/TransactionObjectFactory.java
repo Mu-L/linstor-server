@@ -158,25 +158,7 @@ public class TransactionObjectFactory
         long initFlags
     )
     {
-        return createStateFlagsImpl(
-            Collections.singletonList(objProt),
-            parentObj,
-            enumType,
-            stateFlagPersistence,
-            initFlags
-        );
-    }
-
-    public <PARENT, FLAG extends Enum<FLAG> & Flags> StateFlags<FLAG> createStateFlagsImpl(
-        List<ObjectProtection> objProts,
-        PARENT parentObj,
-        Class<FLAG> enumType,
-        StateFlagsPersistence<PARENT> stateFlagPersistence,
-        long initFlags
-    )
-    {
         return new StateFlagsBits<>(
-            objProts,
             parentObj,
             StateFlagsBits.getMask(
                 enumType.getEnumConstants()

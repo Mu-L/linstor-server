@@ -58,7 +58,7 @@ public class StltRemote extends AbsRemote
         @Nullable String otherRscNameRef
     )
     {
-        super(objIdRef, transObjFactory, transMgrProvider, objProtRef, remoteNameRef);
+        super(objIdRef, transObjFactory, transMgrProvider, remoteNameRef);
         linstorRemoteName = linstorRemoteNameRef;
         node = nodeRef;
         otherRscName = otherRscNameRef;
@@ -68,7 +68,6 @@ public class StltRemote extends AbsRemote
         useZstd = transObjFactory.createTransactionSimpleObject(this, useZstdRef != null && useZstdRef, null);
 
         flags = transObjFactory.createStateFlagsImpl(
-            objProt,
             this,
             Flags.class,
             stateFlagsDriverRef,
@@ -76,7 +75,6 @@ public class StltRemote extends AbsRemote
         );
 
         transObjs = Arrays.asList(
-            objProt,
             ip,
             ports,
             useZstd,
@@ -263,7 +261,6 @@ public class StltRemote extends AbsRemote
         if (!deleted.get())
         {
 
-            objProt.delete();
 
             activateTransMgr();
 

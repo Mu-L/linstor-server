@@ -175,7 +175,7 @@ public class StorPool extends AbsCoreObj<StorPool>
     public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(node.getObjProt(), storPoolDef.getObjProt(), props);
+        return props;
     }
 
     public long getMinIoSize()

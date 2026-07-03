@@ -59,7 +59,6 @@ public class VolumeGroup extends AbsCoreObj<VolumeGroup>
         vlmGrpKey = new Key(this);
 
         flags = transObjFactoryRef.createStateFlagsImpl(
-            rscGrpRef.getObjProt(),
             this,
             VolumeGroup.Flags.class,
             this.dbDriver.getStateFlagsPersistence(),

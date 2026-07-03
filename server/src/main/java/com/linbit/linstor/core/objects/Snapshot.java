@@ -120,7 +120,6 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
         rscRoProps = new ReadOnlyPropsImpl(rscProps);
 
         flags = transObjFactory.createStateFlagsImpl(
-            snapshotDfn.getResourceDefinition().getObjProt(),
             this,
             Flags.class,
             dbDriverRef.getStateFlagsPersistence(),
@@ -361,10 +360,6 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
             ret = Objects.equals(snapshotDfn, other.snapshotDfn) && Objects.equals(node, other.node);
         }
         return ret;
-    }
-
-    private void requireAccess(AccessType accessType)
-    {
     }
 
     public SnapshotApi getApiData(@Nullable Long fullSyncId, @Nullable Long updateId)

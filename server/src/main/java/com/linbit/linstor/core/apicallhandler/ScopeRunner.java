@@ -114,7 +114,6 @@ public class ScopeRunner
     {
         MDC.setContextMap(logContextMap);
         String apiCallName = subscriberContext.get(ApiModule.API_CALL_NAME);
-        AccessContext accCtx = subscriberContext.get(AccessContext.class);
         @Nullable Peer peer = subscriberContext.getOrDefault(Peer.class, null);
         @Nullable Long apiCallId = subscriberContext.getOrDefault(ApiModule.API_CALL_ID, null);
 
@@ -157,8 +156,6 @@ public class ScopeRunner
         lockGuard.lock();
         try (LinStorScope.ScopeAutoCloseable close = apiCallScope.enter())
         {
-            apiCallScope.seed(Key.get(AccessContext.class, PeerContext.class));
-            apiCallScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class));
             if (peer != null)
             {
                 apiCallScope.seed(Peer.class, peer);

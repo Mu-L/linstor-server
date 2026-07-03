@@ -59,8 +59,6 @@ public class CmdSetTraceMode extends BaseDebugCmd
         String prmMode = parameters.get(PRM_MODE_NAME);
         if (prmMode != null)
         {
-            AccessContext privCtx = accCtx.clone();
-            privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
             if (prmMode.equalsIgnoreCase(PRM_ENABLED))
             {
                 errorReporter.setLogLevel(null, Level.TRACE);

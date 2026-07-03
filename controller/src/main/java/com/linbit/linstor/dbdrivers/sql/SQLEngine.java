@@ -30,7 +30,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.manager.TransactionMgrSQL;
-import com.linbit.utils.ExceptionThrowingFunction;
 import com.linbit.utils.Pair;
 
 import javax.inject.Inject;
@@ -133,7 +132,7 @@ public class SQLEngine implements DbEngine
 
     @Override
     public <DATA> void create(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA data,
         DatabaseTable table,
         DataToString<DATA> dataToString
@@ -155,7 +154,7 @@ public class SQLEngine implements DbEngine
     }
 
     private <DATA> void insertImpl(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA data,
         DatabaseTable table
     )
@@ -242,7 +241,7 @@ public class SQLEngine implements DbEngine
 
     @Override
     public <DATA> void upsert(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         DATA dataRef,
         DatabaseTable tableRef,
         DataToString<DATA> dataToStringRef
@@ -354,7 +353,7 @@ public class SQLEngine implements DbEngine
 
     @Override
     public <DATA> void delete(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         DATA data,
         DatabaseTable table,
         DataToString<DATA> dataToString
@@ -436,7 +435,7 @@ public class SQLEngine implements DbEngine
 
     @Override
     public <DATA, FLAG extends Enum<FLAG> & Flags> StateFlagsPersistence<DATA> generateFlagsDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         Column col,
         Class<FLAG> flagsClass,
         DataToString<DATA> dataToString
@@ -454,11 +453,11 @@ public class SQLEngine implements DbEngine
 
     @Override
     public <DATA, INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         Column colRef,
         Function<INPUT_TYPE, DB_TYPE> typeMapperRef,
         DataToString<DATA> dataToStringRef,
-        ExceptionThrowingFunction<DATA, String> dataValueToStringRef,
+        Function<DATA, String> dataValueToStringRef,
         DataToString<INPUT_TYPE> inputToStringRef
     )
     {
@@ -476,7 +475,7 @@ public class SQLEngine implements DbEngine
 
     @Override
     public <DATA, LIST_TYPE> CollectionDatabaseDriver<DATA, LIST_TYPE> generateCollectionToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         Column colRef,
         DataToString<DATA> dataToStringRef
     )
@@ -486,7 +485,7 @@ public class SQLEngine implements DbEngine
 
     @Override
     public <DATA, KEY, VALUE> MapDatabaseDriver<DATA, KEY, VALUE> generateMapToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         Column colRef,
         DataToString<DATA> dataToStringRef
     )
@@ -727,7 +726,7 @@ public class SQLEngine implements DbEngine
     }
 
     <DATA> int setPrimaryValues(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         PreparedStatement stmt,
         int startIdxRef,
         DatabaseTable table,
@@ -739,7 +738,7 @@ public class SQLEngine implements DbEngine
     }
 
     <DATA> int setValues(
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
+        Map<Column, Function<DATA, Object>> setters,
         PreparedStatement stmt,
         int startIdxRef,
         DatabaseTable table,
@@ -753,7 +752,7 @@ public class SQLEngine implements DbEngine
         {
             if (predicate.test(col))
             {
-                Object obj = setters.get(col).accept(data);
+                Object obj = setters.get(col).apply(data);
                 setSqlParam(
                     stmt,
                     idx,

@@ -1073,7 +1073,6 @@ public class FileSystemWatch implements Runnable, SystemService
                 errorReporter.reportError(
                     ioExc,
                     null,
-                    null,
                     "An IO exception occurred when trying to register a file watch event"
                 );
             }

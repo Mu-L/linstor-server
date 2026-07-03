@@ -8,13 +8,13 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.tasks.AutoSnapshotTask;
-import com.linbit.utils.ExceptionThrowingPredicate;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import reactor.core.publisher.Flux;
 
@@ -22,7 +22,7 @@ public class ResourceDefinitionUtils
 {
     public static int getResourceCount(
         ResourceDefinition rscDfn,
-        ExceptionThrowingPredicate<Resource> predicate
+        Predicate<Resource> predicate
     )
     {
         int count = 0;

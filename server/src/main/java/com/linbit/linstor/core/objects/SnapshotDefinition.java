@@ -103,7 +103,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition>
         throws DatabaseException
     {
         super(objIdRef, transObjFactory, transMgrProviderRef);
-        ErrorCheck.ctorNotNull(SnapshotDefinition.class, ObjectProtection.class, objProtRef);
         resourceDfn = resourceDfnRef;
         snapshotName = snapshotNameRef;
         dbDriver = dbDriverRef;
@@ -123,7 +122,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition>
         rscDfnRoProps = new ReadOnlyPropsImpl(rscDfnProps);
 
         flags = transObjFactory.createStateFlagsImpl(
-            resourceDfnRef.getObjProt(),
             this,
             Flags.class,
             dbDriverRef.getStateFlagsPersistence(),
@@ -143,7 +141,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition>
         );
 
         transObjs = Arrays.asList(
-            objProt,
             resourceDfn,
             snapshotVolumeDefinitionMap,
             snapshotMap,
@@ -303,7 +300,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition>
                 rscDfnLayerObject.delete();
             }
 
-            objProt.delete();
 
             activateTransMgr();
             dbDriver.delete(this);
@@ -602,11 +598,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition>
     public ResourceName getResourceName()
     {
         return resourceDfn.getName();
-    }
-
-    private void requireAccess(AccessType accType)
-    {
-        checkDeleted();
     }
 
     public enum Flags implements com.linbit.linstor.stateflags.Flags

@@ -78,7 +78,6 @@ public class CoreModule extends AbstractModule
         bind(ExternalFileMap.class).to(ExternalFilesMapImpl.class);
         bind(RemoteMap.class).to(RemoteMapImpl.class);
         bind(ScheduleMap.class).to(ScheduleMapImpl.class);
-        bind(ObjProtMap.class).to(ObjProtMapImpl.class);
 
         bind(PeerMap.class).toInstance(new PeerMapImpl());
 
@@ -169,10 +168,6 @@ public class CoreModule extends AbstractModule
     }
 
     public interface ScheduleMap extends Map<ScheduleName, Schedule>
-    {
-    }
-
-    public interface ObjProtMap extends Map<String /* objProtPath */, ObjectProtection>
     {
     }
 
@@ -343,15 +338,4 @@ public class CoreModule extends AbstractModule
         }
     }
 
-    @Singleton
-    public static class ObjProtMapImpl
-        extends TransactionMap<Void, /* objProtPath */ String, ObjectProtection>
-        implements ObjProtMap
-    {
-        @Inject
-        public ObjProtMapImpl(Provider<TransactionMgr> transMgrProvider)
-        {
-            super(null, new TreeMap<>(), null, transMgrProvider);
-        }
-    }
 }

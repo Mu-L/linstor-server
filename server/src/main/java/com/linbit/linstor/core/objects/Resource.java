@@ -118,7 +118,6 @@ public class Resource extends AbsResource<Resource>
         vlmMap = transObjFactory.createTransactionMap(this, vlmMapRef, null);
 
         flags = transObjFactory.createStateFlagsImpl(
-            objProt,
             this,
             Flags.class,
             dbDriver.getStateFlagPersistence(),
@@ -131,8 +130,7 @@ public class Resource extends AbsResource<Resource>
                 resourceConnections,
                 resourceDfn,
                 props,
-                flags,
-                objProt
+                flags
             )
         );
     }
@@ -333,7 +331,6 @@ public class Resource extends AbsResource<Resource>
 
             props.delete();
 
-            objProt.delete();
 
             if (rootLayerData.get() != null)
             {

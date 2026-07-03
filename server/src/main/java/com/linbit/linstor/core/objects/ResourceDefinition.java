@@ -32,7 +32,6 @@ import com.linbit.linstor.transaction.TransactionSimpleObject;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.utils.layer.LayerKindUtils;
 import com.linbit.locks.LockGuard;
-import com.linbit.utils.ExceptionThrowingPredicate;
 import com.linbit.utils.MathUtils;
 import com.linbit.utils.Pair;
 import com.linbit.utils.PairNonNull;
@@ -51,6 +50,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -120,7 +120,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
         super(objIdRef, transObjFactory, transMgrProviderRef);
 
         ErrorCheck.ctorNotNull(ResourceDefinition.class, ResourceName.class, resName);
-        ErrorCheck.ctorNotNull(ResourceDefinition.class, ObjectProtection.class, objProtRef);
         ErrorCheck.ctorNotNull(ResourceDefinition.class, ResourceGroup.class, rscGrpRef);
         resourceName = resName;
         externalName = extName;
@@ -141,7 +140,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
             LinStorObject.RSC_DFN
         );
         flags = transObjFactory.createStateFlagsImpl(
-            objProt,
             this,
             Flags.class,
             dbDriver.getStateFlagsPersistence(),
@@ -152,7 +150,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
 
         transObjs = Arrays.asList(
             flags,
-            objProt,
             volumeMap,
             resourceMap,
             rscDfnProps,
@@ -351,7 +348,7 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
     }
 
     private List<Resource> getResourcesFilteredByFlags(
-        ExceptionThrowingPredicate<StateFlags<Resource.Flags>> flagFilter
+        Predicate<StateFlags<Resource.Flags>> flagFilter
     )
     {
         checkDeleted();
@@ -626,7 +623,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
 
             rscGrp.get().removeResourceDefinition(this);
 
-            objProt.delete();
 
             activateTransMgr();
             dbDriver.delete(this);

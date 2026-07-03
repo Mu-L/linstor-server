@@ -22,7 +22,6 @@ public class ResponseUtils
      * Reports the given {@link Throwable} to controller's {@link ErrorReporter} and the given
      * {@link ApiCallRcImpl}.
      * Cause, details and correction messages are left empty.
-     * @param accCtx,
      */
     public static void reportStatic(
         @Nullable Throwable throwableRef,
@@ -169,15 +168,6 @@ public class ResponseUtils
         {
             errorReporter.logInfo(msg);
         }
-    }
-
-    public static String getAccDeniedMsg(String action)
-    {
-        return String.format("Identity '%s' using role: '%s' is not authorized to %s.",
-            accCtx.subjectId.name.displayValue,
-            accCtx.subjectRole.name.displayValue,
-            action
-        );
     }
 
     public static String getSqlMsg(String action)

@@ -121,10 +121,6 @@ public class CtrlScheduleApiCallHandler
                 ret.add(entry.getValue().getApiData(null, null));
             }
         }
-        catch (AccessDeniedException exc)
-        {
-            // ignore, we will return an empty list
-        }
         return ret;
     }
 
@@ -432,10 +428,6 @@ public class CtrlScheduleApiCallHandler
                 return cmp;
             });
         }
-        catch (AccessDeniedException exc)
-        {
-            // ignore, we will return an empty list
-        }
         return ret;
     }
 
@@ -699,10 +691,6 @@ public class CtrlScheduleApiCallHandler
                     ret.add(new ScheduleDetailsPojo(remote, schedule, ctrl, grp, dfn));
                 }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            // ignore, we will return an empty list
         }
         return ret;
     }

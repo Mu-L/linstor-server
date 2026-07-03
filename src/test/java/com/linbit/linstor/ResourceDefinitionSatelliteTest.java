@@ -71,7 +71,7 @@ public class ResourceDefinitionSatelliteTest
     @Before
     public void setUp() throws Exception
     {
-        errorReporter = new StdErrorReporter("TESTS", Paths.get("build/test-logs"), true, "", null, null, () -> null);
+        errorReporter = new StdErrorReporter("TESTS", Paths.get("build/test-logs"), true, "", null, null);
         Injector injector = Guice.createInjector(
             new GuiceConfigModule(),
             new LoggingModule(errorReporter),

@@ -77,7 +77,6 @@ public class ResponseConverter
             {
                 final String errorId = errorReporter.reportError(
                     exc instanceof ApiException && exc.getCause() != null ? exc.getCause() : exc,
-                    peer.getAccessContext(),
                     peer,
                     entry.getMessage());
                 builder.addErrorId(errorId);
@@ -137,18 +136,6 @@ public class ResponseConverter
                     );
                 }
             }
-        }
-        else
-        if (exc instanceof ApiAccessDeniedException acExc)
-        {
-            apiCallRc.addEntry(ApiCallRcImpl
-                .entryBuilder(
-                    acExc.getRetCode(),
-                    ResponseUtils.getAccDeniedMsg(peer.getAccessContext(), acExc.getAction())
-                )
-                .setCause(acExc.getCause().getMessage())
-                .build()
-            );
         }
         else
         if (exc instanceof ApiTransactionException sqlExc)

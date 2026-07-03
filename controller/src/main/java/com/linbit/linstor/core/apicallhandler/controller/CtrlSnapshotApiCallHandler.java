@@ -110,34 +110,20 @@ public class CtrlSnapshotApiCallHandler
         final List<Pattern> rscDfnsFilter = RegexMatcher.compileAll(resourceNames, true);
         final List<Pattern> nodesFilter = RegexMatcher.compileAll(nodeNames, true);
 
-        try
+        for (ResourceDefinition rscDfn : resourceDefinitionRepository.getMapForView().values())
         {
-            for (ResourceDefinition rscDfn : resourceDefinitionRepository.getMapForView().values())
+            if (RegexMatcher.matchesAny(rscDfnsFilter, rscDfn.getName().displayValue))
             {
-                if (RegexMatcher.matchesAny(rscDfnsFilter, rscDfn.getName().displayValue))
+                for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
                 {
-                    for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
+                    final SnapshotDefinitionListItemApi snapItem =
+                        snapshotDfn.getListItemApiData();
+                    if (shouldIncludeSnapshot(snapItem, nodesFilter))
                     {
-                        try
-                        {
-                            final SnapshotDefinitionListItemApi snapItem =
-                                snapshotDfn.getListItemApiData();
-                            if (shouldIncludeSnapshot(snapItem, nodesFilter))
-                            {
-                                snapshotDfns.add(snapItem);
-                            }
-                        }
-                        catch (AccessDeniedException accDeniedExc)
-                        {
-                            // don't add snapshot definition without access
-                        }
+                        snapshotDfns.add(snapItem);
                     }
                 }
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            // for now return an empty list.
         }
 
         return snapshotDfns;

@@ -9,7 +9,6 @@ import com.linbit.linstor.transaction.manager.TransactionMgr;
 import javax.inject.Provider;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -20,7 +19,6 @@ import java.util.Set;
 public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransactionObject
     implements StateFlags<FLAG>
 {
-    private final List<ObjectProtection> objProts;
     private final PRIMARY_KEY pk;
 
     private long stateFlags;
@@ -29,18 +27,16 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
     private final StateFlagsPersistence<PRIMARY_KEY> persistence;
 
     public StateFlagsBits(
-        final List<ObjectProtection> objProtRef,
         final PRIMARY_KEY parent,
         final long validFlagsMask,
         final StateFlagsPersistence<PRIMARY_KEY> persistenceRef,
         final Provider<TransactionMgr> transMgrProviderRef
     )
     {
-        this(objProtRef, parent, validFlagsMask, persistenceRef, 0L, transMgrProviderRef);
+        this(parent, validFlagsMask, persistenceRef, 0L, transMgrProviderRef);
     }
 
     public StateFlagsBits(
-        final List<ObjectProtection> objProtRef,
         final PRIMARY_KEY pkRef,
         final long validFlagsMask,
         final StateFlagsPersistence<PRIMARY_KEY> persistenceRef,
@@ -50,23 +46,14 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
     {
         super(transMgrProviderRef);
 
-        ErrorCheck.ctorNotNull(StateFlagsBits.class, ObjectProtection.class, objProtRef);
         ErrorCheck.ctorNotNull(StateFlagsBits.class, Object.class, pkRef);
         ErrorCheck.ctorNotNull(StateFlagsBits.class, StateFlagsPersistence.class, persistenceRef);
 
-        objProts = objProtRef;
         pk = pkRef;
         mask = validFlagsMask;
         stateFlags = initialFlags;
         changedStateFlags = initialFlags;
         persistence = persistenceRef;
-    }
-
-    private void requireAccess(AccessType accessType)
-    {
-        for (ObjectProtection objProt : objProts)
-        {
-        }
     }
 
     @Override

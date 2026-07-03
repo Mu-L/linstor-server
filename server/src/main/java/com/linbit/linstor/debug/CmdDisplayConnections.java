@@ -121,8 +121,6 @@ public class CmdDisplayConnections extends BaseDebugCmd
         boolean detailId        = false;
         boolean detailStats     = false;
         boolean detailConn      = false;
-        boolean detailContext   = false;
-        boolean detailPrivs     = false;
         boolean detailPending   = false;
 
         try
@@ -141,8 +139,10 @@ public class CmdDisplayConnections extends BaseDebugCmd
                         case PRM_DETAIL_ID -> { detailId = true; }
                         case PRM_DETAIL_STATS -> { detailStats = true; }
                         case PRM_DETAIL_CONN -> { detailConn = true; }
-                        case PRM_DETAIL_CTXT -> { detailContext = true; }
-                        case PRM_DETAIL_PRIVS -> { detailPrivs = true; }
+                        case PRM_DETAIL_CTXT, PRM_DETAIL_PRIVS ->
+                        {
+                            // obsolete - security contexts have been removed
+                        }
                         case PRM_DETAIL_PENDING ->
                         {
                             detailPending = true;
@@ -153,9 +153,7 @@ public class CmdDisplayConnections extends BaseDebugCmd
                             detailId = true;
                             detailStats = true;
                             detailConn = true;
-                            detailContext = true;
                             detailPending = true;
-                            detailPrivs = true;
                         }
                         case PRM_DETAIL_DFLT ->
                         {
@@ -236,7 +234,6 @@ public class CmdDisplayConnections extends BaseDebugCmd
 
                         if (selected)
                         {
-                            AccessContext peerAccCtx = curPeer.getAccessContext();
                             debugOut.printf(
                                 "%-46s \u2194 %-46s\n",
                                 localAddress,
@@ -283,26 +280,6 @@ public class CmdDisplayConnections extends BaseDebugCmd
                                     "    Connector:  %-24s\n",
                                     connector
                                 );
-                            }
-                            if (detailContext)
-                            {
-                                Identity peerIdentity = peerAccCtx.getIdentity();
-                                Role peerRole = peerAccCtx.getRole();
-                                SecurityType peerDomain = peerAccCtx.getDomain();
-                                debugOut.printf(
-                                    """
-                                        Identity:   %-24s Role: %-24s
-                                        Security domain: %-24s
-                                    """,
-                                    peerIdentity, peerRole, peerDomain
-                                );
-                            }
-                            if (detailPrivs)
-                            {
-                                debugOut.println("    Limit privileges:");
-                                printPrivString(debugOut, peerAccCtx.getLimitPrivs());
-                                debugOut.println("    Effective privileges:");
-                                printPrivString(debugOut, peerAccCtx.getEffectivePrivs());
                             }
                             ++count;
                         }
@@ -425,21 +402,6 @@ public class CmdDisplayConnections extends BaseDebugCmd
     }
 
     @SuppressWarnings("checkstyle:magicnumber")
-    private void  printPrivString(PrintStream output, PrivilegeSet privSet)
-    {
-        List<Privilege> privList = privSet.getEnabledPrivileges();
-        if (privList.isEmpty())
-        {
-            AutoIndent.printWithIndent(output, 8, "NONE");
-        }
-        else
-        {
-            for (Privilege priv : privList)
-            {
-                AutoIndent.printWithIndent(output, 8, priv.name);
-            }
-        }
-    }
 
     public Map<String, Peer> getAllPeers()
     {

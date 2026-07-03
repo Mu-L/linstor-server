@@ -137,7 +137,6 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition>
         volumes = transObjFactory.createTransactionMap(this, vlmMapRef, null);
 
         flags = transObjFactory.createStateFlagsImpl(
-            resDfnRef.getObjProt(),
             this,
             VolumeDefinition.Flags.class,
             this.dbDriver.getStateFlagsPersistence(),
@@ -364,20 +363,12 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition>
     public void setCryptKey(String key) throws DatabaseException
     {
         checkDeleted();
-        if (!accCtx.subjectId.equals(Identity.SYSTEM_ID))
-        {
-            throw new AccessDeniedException("Only system context is allowed to set crypt key");
-        }
         cryptKey.set(key);
     }
 
     public String getCryptKey()
     {
         checkDeleted();
-        if (!accCtx.subjectId.equals(Identity.SYSTEM_ID))
-        {
-            throw new AccessDeniedException("Only system context is allowed to get crypt key");
-        }
         return cryptKey.get();
     }
 

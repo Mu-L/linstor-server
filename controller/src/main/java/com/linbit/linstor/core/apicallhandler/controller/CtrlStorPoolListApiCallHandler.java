@@ -172,79 +172,72 @@ public class CtrlStorPoolListApiCallHandler
             .forEach(
                 storPoolDfn ->
                 {
-                    try
+                    for (StorPool storPool : storPoolDfn.streamStorPools()
+                        .filter(storPool -> RegexMatcher.matchesAny(
+                            nodesFilter, storPool.getNode().getName().displayValue))
+                        .collect(toList()))
                     {
-                        for (StorPool storPool : storPoolDfn.streamStorPools()
-                            .filter(storPool -> RegexMatcher.matchesAny(
-                                nodesFilter, storPool.getNode().getName().displayValue))
-                            .collect(toList()))
+                        ReadOnlyProps props = storPool.getProps();
+                        if (props.contains(propFilters))
                         {
-                            ReadOnlyProps props = storPool.getProps();
-                            if (props.contains(propFilters))
+                            Long freeCapacity;
+                            Long totalCapacity;
+
+                            final Tuple2<SpaceInfo, List<ApiCallRc>> storageInfo = freeCapacityAnswers != null ?
+                                freeCapacityAnswers.get(new StorPool.Key(storPool)) : null;
+
+                            storPool.clearReports();
+                            Peer peer = storPool.getNode().getPeer();
+                            if (peer == null || !peer.isOnline())
                             {
-                                Long freeCapacity;
-                                Long totalCapacity;
-
-                                final Tuple2<SpaceInfo, List<ApiCallRc>> storageInfo = freeCapacityAnswers != null ?
-                                    freeCapacityAnswers.get(new StorPool.Key(storPool)) : null;
-
-                                storPool.clearReports();
-                                Peer peer = storPool.getNode().getPeer();
-                                if (peer == null || !peer.isOnline())
-                                {
-                                    freeCapacity = null;
-                                    totalCapacity = null;
-                                    storPool.addReports(
-                                        new ApiCallRcImpl(
-                                            ResponseUtils.makeNotConnectedWarning(storPool.getNode().getName())
-                                        )
-                                    );
-                                }
-                                else
-                                if (storageInfo == null)
-                                {
-                                    freeCapacity = storPool.getFreeSpaceTracker()
-                                        .getFreeCapacityLastUpdated().orElse(null);
-                                    totalCapacity = storPool.getFreeSpaceTracker()
-                                        .getTotalCapacity().orElse(null);
-                                }
-                                else
-                                {
-                                    SpaceInfo spaceInfo = storageInfo.getT1();
-                                    for (ApiCallRc apiCallRc : storageInfo.getT2())
-                                    {
-                                        storPool.addReports(apiCallRc);
-                                    }
-
-                                    freeCapacity = spaceInfo.freeCapacity;
-                                    totalCapacity = spaceInfo.totalCapacity;
-                                }
-
-                                // fullSyncId and updateId null, as they are not going to be serialized anyway
-                                StorPoolApi apiData = storPool.getApiData(
-                                    totalCapacity,
-                                    freeCapacity,
-                                    null,
-                                    null,
-                                    FreeCapacityAutoPoolSelectorUtils
-                                        .getFreeCapacityOversubscriptionRatioPrivileged(
-                                            storPool,
-                                            ctrlProps
-                                        ),
-                                    FreeCapacityAutoPoolSelectorUtils
-                                        .getTotalCapacityOversubscriptionRatioPrivileged(
-                                            storPool,
-                                            ctrlProps
-                                        )
+                                freeCapacity = null;
+                                totalCapacity = null;
+                                storPool.addReports(
+                                    new ApiCallRcImpl(
+                                        ResponseUtils.makeNotConnectedWarning(storPool.getNode().getName())
+                                    )
                                 );
-                                patchStorPoolProps(apiData.getStorPoolProps());
-                                storPools.add(apiData);
                             }
+                            else
+                            if (storageInfo == null)
+                            {
+                                freeCapacity = storPool.getFreeSpaceTracker()
+                                    .getFreeCapacityLastUpdated().orElse(null);
+                                totalCapacity = storPool.getFreeSpaceTracker()
+                                    .getTotalCapacity().orElse(null);
+                            }
+                            else
+                            {
+                                SpaceInfo spaceInfo = storageInfo.getT1();
+                                for (ApiCallRc apiCallRc : storageInfo.getT2())
+                                {
+                                    storPool.addReports(apiCallRc);
+                                }
+
+                                freeCapacity = spaceInfo.freeCapacity;
+                                totalCapacity = spaceInfo.totalCapacity;
+                            }
+
+                            // fullSyncId and updateId null, as they are not going to be serialized anyway
+                            StorPoolApi apiData = storPool.getApiData(
+                                totalCapacity,
+                                freeCapacity,
+                                null,
+                                null,
+                                FreeCapacityAutoPoolSelectorUtils
+                                    .getFreeCapacityOversubscriptionRatioPrivileged(
+                                        storPool,
+                                        ctrlProps
+                                    ),
+                                FreeCapacityAutoPoolSelectorUtils
+                                    .getTotalCapacityOversubscriptionRatioPrivileged(
+                                        storPool,
+                                        ctrlProps
+                                    )
+                            );
+                            patchStorPoolProps(apiData.getStorPoolProps());
+                            storPools.add(apiData);
                         }
-                    }
-                    catch (AccessDeniedException accDeniedExc)
-                    {
-                        // don't add storpooldfn without access
                     }
                 }
             );

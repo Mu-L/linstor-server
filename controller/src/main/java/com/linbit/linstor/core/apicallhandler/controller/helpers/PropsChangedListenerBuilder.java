@@ -26,7 +26,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
-import com.linbit.utils.ExceptionThrowingSupplier;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -43,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 import reactor.core.publisher.Flux;
 
@@ -82,7 +82,7 @@ public class PropsChangedListenerBuilder
         Builder builder = new Builder(fluxes);
         builder.setCurrentPropSupplier(() -> systemConfRepository.getCtrlConfForChange());
         builder.setRscDfnListSupplier(() -> rscDfnProtRepo.getMapForView().values());
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
+        builder.setRscListSupplier(builder::buildRscListFromRscDfnSupplier);
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addDrbdOptionsDiskDiscardGranularity();
@@ -100,7 +100,7 @@ public class PropsChangedListenerBuilder
         Builder builder = new Builder(fluxes);
         builder.setCurrentPropSupplier(() -> rscGrp.getProps());
         builder.setRscDfnListSupplier(() -> LinstorIteratorUtils.getRscDfns(rscGrp));
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
+        builder.setRscListSupplier(builder::buildRscListFromRscDfnSupplier);
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addDrbdOptionsDiskDiscardGranularity();
@@ -118,7 +118,7 @@ public class PropsChangedListenerBuilder
         Builder builder = new Builder(fluxes);
         builder.setCurrentPropSupplier(() -> vlmGrp.getProps());
         builder.setRscDfnListSupplier(() -> LinstorIteratorUtils.getRscDfns(vlmGrp));
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
+        builder.setRscListSupplier(builder::buildRscListFromRscDfnSupplier);
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addLuksAllowDiscards();
@@ -135,7 +135,7 @@ public class PropsChangedListenerBuilder
         Builder builder = new Builder(fluxes);
         builder.setCurrentPropSupplier(() -> rscDfn.getProps());
         builder.setRscDfnListSupplier(() -> Collections.singletonList(rscDfn));
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
+        builder.setRscListSupplier(builder::buildRscListFromRscDfnSupplier);
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addDrbdOptionsDiskDiscardGranularity();
@@ -153,7 +153,7 @@ public class PropsChangedListenerBuilder
         Builder builder = new Builder(fluxes);
         builder.setCurrentPropSupplier(() -> vlmDfn.getProps());
         builder.setRscDfnListSupplier(() -> Collections.singletonList(vlmDfn.getResourceDefinition()));
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
+        builder.setRscListSupplier(builder::buildRscListFromRscDfnSupplier);
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addLuksAllowDiscards();
@@ -237,49 +237,46 @@ public class PropsChangedListenerBuilder
         private final List<Flux<ApiCallRc>> fluxes;
         private final Map<String, PropertyChangedListener> propsChangedListeners = new HashMap<>();
 
-        private @Nullable ExceptionThrowingSupplier<Props> currentPropSupplier;
-        private @Nullable ExceptionThrowingSupplier<Collection<ResourceDefinition>> rscDfnsSupplier;
-        private @Nullable ExceptionThrowingSupplier<Collection<Resource>> rscsSupplier;
+        private @Nullable Supplier<Props> currentPropSupplier;
+        private @Nullable Supplier<Collection<ResourceDefinition>> rscDfnsSupplier;
+        private @Nullable Supplier<Collection<Resource>> rscsSupplier;
 
         Builder(List<Flux<ApiCallRc>> fluxesRef)
         {
             fluxes = fluxesRef;
         }
 
-        void setCurrentPropSupplier(ExceptionThrowingSupplier<Props> currentPropSupplierRef)
+        void setCurrentPropSupplier(Supplier<Props> currentPropSupplierRef)
         {
             currentPropSupplier = currentPropSupplierRef;
         }
 
         void setRscDfnListSupplier(
-            ExceptionThrowingSupplier<Collection<ResourceDefinition>> rscDfnsSupplierRef
+            Supplier<Collection<ResourceDefinition>> rscDfnsSupplierRef
         )
         {
             rscDfnsSupplier = rscDfnsSupplierRef;
         }
 
         void setRscListSupplier(
-            ExceptionThrowingSupplier<Collection<Resource>> rscsSupplierRef
+            Supplier<Collection<Resource>> rscsSupplierRef
         )
         {
             rscsSupplier = rscsSupplierRef;
         }
 
-        ExceptionThrowingSupplier<Collection<Resource>> buildRscListSupplierFromRscDfnSupplier(
-        )
+        Collection<Resource> buildRscListFromRscDfnSupplier()
         {
-            return () -> {
-                List<Resource> ret = new ArrayList<>();
-                for (ResourceDefinition rscDfn : rscDfnsSupplier.supply())
+            List<Resource> ret = new ArrayList<>();
+            for (ResourceDefinition rscDfn : rscDfnsSupplier.get())
+            {
+                Iterator<Resource> iterateResource = rscDfn.iterateResource();
+                while (iterateResource.hasNext())
                 {
-                    Iterator<Resource> iterateResource = rscDfn.iterateResource();
-                    while (iterateResource.hasNext())
-                    {
-                        ret.add(iterateResource.next());
-                    }
+                    ret.add(iterateResource.next());
                 }
-                return ret;
-            };
+            }
+            return ret;
         }
 
         void addDrbdOptionsDiskRsDiscardGranularity()
@@ -298,14 +295,14 @@ public class PropsChangedListenerBuilder
                             if (newVal != null)
                             {
                                 // disable the auto-prop on the current level
-                                currentPropSupplier.supply()
+                                currentPropSupplier.get()
                                     .setProp(
                                         ApiConsts.NAMESPC_DRBD_OPTIONS + "/" +
                                             ApiConsts.KEY_DRBD_AUTO_RS_DISCARD_GRANULARITY,
                                         ApiConsts.VAL_FALSE
                                     );
                             }
-                            for (ResourceDefinition rscDfn : rscDfnsSupplier.supply())
+                            for (ResourceDefinition rscDfn : rscDfnsSupplier.get())
                             {
                                 fluxes.add(ctrlRscDfnHandler.updateProps(rscDfn));
                             }
@@ -332,7 +329,7 @@ public class PropsChangedListenerBuilder
                 {
                     if (!Objects.equals(newVal, oldValue))
                     {
-                        for (ResourceDefinition rscDfn : rscDfnsSupplier.supply())
+                        for (ResourceDefinition rscDfn : rscDfnsSupplier.get())
                         {
                             fluxes.add(ctrlRscDfnHandler.updateProps(rscDfn));
                         }
@@ -362,14 +359,14 @@ public class PropsChangedListenerBuilder
                             if (newVal != null)
                             {
                                 // disable the auto-prop on the current level
-                                currentPropSupplier.supply()
+                                currentPropSupplier.get()
                                     .setProp(
                                         ApiConsts.NAMESPC_LINSTOR_DRBD + "/" +
                                             ApiConsts.KEY_DRBD_AUTO_DISCARD_GRANULARITY,
                                         ApiConsts.VAL_FALSE
                                     );
                             }
-                            for (ResourceDefinition rscDfn : rscDfnsSupplier.supply())
+                            for (ResourceDefinition rscDfn : rscDfnsSupplier.get())
                             {
                                 fluxes.add(ctrlRscDfnHandler.updateProps(rscDfn));
                             }
@@ -396,7 +393,7 @@ public class PropsChangedListenerBuilder
                 {
                     if (!Objects.equals(newVal, oldValue))
                     {
-                        for (ResourceDefinition rscDfn : rscDfnsSupplier.supply())
+                        for (ResourceDefinition rscDfn : rscDfnsSupplier.get())
                         {
                             fluxes.add(ctrlRscDfnHandler.updateProps(rscDfn));
                         }
@@ -422,14 +419,14 @@ public class PropsChangedListenerBuilder
                         Set<ResourceDefinition> rscDfnsToUpdate = new TreeSet<>();
                         if (rscDfnsSupplier != null)
                         {
-                            for (ResourceDefinition rscDfn : rscDfnsSupplier.supply())
+                            for (ResourceDefinition rscDfn : rscDfnsSupplier.get())
                             {
                                 rscDfnsToUpdate.add(rscDfn);
                             }
                         }
                         else if (rscsSupplier != null)
                         {
-                            for (Resource rsc : rscsSupplier.supply())
+                            for (Resource rsc : rscsSupplier.get())
                             {
                                 rscDfnsToUpdate.add(rsc.getResourceDefinition());
                             }
@@ -454,7 +451,7 @@ public class PropsChangedListenerBuilder
                     if (!Objects.equals(newValue, oldValue))
                     {
                         Set<ResourceDefinition> rscDfnToUpdate = new TreeSet<>();
-                        for (Resource rsc : rscsSupplier.supply())
+                        for (Resource rsc : rscsSupplier.get())
                         {
                             ResourceDataUtils.recalculateVolatileRscData(ctrlRscLayerDataFactory, rsc);
                             rscDfnToUpdate.add(rsc.getResourceDefinition());

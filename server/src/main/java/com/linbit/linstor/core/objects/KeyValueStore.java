@@ -51,7 +51,6 @@ public class KeyValueStore extends AbsCoreObj<KeyValueStore>
         );
 
         transObjs = Arrays.asList(
-            objProt,
             props,
             deleted
         );
@@ -106,7 +105,6 @@ public class KeyValueStore extends AbsCoreObj<KeyValueStore>
         {
 
             props.delete();
-            objProt.delete();
 
             activateTransMgr();
 

@@ -111,16 +111,9 @@ public class CtrlNodeConnectionApiCallHandler
         {
             AccessContext peerCtx = peerAccCtx.get();
             ret = new TreeSet<>();
-            try
+            for (Node node : nodeRepo.getMapForView().values())
             {
-                for (Node node : nodeRepo.getMapForView().values())
-                {
-                    ret.addAll(getNodeConnPojos(node, false));
-                }
-            }
-            catch (AccessDeniedException exc)
-            {
-                // noop, just do not include in list
+                ret.addAll(getNodeConnPojos(node, false));
             }
         }
         else if (nodeARef == null)
@@ -137,32 +130,25 @@ public class CtrlNodeConnectionApiCallHandler
             Node nodeB = ctrlApiDataLoader.loadNode(nodeBRef, true);
             AccessContext peerCtx = peerAccCtx.get();
             ret = new TreeSet<>();
-            try
+            NodeConnection nodeConn = nodeA.getNodeConnection(
+                nodeB
+            );
+            if (nodeConn == null)
             {
-                NodeConnection nodeConn = nodeA.getNodeConnection(
-                    nodeB
+                ret.add(
+                    new NodeConnPojo(
+                        null,
+                        nodeARef,
+                        nodeB.getApiData(null, null),
+                        Collections.emptyMap()
+                    )
                 );
-                if (nodeConn == null)
-                {
-                    ret.add(
-                        new NodeConnPojo(
-                            null,
-                            nodeARef,
-                            nodeB.getApiData(null, null),
-                            Collections.emptyMap()
-                        )
-                    );
-                }
-                else
-                {
-                    ret.add(
-                        nodeConn.getApiData(nodeA, null, null)
-                    );
-                }
             }
-            catch (AccessDeniedException exc)
+            else
             {
-                // noop, don't add to list
+                ret.add(
+                    nodeConn.getApiData(nodeA, null, null)
+                );
             }
         }
         return ret;
@@ -171,26 +157,19 @@ public class CtrlNodeConnectionApiCallHandler
     private TreeSet<NodeConnectionApi> getNodeConnPojos(Node node, boolean includeIfEmpty)
     {
         TreeSet<NodeConnectionApi> ret = new TreeSet<>();
-        try
+        AccessContext peerCtx = peerAccCtx.get();
+        for (NodeConnection nodeConn : node.getNodeConnections())
         {
-            AccessContext peerCtx = peerAccCtx.get();
-            for (NodeConnection nodeConn : node.getNodeConnections())
+            if (includeIfEmpty || !nodeConn.getProps().isEmpty())
             {
-                if (includeIfEmpty || !nodeConn.getProps().isEmpty())
-                {
-                    ret.add(
-                        nodeConn.getApiData(
-                            nodeConn.getSourceNode(),
-                            null,
-                            null
-                        )
-                    );
-                }
+                ret.add(
+                    nodeConn.getApiData(
+                        nodeConn.getSourceNode(),
+                        null,
+                        null
+                    )
+                );
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            // noop, just do not include in list
         }
         return ret;
     }

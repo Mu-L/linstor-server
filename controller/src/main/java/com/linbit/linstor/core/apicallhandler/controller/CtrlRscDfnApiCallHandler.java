@@ -737,32 +737,18 @@ public class CtrlRscDfnApiCallHandler
         ArrayList<ResourceDefinitionApi> rscdfns = new ArrayList<>();
         final List<Pattern> rscDfnsFilter = RegexMatcher.compileAll(rscDfnNames, true);
 
-        try
-        {
-            resourceDefinitionRepository.getMapForView().values().stream()
-                .filter(rscDfn -> RegexMatcher.matchesAny(rscDfnsFilter, rscDfn.getName().displayValue))
-                .forEach(
-                    rscDfn ->
+        resourceDefinitionRepository.getMapForView().values().stream()
+            .filter(rscDfn -> RegexMatcher.matchesAny(rscDfnsFilter, rscDfn.getName().displayValue))
+            .forEach(
+                rscDfn ->
+                {
+                    final ReadOnlyProps props = rscDfn.getProps();
+                    if (props.contains(propFilters))
                     {
-                        try
-                        {
-                            final ReadOnlyProps props = rscDfn.getProps();
-                            if (props.contains(propFilters))
-                            {
-                                rscdfns.add(rscDfn.getApiData());
-                            }
-                        }
-                        catch (AccessDeniedException accDeniedExc)
-                        {
-                            // don't add resource definition without access
-                        }
+                        rscdfns.add(rscDfn.getApiData());
                     }
-                );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            // for now return an empty list.
-        }
+                }
+            );
 
         return rscdfns;
     }
@@ -1321,14 +1307,7 @@ public class CtrlRscDfnApiCallHandler
     private void removeInactiveResources(List<Resource> diskfulRscs)
     {
         diskfulRscs.removeIf(rsc -> {
-            try
-            {
-                return rsc.getStateFlags().isSet(Resource.Flags.INACTIVE);
-            }
-            catch (AccessDeniedException ignored)
-            {
-                // ignored
-            }
+            return rsc.getStateFlags().isSet(Resource.Flags.INACTIVE);
             return false;
         });
     }

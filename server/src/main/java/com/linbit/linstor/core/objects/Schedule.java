@@ -71,10 +71,9 @@ public class Schedule extends AbsCoreObj<Schedule>
         maxRetries = transObjFactory.createTransactionSimpleObject(this, maxRetriesRef, driver.getMaxRetriesDriver());
 
         flags = transObjFactory
-            .createStateFlagsImpl(objProt, this, Flags.class, driver.getStateFlagsPersistence(), initialFlags);
+            .createStateFlagsImpl(this, Flags.class, driver.getStateFlagsPersistence(), initialFlags);
 
         transObjs = Arrays.asList(
-            objProt,
             fullCron,
             incCron,
             keepLocal,
@@ -261,7 +260,6 @@ public class Schedule extends AbsCoreObj<Schedule>
         if (!deleted.get())
         {
 
-            objProt.delete();
 
             activateTransMgr();
 

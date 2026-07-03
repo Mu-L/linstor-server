@@ -109,7 +109,6 @@ public class TestFactory
     {
         return new Node(
             uuidRef,
-            objProtRef,
             nodeNameRef,
             initialTypeRef,
             initialFlagsRef,
@@ -176,7 +175,6 @@ public class TestFactory
     {
         return new Resource(
             resUuidRef,
-            objProtRef,
             resDfnRef,
             nodeRef,
             initFlagsRef,
@@ -287,7 +285,6 @@ public class TestFactory
     {
         return new StorPoolDefinition(
             uuidRef,
-            objProtRef,
             spNameRef,
             driverRef,
             propsContainerFactoryRef,

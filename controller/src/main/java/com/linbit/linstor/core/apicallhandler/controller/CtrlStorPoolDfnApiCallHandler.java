@@ -294,26 +294,12 @@ class CtrlStorPoolDfnApiCallHandler
     ArrayList<StorPoolDefinitionApi> listStorPoolDefinitions()
     {
         ArrayList<StorPoolDefinitionApi> storPoolDfns = new ArrayList<>();
-        try
+        for (StorPoolDefinition storPoolDfn : storPoolDefinitionRepository.getMapForView().values())
         {
-            for (StorPoolDefinition storPoolDfn : storPoolDefinitionRepository.getMapForView().values())
+            if (!storPoolDfn.getName().getDisplayName().equals(LinStor.DISKLESS_STOR_POOL_NAME))
             {
-                try
-                {
-                    if (!storPoolDfn.getName().getDisplayName().equals(LinStor.DISKLESS_STOR_POOL_NAME))
-                    {
-                        storPoolDfns.add(storPoolDfn.getApiData());
-                    }
-                }
-                catch (AccessDeniedException accDeniedExc)
-                {
-                    // don't add storpooldfn without access
-                }
+                storPoolDfns.add(storPoolDfn.getApiData());
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            // for now return an empty list.
         }
 
         return storPoolDfns;

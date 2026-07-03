@@ -97,7 +97,7 @@ public class CtrlAuth implements ApiCall
             String details = "Failed to parse message. If this was an attempt from a LINSTOR controller " +
                 "please check if the controller has the same version as the satellite. Satellite version: " +
                 LinStor.VERSION_INFO_PROVIDER.getVersion();
-            @Nullable String reportErrorId = errorReporter.reportError(exc, null, null, details);
+            @Nullable String reportErrorId = errorReporter.reportError(exc, null, details);
             ApiCallRcImpl apiCallRcImpl = new ApiCallRcImpl();
             apiCallRcImpl.add(
                 ApiCallRcImpl.entryBuilder(

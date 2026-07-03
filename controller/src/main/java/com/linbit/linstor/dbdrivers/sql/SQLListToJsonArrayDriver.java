@@ -7,12 +7,12 @@ import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine.DataToString;
 import com.linbit.linstor.dbdrivers.interfaces.updater.CollectionDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.utils.ExceptionThrowingFunction;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Function;
 
 class SQLListToJsonArrayDriver<DATA, LIST_TYPE> implements CollectionDatabaseDriver<DATA, LIST_TYPE>
 {
@@ -20,16 +20,16 @@ class SQLListToJsonArrayDriver<DATA, LIST_TYPE> implements CollectionDatabaseDri
     private final SQLEngine sqlEngine;
     private final Column columnToUpdate;
     private final String updateStatement;
-    private final Map<Column, ExceptionThrowingFunction<DATA, Object>> setters;
+    private final Map<Column, Function<DATA, Object>> setters;
     private final DataToString<DATA> dataToString;
 
     private final DatabaseTable table;
-    private final ExceptionThrowingFunction<DATA, Object> columnSetter;
+    private final Function<DATA, Object> columnSetter;
 
     SQLListToJsonArrayDriver(
         SQLEngine sqlEngineRef,
         ErrorReporter errorReporterRef,
-        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
+        Map<Column, Function<DATA, Object>> settersRef,
         Column columnToUpdateRef,
         DataToString<DATA> dataToStringRef
     )
@@ -73,7 +73,7 @@ class SQLListToJsonArrayDriver<DATA, LIST_TYPE> implements CollectionDatabaseDri
                 inlineId
             );
 
-            stmt.setObject(1, columnSetter.accept(data));
+            stmt.setObject(1, columnSetter.apply(data));
             sqlEngine.setPrimaryValues(setters, stmt, 2, table, data);
 
             stmt.executeUpdate();

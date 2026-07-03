@@ -84,7 +84,7 @@ public class EventBroker
             Disposable disposable = mergedStreams
                 .subscribe(
                     peer::sendMessage,
-                    exception -> errorReporter.reportError(exception, null, null, "Uncaught exception sending event")
+                    exception -> errorReporter.reportError(exception, null, "Uncaught exception sending event")
                 );
 
             watchStore.addWatch(watch, disposable);

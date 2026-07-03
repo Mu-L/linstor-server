@@ -119,7 +119,6 @@ public class NodeDbDriverTest extends GenericDbBase
         initialType = Node.Type.AUXILIARY;
         node = TestFactory.createNode(
             uuid,
-            objProt,
             nodeName,
             initialType,
             initialFlags,

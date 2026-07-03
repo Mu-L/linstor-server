@@ -21,7 +21,6 @@ import com.linbit.linstor.dbdrivers.k8s.crd.LinstorSpec;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
-import com.linbit.utils.ExceptionThrowingFunction;
 import com.linbit.utils.Pair;
 
 import java.util.ArrayList;
@@ -61,7 +60,7 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
     protected final @Nullable DatabaseTable table;
     private final DbEngine dbEngine;
 
-    private final Map<Column, ExceptionThrowingFunction<DATA, Object>> setters;
+    private final Map<Column, Function<DATA, Object>> setters;
 
     protected AbsDatabaseDriver(
         ErrorReporter errorReporterRef,
@@ -186,7 +185,7 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
 
     protected <INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
         Column col,
-        ExceptionThrowingFunction<DATA, String> dataValueToString,
+        Function<DATA, String> dataValueToString,
         Function<INPUT_TYPE, DB_TYPE> typeMapper
     )
     {
@@ -202,7 +201,7 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
 
     protected <INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
         Column col,
-        ExceptionThrowingFunction<DATA, String> dataValueToString,
+        Function<DATA, String> dataValueToString,
         Function<INPUT_TYPE, DB_TYPE> typeMapper,
         DataToString<INPUT_TYPE> inputToStringRef
     )
@@ -241,7 +240,7 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
 
     protected void setColumnSetter(
         Column colRef,
-        ExceptionThrowingFunction<DATA, Object> setterRef
+        Function<DATA, Object> setterRef
     )
     {
         setters.put(colRef, setterRef);

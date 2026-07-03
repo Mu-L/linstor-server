@@ -533,12 +533,10 @@ public final class DatabaseConstantsGenerator
             "com.linbit.linstor.dbdrivers.DatabaseTable.Column",
             genDbTablesJavaCodeRef == null ? "com.linbit.linstor.dbdrivers.GeneratedDatabaseTables" : null,
             "com.linbit.linstor.dbdrivers.RawParameters",
-            "com.linbit.linstor.security.AccessDeniedException",
             "com.linbit.linstor.transaction.BaseControllerK8sCrdTransactionMgrContext",
             "com.linbit.linstor.transaction.K8sCrdMigrationContext",
             "com.linbit.linstor.transaction.K8sCrdSchemaUpdateContext",
             "com.linbit.linstor.utils.ByteUtils",
-            "com.linbit.utils.ExceptionThrowingFunction",
             "", // empty line
             "java.nio.charset.StandardCharsets",
             genDbTablesJavaCodeRef != null ? "java.sql.Types" : null,
@@ -548,6 +546,7 @@ public final class DatabaseConstantsGenerator
             "java.util.Map",
             "java.util.TreeMap",
             "java.util.concurrent.atomic.AtomicLong",
+            "java.util.function.Function",
             "", // empty line
             "com.fasterxml.jackson.annotation.JsonCreator",
             "com.fasterxml.jackson.annotation.JsonIgnore",
@@ -771,14 +770,10 @@ public final class DatabaseConstantsGenerator
             try (IndentLevel genericCreateMethodParams = new IndentLevel("", "", false, false))
             {
                 appendLine("DatabaseTable table,");
-                appendLine("Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,");
+                appendLine("Map<Column, Function<DATA, Object>> setters,");
                 appendLine("DATA data");
             }
             appendLine(")");
-            try (IndentLevel genericCreateMethodThrowsDeclarations = new IndentLevel("", "", false, false))
-            {
-                appendLine("throws AccessDeniedException");
-            }
             try (IndentLevel genericCreateMethod = new IndentLevel())
             {
                 appendLine("switch (table.getName())");
@@ -797,13 +792,13 @@ public final class DatabaseConstantsGenerator
                                 for (Column clm : tbl.columns)
                                 {
                                     appendLine(
-                                        "(%s) setters.get(%s.%s.%s).accept(data),",
+                                        "(%s) setters.get(%s.%s.%s).apply(data),",
                                         getJavaType(clm),
                                         DFLT_GEN_DB_TABLES_CLASS_NAME,
                                         toUpperCamelCase(clm.tbl.name),
                                         clm.name
                                     );
-                                    // appendLine("(%s) setters.get(%s.%s).accept(data),", type, clmName);
+                                    // appendLine("(%s) setters.get(%s.%s).apply(data),", type, clmName);
                                 }
                                 cutLastAndAppend(2, "\n");
                             }

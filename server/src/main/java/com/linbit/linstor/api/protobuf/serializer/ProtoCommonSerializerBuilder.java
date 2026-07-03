@@ -264,17 +264,6 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
         exceptionoccurred = true;
     }
 
-    protected void handleAccessDeniedException(AccessDeniedException accDeniedExc)
-    {
-        errorReporter.reportError(
-            new ImplementationError(
-                "ProtoInterComSerializer has not enough privileges to serialize node",
-                accDeniedExc
-            )
-        );
-        exceptionoccurred = true;
-    }
-
     @Override
     public CommonSerializer.CommonSerializerBuilder bytes(byte[] bytes)
     {
@@ -1211,25 +1200,6 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
             builder.setExternalName(ByteString.copyFrom(rscDfnApi.getExternalName()));
         }
         return builder.build();
-    }
-
-    public static List<VlmDfnOuterClass.VlmDfn> serializeVolumeDefinition(
-        List<VolumeDefinition> vlmDfnList
-    )
-    {
-        List<VlmDfnOuterClass.VlmDfn> protoVlmDfnList = new ArrayList<>(vlmDfnList.size());
-        for (VolumeDefinition vlmDfn : vlmDfnList)
-        {
-            protoVlmDfnList.add(serializeVolumeDefinition(vlmDfn));
-        }
-        return protoVlmDfnList;
-    }
-
-    public static VlmDfnOuterClass.VlmDfn serializeVolumeDefinition(
-        VolumeDefinition vlmDfn
-    )
-    {
-        return serializeVolumeDefinition(vlmDfn.getApiData());
     }
 
     public static List<VlmDfnOuterClass.VlmDfn> serializeVolumeDefinition(
