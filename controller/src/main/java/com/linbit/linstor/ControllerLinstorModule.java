@@ -2,27 +2,27 @@ package com.linbit.linstor;
 
 import com.linbit.WorkerPool;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.core.repository.AuthTokenProtectionRepository;
+import com.linbit.linstor.core.repository.AuthTokenRepositoryImpl;
 import com.linbit.linstor.core.repository.AuthTokenRepository;
-import com.linbit.linstor.core.repository.ExternalFileProtectionRepository;
+import com.linbit.linstor.core.repository.ExternalFileRepositoryImpl;
 import com.linbit.linstor.core.repository.ExternalFileRepository;
-import com.linbit.linstor.core.repository.FreeSpaceMgrProtectionRepository;
+import com.linbit.linstor.core.repository.FreeSpaceMgrRepositoryImpl;
 import com.linbit.linstor.core.repository.FreeSpaceMgrRepository;
-import com.linbit.linstor.core.repository.KeyValueStoreProtectionRepository;
+import com.linbit.linstor.core.repository.KeyValueStoreRepositoryImpl;
 import com.linbit.linstor.core.repository.KeyValueStoreRepository;
-import com.linbit.linstor.core.repository.NodeProtectionRepository;
+import com.linbit.linstor.core.repository.NodeRepositoryImpl;
 import com.linbit.linstor.core.repository.NodeRepository;
-import com.linbit.linstor.core.repository.RemoteProtectionRepository;
+import com.linbit.linstor.core.repository.RemoteRepositoryImpl;
 import com.linbit.linstor.core.repository.RemoteRepository;
-import com.linbit.linstor.core.repository.ResourceDefinitionProtectionRepository;
+import com.linbit.linstor.core.repository.ResourceDefinitionRepositoryImpl;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
-import com.linbit.linstor.core.repository.ResourceGroupProtectionRepository;
+import com.linbit.linstor.core.repository.ResourceGroupRepositoryImpl;
 import com.linbit.linstor.core.repository.ResourceGroupRepository;
-import com.linbit.linstor.core.repository.ScheduleProtectionRepository;
+import com.linbit.linstor.core.repository.ScheduleRepositoryImpl;
 import com.linbit.linstor.core.repository.ScheduleRepository;
-import com.linbit.linstor.core.repository.StorPoolDefinitionProtectionRepository;
+import com.linbit.linstor.core.repository.StorPoolDefinitionRepositoryImpl;
 import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
-import com.linbit.linstor.core.repository.SystemConfProtectionRepository;
+import com.linbit.linstor.core.repository.SystemConfRepositoryImpl;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 
 import javax.inject.Singleton;
@@ -35,17 +35,17 @@ public class ControllerLinstorModule extends AbstractModule
     @Override
     protected void configure()
     {
-        bind(NodeRepository.class).to(NodeProtectionRepository.class);
-        bind(ResourceDefinitionRepository.class).to(ResourceDefinitionProtectionRepository.class);
-        bind(ResourceGroupRepository.class).to(ResourceGroupProtectionRepository.class);
-        bind(StorPoolDefinitionRepository.class).to(StorPoolDefinitionProtectionRepository.class);
-        bind(FreeSpaceMgrRepository.class).to(FreeSpaceMgrProtectionRepository.class);
-        bind(SystemConfRepository.class).to(SystemConfProtectionRepository.class);
-        bind(KeyValueStoreRepository.class).to(KeyValueStoreProtectionRepository.class);
-        bind(ExternalFileRepository.class).to(ExternalFileProtectionRepository.class);
-        bind(RemoteRepository.class).to(RemoteProtectionRepository.class);
-        bind(ScheduleRepository.class).to(ScheduleProtectionRepository.class);
-        bind(AuthTokenRepository.class).to(AuthTokenProtectionRepository.class);
+        bind(NodeRepository.class).to(NodeRepositoryImpl.class);
+        bind(ResourceDefinitionRepository.class).to(ResourceDefinitionRepositoryImpl.class);
+        bind(ResourceGroupRepository.class).to(ResourceGroupRepositoryImpl.class);
+        bind(StorPoolDefinitionRepository.class).to(StorPoolDefinitionRepositoryImpl.class);
+        bind(FreeSpaceMgrRepository.class).to(FreeSpaceMgrRepositoryImpl.class);
+        bind(SystemConfRepository.class).to(SystemConfRepositoryImpl.class);
+        bind(KeyValueStoreRepository.class).to(KeyValueStoreRepositoryImpl.class);
+        bind(ExternalFileRepository.class).to(ExternalFileRepositoryImpl.class);
+        bind(RemoteRepository.class).to(RemoteRepositoryImpl.class);
+        bind(ScheduleRepository.class).to(ScheduleRepositoryImpl.class);
+        bind(AuthTokenRepository.class).to(AuthTokenRepositoryImpl.class);
     }
 
     @Provides

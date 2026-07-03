@@ -96,24 +96,6 @@ import com.linbit.linstor.dbdrivers.interfaces.ResourceGroupCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceGroupDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.ScheduleCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.ScheduleDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecConfigCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecConfigDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecDefaultRoleCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecDefaultRoleDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecIdRoleCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecIdRoleDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecIdentityCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecIdentityDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecObjProtAclCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecObjProtAclDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecObjProtCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecObjProtDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecRoleCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecRoleDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecTypeCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecTypeDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecTypeRulesCtrlDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecTypeRulesDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDefinitionCtrlDatabaseDriver;
@@ -157,7 +139,6 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.Provides;
-import com.google.inject.TypeLiteral;
 import com.google.inject.multibindings.MapBinder;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -272,24 +253,6 @@ public class ControllerDbModule extends AbstractModule
         bind(PropsDatabaseDriver.class).to(PropsDbDriver.class);
         bind(PropsCtrlDatabaseDriver.class).to(PropsDbDriver.class);
 
-        bind(SecConfigCtrlDatabaseDriver.class).to(SecConfigDbDriver.class);
-        bind(SecConfigDatabaseDriver.class).to(SecConfigDbDriver.class);
-        bind(SecDefaultRoleCtrlDatabaseDriver.class).to(SecDefaultRoleDbDriver.class);
-        bind(SecDefaultRoleDatabaseDriver.class).to(SecDefaultRoleDbDriver.class);
-        bind(SecIdentityCtrlDatabaseDriver.class).to(SecIdentityDbDriver.class);
-        bind(SecIdentityDatabaseDriver.class).to(SecIdentityDbDriver.class);
-        bind(SecIdRoleCtrlDatabaseDriver.class).to(SecIdRoleDbDriver.class);
-        bind(SecIdRoleDatabaseDriver.class).to(SecIdRoleDbDriver.class);
-        bind(SecObjProtAclCtrlDatabaseDriver.class).to(SecObjectProtectionAclDbDriver.class);
-        bind(SecObjProtAclDatabaseDriver.class).to(SecObjectProtectionAclDbDriver.class);
-        bind(SecObjProtCtrlDatabaseDriver.class).to(SecObjectProtectionDbDriver.class);
-        bind(SecObjProtDatabaseDriver.class).to(SecObjectProtectionDbDriver.class);
-        bind(SecRoleCtrlDatabaseDriver.class).to(SecRoleDbDriver.class);
-        bind(SecRoleDatabaseDriver.class).to(SecRoleDbDriver.class);
-        bind(SecTypeCtrlDatabaseDriver.class).to(SecTypeDbDriver.class);
-        bind(SecTypeDatabaseDriver.class).to(SecTypeDbDriver.class);
-        bind(SecTypeRulesCtrlDatabaseDriver.class).to(SecTypeRulesDbDriver.class);
-        bind(SecTypeRulesDatabaseDriver.class).to(SecTypeRulesDbDriver.class);
 
         // all 3 are (indirectly) needed by the db-exporter. just make sure to not re-bind the same interface
         // multiple times!
@@ -316,11 +279,6 @@ public class ControllerDbModule extends AbstractModule
                 bind(DbEngine.class).to(SQLEngine.class);
 
                 bind(DbInitializer.class).to(DbConnectionPoolInitializer.class);
-                bind(new TypeLiteral<DbAccessor<? extends ControllerDatabase>>()
-                {
-                }).to(new TypeLiteral<DbSQLPersistence>()
-                {
-                });
             }
             case K8S_CRD ->
             {
@@ -328,11 +286,6 @@ public class ControllerDbModule extends AbstractModule
                 bind(DbEngine.class).to(K8sCrdEngine.class);
 
                 bind(DbInitializer.class).to(DbK8sCrdInitializer.class);
-                bind(new TypeLiteral<DbAccessor<? extends ControllerDatabase>>()
-                {
-                }).to(new TypeLiteral<DbK8sCrdPersistence>()
-                {
-                });
             }
             default -> throw new RuntimeException("Unknown database type: " + dbType);
         }

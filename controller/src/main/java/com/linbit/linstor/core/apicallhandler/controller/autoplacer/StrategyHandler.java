@@ -171,7 +171,6 @@ class StrategyHandler
                         errorReporter.reportError(
                             nfExc,
                             null,
-                            null,
                             "Could not parse '" + valStr + "' for strategy '" + stratName +
                                 "'. Defaulting to 1.0"
                         );

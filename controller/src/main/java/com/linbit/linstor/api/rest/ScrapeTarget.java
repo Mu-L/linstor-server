@@ -1,6 +1,5 @@
 package com.linbit.linstor.api.rest;
 
-import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.rest.v1.RequestHelper;
 import com.linbit.linstor.core.apis.NodeApi;
 import com.linbit.linstor.core.objects.Node;
@@ -9,7 +8,6 @@ import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;

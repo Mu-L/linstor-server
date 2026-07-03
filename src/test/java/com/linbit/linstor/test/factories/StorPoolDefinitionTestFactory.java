@@ -25,7 +25,6 @@ public class StorPoolDefinitionTestFactory
     private final AtomicInteger nextId = new AtomicInteger();
     private final HashMap<String, StorPoolDefinition> storPoolDfnMap = new HashMap<>();
 
-    private AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     private String dfltStorPoolNamePattern = "sp-%d";
     private Supplier<String> dfltStorPoolNameSupplier = () -> String
         .format(dfltStorPoolNamePattern, nextId.incrementAndGet());
@@ -52,15 +51,10 @@ public class StorPoolDefinitionTestFactory
             .filter(spd -> spd.getName().displayValue.equalsIgnoreCase(LinStor.DISKLESS_STOR_POOL_NAME))
             .findFirst()
             .get();
-        dfltDisklessStorPoolDfn.getObjProt()
-            .addAclEntry(
-                TestAccessContextProvider.INIT_CTX,
-                TestAccessContextProvider.SYS_CTX.subjectRole,
-                AccessType.CONTROL
-            );
 
         storPoolDfnMap.put(LinStor.DISKLESS_STOR_POOL_NAME.toUpperCase(), dfltDisklessStorPoolDfn);
     }
+
     public StorPoolDefinition get(String storPoolNameRef, boolean createIfNotExists)
         throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
@@ -70,12 +64,6 @@ public class StorPoolDefinitionTestFactory
             storPoolDfn = create(storPoolNameRef);
         }
         return storPoolDfn;
-    }
-
-    public StorPoolDefinitionTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
     }
 
     public StorPoolDefinitionTestFactory setDfltStorPoolNamePattern(String dfltStorPoolNamePatternRef)
@@ -113,11 +101,6 @@ public class StorPoolDefinitionTestFactory
         public StorPoolDefinitionBuilder setStorPoolName(String storPoolNameRef)
         {
             storPoolName = storPoolNameRef;
-            return this;
-        }
-
-        public StorPoolDefinitionBuilder setAccCtx()
-        {
             return this;
         }
 

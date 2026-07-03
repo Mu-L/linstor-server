@@ -21,7 +21,6 @@ import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.io.ByteArrayInputStream;
@@ -69,7 +68,6 @@ public class CtrlAuthenticator
             .contextWrite(
                 Context.of(
                     ApiModule.API_CALL_NAME, InternalApiConsts.API_AUTH,
-                    AccessContext.class, peer.getAccessContext(),
                     Peer.class, peer
                 )
             )
@@ -108,51 +106,38 @@ public class CtrlAuthenticator
         {
             errorReporter.logInfo("Sending authentication to satellite '" + node.getName() + "'");
             // TODO make the shared secret customizable
-            try
+            Peer peer = node.getPeer();
+            if (peer instanceof TcpConnectorPeer tcpPeer)
             {
-                Peer peer = node.getPeer();
-                if (peer instanceof TcpConnectorPeer tcpPeer)
-                {
-                    errorReporter.logDebug("Adding peer to PingTask: '" + node.getName() + "'");
-                    pingTask.add(peer);
-                    flux = tcpPeer.apiCall(
-                        InternalApiConsts.API_AUTH,
-                        serializer
-                            .headerlessBuilder()
-                            .authMessage(
-                                node.getUuid(),
-                                node.getName().getDisplayName(),
-                                "Hello, LinStor!".getBytes(StandardCharsets.UTF_8),
-                                UUID.fromString(
-                                    systemConfRepository.getCtrlConfForView()
-                                        .getProp(
-                                            InternalApiConsts.KEY_CLUSTER_LOCAL_ID,
-                                            ApiConsts.NAMESPC_CLUSTER
-                                        )
-                                )
+                errorReporter.logDebug("Adding peer to PingTask: '" + node.getName() + "'");
+                pingTask.add(peer);
+                flux = tcpPeer.apiCall(
+                    InternalApiConsts.API_AUTH,
+                    serializer
+                        .headerlessBuilder()
+                        .authMessage(
+                            node.getUuid(),
+                            node.getName().getDisplayName(),
+                            "Hello, LinStor!".getBytes(StandardCharsets.UTF_8),
+                            UUID.fromString(
+                                systemConfRepository.getCtrlConfForView()
+                                    .getProp(
+                                        InternalApiConsts.KEY_CLUSTER_LOCAL_ID,
+                                        ApiConsts.NAMESPC_CLUSTER
+                                    )
                             )
-                            .build(),
-                        false,
-                        false
-                    );
-
-                }
-                else
-                {
-                    flux = Flux.error(
-                        new ImplementationError("Cannot authenticate against peer type " +
-                            peer.getClass().getSimpleName()
                         )
-                    );
-                }
+                        .build(),
+                    false,
+                    false
+                );
+
             }
-            catch (AccessDeniedException exc)
+            else
             {
                 flux = Flux.error(
-                    new ApiAccessDeniedException(
-                        exc,
-                        "accessing '" + node.getName().displayValue + "' peer object.",
-                        ApiConsts.FAIL_ACC_DENIED_NODE
+                    new ImplementationError("Cannot authenticate against peer type " +
+                        peer.getClass().getSimpleName()
                     )
                 );
             }
@@ -163,7 +148,7 @@ public class CtrlAuthenticator
     private Flux<ApiCallRc> processAuthResponse(Node node, ByteArrayInputStream inputStream)
     {
         Flux<ApiCallRc> authResponseFlux;
-        Peer peer = getPeerPrivileged(node);
+        Peer peer = node.getPeer();
         try
         {
             authResponseFlux = intAuthResponse
@@ -183,12 +168,5 @@ public class CtrlAuthenticator
            authResponseFlux = Flux.empty();
         }
         return authResponseFlux;
-    }
-
-    private Peer getPeerPrivileged(Node node)
-    {
-        Peer peer;
-        peer = node.getPeer();
-        return peer;
     }
 }

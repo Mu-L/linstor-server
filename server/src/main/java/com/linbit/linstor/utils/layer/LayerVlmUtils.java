@@ -1,7 +1,6 @@
 package com.linbit.linstor.utils.layer;
 
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;

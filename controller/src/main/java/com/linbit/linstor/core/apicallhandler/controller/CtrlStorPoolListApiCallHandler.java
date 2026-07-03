@@ -27,7 +27,6 @@ import static com.linbit.locks.LockGuardFactory.LockType.READ;
 
 import com.linbit.linstor.annotation.Nullable;
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.nio.charset.StandardCharsets;

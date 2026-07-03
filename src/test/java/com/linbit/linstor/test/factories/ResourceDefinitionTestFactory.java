@@ -42,7 +42,6 @@ public class ResourceDefinitionTestFactory
     private String dfltSecretPattern = "superSecret-%02d";
     private String dfltRscGroupName = InternalApiConsts.DEFAULT_RSC_GRP_NAME;
 
-    private AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     private Supplier<String> dfltRscNameSupplier = () -> String.format(dfltRscNamePattern, nextId.incrementAndGet());
     private byte[] dfltExtName = null;
     private Flags[] dfltFlags = new Flags[0];
@@ -74,12 +73,6 @@ public class ResourceDefinitionTestFactory
             rscDfn = create(rscNameRef);
         }
         return rscDfn;
-    }
-
-    public ResourceDefinitionTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
     }
 
     public ResourceDefinitionTestFactory setDfltRscNamePattern(String dfltRscNamePatternRef)
@@ -193,11 +186,6 @@ public class ResourceDefinitionTestFactory
         public ResourceDefinitionBuilder setRscName(String rscNameRef)
         {
             rscName = rscNameRef;
-            return this;
-        }
-
-        public ResourceDefinitionBuilder setAccCtx()
-        {
             return this;
         }
 

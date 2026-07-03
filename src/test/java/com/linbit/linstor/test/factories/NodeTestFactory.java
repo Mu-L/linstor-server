@@ -23,7 +23,6 @@ public class NodeTestFactory
 
     private final HashMap<String, Node> nodesMap = new HashMap<>();
 
-    private AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     private String dfltNodeNamePattern = "node-%d";
     private Supplier<String> dfltNodeNameSupplier = () -> String.format(dfltNodeNamePattern, nextId.incrementAndGet());
     private Type dfltNodeType = Node.Type.SATELLITE;
@@ -45,12 +44,6 @@ public class NodeTestFactory
             nodesMap.put(nodeNameRef.toUpperCase(), node);
         }
         return node;
-    }
-
-    public NodeTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
     }
 
     public NodeTestFactory setDfltNodeNamePattern(String dfltNodeNamePatternRef)
@@ -110,11 +103,6 @@ public class NodeTestFactory
             nodeName = nodeNameRef;
             nodeType = dfltNodeType;
             flags = dfltFlags;
-        }
-
-        public NodeBuilder setAccCtx()
-        {
-            return this;
         }
 
         public NodeBuilder setNodeName(String nodeNameRef)

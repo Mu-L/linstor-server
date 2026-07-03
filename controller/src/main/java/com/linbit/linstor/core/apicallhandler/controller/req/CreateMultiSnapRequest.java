@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.req;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiCallHandler;
@@ -55,7 +54,7 @@ public class CreateMultiSnapRequest
     public CreateMultiSnapRequest(Collection<SnapReq> snapshotsRef)
     {
         snapshots = snapshotsRef;
-        updateDescriptionAndJoinedRscNames(null);
+        updateDescriptionAndJoinedRscNames();
     }
 
     public CreateMultiSnapRequest(SnapshotDefinition snapDfnRef)
@@ -76,11 +75,9 @@ public class CreateMultiSnapRequest
     }
 
     /**
-     * This method (re-) initializes the description as well as
-     *
-     *
+     * This method (re-) initializes the description as well as the joinedRscNames
      */
-    public void updateDescriptionAndJoinedRscNames(@Nullable AccessContext accCtx)
+    public void updateDescriptionAndJoinedRscNames()
     {
         StringBuilder descrBuilder = new StringBuilder("MultiSnapshot ").append(id).append(" [");
         StringBuilder joinedRscNamesBuilder = new StringBuilder("[");

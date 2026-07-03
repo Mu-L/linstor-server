@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.internal;
 
-import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
@@ -234,37 +233,11 @@ public class CtrlAuthResponseApiCallHandler
 
                 logExternaltools(peer, nodeUname);
 
-                // Set the satellite's access context
-                // Certain APIs called by the satellite are executed with a privileged access context by the controller,
-                // while the access context of the peer connection itself remains unprivileged
-                AccessContext curCtx = peer.getAccessContext();
-                AccessContext privCtx = sysCtx.clone();
                 try
                 {
-                    privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-                    // FIXME In the absence of any means of identification, assume the system identity for the peer.
-                    // Set the SYSTEM identity on the Satellite's access context
-                    AccessContext newCtx = privCtx.impersonate(
-                        Identity.SYSTEM_ID, curCtx.subjectRole, curCtx.subjectDomain
-                    );
-                    // Disable all privileges on the Satellite's access context permanently
-                    newCtx.getLimitPrivs().disablePrivileges(Privilege.PRIV_SYS_ALL);
-                    peer.setAccessContext(newCtx);
-
                     updateUnameMap(peer, nodeUname);
 
                     ctrlTransactionHelper.commit();
-                }
-                catch (AccessDeniedException accExc)
-                {
-                    errorReporter.reportError(
-                        Level.ERROR,
-                        new ImplementationError(
-                            "Creation of an access context for a Satellite by the " +
-                                privCtx.subjectRole.name.displayValue + " role failed",
-                            accExc
-                        )
-                    );
                 }
                 catch (InvalidValueException | DatabaseException exc)
                 {
@@ -284,30 +257,20 @@ public class CtrlAuthResponseApiCallHandler
                     waitForFullSyncAnswerRef
                 );
 
-                try
+                if (!node.getNodeType().isSpecial() &&
+                    !nodeUname.equalsIgnoreCase(node.getName().displayValue))
                 {
-                    if (!node.getNodeType().isSpecial() &&
-                        !nodeUname.equalsIgnoreCase(node.getName().displayValue))
-                    {
-                        flux = flux.concatWith(
-                            Flux.just(
-                                ApiCallRcImpl.singleApiCallRc(
-                                    ApiConsts.INFO_NODE_NAME_MISMATCH,
-                                    String.format(
-                                        "Linstor node name '%s' and hostname '%s' doesn't match.",
-                                        node.getName().displayValue,
-                                        nodeUname
-                                    )
+                    flux = flux.concatWith(
+                        Flux.just(
+                            ApiCallRcImpl.singleApiCallRc(
+                                ApiConsts.INFO_NODE_NAME_MISMATCH,
+                                String.format(
+                                    "Linstor node name '%s' and hostname '%s' doesn't match.",
+                                    node.getName().displayValue,
+                                    nodeUname
                                 )
                             )
-                        );
-                    }
-                }
-                catch (AccessDeniedException accExc)
-                {
-                    errorReporter.reportError(
-                        Level.ERROR,
-                        new ImplementationError(accExc)
+                        )
                     );
                 }
             }

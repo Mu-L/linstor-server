@@ -50,7 +50,7 @@ public class MixedStorPoolHelper
     private final SystemConfRepository systemConfRepository;
 
     @Inject
-    public MixedStorPoolHelper(AccessContext sysCtxRef, SystemConfRepository systemConfRepositoryRef)
+    public MixedStorPoolHelper(SystemConfRepository systemConfRepositoryRef)
     {
         systemConfRepository = systemConfRepositoryRef;
     }

@@ -65,36 +65,19 @@ public class CreateDebugConsole implements ApiCall
             apiCallAnswerer.writeAnswerHeader(replyOut, "DebugReply");
 
             MsgDebugReply.Builder msgDbgReplyBld = MsgDebugReply.newBuilder();
-            try
-            {
-                // Create the debug console
-                {
-                    AccessContext privCtx = accCtxProvider.get().clone();
-                    privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-                    debugConsoleCreator.createDebugConsole(client);
-                }
 
-                msgDbgReplyBld.addDebugOut(
-                    LinStor.PROGRAM + ", Module " + LinStor.CONTROLLER_MODULE
-                );
-                msgDbgReplyBld.addDebugOut(
-                    "Version: " + LinStor.VERSION_INFO_PROVIDER.getVersion() + " " +
-                    "(" + LinStor.VERSION_INFO_PROVIDER.getGitCommitId() + ")" + " - " +
-                    LinStor.VERSION_INFO_PROVIDER.getBuildTime()
-                );
-                msgDbgReplyBld.addDebugOut("Debug console attached to peer connection");
-            }
-            catch (AccessDeniedException accessExc)
-            {
-                errorReporter.reportError(accessExc);
-                msgDbgReplyBld.addDebugErr(
-                    "Error:\n" +
-                    "    The request to create a debug console was denied.\n" +
-                    "Cause:    \n" +
-                    accessExc.getMessage() +
-                    "\n"
-                );
-            }
+            // Create the debug console
+            debugConsoleCreator.createDebugConsole(client);
+
+            msgDbgReplyBld.addDebugOut(
+                LinStor.PROGRAM + ", Module " + LinStor.CONTROLLER_MODULE
+            );
+            msgDbgReplyBld.addDebugOut(
+                "Version: " + LinStor.VERSION_INFO_PROVIDER.getVersion() + " " +
+                "(" + LinStor.VERSION_INFO_PROVIDER.getGitCommitId() + ")" + " - " +
+                LinStor.VERSION_INFO_PROVIDER.getBuildTime()
+            );
+            msgDbgReplyBld.addDebugOut("Debug console attached to peer connection");
 
             {
                 MsgDebugReply dbgReply = msgDbgReplyBld.build();

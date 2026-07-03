@@ -3,8 +3,6 @@ package com.linbit.testutils;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import com.linbit.linstor.security.SecurityLevel;
-
 public abstract class AbsIterator<T> implements Iterator<T>, Iterable<T>
 {
     private final Object[][] values;
@@ -109,8 +107,6 @@ public abstract class AbsIterator<T> implements Iterator<T>, Iterable<T>
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append(SecurityLevel.get());
-        sb.append(" ");
         sb.append(Arrays.toString(currentIdx));
         return sb.toString();
     }

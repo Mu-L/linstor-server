@@ -8,7 +8,7 @@ import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.Resource.InitMaps;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -41,7 +41,7 @@ import java.util.TreeMap;
 
 @Singleton
 public final class ResourceDbDriver extends
-    AbsProtectedDatabaseDriver<AbsResource<Resource>, Resource.InitMaps, PairNonNull<Map<NodeName, Node>,
+    AbsDatabaseDriver<AbsResource<Resource>, Resource.InitMaps, PairNonNull<Map<NodeName, Node>,
     Map<ResourceName, ResourceDefinition>>>
     implements ResourceCtrlDatabaseDriver
 {
@@ -58,7 +58,6 @@ public final class ResourceDbDriver extends
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
@@ -66,8 +65,7 @@ public final class ResourceDbDriver extends
         super(
             errorReporterRef,
             GeneratedDatabaseTables.RESOURCES,
-            dbEngine,
-            objProtFactoryRef
+            dbEngine
         );
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
@@ -121,7 +119,6 @@ public final class ResourceDbDriver extends
             ret = new Pair<>(
                 new Resource(
                     raw.build(UUID, java.util.UUID::fromString),
-                    getObjectProtection(ObjectProtection.buildPath(nodeName, rscName)),
                     loadAllDataRef.objB.get(rscName),
                     loadAllDataRef.objA.get(nodeName),
                     flags,

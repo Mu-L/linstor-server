@@ -153,9 +153,6 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
             ctrlUuid = ctrlUuidRef;
             controllerPeer = controllerPeerRef;
 
-            AccessContext tmpCtx = sysCtx.clone();
-            tmpCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-
             Node localNode;
             try
             {
@@ -209,10 +206,6 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
             controllerPeer.getExtToolsManager()
                 .updateExternalToolsInfo(
                     stltExtToolsChecker.getExternalTools(false).values());
-        }
-        catch (AccessDeniedException exc)
-        {
-            errorReporter.reportError(exc);
         }
         finally
         {

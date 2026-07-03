@@ -7,7 +7,7 @@ import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.core.identifier.ScheduleName;
 import com.linbit.linstor.core.objects.Schedule.InitMaps;
 import com.linbit.linstor.core.objects.Schedule.OnFailure;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -44,7 +44,7 @@ import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.parser.CronParser;
 
 @Singleton
-public final class ScheduleDbDriver extends AbsProtectedDatabaseDriver<Schedule, Schedule.InitMaps, Void>
+public final class ScheduleDbDriver extends AbsDatabaseDriver<Schedule, Schedule.InitMaps, Void>
     implements ScheduleCtrlDatabaseDriver
 {
     final PropsContainerFactory propsContainerFactory;
@@ -64,12 +64,11 @@ public final class ScheduleDbDriver extends AbsProtectedDatabaseDriver<Schedule,
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.SCHEDULES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.SCHEDULES, dbEngine);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -174,7 +173,6 @@ public final class ScheduleDbDriver extends AbsProtectedDatabaseDriver<Schedule,
         CronParser parser = new CronParser(CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX));
         return new Pair<>(
             new Schedule(
-                getObjectProtection(ObjectProtection.buildPath(scheduleName)),
                 raw.build(UUID, java.util.UUID::fromString),
                 this,
                 scheduleName,

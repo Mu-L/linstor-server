@@ -24,7 +24,6 @@ import com.linbit.linstor.proto.common.RscLayerDataOuterClass.RscLayerData;
 import com.linbit.linstor.proto.common.RscOuterClass;
 import com.linbit.linstor.proto.common.RscOuterClass.Rsc;
 import com.linbit.linstor.proto.common.StorageRscOuterClass.StorageRsc;
-import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -104,7 +103,6 @@ public class RscApiTest extends ApiTestBase
     {
         super.setUp();
         testControllerNode = nodeFactory.create(
-            ApiTestBase.BOB_ACC_CTX,
             testControllerName,
             testControllerType,
             testControllerFlags
@@ -113,12 +111,11 @@ public class RscApiTest extends ApiTestBase
 
         Mockito.when(mockSatellite.apiCall(anyString(), any())).thenReturn(Flux.empty());
         testSatelliteNode = nodeFactory.create(
-            ApiTestBase.BOB_ACC_CTX,
             testSatelliteName,
             testSatelliteType,
             testSatelliteFlags // flags
         );
-        testSatelliteNode.setPeer(GenericDbBase.SYS_CTX, mockSatellite);
+        testSatelliteNode.setPeer(mockSatellite);
         nodesMap.put(testSatelliteName, testSatelliteNode);
 
         Mockito.when(freeCapacityFetcher.fetchThinFreeCapacities(any())).thenReturn(Mono.just(Collections.emptyMap()));
@@ -128,7 +125,6 @@ public class RscApiTest extends ApiTestBase
         drbdRscDfn.sharedSecret = testRscDfnSecret;
         drbdRscDfn.transportType = tesTRscDfnTransportType;
         testRscDfn = resourceDefinitionFactory.create(
-            ApiTestBase.BOB_ACC_CTX,
             testRscName,
             null,
             testRscDfnFlags,
@@ -157,7 +153,6 @@ public class RscApiTest extends ApiTestBase
     @Test
     public void createRscSuccess() throws Exception
     {
-        Mockito.when(mockPeer.getAccessContext()).thenReturn();
         Mockito.when(mockPeer.isOnline()).thenReturn(true);
         Mockito.when(mockSatellite.getExtToolsManager()).thenReturn(mockExtToolsMgr);
         Mockito.when(mockSatellite.isOnline()).thenReturn(true);

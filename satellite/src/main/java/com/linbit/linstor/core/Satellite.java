@@ -208,9 +208,6 @@ public final class Satellite
             vsnCheck.checkVersions();
             ensureDrbdConfigSetup();
 
-            AccessContext initCtx = sysCtx.clone();
-            initCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-
             SystemService devMgrService = (SystemService) devMgr;
             NetComInitializer netComInitializer = new NetComInitializer(satelliteNetComInitializer);
 
@@ -313,11 +310,6 @@ public final class Satellite
         {
             errorReporter.logInfo("Entering debug console");
 
-            AccessContext privCtx = sysCtx.clone();
-            AccessContext debugCtx = sysCtx.clone();
-            privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-            debugCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-
             DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(null);
             dbgConsole.stdStreamsConsole(DebugConsoleImpl.CONSOLE_PROMPT);
             System.out.println();
@@ -418,8 +410,6 @@ public final class Satellite
                 Arrays.asList(
                     new GuiceConfigModule(),
                     new LoggingModule(errorLog),
-                    new SecurityModule(),
-                    new SatelliteSecurityModule(),
                     new SatelliteArgumentsModule(cfg),
                     new CoreTimerModule(),
                     new SatelliteLinstorModule(),

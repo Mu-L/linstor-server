@@ -18,7 +18,6 @@ import java.util.UUID;
 public class KeyValueStoreControllerFactory
 {
     private final KeyValueStoreDatabaseDriver driver;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
@@ -27,7 +26,6 @@ public class KeyValueStoreControllerFactory
     @Inject
     public KeyValueStoreControllerFactory(
         KeyValueStoreDatabaseDriver driverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -35,7 +33,6 @@ public class KeyValueStoreControllerFactory
     )
     {
         driver = driverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -56,10 +53,6 @@ public class KeyValueStoreControllerFactory
 
         kvs = new KeyValueStore(
             UUID.randomUUID(),
-            objectProtectionFactory.getInstance(
-                ObjectProtection.buildPath(kvsName),
-                true
-            ),
             kvsName,
             driver,
             propsContainerFactory,

@@ -36,7 +36,6 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.inject.Key;
 import io.prometheus.client.Histogram;
 import org.glassfish.grizzly.http.server.Request;
 import org.slf4j.MDC;
@@ -159,14 +158,13 @@ public class RequestHelper
             MDC.put(ErrorReporter.LOGID, ErrorReporter.getNewLogId());
         }
         final String userAgent = request.getHeader("User-Agent");
-        PeerREST peer = new PeerREST(request.getRemoteAddr(), userAgent, publicContext);
+        PeerREST peer = new PeerREST(request.getRemoteAddr(), userAgent);
 
         checkLDAPAuth(peer, request.getAuthorization());
 
         errorReporter.logInfo("REST/API %s/%s", peer.toString(), apiCall);
         return Context.of(
             ApiModule.API_CALL_NAME, apiCall,
-            AccessContext.class, peer.getAccessContext(),
             Peer.class, peer,
             ErrorReporter.LOGID, MDC.get(ErrorReporter.LOGID)
         );
@@ -180,7 +178,6 @@ public class RequestHelper
     )
     {
         Context subscriberContext = createContext(apiCall, request);
-        AccessContext accCtx = subscriberContext.get(AccessContext.class);
         Peer peer = subscriberContext.getOrDefault(Peer.class, null);
 
         Response ret;
@@ -189,8 +186,6 @@ public class RequestHelper
 
         try (LinStorScope.ScopeAutoCloseable close = apiCallScope.enter())
         {
-            apiCallScope.seed(Key.get(AccessContext.class, PeerContext.class));
-            apiCallScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class));
             apiCallScope.seed(Peer.class, peer);
 
             if (transMgr != null)

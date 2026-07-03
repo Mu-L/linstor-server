@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.helpers;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -28,7 +27,7 @@ public class ResourceCreateCheck
 {
 
     @Inject
-    public ResourceCreateCheck(AccessContext accessContextRef)
+    public ResourceCreateCheck()
     {
     }
 

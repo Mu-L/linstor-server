@@ -1,6 +1,5 @@
 package com.linbit.linstor.tasks;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
@@ -122,63 +121,55 @@ public class RetryResourcesTask implements Task
             Resource rsc = retryConfig.rsc;
             if (!rsc.isDeleted())
             {
-                try
+                Node node = rsc.getNode();
+                if (!node.isDeleted())
                 {
-                    Node node = rsc.getNode();
-                    if (!node.isDeleted())
+                    Peer peer = node.getPeer();
+                    NodeName nodeName = node.getName();
+
+                    errorReporter.logDebug(
+                        "RetryTask: Contact satellite '%s' to retry resource '%s'.",
+                        nodeName.displayValue,
+                        rsc.getResourceDefinition().getName().displayValue
+                    );
+
+                    // only update the one satellite, not every involved satellites
+                    Publisher<ApiCallRc> nextStep = retryConfig.fluxAfterSuccess;
+                    if (nextStep == null)
                     {
-                        Peer peer = node.getPeer();
-                        NodeName nodeName = node.getName();
+                        nextStep = Flux.empty();
+                    }
 
-                        errorReporter.logDebug(
-                            "RetryTask: Contact satellite '%s' to retry resource '%s'.",
-                            nodeName.displayValue,
-                            rsc.getResourceDefinition().getName().displayValue
-                        );
-
-                        // only update the one satellite, not every involved satellites
-                        Publisher<ApiCallRc> nextStep = retryConfig.fluxAfterSuccess;
-                        if (nextStep == null)
-                        {
-                            nextStep = Flux.empty();
-                        }
-
-                        peer.apiCall(
-                            InternalApiConsts.API_CHANGED_RSC,
-                            serializer
-                                .headerlessBuilder()
-                                .changedResource(
-                                    rsc.getUuid(),
-                                    rsc.getResourceDefinition().getName().displayValue
-                                )
-                                .build()
-                        ).map(
-                            inputStream -> CtrlSatelliteUpdateCaller.deserializeApiCallRc(
-                                nodeName,
-                                inputStream
+                    peer.apiCall(
+                        InternalApiConsts.API_CHANGED_RSC,
+                        serializer
+                            .headerlessBuilder()
+                            .changedResource(
+                                rsc.getUuid(),
+                                rsc.getResourceDefinition().getName().displayValue
+                            )
+                            .build()
+                    ).map(
+                        inputStream -> CtrlSatelliteUpdateCaller.deserializeApiCallRc(
+                            nodeName,
+                            inputStream
+                        )
+                    )
+                        .concatWith(nextStep)
+                        .onErrorResume(ApiRcException.class, ignore -> Flux.empty())
+                        .onErrorResume(PeerNotConnectedException.class, ignore -> Flux.empty())
+                        .contextWrite(
+                            Context.of(
+                                ApiModule.API_CALL_NAME,
+                                RSC_RETRY_API_NAME,
+                                Peer.class, peer
                             )
                         )
-                            .concatWith(nextStep)
-                            .onErrorResume(ApiRcException.class, ignore -> Flux.empty())
-                            .onErrorResume(PeerNotConnectedException.class, ignore -> Flux.empty())
-                            .contextWrite(
-                                Context.of(
-                                    ApiModule.API_CALL_NAME,
-                                    RSC_RETRY_API_NAME,
-                                    AccessContext.class, peer.getAccessContext(),
-                                    Peer.class, peer
-                                )
-                            )
-                            .subscribe();
-                    }
-                    else
-                    {
-                        remove(rsc);
-                    }
+                        .subscribe();
                 }
-                catch (AccessDeniedException accDeniedExc)
+                else
                 {
-                    errorReporter.reportError(new ImplementationError(accDeniedExc));
+                    remove(rsc);
                 }
             }
             else

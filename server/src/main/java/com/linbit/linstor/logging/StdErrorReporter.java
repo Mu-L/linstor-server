@@ -13,7 +13,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.utils.TimeUtils;
 
-import javax.inject.Provider;
 
 import java.io.File;
 import java.io.FileOutputStream;

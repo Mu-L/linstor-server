@@ -1,36 +1,16 @@
 package com.linbit.linstor.core;
 
-
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 public class SeedDefaultPeerRule implements TestRule
 {
-    protected static final AccessContext SYS_CTX = DummySecurityInitializer.getSystemAccessContext();
-    protected static final AccessContext PUBLIC_CTX = DummySecurityInitializer.getPublicAccessContext();
-
-    static
-    {
-        ALICE_ACC_CTX = TestAccessContextProvider.ALICE_ACC_CTX;
-        BOB_ACC_CTX = TestAccessContextProvider.BOB_ACC_CTX;
-    }
-
-    private AccessContext defaultPeerAccessContext = ALICE_ACC_CTX;
+    private boolean seedDefaultPeer = true;
 
     public boolean shouldSeedDefaultPeer()
     {
-        return defaultPeerAccessContext != null;
-    }
-
-    public void setDefaultPeerAccessContext()
-    {
-        defaultPeerAccessContext = defaultPeerAccessContextRef;
-    }
-
-    public AccessContext getDefaultPeerAccessContext()
-    {
-        return defaultPeerAccessContext;
+        return seedDefaultPeer;
     }
 
     @Override
@@ -38,7 +18,7 @@ public class SeedDefaultPeerRule implements TestRule
     {
         if (description.getAnnotation(DoNotSeedDefaultPeer.class) != null)
         {
-            defaultPeerAccessContext = null;
+            seedDefaultPeer = false;
         }
         return base;
     }

@@ -7,7 +7,7 @@ import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.Volume.InitMaps;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -38,7 +38,7 @@ import java.util.TreeMap;
 
 @Singleton
 public final class VolumeDbDriver
-    extends AbsProtectedDatabaseDriver<
+    extends AbsDatabaseDriver<
         Volume,
         Volume.InitMaps,
         PairNonNull<Map<Pair<NodeName, ResourceName>, ? extends Resource>,
@@ -56,13 +56,12 @@ public final class VolumeDbDriver
     public VolumeDbDriver(
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
-        ObjectProtectionFactory objProtFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.VOLUMES, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.VOLUMES, dbEngineRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;

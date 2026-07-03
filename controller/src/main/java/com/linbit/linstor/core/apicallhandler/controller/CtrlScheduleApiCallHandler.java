@@ -45,7 +45,6 @@ import com.linbit.utils.PairNonNull;
 import com.linbit.utils.StringUtils;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.time.Instant;
@@ -115,7 +114,6 @@ public class CtrlScheduleApiCallHandler
         ArrayList<SchedulePojo> ret = new ArrayList<>();
         try (LockGuard lg = lockGuardFactory.build(LockType.READ, LockObj.SCHEDULE_MAP))
         {
-            AccessContext pAccCtx = peerAccCtx.get();
             for (Entry<ScheduleName, Schedule> entry : scheduleRepository.getMapForView().entrySet())
             {
                 ret.add(entry.getValue().getApiData(null, null));
@@ -323,7 +321,6 @@ public class CtrlScheduleApiCallHandler
         {
             throw new ApiDatabaseException(exc);
         }
-
 
         ApiCallRcImpl responses = new ApiCallRcImpl();
         responses.addEntry(

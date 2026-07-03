@@ -6,7 +6,7 @@ import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.core.identifier.ExternalFileName;
 import com.linbit.linstor.core.objects.ExternalFile.InitMaps;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.function.Function;
 
 @Singleton
-public final class ExternalFileDbDriver extends AbsProtectedDatabaseDriver<ExternalFile, ExternalFile.InitMaps, Void>
+public final class ExternalFileDbDriver extends AbsDatabaseDriver<ExternalFile, ExternalFile.InitMaps, Void>
     implements ExternalFileCtrlDatabaseDriver
 {
     final PropsContainerFactory propsContainerFactory;
@@ -55,12 +55,11 @@ public final class ExternalFileDbDriver extends AbsProtectedDatabaseDriver<Exter
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.FILES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.FILES, dbEngine);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -144,7 +143,6 @@ public final class ExternalFileDbDriver extends AbsProtectedDatabaseDriver<Exter
         return new Pair<>(
             new ExternalFile(
                 raw.build(UUID, java.util.UUID::fromString),
-                getObjectProtection(ObjectProtection.buildPath(extFileName)),
                 extFileName,
                 initFlags,
                 content,

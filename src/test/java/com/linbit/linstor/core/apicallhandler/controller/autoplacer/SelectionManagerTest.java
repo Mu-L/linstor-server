@@ -36,7 +36,6 @@ public class SelectionManagerTest extends GenericDbBase
     public void setup() throws Exception
     {
         super.setUpAndEnterScope();
-        accessContext = DummySecurityInitializer.getSystemAccessContext();
         nodes = new HashMap<>();
 
         StorPoolDefinition dfltDisklessPoolDef = storPoolDefinitionRepository
@@ -104,7 +103,6 @@ public class SelectionManagerTest extends GenericDbBase
             .build();
 
         SelectionManager selectionManager = new SelectionManager(
-            DummySecurityInitializer.getSystemAccessContext(),
             errorReporter,
             selectFilter,
             Collections.emptyList(),
@@ -137,7 +135,6 @@ public class SelectionManagerTest extends GenericDbBase
             .build();
 
         SelectionManager selectionManager = new SelectionManager(
-            DummySecurityInitializer.getSystemAccessContext(),
             errorReporter,
             selectFilter,
             Collections.emptyList(),
@@ -174,7 +171,6 @@ public class SelectionManagerTest extends GenericDbBase
             .build();
 
         SelectionManager selectionManager = new SelectionManager(
-            DummySecurityInitializer.getSystemAccessContext(),
             errorReporter,
             selectFilter,
             Collections.emptyList(),
@@ -201,7 +197,6 @@ public class SelectionManagerTest extends GenericDbBase
             .build();
 
         SelectionManager selectionManager = new SelectionManager(
-            DummySecurityInitializer.getSystemAccessContext(),
             errorReporter,
             selectFilter,
             Arrays.asList(nodes.get("node-a1-1"), nodes.get("node-b1-2")),
@@ -232,7 +227,6 @@ public class SelectionManagerTest extends GenericDbBase
             .build();
 
         SelectionManager selectionManager = new SelectionManager(
-            DummySecurityInitializer.getSystemAccessContext(),
             errorReporter,
             selectFilter,
             Arrays.asList(nodes.get("node-c1-1"), nodes.get("node-c1-2")),
@@ -266,7 +260,6 @@ public class SelectionManagerTest extends GenericDbBase
             .build();
 
         SelectionManager selectionManager = new SelectionManager(
-            DummySecurityInitializer.getSystemAccessContext(),
             errorReporter,
             selectFilter,
             Collections.emptyList(),
@@ -309,7 +302,6 @@ public class SelectionManagerTest extends GenericDbBase
             .build();
 
         SelectionManager selectionManager = new SelectionManager(
-            DummySecurityInitializer.getSystemAccessContext(),
             errorReporter,
             selectFilter,
             Collections.singletonList(nodes.get("node-a1-1")),

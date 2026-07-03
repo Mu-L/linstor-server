@@ -455,7 +455,6 @@ public class CtrlSnapshotRestoreApiCallHandler
      */
     private void checkDrbdInitializedState(ResourceDefinition rscDfnRef)
     {
-        AccessContext accCtx = peerAccCtx.get();
         if (rscDfnRef.getDiskfulCount() > 0)
         {
             String winnerNodeName = rscDfnRef.getDiskfulResources().get(0).getNode().getName().value;
@@ -554,7 +553,6 @@ public class CtrlSnapshotRestoreApiCallHandler
     {
         try
         {
-            AccessContext peerCtx = peerAccCtx.get();
             for (Resource rsc : restoredResourcesRef)
             {
                 Iterator<Volume> iterateVolumes = rsc.iterateVolumes();

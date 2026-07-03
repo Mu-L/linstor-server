@@ -28,7 +28,6 @@ import java.util.UUID;
 public class ResourceDefinitionControllerFactory
 {
     private final ResourceDefinitionDatabaseDriver driver;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
@@ -38,7 +37,6 @@ public class ResourceDefinitionControllerFactory
     @Inject
     public ResourceDefinitionControllerFactory(
         ResourceDefinitionDatabaseDriver driverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -47,7 +45,6 @@ public class ResourceDefinitionControllerFactory
     )
     {
         driver = driverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -75,10 +72,6 @@ public class ResourceDefinitionControllerFactory
 
         rscDfn = new ResourceDefinition(
             UUID.randomUUID(),
-            objectProtectionFactory.getInstance(
-                ObjectProtection.buildPath(rscName),
-                true
-            ),
             rscName,
             extName,
             StateFlagsBits.getMask(flags),

@@ -116,18 +116,10 @@ public class AuthenticationFilter implements ContainerRequestFilter
             return false;
         }
 
-        try
-        {
-            @Nullable String tokenAuthEnabled = systemConfRepository
-                .getCtrlConfForView()
-                .getProp(ApiConsts.KEY_TOKEN_AUTH_ENABLED, ApiConsts.NAMESPC_AUTH);
-            return Boolean.parseBoolean(tokenAuthEnabled);
-        }
-        catch (AccessDeniedException exc)
-        {
-            errorReporter.reportError(exc);
-            return false;
-        }
+        @Nullable String tokenAuthEnabled = systemConfRepository
+            .getCtrlConfForView()
+            .getProp(ApiConsts.KEY_TOKEN_AUTH_ENABLED, ApiConsts.NAMESPC_AUTH);
+        return Boolean.parseBoolean(tokenAuthEnabled);
     }
 
     private boolean hasValidTokens()

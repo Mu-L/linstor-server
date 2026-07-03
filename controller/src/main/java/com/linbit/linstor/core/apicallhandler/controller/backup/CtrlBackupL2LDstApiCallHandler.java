@@ -235,23 +235,6 @@ public class CtrlBackupL2LDstApiCallHandler
             {
                 throw new ImplementationError(exc);
             }
-            catch (AccessDeniedException exc)
-            {
-                flux = Flux.just(
-                    new BackupShippingResponsePrevSnap(
-                        false,
-                        null,
-                        false,
-                        null,
-                        null,
-                        ApiCallRcImpl.singleApiCallRc(
-                            ApiConsts.FAIL_ACC_DENIED_RSC_DFN,
-                            "Access denied while getting base snap",
-                            exc.getMessage()
-                        )
-                    )
-                );
-            }
         }
         return flux;
     }

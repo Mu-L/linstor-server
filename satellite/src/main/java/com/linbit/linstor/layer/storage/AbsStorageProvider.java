@@ -191,7 +191,6 @@ public abstract class AbsStorageProvider<
     {
         errorReporter = initRef.errorReporter;
         extCmdFactory = initRef.extCmdFactory;
-        storDriverAccCtx = initRef.storDriverAccCtx;
         wipeHandler = initRef.wipeHandler;
         notificationListenerProvider = initRef.notificationListenerProvider;
         stltConfigAccessor = initRef.stltConfigAccessor;

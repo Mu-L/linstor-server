@@ -21,7 +21,6 @@ import java.util.UUID;
 @Singleton
 public class StltRemoteControllerFactory
 {
-    private final ObjectProtectionFactory objProtFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
     private final RemoteRepository remoteRepo;
@@ -29,13 +28,11 @@ public class StltRemoteControllerFactory
 
     @Inject
     public StltRemoteControllerFactory(
-        ObjectProtectionFactory objProtFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
         RemoteRepository extFileRepoRef
     )
     {
-        objProtFactory = objProtFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
         remoteRepo = extFileRepoRef;
@@ -57,10 +54,6 @@ public class StltRemoteControllerFactory
         }
 
         return new StltRemote(
-            objProtFactory.getInstance(
-                ObjectProtection.buildPath(nameRef),
-                true
-            ),
             UUID.randomUUID(),
             nameRef,
             0,

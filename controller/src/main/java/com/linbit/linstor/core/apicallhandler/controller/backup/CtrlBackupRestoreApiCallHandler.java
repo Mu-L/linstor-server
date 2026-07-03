@@ -869,7 +869,6 @@ public class CtrlBackupRestoreApiCallHandler
     {
         Snapshot snap = snapshotCrtHelper
             .restoreSnapshot(snapDfn, node, layers, renameMap, apiCallRc);
-        AccessContext accCtx = peerAccCtx.get();
         Props snapProps = snap.getSnapProps();
 
         PropsUtils.resetProps(metadata.getRsc().getRscProps(), snap.getRscPropsForChange());
@@ -1107,7 +1106,6 @@ public class CtrlBackupRestoreApiCallHandler
     {
         backupHelper.ensureShippingToRemoteAllowed(remote);
 
-        AccessContext accCtx = peerAccCtx.get();
         @Nullable SnapshotDefinition snapDfn = rscDfn.getSnapshotDfn(snapName);
         if (snapDfn == null)
         {
@@ -1948,8 +1946,6 @@ public class CtrlBackupRestoreApiCallHandler
         {
             try
             {
-                AccessContext peerCtx = peerAccCtx.get();
-
                 NodeName nodeName = peerProvider.get().getNode().getName();
                 @Nullable Snapshot snap = snapDfn.getSnapshot(nodeName);
                 Props snapDfnProps = snapDfn.getSnapDfnProps();

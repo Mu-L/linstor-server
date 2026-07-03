@@ -17,7 +17,6 @@ import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.io.ByteArrayInputStream;
@@ -77,7 +76,6 @@ public class CtrlExecNodeApiCallHandler
         boolean wait
     )
     {
-        AccessContext peerCtx = peerAccCtx.get();
         byte[] msg = stltComSerializer.headerlessBuilder()
             .drbdReactorExecRequest(command, config, wait)
             .build();

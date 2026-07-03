@@ -67,8 +67,6 @@ public class SslTcpConnectorService extends TcpConnectorService
      * @param commonSerializer Serializer for various protobuf messages
      * @param msgProcessorRef Message processor that should be invoked for processing inbound messages
      * @param bindAddress Local bind address for the connector
-     * @param peerAccCtxRef Default access context for unauthenticated peers
-     * @param privAccCtxRef Access context for executing privileged operations
      * @param connObserverRef Connection observer to notify when peers connect or disconnect
      * @param cryptoProviderRef Provider for the implementation of cryptographic algorithms
      * @param sslProtocol The SSL protocol to use

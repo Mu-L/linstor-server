@@ -1,8 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
-import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -33,7 +31,6 @@ import static com.linbit.linstor.core.apicallhandler.controller.CtrlStorPoolApiC
 import static com.linbit.linstor.core.apicallhandler.controller.helpers.StorPoolHelper.getStorPoolDescriptionInline;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.Collections;
@@ -203,7 +200,6 @@ public class CtrlStorPoolCrtApiCallHandler
                     break;
             }
 
-
             StorPool storPool = storPoolHelper.createStorPool(
                 nodeNameStr,
                 storPoolNameStr,
@@ -278,22 +274,11 @@ public class CtrlStorPoolCrtApiCallHandler
                 .<ApiCallRc>just(responses)
                 .concatWith(updateResponses);
         }
-        catch (InvalidNameException | LinStorException exc)
+        catch (InvalidNameException exc)
         {
-            ApiCallRc.RcEntry errorRc;
-            if (exc instanceof LinStorException linStorExc)
-            {
-                errorRc = ApiCallRcImpl.copyFromLinstorExc(
-                    ApiConsts.FAIL_UNKNOWN_ERROR,
-                    linStorExc
-                );
-            }
-            else
-            {
-                errorRc = ApiCallRcImpl.simpleEntry(
-                    ApiConsts.FAIL_INVLD_STOR_POOL_NAME,
-                    exc.getMessage());
-            }
+            ApiCallRc.RcEntry errorRc = ApiCallRcImpl.simpleEntry(
+                ApiConsts.FAIL_INVLD_STOR_POOL_NAME,
+                exc.getMessage());
 
             responseConverter.addWithOp(responses, context, errorRc);
             flux = Flux.<ApiCallRc>just(responses).concatWith(onError);

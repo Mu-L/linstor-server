@@ -10,7 +10,7 @@ import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.ResourceDefinition.InitMaps;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DatabaseLoader;
 import com.linbit.linstor.dbdrivers.DbEngine;
@@ -48,7 +48,7 @@ import java.util.TreeMap;
 
 @Singleton
 public final class ResourceDefinitionDbDriver
-    extends AbsProtectedDatabaseDriver<
+    extends AbsDatabaseDriver<
         ResourceDefinition,
         ResourceDefinition.InitMaps,
         Map<ResourceGroupName, ResourceGroup>>
@@ -69,12 +69,11 @@ public final class ResourceDefinitionDbDriver
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.RESOURCE_DEFINITIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.RESOURCE_DEFINITIONS, dbEngineRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -147,7 +146,6 @@ public final class ResourceDefinitionDbDriver
             ret = new Pair<>(
                 new ResourceDefinition(
                     raw.build(UUID, java.util.UUID::fromString),
-                    getObjectProtection(ObjectProtection.buildPath(rscName)),
                     rscName,
                     extName,
                     flags,

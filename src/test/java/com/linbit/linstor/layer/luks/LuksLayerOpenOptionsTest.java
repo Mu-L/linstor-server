@@ -74,8 +74,8 @@ public class LuksLayerOpenOptionsTest extends GenericDbBase
         setUpAndEnterScope();
 
         byte[] testMasterKey = encrHelper.generateSecret();
-        encrHelper.setPassphraseImpl("testPassphrase".getBytes(), testMasterKey, SYS_CTX);
-        @Nullable ReadOnlyProps encryptedNamespace = encrHelper.getEncryptedNamespace(SYS_CTX);
+        encrHelper.setPassphraseImpl("testPassphrase".getBytes(), testMasterKey);
+        @Nullable ReadOnlyProps encryptedNamespace = encrHelper.getEncryptedNamespace();
         if (encryptedNamespace == null)
         {
             throw new ImplementationError(
@@ -89,7 +89,6 @@ public class LuksLayerOpenOptionsTest extends GenericDbBase
             .thenReturn(ReadOnlyPropsImpl.emptyRoProps());
 
         luksLayer = new LuksLayer(
-            SYS_CTX,
             Mockito.mock(CryptSetupCommands.class),
             Mockito.mock(ExtCmdFactory.class),
             (Provider<DeviceHandler>) () -> Mockito.mock(DeviceHandler.class),
@@ -116,7 +115,7 @@ public class LuksLayerOpenOptionsTest extends GenericDbBase
         LuksVlmData<Resource> vlmData = buildLuksVlm();
         Volume vlm = (Volume) vlmData.getVolume();
         ResourceGroup rscGrp = vlm.getResourceDefinition().getResourceGroup();
-        rscGrp.getProps(SYS_CTX).setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_TRUE);
+        rscGrp.getProps().setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_TRUE);
 
         assertTrue(luksLayer.isAllowDiscardsEnabled(vlmData));
         List<String> opts = luksLayer.getOpenOptions(vlmData);
@@ -131,8 +130,8 @@ public class LuksLayerOpenOptionsTest extends GenericDbBase
         ResourceDefinition rscDfn = vlm.getResourceDefinition();
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
 
-        rscGrp.getProps(SYS_CTX).setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_TRUE);
-        rscDfn.getProps(SYS_CTX).setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_FALSE);
+        rscGrp.getProps().setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_TRUE);
+        rscDfn.getProps().setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_FALSE);
 
         assertFalse(luksLayer.isAllowDiscardsEnabled(vlmData));
         List<String> opts = luksLayer.getOpenOptions(vlmData);
@@ -146,8 +145,8 @@ public class LuksLayerOpenOptionsTest extends GenericDbBase
         Volume vlm = (Volume) vlmData.getVolume();
         ResourceGroup rscGrp = vlm.getResourceDefinition().getResourceGroup();
 
-        rscGrp.getProps(SYS_CTX).setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_TRUE);
-        rscGrp.getProps(SYS_CTX).setProp(PROP_LUKS_OPEN_OPTIONS, "--allow-discards");
+        rscGrp.getProps().setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_TRUE);
+        rscGrp.getProps().setProp(PROP_LUKS_OPEN_OPTIONS, "--allow-discards");
 
         List<String> opts = luksLayer.getOpenOptions(vlmData);
         long count = opts.stream().filter("--allow-discards"::equals).count();
@@ -161,8 +160,8 @@ public class LuksLayerOpenOptionsTest extends GenericDbBase
         Volume vlm = (Volume) vlmData.getVolume();
         ResourceGroup rscGrp = vlm.getResourceDefinition().getResourceGroup();
 
-        rscGrp.getProps(SYS_CTX).setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_TRUE);
-        rscGrp.getProps(SYS_CTX).setProp(PROP_LUKS_OPEN_OPTIONS, "--header-backup-file /tmp/x");
+        rscGrp.getProps().setProp(PROP_LUKS_ALLOW_DISCARDS, ApiConsts.VAL_TRUE);
+        rscGrp.getProps().setProp(PROP_LUKS_OPEN_OPTIONS, "--header-backup-file /tmp/x");
 
         List<String> opts = luksLayer.getOpenOptions(vlmData);
         assertTrue(opts.contains("--allow-discards"));
@@ -183,7 +182,7 @@ public class LuksLayerOpenOptionsTest extends GenericDbBase
             .thenReturn(
                 new ExtToolsInfo(ExtTools.CRYPT_SETUP, true, new ExtToolsInfo.Version(2, 4, 3), null)
             );
-        node.setPeer(SYS_CTX, mockedPeer);
+        node.setPeer(mockedPeer);
 
         Resource rsc = rscFactory.builder(NODE_NAME, RSC_NAME)
             .setLayerStack(List.of(DeviceLayerKind.LUKS, DeviceLayerKind.STORAGE))
@@ -202,7 +201,7 @@ public class LuksLayerOpenOptionsTest extends GenericDbBase
             .build();
 
         Set<AbsRscLayerObject<Resource>> luksData = LayerRscUtils.getRscDataByLayer(
-            rsc.getLayerData(SYS_CTX),
+            rsc.getLayerData(),
             DeviceLayerKind.LUKS
         );
         LuksRscData<Resource> luksRscData = (LuksRscData<Resource>) luksData.iterator().next();

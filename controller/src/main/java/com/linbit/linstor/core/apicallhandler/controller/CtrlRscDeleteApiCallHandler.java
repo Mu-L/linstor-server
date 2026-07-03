@@ -237,8 +237,6 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ctrlRscDeleteApiHelper.ensureNotLastDisk(rsc);
         zfsChecks.ensureNoDependentSnapshots(rsc);
 
-        AccessContext accCtx = peerAccCtx.get();
-
         Flux<ApiCallRc> flux;
         Set<SnapshotDefinition> snapDfnsToUpdate = CtrlRscDeleteApiCallHandler.handleZfsRenameIfNeeded(rsc);
 

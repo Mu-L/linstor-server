@@ -40,7 +40,6 @@ import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.io.ByteArrayInputStream;
@@ -101,7 +100,6 @@ public class CtrlExternalFilesApiCallHandler
     public List<ExternalFilePojo> listFiles(Predicate<String> includeExtFileRef)
     {
         ArrayList<ExternalFilePojo> ret = new ArrayList<>();
-        AccessContext pAccCtx = peerAccCtx.get();
         for (Entry<ExternalFileName, ExternalFile> entry : extFileRepository.getMapForView().entrySet())
         {
             if (includeExtFileRef.test(entry.getKey().extFileName))
@@ -260,7 +258,6 @@ public class CtrlExternalFilesApiCallHandler
         ctrlTransactionHelper.commit();
         return ctrlSatelliteUpdateCaller.updateSatellite(extFile);
     }
-
 
     private void checkValidContent(@Nullable byte[] contentRef)
     {

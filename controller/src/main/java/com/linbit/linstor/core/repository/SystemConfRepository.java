@@ -8,14 +8,12 @@ import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 
 /**
- * Provides access to system-wide props with automatic security checks.
+ * Provides access to system-wide props.
  * The controller (ctrl) props are those which only the controller uses.
  * The satellite (stlt) props are those which are transfered to the satellites.
  */
-public interface SystemConfRepository extends ProtectedObject
+public interface SystemConfRepository
 {
-    void requireAccess(AccessType requested);
-
     @Nullable
     String setCtrlProp(String key, String value, @Nullable String namespace)
         throws InvalidValueException, DatabaseException, InvalidKeyException;

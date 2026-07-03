@@ -225,7 +225,7 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition>
     /**
      * Calls <code>getMinIoSize(null)</code>.
      *
-     * @see #getMinIoSize(AccessContext, Long)
+     * @see #getMinIoSize(Long)
      */
     public @Nullable Long getMinIoSize()
     {
@@ -238,7 +238,6 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition>
      * If the DRBD option property is absent or invalid, the default block size is returned
      * (BlockSizeConsts.DFLT_IO_SIZE).
      *
-     * @param accCtx Access context for accessing the volume definition's properties
      * @return Value of the DRBD option for {@value InternalApiConsts#KEY_DRBD_BLOCK_SIZE}
      */
     public @Nullable Long getMinIoSize(@Nullable Long dfltMinIoSize)
@@ -269,7 +268,6 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition>
      * [BlockSizeConsts.MIN_IO_SIZE, BlockSizeConsts.MAX_IO_SIZE]
      *
      * @param minIoSize the block-size value to set
-     * @param accCtx Access context for accessing the volume definition's properties
      * @throws DatabaseException if a database operation fails
      */
     public void setMinIoSize(final long minIoSize)

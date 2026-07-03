@@ -28,7 +28,6 @@ public class CtrlMinIoSizeHelper
      * min-io-size determination.
      *
      * @param rscDfn Resource definition to check
-     * @param accCtx Access context for accessing information
      * @return true if all volumes allow automatic min-io-size determination
      */
     public boolean isAutoMinIoSize(final ResourceDefinition rscDfn)
@@ -50,7 +49,6 @@ public class CtrlMinIoSizeHelper
      * Indicates whether the specified volume definition allows automatic min-io-size determination.
      *
      * @param vlmDfn Volume definition to check
-     * @param accCtx Access context for accessing information
      * @return true if the volumes allows automatic min-io-size determination
      */
     public boolean isAutoMinIoSize(final VolumeDefinition vlmDfn)

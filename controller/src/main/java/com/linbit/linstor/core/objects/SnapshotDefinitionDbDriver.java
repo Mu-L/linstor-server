@@ -10,7 +10,7 @@ import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.SnapshotDefinition.InitMaps;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -45,7 +45,7 @@ import java.util.TreeMap;
 
 @Singleton
 public final class SnapshotDefinitionDbDriver
-    extends AbsProtectedDatabaseDriver<SnapshotDefinition,
+    extends AbsDatabaseDriver<SnapshotDefinition,
         SnapshotDefinition.InitMaps,
         Map<ResourceName, ResourceDefinition>>
     implements SnapshotDefinitionCtrlDatabaseDriver
@@ -61,12 +61,11 @@ public final class SnapshotDefinitionDbDriver
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.RESOURCE_DEFINITIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.RESOURCE_DEFINITIONS, dbEngineRef);
 
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
@@ -126,7 +125,6 @@ public final class SnapshotDefinitionDbDriver
             ret = new Pair<>(
                 new SnapshotDefinition(
                     raw.build(UUID, java.util.UUID::fromString),
-                    getObjectProtection(ObjectProtection.buildPath(rscName, snapName)),
                     rscDfnMap.get(rscName),
                     snapName,
                     flags,

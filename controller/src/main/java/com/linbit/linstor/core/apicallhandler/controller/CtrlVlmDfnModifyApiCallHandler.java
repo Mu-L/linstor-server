@@ -89,8 +89,6 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss");
     private static final long EBS_DFLT_COOLDOWN_PERIOD_IN_SEC = TimeUnit.HOURS.toSeconds(6) +
         TimeUnit.MINUTES.toSeconds(5); // 6 hours and 5 min in sec
-    private static final String PROP_KEY_RSC_DNF_EXACT_SIZE =
-        ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_EXACT_SIZE;
 
     private final ErrorReporter errorReporter;
     private final ScopeRunner scopeRunner;

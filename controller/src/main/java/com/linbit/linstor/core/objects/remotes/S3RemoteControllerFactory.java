@@ -18,7 +18,6 @@ import java.util.UUID;
 public class S3RemoteControllerFactory
 {
     private final S3RemoteDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objProtFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
     private final RemoteRepository remoteRepo;
@@ -26,14 +25,12 @@ public class S3RemoteControllerFactory
     @Inject
     public S3RemoteControllerFactory(
         S3RemoteDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objProtFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
         RemoteRepository extFileRepoRef
     )
     {
         dbDriver = dbDriverRef;
-        objProtFactory = objProtFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
         remoteRepo = extFileRepoRef;
@@ -55,10 +52,6 @@ public class S3RemoteControllerFactory
         }
 
         S3Remote remote = new S3Remote(
-            objProtFactory.getInstance(
-                ObjectProtection.buildPath(nameRef),
-                true
-            ),
             UUID.randomUUID(),
             dbDriver,
             nameRef,

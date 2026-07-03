@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.PriorityProps;
@@ -38,7 +37,6 @@ import static com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiC
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiCallHandler.makeSnapshotContext;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -297,9 +295,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
 
     private boolean isBackupShippingInProgress(SnapshotDefinition snapshotDfnRef)
     {
-        boolean shipping = false;
-        shipping = BackupShippingUtils.isAnyShippingInProgress(snapshotDfnRef);
-        return shipping;
+        return BackupShippingUtils.isAnyShippingInProgress(snapshotDfnRef);
     }
 
     // Restart from here when connection established and DELETE flag set

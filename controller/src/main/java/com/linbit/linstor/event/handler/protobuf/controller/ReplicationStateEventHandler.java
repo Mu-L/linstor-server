@@ -52,9 +52,7 @@ public class ReplicationStateEventHandler implements EventHandler
      */
     static @Nullable NodeName getMappedName(NodeRepository nodeRepo, String peerName)
     {
-        @Nullable NodeName ret = null;
-        ret = nodeRepo.getUname(peerName);
-        return ret;
+        return nodeRepo.getUname(peerName);
     }
 
     @Override

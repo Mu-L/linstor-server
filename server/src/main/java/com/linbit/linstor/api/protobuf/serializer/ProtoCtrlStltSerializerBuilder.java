@@ -1485,7 +1485,7 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
             .build();
     }
 
-    private class NodeSerializerHelper
+    private static class NodeSerializerHelper
     {
         private IntNode buildNodeMsg(Node node, Collection<Node> relatedNodes)
         {
@@ -1550,7 +1550,7 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         }
     }
 
-    private class ExternalFileSerializerHelper
+    private static class ExternalFileSerializerHelper
     {
         private IntExternalFile buildExtFileMsg(ExternalFile extFile, boolean includeContentRef)
         {
@@ -1569,7 +1569,7 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         }
     }
 
-    private class RemoteSerializerHelper
+    private static class RemoteSerializerHelper
     {
         private IntS3Remote buildS3RemoteMsg(S3Remote s3remote)
         {
@@ -1656,7 +1656,7 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         }
     }
 
-    private class ResourceSerializerHelper
+    private static class ResourceSerializerHelper
     {
         private IntRsc buildIntResource(Resource localResource, boolean includeOptionalFieldsRef)
         {
@@ -1715,7 +1715,7 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
         }
     }
 
-    private class SnapshotSerializerHelper
+    private static class SnapshotSerializerHelper
     {
         private IntSnapshot buildSnapshotMsg(Snapshot snapshot, boolean includeOptionalFieldsRef)
         {

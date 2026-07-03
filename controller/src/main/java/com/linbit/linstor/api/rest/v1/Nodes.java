@@ -665,11 +665,6 @@ public class Nodes
                     errorReporter.reportError(exc);
                     resp = Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
                 }
-                catch (AccessDeniedException exc)
-                {
-                    errorReporter.reportError(exc);
-                    resp = Response.status(Response.Status.UNAUTHORIZED).build();
-                }
                 return resp;
             },
             false

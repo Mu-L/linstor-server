@@ -36,7 +36,6 @@ public class VolumeDefinitionTestFactory
 
     private final AtomicInteger nextMinor = new AtomicInteger(0);
 
-    private AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     private Supplier<Integer> dfltMinorNrSupplier = () -> nextMinor.incrementAndGet();
     private long dfltSize = 100 * 1024; // size in kib
     private Flags[] dfltFlags = new Flags[0];
@@ -67,12 +66,6 @@ public class VolumeDefinitionTestFactory
             vlmDfn = builder.build();
         }
         return vlmDfn;
-    }
-
-    public VolumeDefinitionTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
     }
 
     public VolumeDefinitionTestFactory setDfltMinorNrSupplier(Supplier<Integer> dfltMinorNrSupplierRef)
@@ -139,9 +132,9 @@ public class VolumeDefinitionTestFactory
         int nextId;
         try
         {
-            int[] occupied = new int[rscDfn.getVolumeDfnCount(TestAccessContextProvider.SYS_CTX)];
+            int[] occupied = new int[rscDfn.getVolumeDfnCount()];
             int occupiedIdx = 0;
-            Iterator<VolumeDefinition> itVlmDfn = rscDfn.iterateVolumeDfn(TestAccessContextProvider.SYS_CTX);
+            Iterator<VolumeDefinition> itVlmDfn = rscDfn.iterateVolumeDfn();
             while (itVlmDfn.hasNext())
             {
                 VolumeDefinition vlmDfn = itVlmDfn.next();
@@ -174,11 +167,6 @@ public class VolumeDefinitionTestFactory
             minorNr = dfltMinorNrSupplier.get();
             size = dfltSize;
             flags = dfltFlags;
-        }
-
-        public VolumeDefinitionBuilder setAccCtx()
-        {
-            return this;
         }
 
         public VolumeDefinitionBuilder setRscName(String rscNameRef)

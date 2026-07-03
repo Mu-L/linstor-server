@@ -18,7 +18,7 @@ import com.linbit.linstor.core.objects.ResourceGroup;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.objects.VolumeGroup;
-import com.linbit.linstor.core.repository.ResourceDefinitionProtectionRepository;
+import com.linbit.linstor.core.repository.ResourceDefinitionRepositoryImpl;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.logging.ErrorReporter;
@@ -51,7 +51,7 @@ public class PropsChangedListenerBuilder
 {
     private final Provider<CtrlRscDfnApiCallHandler> ctrlRscDfnApiCallHandlerProvider;
     private final SystemConfRepository systemConfRepository;
-    private final ResourceDefinitionProtectionRepository rscDfnProtRepo;
+    private final ResourceDefinitionRepositoryImpl rscDfnProtRepo;
     private final CtrlSatelliteUpdateCaller satelliteUpdateCaller;
     private final ErrorReporter errorReporter;
     private final CtrlRscLayerDataFactory ctrlRscLayerDataFactory;
@@ -60,7 +60,7 @@ public class PropsChangedListenerBuilder
     public PropsChangedListenerBuilder(
         Provider<CtrlRscDfnApiCallHandler> ctrlRscDfnApiCallHandlerProviderRef,
         SystemConfRepository systemConfRepositoryRef,
-        ResourceDefinitionProtectionRepository rscDfnProtRepoRef,
+        ResourceDefinitionRepositoryImpl rscDfnProtRepoRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ErrorReporter errorReporterRef,
         CtrlRscLayerDataFactory ctrlRscLayerDataFactoryRef

@@ -122,17 +122,10 @@ public class CtrlAuthHandler
 
     private boolean isAutoHttpsEnabled()
     {
-        try
-        {
-            @Nullable String autoHttps = systemConfRepository
-                .getCtrlConfForView()
-                .getProp(ApiConsts.KEY_AUTO_HTTPS, ApiConsts.NAMESPC_REST);
-            return Boolean.parseBoolean(autoHttps);
-        }
-        catch (AccessDeniedException ignored)
-        {
-            return false;
-        }
+        @Nullable String autoHttps = systemConfRepository
+            .getCtrlConfForView()
+            .getProp(ApiConsts.KEY_AUTO_HTTPS, ApiConsts.NAMESPC_REST);
+        return Boolean.parseBoolean(autoHttps);
     }
 
     private Flux<ApiCallRc> initializeTokenAuthInTransaction(
@@ -351,25 +344,18 @@ public class CtrlAuthHandler
 
     void sendAuthTokenToSatellite(Node node, String rawToken)
     {
-        try
+        @Nullable Peer peer = node.getPeer();
+        if (peer != null && peer.isOnline())
         {
-            @Nullable Peer peer = node.getPeer();
-            if (peer != null && peer.isOnline())
-            {
-                byte[] msg = ctrlStltSerializer
-                    .onewayBuilder(InternalApiConsts.API_APPLY_AUTH_TOKEN)
-                    .authTokenMessage(rawToken)
-                    .build();
-                peer.sendMessage(msg, InternalApiConsts.API_APPLY_AUTH_TOKEN);
-                errorReporter.logInfo(
-                    "Sent auth token to satellite '%s'",
-                    node.getName().displayValue
-                );
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            errorReporter.reportError(exc);
+            byte[] msg = ctrlStltSerializer
+                .onewayBuilder(InternalApiConsts.API_APPLY_AUTH_TOKEN)
+                .authTokenMessage(rawToken)
+                .build();
+            peer.sendMessage(msg, InternalApiConsts.API_APPLY_AUTH_TOKEN);
+            errorReporter.logInfo(
+                "Sent auth token to satellite '%s'",
+                node.getName().displayValue
+            );
         }
     }
 

@@ -181,7 +181,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
     /**
      * Sets a property for the device manager to restart the DRBD resource on each resource of this resource definition
      *
-     * @param accCtx Access context for accessing each resource's properties
      * @throws DatabaseException if a database operation fails
      */
     public void requireDrbdRestart()
@@ -239,7 +238,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
      * BlockSizeConsts.DFLT_SPECIAL_PHY_IO_SIZE. Otherwise, the result is the smallest minimum I/O size currently
      * set on any of the volume definitions of this resource definition.
      *
-     * @param accCtx AccessContext for accessing resource definition, volume definition and layer information
      * @return Floor value minimum-io-size of all volume definitions, or <code>null</code> if no resources exist
      */
     public @Nullable Long getFloorVolumesMinIoSize(boolean autoMinIoSizeRef)
@@ -685,8 +683,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
      * Checks if any resource in the definition is currently used (mounted).
      * Returns an Optional<Resource> object containing the resources that is mounted or an empty.
      *
-     * @param accCtx
-     *     AccessContext for checks
      * @return The first found mounted/primary resource, if none is mounted returns empty optional.
      */
     public Optional<Resource> anyResourceInUse()

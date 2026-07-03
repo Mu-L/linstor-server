@@ -16,7 +16,6 @@ public class K8sCrdUtils
      *
      * @param <T> Layer specific Volume-type (LayerDrbdVolumesSpec, LayerBcacheVolumesSpec, ...)
      * @param <RSC> Subtype of AbsResource (currently only Resource or Snapshot)
-     * @param accCtx AccessContext to use
      * @param absRsc Given resource or snapshot (used to determine expected volume entries
      * @param cachedMap The map that is queried of the layerResourceId
      *

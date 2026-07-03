@@ -40,7 +40,6 @@ public class DrbdAdjustBlockedPortHandlerTest
     public void setup()
     {
         ErrorReporter errorReporter = mock(ErrorReporter.class);
-        AccessContext apiCtx = mock(AccessContext.class);
         ScopeRunner scopeRunner = mock(ScopeRunner.class);
         LockGuardFactory lockGuardFactory = mock(LockGuardFactory.class);
         CtrlTransactionHelper ctrlTransactionHelper = mock(CtrlTransactionHelper.class);

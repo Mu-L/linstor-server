@@ -6,7 +6,6 @@ import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
-import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.SpaceInfo;
 import com.linbit.linstor.api.protobuf.ProtoDeserializationUtils;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
@@ -27,7 +26,6 @@ import com.linbit.locks.LockGuardFactory.LockType;
 import com.linbit.utils.RegexMatcher;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.io.ByteArrayInputStream;

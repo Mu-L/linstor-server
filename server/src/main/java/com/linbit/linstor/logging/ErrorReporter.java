@@ -42,8 +42,6 @@ public interface ErrorReporter
     /**
      * Sets the log level, if the backing logging frameworks supports that.
      *
-     * @param accCtx
-     *     The access context of the subject performing the change.
      * @param level
      *     The log-level that the logger for frameworks and libraries should use.<br/>
      *     Does NOT influence linstor log messages.

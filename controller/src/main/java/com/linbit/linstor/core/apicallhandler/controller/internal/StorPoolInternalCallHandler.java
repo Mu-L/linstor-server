@@ -134,15 +134,6 @@ public class StorPoolInternalCallHandler
                 )
             );
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            errorReporter.reportError(
-                new ImplementationError(
-                    "Controller's api context has not enough privileges to gather requested storpool data.",
-                    accDeniedExc
-                )
-            );
-        }
     }
 
     private void setCapacityInfo(StorPool storPool, long freeCapacity, long totalCapacity)

@@ -55,7 +55,6 @@ public class BackupShippingTask implements TaskScheduleService.Task
 
         ScheduleBackupService scheduleBackupService = cfg.getScheduleBackupService();
         ScheduledShippingConfig conf = cfg.getSchedShipCfg();
-        AccessContext accCtx = cfg.getAccCtx();
 
         scheduleBackupService.removeSingleTask(conf, true);
         Peer peer = new PeerTask("BackupShippingTaskPeer");
@@ -127,44 +126,30 @@ public class BackupShippingTask implements TaskScheduleService.Task
                             {
                                 if ((ApiConsts.MASK_ERROR & rc.getReturnCode()) == ApiConsts.MASK_ERROR)
                                 {
-                                    try
-                                    {
-                                        scheduleBackupService.addTaskAgain(
-                                            conf.rscDfn,
-                                            conf.schedule,
-                                            conf.remote,
-                                            scheduledAt,
-                                            false,
-                                            false,
-                                            conf.lastInc
-                                        );
-                                    }
-                                    catch (AccessDeniedException exc)
-                                    {
-                                        errorReporter.reportError(exc);
-                                    }
+                                    scheduleBackupService.addTaskAgain(
+                                        conf.rscDfn,
+                                        conf.schedule,
+                                        conf.remote,
+                                        scheduledAt,
+                                        false,
+                                        false,
+                                        conf.lastInc
+                                    );
                                 }
                             }
                         },
                         error ->
                         {
                             errorReporter.reportError(error);
-                            try
-                            {
-                                scheduleBackupService.addTaskAgain(
-                                    conf.rscDfn,
-                                    conf.schedule,
-                                    conf.remote,
-                                    scheduledAt,
-                                    false,
-                                    false,
-                                    conf.lastInc
-                                );
-                            }
-                            catch (AccessDeniedException exc)
-                            {
-                                errorReporter.reportError(exc);
-                            }
+                            scheduleBackupService.addTaskAgain(
+                                conf.rscDfn,
+                                conf.schedule,
+                                conf.remote,
+                                scheduledAt,
+                                false,
+                                false,
+                                conf.lastInc
+                            );
                         }
                     )
             );
@@ -178,7 +163,6 @@ public class BackupShippingTask implements TaskScheduleService.Task
         List<NodeName> ret = new ArrayList<>();
         try (LockGuard lg = cfg.getLockGuardFactory().build(LockType.READ, LockObj.NODES_MAP, LockObj.RSC_DFN_MAP))
         {
-            AccessContext accCtx = cfg.getAccCtx();
             ResourceDefinition rscDfn = cfg.getRscDfnRepo().get(new ResourceName(rscNameRef));
             Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())

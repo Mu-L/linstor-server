@@ -17,7 +17,6 @@ import java.util.UUID;
 public class StorPoolDefinitionControllerFactory
 {
     private final StorPoolDefinitionDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
@@ -26,7 +25,6 @@ public class StorPoolDefinitionControllerFactory
     @Inject
     public StorPoolDefinitionControllerFactory(
         StorPoolDefinitionDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -34,7 +32,6 @@ public class StorPoolDefinitionControllerFactory
     )
     {
         dbDriver = dbDriverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -55,10 +52,6 @@ public class StorPoolDefinitionControllerFactory
 
         storPoolDfn = new StorPoolDefinition(
             UUID.randomUUID(),
-            objectProtectionFactory.getInstance(
-                ObjectProtection.buildPath(storPoolName),
-                true
-            ),
             storPoolName,
             dbDriver,
             propsContainerFactory,

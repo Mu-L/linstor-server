@@ -35,7 +35,6 @@ public class ResourceGroupTestFactory
     private String dfltRscGrpNamePattern = "rscGrp-%02d";
     private AtomicInteger nextId = new AtomicInteger(1);
 
-    private AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     private Supplier<String> dfltRscGrpNameSupplier = () -> String.format(
         dfltRscGrpNamePattern,
         nextId.incrementAndGet()
@@ -76,11 +75,6 @@ public class ResourceGroupTestFactory
             .filter(grp -> grp.getName().displayValue.equals(InternalApiConsts.DEFAULT_RSC_GRP_NAME))
             .findFirst()
             .get();
-        rscGrp.getObjProt().addAclEntry(
-            TestAccessContextProvider.INIT_CTX,
-            TestAccessContextProvider.SYS_CTX.subjectRole,
-            AccessType.CONTROL
-        );
 
         rscGrpMap.put(InternalApiConsts.DEFAULT_RSC_GRP_NAME.toUpperCase(), rscGrp);
     }
@@ -94,12 +88,6 @@ public class ResourceGroupTestFactory
             rscGrp = create(rscGroupNameRef);
         }
         return rscGrp;
-    }
-
-    public ResourceGroupTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
     }
 
     public ResourceGroupTestFactory setDfltRscGrpNamePattern(String dfltRscGrpNamePatternRef)
@@ -267,11 +255,6 @@ public class ResourceGroupTestFactory
         public ResourceGroupBuilder setRscGrpName(String rscGrpNameRef)
         {
             rscGrpName = rscGrpNameRef;
-            return this;
-        }
-
-        public ResourceGroupBuilder setAccCtx()
-        {
             return this;
         }
 

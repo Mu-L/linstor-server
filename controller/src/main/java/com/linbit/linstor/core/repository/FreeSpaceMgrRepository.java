@@ -5,14 +5,10 @@ import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.objects.FreeSpaceMgr;
 
 /**
- * Provides access to free space managers with automatic security checks.
+ * Provides access to free space managers.
  */
 public interface FreeSpaceMgrRepository
 {
-    ObjectProtection getObjProt();
-
-    void requireAccess(AccessType requested);
-
     FreeSpaceMgr get(SharedStorPoolName sharedStorPoolName);
 
     void put(SharedStorPoolName sharedStorPoolName, FreeSpaceMgr freeSpaceMgr);

@@ -95,7 +95,7 @@ public class CacheLayerSizeCalculatorTest extends GenericDbBase
         private SizeTest withCacheSize(String cacheSizeRef) throws Exception
         {
             resourceDefinitionTestFactory.get(rscName, true)
-                .getProps(SYS_CTX)
+                .getProps()
                 .setProp(ApiConsts.KEY_CACHE_CACHE_SIZE, cacheSizeRef, ApiConsts.NAMESPC_CACHE);
             return this;
         }
@@ -103,7 +103,7 @@ public class CacheLayerSizeCalculatorTest extends GenericDbBase
         private SizeTest withBlockSize(String blockSizeRef) throws Exception
         {
             resourceDefinitionTestFactory.get(rscName, true)
-                .getProps(SYS_CTX)
+                .getProps()
                 .setProp(ApiConsts.KEY_CACHE_BLOCK_SIZE, blockSizeRef, ApiConsts.NAMESPC_CACHE);
             return this;
         }
@@ -112,7 +112,7 @@ public class CacheLayerSizeCalculatorTest extends GenericDbBase
         {
             storPoolTestFactory.get(nodeName, storPoolName, true);
             ResourceDefinition rscDfn = resourceDefinitionTestFactory.get("rsc", true);
-            Props rscDfnProps = rscDfn.getProps(SYS_CTX);
+            Props rscDfnProps = rscDfn.getProps();
             rscDfnProps.setProp(ApiConsts.KEY_CACHE_CACHE_POOL_NAME, storPoolName, ApiConsts.NAMESPC_CACHE);
             rscDfnProps.setProp(ApiConsts.KEY_CACHE_META_POOL_NAME, storPoolName, ApiConsts.NAMESPC_CACHE);
 
@@ -123,12 +123,12 @@ public class CacheLayerSizeCalculatorTest extends GenericDbBase
                 .setSize(vlmSizeInKib)
                 .build();
 
-            AbsRscLayerObject<Resource> layerData = rsc.getLayerData(SYS_CTX);
+            AbsRscLayerObject<Resource> layerData = rsc.getLayerData();
             assertEquals(CacheRscData.class, layerData.getClass());
             CacheRscData<Resource> cacheData = (CacheRscData<Resource>) layerData;
             CacheVlmData<Resource> cacheVlmData = cacheData.getVlmLayerObjects().get(vlm.getVolumeNumber());
 
-            layerSizeHelper.calculateSize(SYS_CTX, cacheVlmData);
+            layerSizeHelper.calculateSize(cacheVlmData);
 
             assertEquals(
                 expectedSizeInKib,
@@ -136,8 +136,8 @@ public class CacheLayerSizeCalculatorTest extends GenericDbBase
             );
 
             // cleanup for the next run
-            rsc.delete(SYS_CTX);
-            rscDfn.getProps(SYS_CTX).clear();
+            rsc.delete();
+            rscDfn.getProps().clear();
         }
     }
 }

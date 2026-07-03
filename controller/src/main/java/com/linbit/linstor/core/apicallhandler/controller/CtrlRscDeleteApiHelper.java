@@ -34,7 +34,6 @@ import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.getRscDescription;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.getRscDescriptionInline;
 import static com.linbit.utils.StringUtils.firstLetterCaps;
 
 import javax.inject.Inject;
@@ -373,44 +372,31 @@ public class CtrlRscDeleteApiHelper
     public ApiCallRc ensureNotLastDisk(Resource rsc, boolean throwApiExc)
     {
         ApiCallRcImpl resp = new ApiCallRcImpl();
-        try
+        boolean isDiskless = rsc.isDrbdDiskless() ||
+            rsc.isNvmeInitiator() ||
+            rsc.isEbsInitiator();
+        boolean hasDisklessNotDeleting = rsc.getResourceDefinition().hasDisklessNotDeleting();
+        int otherNotDeletedDiskfulCount = rsc.getResourceDefinition()
+            .getNotDeletedDiskfulCountExcluding(rsc);
+        if (!isDiskless && hasDisklessNotDeleting && otherNotDeletedDiskfulCount == 0)
         {
-            AccessContext accCtx = peerAccCtx.get();
-            boolean isDiskless = rsc.isDrbdDiskless() ||
-                rsc.isNvmeInitiator() ||
-                rsc.isEbsInitiator();
-            boolean hasDisklessNotDeleting = rsc.getResourceDefinition().hasDisklessNotDeleting();
-            int otherNotDeletedDiskfulCount = rsc.getResourceDefinition()
-                .getNotDeletedDiskfulCountExcluding(rsc);
-            if (!isDiskless && hasDisklessNotDeleting && otherNotDeletedDiskfulCount == 0)
-            {
-                ApiCallRcImpl.ApiCallRcEntry err = ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_IN_USE,
-                        String.format(
-                            "Last resource of '%s' with disk still has diskless resources attached.",
-                            rsc.getResourceDefinition().getName())
-                    )
-                    .setCause("Resource still has diskless users.")
-                    .setCorrection("Before deleting this resource, delete the diskless resources attached to it.")
-                    .setSkipErrorReport(true)
-                    .build();
+            ApiCallRcImpl.ApiCallRcEntry err = ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_IN_USE,
+                    String.format(
+                        "Last resource of '%s' with disk still has diskless resources attached.",
+                        rsc.getResourceDefinition().getName())
+                )
+                .setCause("Resource still has diskless users.")
+                .setCorrection("Before deleting this resource, delete the diskless resources attached to it.")
+                .setSkipErrorReport(true)
+                .build();
 
-                resp.addEntry(err);
-                if (throwApiExc)
-                {
-                    throw new ApiRcException(err);
-                }
+            resp.addEntry(err);
+            if (throwApiExc)
+            {
+                throw new ApiRcException(err);
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            resp.addEntry(ApiCallRcImpl.copyFromLinstorExc(ApiConsts.FAIL_ACC_DENIED_RSC, accDeniedExc));
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check whether is last with disk " + getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         return resp;
     }

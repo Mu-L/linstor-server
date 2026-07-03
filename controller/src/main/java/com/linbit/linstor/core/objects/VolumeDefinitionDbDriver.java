@@ -8,7 +8,7 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.VolumeDefinition.InitMaps;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -40,7 +40,7 @@ import java.util.function.Function;
 
 @Singleton
 public final class VolumeDefinitionDbDriver extends
-    AbsProtectedDatabaseDriver<VolumeDefinition, VolumeDefinition.InitMaps, Map<ResourceName, ResourceDefinition>>
+    AbsDatabaseDriver<VolumeDefinition, VolumeDefinition.InitMaps, Map<ResourceName, ResourceDefinition>>
     implements VolumeDefinitionCtrlDatabaseDriver
 {
     private final StateFlagsPersistence<VolumeDefinition> flagsDriver;
@@ -54,7 +54,6 @@ public final class VolumeDefinitionDbDriver extends
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
@@ -62,8 +61,7 @@ public final class VolumeDefinitionDbDriver extends
         super(
             errorReporterRef,
             GeneratedDatabaseTables.VOLUME_DEFINITIONS,
-            dbEngineRef,
-            objProtFactoryRef
+            dbEngineRef
         );
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;

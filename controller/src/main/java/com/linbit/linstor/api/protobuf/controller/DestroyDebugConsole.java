@@ -64,23 +64,10 @@ public class DestroyDebugConsole implements ApiCall
             apiCallAnswerer.writeAnswerHeader(replyOut, "DebugReply");
 
             MsgDebugReply.Builder msgDbgReplyBld = MsgDebugReply.newBuilder();
-            try
-            {
-                debugConsoleCreator.destroyDebugConsole(client);
 
-                msgDbgReplyBld.addDebugOut("Debug console destroyed");
-            }
-            catch (AccessDeniedException accessExc)
-            {
-                errorReporter.reportError(accessExc);
-                msgDbgReplyBld.addDebugErr(
-                    "Error:\n" +
-                    "    The request to destroy the debug console was denied.\n" +
-                    "Cause:\n    " +
-                    accessExc.getMessage() +
-                    "\n"
-                );
-            }
+            debugConsoleCreator.destroyDebugConsole(client);
+
+            msgDbgReplyBld.addDebugOut("Debug console destroyed");
 
             {
                 MsgDebugReply dbgReply = msgDbgReplyBld.build();

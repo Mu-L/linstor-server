@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.backup;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
@@ -168,16 +167,14 @@ public class CtrlScheduledBackupsApiCallHandler
             int numToDelete = snapDfnsToCheck.size() - keepLocal;
             snapDfnsToCheck.sort((a, b) ->
             {
-                String ts1 = "";
-                String ts2 = "";
-                boolean success1 = false;
-                boolean success2 = false;
-                ts1 = a.getSnapDfnProps()
+                String ts2;
+                boolean success2;
+                String ts1 = a.getSnapDfnProps()
                     .getProp(
                         InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
                         BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + s3orLinRemoteName
                     );
-                success1 = BackupShippingUtils.hasShippingStatus(
+                boolean success1 = BackupShippingUtils.hasShippingStatus(
                     a,
                     s3orLinRemoteName,
                     InternalApiConsts.VALUE_SUCCESS

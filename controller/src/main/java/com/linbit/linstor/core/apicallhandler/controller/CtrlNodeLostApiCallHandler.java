@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
@@ -39,7 +38,6 @@ import static com.linbit.utils.StringUtils.firstLetterCaps;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;

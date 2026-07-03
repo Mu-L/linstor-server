@@ -5,7 +5,7 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.core.identifier.KeyValueStoreName;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -27,7 +27,7 @@ import javax.inject.Singleton;
 
 @Singleton
 public class KeyValueStoreDbDriver
-    extends AbsProtectedDatabaseDriver<KeyValueStore, KeyValueStore.InitMaps, Void>
+    extends AbsDatabaseDriver<KeyValueStore, KeyValueStore.InitMaps, Void>
     implements KeyValueStoreCtrlDatabaseDriver
 {
     private final Provider<TransactionMgr> transMgrProvider;
@@ -39,13 +39,12 @@ public class KeyValueStoreDbDriver
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
 
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.KEY_VALUE_STORE, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.KEY_VALUE_STORE, dbEngineRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -67,7 +66,6 @@ public class KeyValueStoreDbDriver
         return new Pair<>(
             new KeyValueStore(
                 raw.build(UUID, java.util.UUID::fromString),
-                getObjectProtection(ObjectProtection.buildPath(kvsName)),
                 kvsName,
                 this,
                 propsContainerFactory,

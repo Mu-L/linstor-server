@@ -63,9 +63,7 @@ import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 import com.linbit.utils.StringUtils;
 
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.getRscDescription;
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.makeRscContext;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescription;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -1061,7 +1059,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
     private void ensureAllPeersHavePeerSlotLeft(ResourceDefinition rscDfnRef)
     {
-        AccessContext peerCtx = peerAccCtx.get();
         List<Resource> diskfulRscList = rscDfnRef.getDiskfulResources();
 
         /*

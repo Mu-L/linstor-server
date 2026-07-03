@@ -6,12 +6,10 @@ import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
 
 /**
- * Provides access to nodes with automatic security checks.
+ * Provides access to nodes.
  */
-public interface NodeRepository extends ProtectedObject
+public interface NodeRepository
 {
-    void requireAccess(AccessType requested);
-
     @Nullable
     Node get(NodeName nodeName);
 

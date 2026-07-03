@@ -53,7 +53,7 @@ import com.linbit.linstor.core.objects.remotes.LinstorRemote;
 import com.linbit.linstor.core.objects.remotes.S3Remote;
 import com.linbit.linstor.core.objects.remotes.StltRemote;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
-import com.linbit.linstor.core.repository.SystemConfProtectionRepository;
+import com.linbit.linstor.core.repository.SystemConfRepositoryImpl;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
@@ -113,7 +113,7 @@ public class CtrlBackupApiCallHandler
     private final CtrlSnapshotDeleteApiCallHandler ctrlSnapDeleteApiCallHandler;
     private final FreeCapacityFetcher freeCapacityFetcher;
     private final BackupInfoManager backupInfoMgr;
-    private final SystemConfProtectionRepository sysCfgRepo;
+    private final SystemConfRepositoryImpl sysCfgRepo;
     private final ResourceDefinitionRepository rscDfnRepo;
     private final CtrlBackupApiHelper backupHelper;
     private final BackupShippingRestClient backupClient;
@@ -131,7 +131,7 @@ public class CtrlBackupApiCallHandler
         CtrlSnapshotDeleteApiCallHandler ctrlSnapDeleteApiCallHandlerRef,
         FreeCapacityFetcher freeCapacityFetcherRef,
         BackupInfoManager backupInfoMgrRef,
-        SystemConfProtectionRepository sysCfgRepoRef,
+        SystemConfRepositoryImpl sysCfgRepoRef,
         ResourceDefinitionRepository rscDfnRepoRef,
         CtrlBackupApiHelper backupHelperRef,
         BackupShippingRestClient backupClientRef,
@@ -666,7 +666,6 @@ public class CtrlBackupApiCallHandler
         throws InvalidNameException
     {
         S3Remote remote = backupHelper.getS3Remote(remoteNameRef);
-        AccessContext peerCtx = peerAccCtx.get();
 
         // get ALL s3 keys of the given bucket, including possibly not linstor related ones
         Set<String> s3keys = backupHelper.getAllS3Keys(remote, rscNameRef);
@@ -942,121 +941,110 @@ public class CtrlBackupApiCallHandler
 
         vlms.put(info.vlmNr, new BackupVolumePojo(info.vlmNr, null, null, new BackupVlmS3Pojo(info.toString())));
 
-        try
+        // get all other matching keys
+        // add them to vlms
+        // add them to usedKeys
+        for (String otherKey : s3keys)
         {
-            AccessContext peerCtx = peerAccCtx.get();
-
-            // get all other matching keys
-            // add them to vlms
-            // add them to usedKeys
-            for (String otherKey : s3keys)
+            if (!usedKeys.contains(otherKey) && !otherKey.equals(info.toString()))
             {
-                if (!usedKeys.contains(otherKey) && !otherKey.equals(info.toString()))
+                try
                 {
-                    try
+                    S3VolumeNameInfo otherInfo = new S3VolumeNameInfo(otherKey);
+                    if (otherInfo.rscName.equals(info.rscName) && otherInfo.backupId.equals(info.backupId))
                     {
-                        S3VolumeNameInfo otherInfo = new S3VolumeNameInfo(otherKey);
-                        if (otherInfo.rscName.equals(info.rscName) && otherInfo.backupId.equals(info.backupId))
-                        {
-                            vlms.put(
+                        vlms.put(
+                            otherInfo.vlmNr,
+                            new BackupVolumePojo(
                                 otherInfo.vlmNr,
-                                new BackupVolumePojo(
-                                    otherInfo.vlmNr,
-                                    null,
-                                    null,
-                                    new BackupVlmS3Pojo(otherInfo.toString())
-                                )
-                            );
-                            usedKeys.add(otherKey);
-                        }
+                                null,
+                                null,
+                                new BackupVlmS3Pojo(otherInfo.toString())
+                            )
+                        );
+                        usedKeys.add(otherKey);
                     }
-                    catch (ParseException ignored)
-                    {
-                        // Not a volume file
-                    }
-
                 }
-            }
+                catch (ParseException ignored)
+                {
+                    // Not a volume file
+                }
 
-            String srcNamespc = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName;
-            String dstNamespc = BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC;
-            // Determine backup status based on snapshot definition
-            if (
-                snapDfn != null && !snapDfn.getSnapDfnProps()
-                    .getNamespaceOrEmpty(ApiConsts.NAMESPC_BACKUP_SHIPPING)
-                    .isEmpty()
-            )
+            }
+        }
+
+        String srcNamespc = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName;
+        String dstNamespc = BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC;
+        // Determine backup status based on snapshot definition
+        if (
+            snapDfn != null && !snapDfn.getSnapDfnProps()
+                .getNamespaceOrEmpty(ApiConsts.NAMESPC_BACKUP_SHIPPING)
+                .isEmpty()
+        )
+        {
+            Props snapDfnProps = snapDfn.getSnapDfnProps();
+            String ts = snapDfnProps.getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, srcNamespc);
+            if (ts == null || ts.isEmpty())
             {
-                Props snapDfnProps = snapDfn.getSnapDfnProps();
-                String ts = snapDfnProps.getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, srcNamespc);
+                ts = snapDfnProps.getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, dstNamespc);
                 if (ts == null || ts.isEmpty())
                 {
-                    ts = snapDfnProps.getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, dstNamespc);
-                    if (ts == null || ts.isEmpty())
-                    {
-                        throw new ImplementationError(
-                            "Snapshot " + snapDfn.getName().displayValue +
-                                " has the BACKUP-flag set, but does not have a required internal property set."
-                        );
-                    }
+                    throw new ImplementationError(
+                        "Snapshot " + snapDfn.getName().displayValue +
+                            " has the BACKUP-flag set, but does not have a required internal property set."
+                    );
                 }
-                boolean targetShipping = BackupShippingUtils.hasShippingStatus(
-                    snapDfn,
-                    null,
-                    InternalApiConsts.VALUE_SHIPPING
-                );
-                boolean targetShipped = BackupShippingUtils.hasShippingStatus(
-                    snapDfn,
-                    null,
-                    InternalApiConsts.VALUE_SUCCESS
-                );
-                boolean sourceShipping = BackupShippingUtils.hasShippingStatus(
-                    snapDfn,
-                    remoteName,
-                    InternalApiConsts.VALUE_SHIPPING
-                );
-                boolean sourceShipped = BackupShippingUtils.hasShippingStatus(
-                    snapDfn,
-                    remoteName,
-                    InternalApiConsts.VALUE_SUCCESS
-                );
-                boolean isShipping = targetShipping || sourceShipping;
-                boolean isShipped = targetShipped || sourceShipped;
-                if (isShipping || isShipped)
+            }
+            boolean targetShipping = BackupShippingUtils.hasShippingStatus(
+                snapDfn,
+                null,
+                InternalApiConsts.VALUE_SHIPPING
+            );
+            boolean targetShipped = BackupShippingUtils.hasShippingStatus(
+                snapDfn,
+                null,
+                InternalApiConsts.VALUE_SUCCESS
+            );
+            boolean sourceShipping = BackupShippingUtils.hasShippingStatus(
+                snapDfn,
+                remoteName,
+                InternalApiConsts.VALUE_SHIPPING
+            );
+            boolean sourceShipped = BackupShippingUtils.hasShippingStatus(
+                snapDfn,
+                remoteName,
+                InternalApiConsts.VALUE_SUCCESS
+            );
+            boolean isShipping = targetShipping || sourceShipping;
+            boolean isShipped = targetShipped || sourceShipped;
+            if (isShipping || isShipped)
+            {
+                for (Snapshot snap : snapDfn.getAllSnapshots())
                 {
-                    for (Snapshot snap : snapDfn.getAllSnapshots())
+                    if (sourceShipping || sourceShipped)
                     {
-                        if (sourceShipping || sourceShipped)
-                        {
-                            nodeName = snap.getNodeName().displayValue;
-                        }
-                    }
-                    if (isShipping)
-                    {
-                        shipping = true;
-                        success = null;
-                    }
-                    else // if isShipped
-                    {
-                        shipping = false;
-                        success = true;
+                        nodeName = snap.getNodeName().displayValue;
                     }
                 }
-                else
+                if (isShipping)
+                {
+                    shipping = true;
+                    success = null;
+                }
+                else // if isShipped
                 {
                     shipping = false;
-                    success = false;
+                    success = true;
                 }
             }
             else
             {
-                shipping = null;
-                success = null;
+                shipping = false;
+                success = false;
             }
         }
-        catch (AccessDeniedException exc)
+        else
         {
-            // no access to snapDfn
             shipping = null;
             success = null;
         }

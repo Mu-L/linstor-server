@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.backup.l2l.rest;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.rest.v1.serializer.Json;

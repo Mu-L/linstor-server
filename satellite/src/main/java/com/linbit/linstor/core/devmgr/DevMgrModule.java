@@ -5,10 +5,8 @@ import com.linbit.linstor.core.UpdateMonitor;
 import com.linbit.linstor.core.UpdateMonitorImpl;
 import com.linbit.linstor.layer.DeviceLayer.NotificationListener;
 
-import javax.inject.Singleton;
 
 import com.google.inject.AbstractModule;
-import com.google.inject.Provides;
 
 public class DevMgrModule extends AbstractModule
 {
@@ -29,14 +27,4 @@ public class DevMgrModule extends AbstractModule
         bind(DeviceHandler.class).to(DeviceHandlerImpl.class);
     }
 
-    @Provides
-    @Singleton
-    public AccessContext deviceManagerContext(AccessContext systemCtx)
-    {
-        AccessContext devMgrCtx = systemCtx.clone();
-        PrivilegeSet devMgrPriv = devMgrCtx.getEffectivePrivs();
-        devMgrPriv.disablePrivileges(Privilege.PRIV_SYS_ALL);
-        devMgrPriv.enablePrivileges(Privilege.PRIV_MAC_OVRD, Privilege.PRIV_OBJ_CONTROL);
-        return devMgrCtx;
-    }
 }

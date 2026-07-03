@@ -18,7 +18,6 @@ import java.util.UUID;
 public class StorPoolDefinitionSatelliteFactory
 {
     private final StorPoolDefinitionDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
@@ -27,7 +26,6 @@ public class StorPoolDefinitionSatelliteFactory
     @Inject
     public StorPoolDefinitionSatelliteFactory(
         StorPoolDefinitionDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -35,7 +33,6 @@ public class StorPoolDefinitionSatelliteFactory
     )
     {
         dbDriver = dbDriverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -58,10 +55,6 @@ public class StorPoolDefinitionSatelliteFactory
             {
                 storPoolDfn = new StorPoolDefinition(
                     uuid,
-                    objectProtectionFactory.getInstance(
-                        "",
-                        true
-                    ),
                     storPoolName,
                     dbDriver,
                     propsContainerFactory,

@@ -11,12 +11,8 @@ import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.layer.storage.ebs.EbsUtils;
 import com.linbit.linstor.netcom.Peer;
 
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlNodeApiCallHandler.getNodeDescriptionInline;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiCallHandler.getSnapshotDfnDescriptionInline;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.Iterator;

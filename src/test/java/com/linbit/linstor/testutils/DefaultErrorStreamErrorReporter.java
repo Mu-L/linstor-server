@@ -64,16 +64,8 @@ public class DefaultErrorStreamErrorReporter implements ErrorReporter
     }
 
     @Override
-    public String reportError(Throwable errorInfo, @Nullable AccessContext accCtx, Peer client, String contextInfo)
+    public String reportError(Throwable errorInfo, Peer client, String contextInfo)
     {
-        if (accCtx != null)
-        {
-            System.err.println(
-                "AccCtx: Identity      : " + accCtx.subjectId.name.value + "\n" +
-                    "        SecurityDomain: " + accCtx.subjectDomain.name.value + "\n" +
-                    "        Role          :" + accCtx.subjectRole.name.value
-            );
-        }
         System.err.println("Peer id: " + client);
         System.err.println(contextInfo);
         errorInfo.printStackTrace(System.err);
@@ -89,14 +81,6 @@ public class DefaultErrorStreamErrorReporter implements ErrorReporter
         String contextInfo
     )
     {
-        if (accCtx != null)
-        {
-            System.err.println(
-                "AccCtx: Identity      : " + accCtx.subjectId.name.value + "\n" +
-                    "        SecurityDomain: " + accCtx.subjectDomain.name.value + "\n" +
-                    "        Role          :" + accCtx.subjectRole.name.value
-            );
-        }
         System.err.println("Peer id: " + client);
         System.err.println(contextInfo);
         errorInfo.printStackTrace(System.err);
@@ -112,14 +96,6 @@ public class DefaultErrorStreamErrorReporter implements ErrorReporter
         String contextInfo
     )
     {
-        if (accCtx != null)
-        {
-            System.err.println(
-                "AccCtx: Identity      : " + accCtx.subjectId.name.value + "\n" +
-                    "        SecurityDomain: " + accCtx.subjectDomain.name.value + "\n" +
-                    "        Role          :" + accCtx.subjectRole.name.value
-            );
-        }
         System.err.println("Peer id: " + client);
         System.err.println(contextInfo);
         errorInfo.printStackTrace(System.err);
@@ -128,7 +104,7 @@ public class DefaultErrorStreamErrorReporter implements ErrorReporter
     }
 
     @Override
-    public void setLogLevel(@Nullable AccessContext accCtx, @Nullable Level levelRef, @Nullable Level linstorLevelRef)
+    public void setLogLevel(@Nullable Level levelRef, @Nullable Level linstorLevelRef)
     {
         // Tracing on/off not implemented, no-op
     }

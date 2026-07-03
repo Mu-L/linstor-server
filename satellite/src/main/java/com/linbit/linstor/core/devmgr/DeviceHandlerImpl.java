@@ -510,7 +510,6 @@ public class DeviceHandlerImpl implements DeviceHandler
         String errorId = errorReporter.reportError(
             exc,
             null,
-            null,
             "An error occurred while processing resource '" + rsc + "'"
         );
 
@@ -824,7 +823,6 @@ public class DeviceHandlerImpl implements DeviceHandler
                 String errorId = errorReporter.reportError(
                     exc,
                     null,
-                    null,
                     "An error occurred while processing snapshot '" + snap.getSnapshotName() + "' of resource '" +
                         snap.getResourceName() + "'"
                 );
@@ -847,7 +845,6 @@ public class DeviceHandlerImpl implements DeviceHandler
             {
                 String errorId = errorReporter.reportError(
                     exc,
-                    null,
                     null,
                     "An error occurred while processing snapshot '" + snap.getSnapshotName() + "' of resource '" +
                         snap.getResourceName() + "'"

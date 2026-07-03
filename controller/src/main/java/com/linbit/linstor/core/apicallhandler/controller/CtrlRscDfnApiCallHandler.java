@@ -860,7 +860,6 @@ public class CtrlRscDfnApiCallHandler
 
         Flux<ApiCallRc> ret = Flux.empty();
         ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(srcRscName, true);
-        AccessContext accCtx = peerAccCtx.get();
         List<Resource> diskfulRscs = rscDfn.getDiskfulResources();
 
         List<Resource> toActivate = new ArrayList<>();
@@ -1306,10 +1305,7 @@ public class CtrlRscDfnApiCallHandler
 
     private void removeInactiveResources(List<Resource> diskfulRscs)
     {
-        diskfulRscs.removeIf(rsc -> {
-            return rsc.getStateFlags().isSet(Resource.Flags.INACTIVE);
-            return false;
-        });
+        diskfulRscs.removeIf(rsc -> rsc.getStateFlags().isSet(Resource.Flags.INACTIVE));
     }
 
     private void failIfDrbdMetadataConversion(Resource srcRsc, Resource cloneRsc)
@@ -2017,7 +2013,7 @@ public class CtrlRscDfnApiCallHandler
         final byte[] extName,
         final ResourceDefinitionRepository rscDfnRps
     )
-        throws ApiRcException, ApiAccessDeniedException
+        throws ApiRcException
     {
         if (extName.length > 0)
         {
@@ -2111,18 +2107,7 @@ public class CtrlRscDfnApiCallHandler
     {
         ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(resourceName, true);
         return SatelliteResourceStateDrbdUtils.allResourcesUpToDate(
-            rscDfn.streamResource().filter(resource -> {
-                boolean diskfull;
-                try
-                {
-                    diskfull = !resource.isDiskless();
-                }
-                catch (AccessDeniedException ignored)
-                {
-                    diskfull = true;
-                }
-                return diskfull;
-            })
+            rscDfn.streamResource().filter(resource -> !resource.isDiskless())
                 .map(AbsResource::getNode).collect(Collectors.toSet()),
             rscDfn.getName()
         );

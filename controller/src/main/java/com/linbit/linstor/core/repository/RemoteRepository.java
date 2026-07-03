@@ -9,10 +9,8 @@ import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.S3Remote;
 
-public interface RemoteRepository extends ProtectedObject
+public interface RemoteRepository
 {
-    void requireAccess(AccessType requested);
-
     @Nullable
     AbsRemote get(RemoteName remoteName);
 

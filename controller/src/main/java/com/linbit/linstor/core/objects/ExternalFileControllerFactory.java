@@ -22,7 +22,6 @@ import java.util.UUID;
 public class ExternalFileControllerFactory
 {
     private final ExternalFileDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objProtFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
     private final ExternalFileRepository extFileRepo;
@@ -30,14 +29,12 @@ public class ExternalFileControllerFactory
     @Inject
     public ExternalFileControllerFactory(
         ExternalFileDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objProtFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
         ExternalFileRepository extFileRepoRef
     )
     {
         dbDriver = dbDriverRef;
-        objProtFactory = objProtFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
         extFileRepo = extFileRepoRef;
@@ -58,10 +55,6 @@ public class ExternalFileControllerFactory
 
         extFile = new ExternalFile(
             UUID.randomUUID(),
-            objProtFactory.getInstance(
-                ObjectProtection.buildPath(nameRef),
-                true
-            ),
             nameRef,
             0,
             contentRef,

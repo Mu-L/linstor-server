@@ -7,7 +7,7 @@ import com.linbit.linstor.core.identifier.NetInterfaceName;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.StorPoolName;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 @Singleton
-public final class NodeDbDriver extends AbsProtectedDatabaseDriver<Node, Node.InitMaps, Void>
+public final class NodeDbDriver extends AbsDatabaseDriver<Node, Node.InitMaps, Void>
     implements NodeCtrlDatabaseDriver
 {
     final PropsContainerFactory propsContainerFactory;
@@ -54,12 +54,11 @@ public final class NodeDbDriver extends AbsProtectedDatabaseDriver<Node, Node.In
         @Named(LinStor.CONTROLLER_PROPS) ReadOnlyProps ctrlConfRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.NODES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.NODES, dbEngine);
         ctrlConf = ctrlConfRef;
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
@@ -136,7 +135,6 @@ public final class NodeDbDriver extends AbsProtectedDatabaseDriver<Node, Node.In
 
         Node node = new Node(
             raw.build(UUID, java.util.UUID::fromString),
-            getObjectProtection(ObjectProtection.buildPath(nodeName)),
             nodeName,
             nodeType,
             flags,

@@ -6,7 +6,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.CoreModule.ExternalFileMap;
 import com.linbit.linstor.core.CriticalError;
 import com.linbit.linstor.core.identifier.ExternalFileName;
-import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ExternalFileDatabaseDriver;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -24,21 +23,18 @@ public class ExternalFileSatelliteFactory
     private final ExternalFileDatabaseDriver driver;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final ExternalFileMap externalFileMap;
 
     @Inject
     public ExternalFileSatelliteFactory(
         CoreModule.ExternalFileMap externalFileMapRef,
         ExternalFileDatabaseDriver driverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef
     )
     {
         externalFileMap = externalFileMapRef;
         driver = driverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
     }
@@ -55,27 +51,19 @@ public class ExternalFileSatelliteFactory
         ExternalFile extFile = externalFileMap.get(extFileNameRef);
         if (extFile == null)
         {
-            try
-            {
-                extFile = new ExternalFile(
-                    uuid,
-                    objectProtectionFactory.getInstance("", true),
-                    extFileNameRef,
-                    initflags,
-                    content == null ? new byte[0] : content,
-                    content == null ? new byte[0] : ByteUtils.checksumSha256(content),
-                    // not sure where the parameter comes from, so we make a copy of it, just to be sure
-                    new ArrayList<>(altSuffixesRef),
-                    driver,
-                    transObjFactory,
-                    transMgrProvider
-                );
-                externalFileMap.put(extFileNameRef, extFile);
-            }
-            catch (DatabaseException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            extFile = new ExternalFile(
+                uuid,
+                extFileNameRef,
+                initflags,
+                content == null ? new byte[0] : content,
+                content == null ? new byte[0] : ByteUtils.checksumSha256(content),
+                // not sure where the parameter comes from, so we make a copy of it, just to be sure
+                new ArrayList<>(altSuffixesRef),
+                driver,
+                transObjFactory,
+                transMgrProvider
+            );
+            externalFileMap.put(extFileNameRef, extFile);
         }
         else
         {

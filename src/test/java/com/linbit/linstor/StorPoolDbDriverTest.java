@@ -75,12 +75,12 @@ public class StorPoolDbDriverTest extends GenericDbBase
             TBL_COL_COUNT_NODE_STOR_POOL
         );
 
-        node = nodeFactory.create(SYS_CTX, nodeName, Node.Type.SATELLITE, null);
-        spdd = storPoolDefinitionFactory.create(SYS_CTX, spName);
+        node = nodeFactory.create(nodeName, Node.Type.SATELLITE, null);
+        spdd = storPoolDefinitionFactory.create(spName);
 
-        fsm = freeSpaceMgrFactory.getInstance(SYS_CTX, new SharedStorPoolName(node.getName(), spdd.getName()));
+        fsm = freeSpaceMgrFactory.getInstance(new SharedStorPoolName(node.getName(), spdd.getName()));
         disklessFsm = freeSpaceMgrFactory.getInstance(
-            SYS_CTX, new SharedStorPoolName(node.getName(), new StorPoolName(LinStor.DISKLESS_STOR_POOL_NAME)));
+            new SharedStorPoolName(node.getName(), new StorPoolName(LinStor.DISKLESS_STOR_POOL_NAME)));
 
         uuid = randomUUID();
     }
@@ -122,7 +122,6 @@ public class StorPoolDbDriverTest extends GenericDbBase
     public void testPersistStorGetInstance() throws Exception
     {
         StorPool pool = storPoolFactory.create(
-            SYS_CTX,
             node,
             spdd,
             DeviceProviderKind.LVM,
@@ -198,8 +197,8 @@ public class StorPoolDbDriverTest extends GenericDbBase
             .get();
 
         assertNotNull(storPoolLoaded);
-        assertNotNull(storPoolLoaded.getProps(SYS_CTX));
-        StorPoolDefinition spDfn = storPoolLoaded.getDefinition(SYS_CTX);
+        assertNotNull(storPoolLoaded.getProps());
+        StorPoolDefinition spDfn = storPoolLoaded.getDefinition();
         assertNotNull(spDfn);
         assertEquals(spName, spDfn.getName());
         assertEquals(DeviceProviderKind.LVM, storPoolLoaded.getDeviceProviderKind());
@@ -210,7 +209,6 @@ public class StorPoolDbDriverTest extends GenericDbBase
     public void testCache() throws Exception
     {
         StorPool storedInstance = storPoolFactory.create(
-            SYS_CTX,
             node,
             spdd,
             DeviceProviderKind.LVM,
@@ -220,13 +218,13 @@ public class StorPoolDbDriverTest extends GenericDbBase
 
         // no clearCaches
 
-        assertEquals(storedInstance, node.getStorPool(SYS_CTX, spdd.getName()));
+        assertEquals(storedInstance, node.getStorPool(spdd.getName()));
     }
 
     @Test
     public void testLoadGetInstance() throws Exception
     {
-        StorPool loadedStorPool = node.getStorPool(SYS_CTX, spdd.getName());
+        StorPool loadedStorPool = node.getStorPool(spdd.getName());
 
         assertNull(loadedStorPool);
 
@@ -245,14 +243,14 @@ public class StorPoolDbDriverTest extends GenericDbBase
             new TreeMap<>()
         );
         driver.create(storPool);
-        node.addStorPool(SYS_CTX, storPool);
-        spdd.addStorPool(SYS_CTX, storPool);
+        node.addStorPool(storPool);
+        spdd.addStorPool(storPool);
 
-        loadedStorPool = node.getStorPool(SYS_CTX, spdd.getName());
+        loadedStorPool = node.getStorPool(spdd.getName());
 
         assertEquals(uuid, loadedStorPool.getUuid());
-        assertEquals(spName, loadedStorPool.getDefinition(SYS_CTX).getName());
-        assertEquals(spdd, loadedStorPool.getDefinition(SYS_CTX));
+        assertEquals(spName, loadedStorPool.getDefinition().getName());
+        assertEquals(spdd, loadedStorPool.getDefinition());
         assertEquals(DeviceProviderKind.LVM, loadedStorPool.getDeviceProviderKind());
         assertEquals(spName, loadedStorPool.getName());
     }
@@ -261,7 +259,6 @@ public class StorPoolDbDriverTest extends GenericDbBase
     public void testDelete() throws Exception
     {
         StorPool storPool = storPoolFactory.create(
-            SYS_CTX,
             node,
             spdd,
             DeviceProviderKind.LVM,
@@ -305,11 +302,10 @@ public class StorPoolDbDriverTest extends GenericDbBase
             new TreeMap<>()
         );
         driver.create(storPool);
-        node.addStorPool(SYS_CTX, storPool);
-        spdd.addStorPool(SYS_CTX, storPool);
+        node.addStorPool(storPool);
+        spdd.addStorPool(storPool);
 
         storPoolFactory.create(
-            SYS_CTX,
             node,
             spdd,
             DeviceProviderKind.LVM,

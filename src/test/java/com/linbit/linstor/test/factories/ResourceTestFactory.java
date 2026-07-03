@@ -34,7 +34,6 @@ public class ResourceTestFactory
 
     private final HashMap<Pair<String, String>, Resource> rscMap = new HashMap<>();
 
-    private AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     private LayerPayload dfltPayload = null;
     private Flags[] dfltFlags = new Flags[0];
     private List<DeviceLayerKind> dfltLayerStack = Arrays.asList(DeviceLayerKind.DRBD, DeviceLayerKind.STORAGE);
@@ -61,12 +60,6 @@ public class ResourceTestFactory
             rsc = create(nodeName, rscName);
         }
         return rsc;
-    }
-
-    public ResourceTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
     }
 
     public ResourceTestFactory setDfltPayload(LayerPayload dfltPayloadRef)

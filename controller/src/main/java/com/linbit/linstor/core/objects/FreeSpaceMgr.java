@@ -62,8 +62,8 @@ public class FreeSpaceMgr extends BaseTransactionObject implements FreeSpaceTrac
      * This method should be called when a storage-volume was just created but not yet deployed
      * on the {@link Satellite}.
      *
-     * Pending storage-volumes only change the outcome of {@link #getPendingAllocatedSum(AccessContext)}
-     * but not of {@link #getFreeCapacityLastUpdated(AccessContext)}.
+     * Pending storage-volumes only change the outcome of {@link #getPendingAllocatedSum()}
+     * but not of {@link #getFreeCapacityLastUpdated()}.
      *
      */
     @SuppressWarnings("unchecked")
@@ -106,10 +106,10 @@ public class FreeSpaceMgr extends BaseTransactionObject implements FreeSpaceTrac
     /**
      * The given volume is removed from the pending list, and the freespace is updated.
      *
-     * This method changes the outcome of both {@link #getPendingAllocatedSum(AccessContext)} and
-     * {@link #getFreeCapacityLastUpdated(AccessContext)}.
+     * This method changes the outcome of both {@link #getPendingAllocatedSum()} and
+     * {@link #getFreeCapacityLastUpdated()}.
      * To be more precise, a call of this method followed atomically by a call of
-     * {@link #getFreeCapacityLastUpdated(AccessContext)} returns <code>freeSpaceRef</code>
+     * {@link #getFreeCapacityLastUpdated()} returns <code>freeSpaceRef</code>
      */
     @SuppressWarnings("unchecked")
     @Override

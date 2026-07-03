@@ -160,25 +160,25 @@ public class ReadOnlyPropsContainerTest
     }
 
 
-    @Test(expected = AccessDeniedException.class)
+    @Test(expected = UnsupportedOperationException.class)
     public void testSet() throws Throwable
     {
         roProp.setProp("key", "value");
     }
 
-    @Test(expected = AccessDeniedException.class)
+    @Test(expected = UnsupportedOperationException.class)
     public void testSetWithNamespace() throws Throwable
     {
         roProp.setProp("key", "value", "namespace");
     }
 
-    @Test(expected = AccessDeniedException.class)
+    @Test(expected = UnsupportedOperationException.class)
     public void testRemove() throws Throwable
     {
         roProp.removeProp(FIRST_KEY + "0");
     }
 
-    @Test(expected = AccessDeniedException.class)
+    @Test(expected = UnsupportedOperationException.class)
     public void testRemoveWithNamespace() throws Throwable
     {
         roProp.removeProp(SECOND_KEY + "0", FIRST_KEY + "0");
@@ -323,7 +323,7 @@ public class ReadOnlyPropsContainerTest
         assertNull(roProp.getNamespace(first));
     }
 
-    @Test(expected = AccessDeniedException.class)
+    @Test(expected = UnsupportedOperationException.class)
     public void testGetNamespaceSet() throws Throwable
     {
         final @Nullable Props firstNamespace = roProp.getNamespace(FIRST_KEY + "0");

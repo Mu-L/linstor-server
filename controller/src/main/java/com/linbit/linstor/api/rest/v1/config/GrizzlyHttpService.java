@@ -60,7 +60,6 @@ import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.google.inject.Injector;
-import com.google.inject.Key;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.glassfish.grizzly.Connection;
 import org.glassfish.grizzly.http.CompressionConfig;
@@ -131,7 +130,6 @@ public class GrizzlyHttpService implements SystemService
         String webUiDirectoryRef
     )
     {
-        sysCtx = injector.getInstance(Key.get(AccessContext.class, SystemContext.class));
         errorReporter = errorReporterRef;
         listenAddress = listenAddressRef;
         listenAddressSecure = listenAddressSecureRef;
@@ -204,10 +202,6 @@ public class GrizzlyHttpService implements SystemService
                 .getCtrlConfForView()
                 .getProp(ApiConsts.KEY_AUTO_HTTPS, ApiConsts.NAMESPC_REST);
             return Boolean.parseBoolean(autoHttps);
-        }
-        catch (AccessDeniedException ignored)
-        {
-            return false;
         }
     }
 

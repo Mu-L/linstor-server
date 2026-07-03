@@ -8,7 +8,7 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.types.TcpPortNumber;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -41,7 +41,7 @@ import java.util.Objects;
 
 @Singleton
 public final class ResourceConnectionDbDriver
-    extends AbsProtectedDatabaseDriver<ResourceConnection, Void, Map<Pair<NodeName, ResourceName>, ? extends Resource>>
+    extends AbsDatabaseDriver<ResourceConnection, Void, Map<Pair<NodeName, ResourceName>, ? extends Resource>>
     implements ResourceConnectionCtrlDatabaseDriver
 {
     private final Provider<TransactionMgr> transMgrProvider;
@@ -57,12 +57,11 @@ public final class ResourceConnectionDbDriver
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.RESOURCE_CONNECTIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.RESOURCE_CONNECTIONS, dbEngineRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;

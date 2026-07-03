@@ -18,6 +18,7 @@ import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.SatelliteDbModule;
 import com.linbit.linstor.logging.LoggingModule;
 import com.linbit.linstor.logging.StdErrorReporter;
+import com.linbit.linstor.security.TestApiModule;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.transaction.manager.SatelliteTransactionMgr;
 import com.linbit.linstor.transaction.manager.SatelliteTransactionMgrModule;
@@ -37,8 +38,6 @@ import org.junit.Test;
 
 public class ResourceDefinitionSatelliteTest
 {
-    private static final AccessContext SYS_CTX = DummySecurityInitializer.getSystemAccessContext();
-
     private final ResourceName resName;
     private final TcpPortNumber port;
     private final TransportType transportType;
@@ -75,7 +74,6 @@ public class ResourceDefinitionSatelliteTest
         Injector injector = Guice.createInjector(
             new GuiceConfigModule(),
             new LoggingModule(errorReporter),
-            new TestSecurityModule(),
             new CoreModule(),
             new SatelliteDbModule(),
             new SatelliteTransactionMgrModule(),

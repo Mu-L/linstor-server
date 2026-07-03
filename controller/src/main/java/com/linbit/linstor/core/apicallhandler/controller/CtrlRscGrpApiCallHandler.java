@@ -516,7 +516,6 @@ public class CtrlRscGrpApiCallHandler
 
             ResourceGroup rscGrpData = ctrlApiDataLoader.loadResourceGroup(rscGrpNameStrRef, true);
 
-            AccessContext peerCtx = peerAccCtx.get();
             if (descriptionRef != null)
             {
                 rscGrpData.setDescription(descriptionRef);
@@ -979,7 +978,6 @@ public class CtrlRscGrpApiCallHandler
                 rgAutoPlaceConfig.getApiData()
             );
 
-            AccessContext peerCtx = peerAccCtx.get();
             layerStackDevLayerKind = autoPlaceConfig.getLayerStackList();
             layerStackStr = new ArrayList<>();
             if (layerStackDevLayerKind != null)

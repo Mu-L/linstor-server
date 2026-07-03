@@ -177,15 +177,6 @@ public class RscInternalCallHandler
                 )
             );
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            errorReporter.reportError(
-                new ImplementationError(
-                    "Controller's api context has not enough privileges to gather requested resource data.",
-                    accDeniedExc
-                )
-            );
-        }
     }
 
     public void updateVolume(

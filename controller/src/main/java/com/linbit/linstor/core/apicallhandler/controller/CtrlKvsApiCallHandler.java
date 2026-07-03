@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
-import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
@@ -29,8 +28,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
-import com.google.inject.Provider;
 
 @Singleton
 public class CtrlKvsApiCallHandler
@@ -92,7 +89,6 @@ public class CtrlKvsApiCallHandler
         Set<KvsApi> retMap = new HashSet<>();
         try
         {
-            AccessContext accCtx = peerAccCtx.get();
             for (KeyValueStore kvs : kvsRepo.getMapForView().values())
             {
                 retMap.add(kvs.getApiData(null, null));
@@ -117,7 +113,6 @@ public class CtrlKvsApiCallHandler
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
         try
         {
-            requireKvsMapChangeAccess();
             KeyValueStore kvs = ctrlApiDataLoader.loadKvs(kvsNameStr, false);
             if (kvsUuid != null && kvs != null && !kvsUuid.equals(kvs.getUuid()))
             {
@@ -129,7 +124,6 @@ public class CtrlKvsApiCallHandler
                 );
             }
 
-            AccessContext accCtx = peerAccCtx.get();
             if (kvs == null)
             {
                 kvs = create(LinstorParsingUtils.asKvsName(kvsNameStr));
@@ -186,10 +180,8 @@ public class CtrlKvsApiCallHandler
     ApiCallRc deleteKvs(UUID kvsUuidRef, String kvsNameStr)
     {
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
-        AccessContext accCtx = peerAccCtx.get();
         try
         {
-            requireKvsMapChangeAccess();
             @Nullable KeyValueStore kvs = ctrlApiDataLoader.loadKvs(kvsNameStr, false);
             if (kvsUuidRef != null && kvs != null && !kvsUuidRef.equals(kvs.getUuid()))
             {
@@ -248,9 +240,5 @@ public class CtrlKvsApiCallHandler
     public static String getKvsDescriptionInline(String kvsNameStr)
     {
         return "kvs '" + kvsNameStr + "'";
-    }
-
-    private void requireKvsMapChangeAccess()
-    {
     }
 }

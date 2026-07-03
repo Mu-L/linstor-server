@@ -9,7 +9,6 @@ import com.linbit.linstor.core.objects.ResourceDefinitionDbDriver;
 import com.linbit.linstor.core.objects.ResourceGroup;
 import com.linbit.linstor.core.objects.TestFactory;
 import com.linbit.linstor.dbdrivers.SQLUtils;
-import com.linbit.linstor.dbdrivers.interfaces.SecObjProtDatabaseDriver;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.propscon.Props;
@@ -58,8 +57,6 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
     private ResourceDefinition resDfn;
     @Inject
     private ResourceDefinitionDbDriver driver;
-    @Inject
-    private SecObjProtDatabaseDriver objProtDriver;
 
     private ResourceGroup dfltRscGrp;
 
@@ -85,10 +82,6 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
 
         rscDfnUuid = randomUUID();
 
-        rscDfnObjProt = createTestObjectProtection(
-            ObjectProtection.buildPath(resName)
-        );
-
         dfltRscGrp = createDefaultResourceGroup();
 
         node1 = nodeFactory.create(
@@ -99,7 +92,6 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
         nodesMap.put(node1.getName(), node1);
         resDfn = TestFactory.createResourceDefinition(
             rscDfnUuid,
-            rscDfnObjProt,
             resName,
             null,
             ResourceDefinition.Flags.DELETE.flagValue,
@@ -264,9 +256,7 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
             payload,
             dfltRscGrp
         );
-        objProtDriver.create(rscDfnObjProt);
 
-        reloadSecurityObjects();
         Map<ResourceDefinition, ResourceDefinition.InitMaps> resourceDefDataList = driver.loadAll(
             Collections.singletonMap(dfltRscGrp.getName(), dfltRscGrp)
         );
@@ -282,7 +272,6 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
     public void testAlreadyExists() throws Exception
     {
         driver.create(resDfn);
-        objProtDriver.create(rscDfnObjProt);
         rscDfnMap.put(resName, resDfn);
 
         LayerPayload payload = new LayerPayload();

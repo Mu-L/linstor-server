@@ -5,7 +5,7 @@ import com.linbit.linstor.core.ControllerCoreModule;
 import com.linbit.linstor.core.objects.AuthToken;
 
 /**
- * Provides access to auth tokens with automatic security checks.
+ * Provides access to auth tokens.
  */
 public interface AuthTokenRepository
 {

@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.autoplacer;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
@@ -222,7 +221,6 @@ public class BalanceResources
             Context.of(
                 ApiModule.API_CALL_NAME,
                 "Deleting excess " + CtrlRscApiCallHandler.getRscDescription(rsc),
-                AccessContext.class,
                 Peer.class,
                 rsc.getNode().getPeer()
             )
@@ -506,10 +504,6 @@ public class BalanceResources
                 }
             }
         }
-        catch (AccessDeniedException exc)
-        {
-            log.reportError(new ImplementationError(exc));
-        }
 
         // adjust rsc dfns to meet rscgrp replica count
         for (var rscDfn : adjustRscDfns)
@@ -529,7 +523,6 @@ public class BalanceResources
                 Context.of(
                     ApiModule.API_CALL_NAME,
                     "Balance resources Adjust and delete",
-                    AccessContext.class,
                     Peer.class,
                     new PeerTask("BalanceResourceTask"))
             )

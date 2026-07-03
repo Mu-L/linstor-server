@@ -8,7 +8,6 @@ import com.linbit.linstor.core.CriticalError;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.StltRemote;
-import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.noop.NoOpFlagDriver;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -24,20 +23,17 @@ public class StltRemoteSatelliteFactory
 {
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final RemoteMap remoteMap;
     private final StateFlagsPersistence<?> noopFlagDriver = new NoOpFlagDriver();
 
     @Inject
     public StltRemoteSatelliteFactory(
         CoreModule.RemoteMap remoteMapRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef
     )
     {
         remoteMap = remoteMapRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
     }
@@ -58,29 +54,21 @@ public class StltRemoteSatelliteFactory
         StltRemote stltRemote = null;
         if (remote == null)
         {
-            try
-            {
-                stltRemote = new StltRemote(
-                    objectProtectionFactory.getInstance("", true),
-                    uuid,
-                    remoteNameRef,
-                    initflags,
-                    ipRef,
-                    portsRef,
-                    useZstdRef,
-                    linRemoteNameRef,
-                    nodeRef,
-                    (StateFlagsPersistence<StltRemote>) noopFlagDriver,
-                    transObjFactory,
-                    transMgrProvider,
-                    null
-                );
-                remoteMap.put(remoteNameRef, stltRemote);
-            }
-            catch (DatabaseException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            stltRemote = new StltRemote(
+                uuid,
+                remoteNameRef,
+                initflags,
+                ipRef,
+                portsRef,
+                useZstdRef,
+                linRemoteNameRef,
+                nodeRef,
+                (StateFlagsPersistence<StltRemote>) noopFlagDriver,
+                transObjFactory,
+                transMgrProvider,
+                null
+            );
+            remoteMap.put(remoteNameRef, stltRemote);
         }
         else
         {

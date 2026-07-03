@@ -51,8 +51,7 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
         ScopeRunner scopeRunnerRef,
         SystemConfRepository systemConfRepositoryRef,
         CtrlStorPoolListApiCallHandler ctrlStorPoolListApiCallHandlerRef,
-        CtrlTransactionHelper ctrlTransactionHelperRef,
-        AccessContext sysCtxRef)
+        CtrlTransactionHelper ctrlTransactionHelperRef)
     {
         errRep = errorReporterRef;
         lockGuardFactory = lockGuardFactoryRef;
@@ -117,8 +116,7 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
                     }
                 ))
             .contextWrite(Context.of(
-                ApiModule.API_CALL_NAME, "UpdateVolumeAllocations",
-                AccessContext.class))
+                ApiModule.API_CALL_NAME, "UpdateVolumeAllocations"))
             .subscribe();
 
         ctrlStorPoolListApiCallHandler.listStorPools(
@@ -128,8 +126,7 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
             false
         )
             .contextWrite(Context.of(
-                ApiModule.API_CALL_NAME, "UpdateFreeSpaceInfo",
-                AccessContext.class))
+                ApiModule.API_CALL_NAME, "UpdateFreeSpaceInfo"))
             .subscribe();
 
         long nextUpdate = Long.parseLong(DEFAULT_UPDATE_SLEEP);

@@ -40,7 +40,7 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.AbsRemote.RemoteType;
 import com.linbit.linstor.core.objects.remotes.LinstorRemote;
 import com.linbit.linstor.core.objects.remotes.S3Remote;
-import com.linbit.linstor.core.repository.SystemConfProtectionRepository;
+import com.linbit.linstor.core.repository.SystemConfRepositoryImpl;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
@@ -63,7 +63,6 @@ import com.linbit.utils.StringUtils;
 import com.linbit.utils.TimeUtils;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.time.Instant;
@@ -90,7 +89,7 @@ public class CtrlBackupCreateApiCallHandler
     private final CtrlSecurityObjects ctrlSecObj;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final CtrlSnapshotCrtHelper snapCrtHelper;
-    private final SystemConfProtectionRepository sysCfgRepo;
+    private final SystemConfRepositoryImpl sysCfgRepo;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlSnapshotCrtApiCallHandler snapshotCrtHandler;
     private final ErrorReporter errorReporter;
@@ -106,7 +105,7 @@ public class CtrlBackupCreateApiCallHandler
         CtrlSecurityObjects ctrlSecObjRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         CtrlSnapshotCrtHelper snapCrtHelperRef,
-        SystemConfProtectionRepository sysCfgRepoRef,
+        SystemConfRepositoryImpl sysCfgRepoRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlSnapshotCrtApiCallHandler snapshotCrtHandlerRef,
         ErrorReporter errorReporterRef,
@@ -641,8 +640,6 @@ public class CtrlBackupCreateApiCallHandler
             Thread thread = new Thread(() ->
                 flux.contextWrite(
                     Context.of(
-                        AccessContext.class,
-                        peer.getAccessContext(),
                         Peer.class,
                         peer,
                         ApiModule.API_CALL_NAME,
@@ -691,69 +688,62 @@ public class CtrlBackupCreateApiCallHandler
             ApiCallRcImpl responses = new ApiCallRcImpl();
             for (QueueItem item : itemsToReQueue)
             {
-                try
+                SnapshotDefinition prevSnap = item.prevSnapDfn;
+                if (prevSnap != null)
                 {
-                    SnapshotDefinition prevSnap = item.prevSnapDfn;
-                    if (prevSnap != null)
+                    boolean needsNewPrevSnap = false;
+                    boolean isDeleted = prevSnap.isDeleted() ||
+                        prevSnap.getFlags().isSet(SnapshotDefinition.Flags.DELETE);
+                    if (isDeleted)
                     {
-                        boolean needsNewPrevSnap = false;
-                        boolean isDeleted = prevSnap.isDeleted() ||
-                            prevSnap.getFlags().isSet(SnapshotDefinition.Flags.DELETE);
-                        if (isDeleted)
+                        needsNewPrevSnap = true;
+                    }
+                    else
+                    {
+                        boolean isLastSnapOnNodeToClear = prevSnap.getAllNotDeletingSnapshots()
+                            .size() == 1 && prevSnap.getSnapshot(node.getName()) != null;
+                        if (isLastSnapOnNodeToClear)
                         {
                             needsNewPrevSnap = true;
                         }
-                        else
-                        {
-                            boolean isLastSnapOnNodeToClear = prevSnap.getAllNotDeletingSnapshots()
-                                .size() == 1 && prevSnap.getSnapshot(node.getName()) != null;
-                            if (isLastSnapOnNodeToClear)
-                            {
-                                needsNewPrevSnap = true;
-                            }
-                        }
-                        if (needsNewPrevSnap)
-                        {
-                            /*
-                             * TODO: a better but far more complicated option would be to do the same flux-loop-stuff as
-                             * with startQueuedL2LShippingInTransaction in order to get a new prevSnap from the
-                             * targetCluster
-                             * instead, we simply force a full backup
-                             */
-                            prevSnap = null;
-                        }
                     }
-                    Node shipFromNode = getNodeForBackupOrQueue(
-                        item.snapDfn.getResourceDefinition(),
-                        prevSnap,
-                        item.snapDfn,
-                        item.s3orLinRemote,
-                        item.preferredNode,
-                        responses,
-                        false,
-                        item.l2lData,
-                        item.shipExistingSnap,
-                        false
-                    );
-                    if (shipFromNode != null)
+                    if (needsNewPrevSnap)
                     {
-                        flux = flux.concatWith(
-                            startShippingInTransaction(
-                                item.snapDfn,
-                                shipFromNode,
-                                item.s3orLinRemote,
-                                item.prevSnapDfn,
-                                responses,
-                                item.preferredNode,
-                                item.l2lData,
-                                item.shipExistingSnap
-                            )
-                        );
+                        /*
+                         * TODO: a better but far more complicated option would be to do the same flux-loop-stuff as
+                         * with startQueuedL2LShippingInTransaction in order to get a new prevSnap from the
+                         * targetCluster
+                         * instead, we simply force a full backup
+                         */
+                        prevSnap = null;
                     }
                 }
-                catch (AccessDeniedException exc)
+                Node shipFromNode = getNodeForBackupOrQueue(
+                    item.snapDfn.getResourceDefinition(),
+                    prevSnap,
+                    item.snapDfn,
+                    item.s3orLinRemote,
+                    item.preferredNode,
+                    responses,
+                    false,
+                    item.l2lData,
+                    item.shipExistingSnap,
+                    false
+                );
+                if (shipFromNode != null)
                 {
-                    responses.addEntry(exc.getMessage(), ApiConsts.MASK_ERROR);
+                    flux = flux.concatWith(
+                        startShippingInTransaction(
+                            item.snapDfn,
+                            shipFromNode,
+                            item.s3orLinRemote,
+                            item.prevSnapDfn,
+                            responses,
+                            item.preferredNode,
+                            item.l2lData,
+                            item.shipExistingSnap
+                        )
+                    );
                 }
             }
             flux = flux.concatWith(Flux.just(responses));

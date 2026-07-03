@@ -3,7 +3,6 @@ package com.linbit.linstor.api.rest.v1;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
-import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.api.rest.v1.serializer.JsonGenTypes;
@@ -358,19 +357,6 @@ public class Controller
         catch (IOException ioExc)
         {
             ApiCallRcRestUtils.handleJsonParseException(ioExc, asyncResponse);
-        }
-        catch (AccessDeniedException exc)
-        {
-            ApiCallRc rc = ApiCallRcImpl.singleApiCallRc(
-                ApiConsts.MODIFIED | ApiConsts.MASK_CTRL_CONF,
-                exc.toString()
-            );
-            requestHelper.doFlux(
-                InternalApiConsts.API_MOD_CONFIG,
-                request,
-                asyncResponse,
-                ApiCallRcRestUtils.mapToMonoResponse(Flux.just(rc), Response.Status.UNAUTHORIZED)
-            );
         }
         requestHelper.doFlux(
             InternalApiConsts.API_MOD_CONFIG,

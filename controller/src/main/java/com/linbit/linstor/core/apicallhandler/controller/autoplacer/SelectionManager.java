@@ -791,7 +791,6 @@ public class SelectionManager
         /**
          * Returns the greatest minimum-io-size of any of the storage pools listed in this state object
          *
-         * @param accCtx Access context for accessing the properties of storage pools
          * @return Greatest minimum-io-size of any of the storage pools listed in this state object
          */
         long getMinIoSize()

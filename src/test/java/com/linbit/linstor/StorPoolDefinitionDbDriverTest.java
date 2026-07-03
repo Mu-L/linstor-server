@@ -52,7 +52,6 @@ public class StorPoolDefinitionDbDriverTest extends GenericDbBase
 
         uuid = randomUUID();
         spName = new StorPoolName("TestStorPool");
-        objProt = objectProtectionFactory.getInstance(ObjectProtection.buildPath(spName), true);
         spdd = TestFactory.createStorPoolDefinition(
             uuid,
             spName,
@@ -92,7 +91,6 @@ public class StorPoolDefinitionDbDriverTest extends GenericDbBase
         assertNotNull(spd);
         assertNotNull(spd.getUuid());
         assertEquals(spName, spd.getName());
-        assertNotNull(spd.getObjProt());
 
         PreparedStatement stmt = getConnection().prepareStatement(SELECT_ALL_STOR_POOL_DFNS_EXCEPT_DEFAULT);
         ResultSet resultSet = stmt.executeQuery();

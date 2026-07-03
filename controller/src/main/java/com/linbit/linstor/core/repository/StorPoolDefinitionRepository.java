@@ -6,12 +6,10 @@ import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 
 /**
- * Provides access to stor pool definitions with automatic security checks.
+ * Provides access to stor pool definitions.
  */
-public interface StorPoolDefinitionRepository extends ProtectedObject
+public interface StorPoolDefinitionRepository
 {
-    void requireAccess(AccessType requested);
-
     @Nullable
     StorPoolDefinition get(StorPoolName nameRef);
 

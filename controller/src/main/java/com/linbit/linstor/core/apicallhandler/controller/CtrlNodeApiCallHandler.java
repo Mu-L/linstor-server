@@ -7,7 +7,6 @@ import com.linbit.SizeSpecParser;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
-import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
@@ -1218,7 +1217,6 @@ public class CtrlNodeApiCallHandler
                     Map<String, String> objRefs = new TreeMap<>();
                     objRefs.put(ApiConsts.KEY_NODE, nodeName);
 
-                    AccessContext peerCtx = peerAccCtx.get();
                     Node node = ctrlApiDataLoader.loadNode(nodeName, true);
 
                     StateFlags<Node.Flags> nodeFlags = node.getFlags();
@@ -1391,15 +1389,6 @@ public class CtrlNodeApiCallHandler
                         .concatWith(autoFlux)
                         .concatWithValues(rc);
                 }
-                catch (AccessDeniedException exc)
-                {
-                    errorReporter.reportError(exc);
-                    ApiCallRc rc = ApiCallRcImpl.singleApiCallRc(
-                        ApiConsts.FAIL_ACC_DENIED_NODE | ApiConsts.MASK_NODE,
-                        "Access to node " + nodeName + " denied"
-                    );
-                    flux = Flux.just(rc);
-                }
                 catch (DatabaseException exc)
                 {
                     String rep = errorReporter.reportError(exc);
@@ -1564,7 +1553,6 @@ public class CtrlNodeApiCallHandler
         NodeName nodeNameEvacuateSource = nodeToEvacuate.getName();
         try
         {
-            AccessContext peerCtx = peerAccCtx.get();
             nodeToEvacuate.getFlags().enableFlags(Node.Flags.EVACUATE);
 
             PriorityProps prioProps = new PriorityProps(
@@ -1891,8 +1879,6 @@ public class CtrlNodeApiCallHandler
         @Nullable List<String> prohibitedNodeNamesStrListRef
     )
     {
-        AccessContext peerCtx = peerAccCtx.get();
-
         @Nullable Set<StorPool> storPoolSet = null;
         List<String> allowedNodeNames = getAllowedNodeNamesStr(
             allowedTargetNodeNameStrListRef,

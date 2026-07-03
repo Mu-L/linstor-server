@@ -5,7 +5,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
-import com.linbit.linstor.core.types.LsIpAddress;
 import com.linbit.utils.TreePrinter;
 import com.linbit.utils.UuidUtils;
 
@@ -15,7 +14,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.function.Supplier;
 
 public class CmdDisplayNodes extends BaseDebugCmd
 {
@@ -126,10 +124,7 @@ public class CmdDisplayNodes extends BaseDebugCmd
             treeBuilder.branchHideEmpty("Network interfaces:");
             nodeRef.streamNetInterfaces().forEach(netIf ->
             {
-                String address = "<No authorized>";
-                LsIpAddress lsIp = netIf.getAddress();
-                String addrStr = lsIp.getAddress();
-                address = addrStr;
+                String address = netIf.getAddress().getAddress();
 
                 treeBuilder
                     .branch(

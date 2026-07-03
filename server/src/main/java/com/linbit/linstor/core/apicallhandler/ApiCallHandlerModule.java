@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler;
 
 import com.google.inject.AbstractModule;
-import com.linbit.ImplementationError;
 import com.linbit.linstor.api.interfaces.serializer.CommonSerializer;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.api.protobuf.serializer.ProtoCommonSerializer;

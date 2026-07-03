@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.internal;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -119,116 +118,103 @@ public class CtrlFullSyncApiCallHandler
     private Flux<ApiCallRc> sendFullSyncInScope(Node satelliteNode, long expectedFullSyncId, boolean waitForAnswer)
     {
         Flux<ApiCallRc> flux = Flux.empty();
-        try
+        Set<Node> nodes = new LinkedHashSet<>();
+        Set<StorPool> storPools = new LinkedHashSet<>();
+        Set<Resource> rscs = new LinkedHashSet<>();
+        Set<Snapshot> snapshots = new LinkedHashSet<>();
+        Set<ExternalFile> externalFiles = new LinkedHashSet<>();
+        Set<AbsRemote> remotes = new LinkedHashSet<>();
+
+        nodes.add(satelliteNode); // always add the localNode
+
+        // some storPools might have been created on the satellite, but are not used by resources / volumes
+        // however, when a rsc / vlm is created, they already assume the referenced storPool already exists
+        storPools.addAll(satelliteNode.streamStorPools().collect(toList()));
+
+        for (Resource rsc : satelliteNode.streamResources().collect(toList()))
         {
-            Set<Node> nodes = new LinkedHashSet<>();
-            Set<StorPool> storPools = new LinkedHashSet<>();
-            Set<Resource> rscs = new LinkedHashSet<>();
-            Set<Snapshot> snapshots = new LinkedHashSet<>();
-            Set<ExternalFile> externalFiles = new LinkedHashSet<>();
-            Set<AbsRemote> remotes = new LinkedHashSet<>();
-
-            nodes.add(satelliteNode); // always add the localNode
-
-            // some storPools might have been created on the satellite, but are not used by resources / volumes
-            // however, when a rsc / vlm is created, they already assume the referenced storPool already exists
-            storPools.addAll(satelliteNode.streamStorPools().collect(toList()));
-
-            for (Resource rsc : satelliteNode.streamResources().collect(toList()))
+            rscs.add(rsc);
+            Iterator<Resource> otherRscIterator = rsc.getResourceDefinition().iterateResource();
+            while (otherRscIterator.hasNext())
             {
-                rscs.add(rsc);
-                Iterator<Resource> otherRscIterator = rsc.getResourceDefinition().iterateResource();
-                while (otherRscIterator.hasNext())
+                Resource otherRsc = otherRscIterator.next();
+                if (!otherRsc.equals(rsc))
                 {
-                    Resource otherRsc = otherRscIterator.next();
-                    if (!otherRsc.equals(rsc))
-                    {
-                        nodes.add(otherRsc.getNode());
-                        storPools.addAll(LayerVlmUtils.getStorPools(otherRsc));
-                    }
+                    nodes.add(otherRsc.getNode());
+                    storPools.addAll(LayerVlmUtils.getStorPools(otherRsc));
                 }
             }
-
-            // we need to send all snaps, since the stlt might need them for e.g. incremental backup shipping
-            snapshots.addAll(satelliteNode.getSnapshots());
-
-            externalFiles.addAll(externalFilesRepo.getMapForView().values());
-            remotes.addAll(remoteRepo.getMapForView().values());
-
-            Peer satellitePeer = satelliteNode.getPeer();
-            satellitePeer.setFullSyncId(expectedFullSyncId);
-
-            errorReporter.logInfo("Sending full sync to " + satelliteNode + ".");
-
-            CtrlStltSerializerBuilder builder;
-            if (waitForAnswer)
-            {
-                builder = interComSerializer.headerlessBuilder();
-            }
-            else
-            {
-                builder = interComSerializer.apiCallBuilder(
-                    InternalApiConsts.API_FULL_SYNC_DATA,
-                    FULL_SYNC_RPC_ID
-                );
-            }
-
-            byte[] data = builder
-                .fullSync(
-                    nodes, storPools, rscs, snapshots, externalFiles, remotes, expectedFullSyncId, FULL_SYNC_RPC_ID
-                )
-                .build();
-
-            if (waitForAnswer)
-            {
-                StringBuilder details = new StringBuilder();
-                ExtToolsManager extToolsManager = satellitePeer.getExtToolsManager();
-                Map<DeviceLayerKind, List<String>> unsupportedLayersWithResons =
-                    extToolsManager.getUnsupportedLayersWithReasons();
-                Map<DeviceProviderKind, List<String>> unsupportedProvidersWithResons =
-                    extToolsManager.getUnsupportedProvidersWithReasons();
-
-                details.append("Supported storage providers: ")
-                    .append(extToolsManager.getSupportedProviders().toString().toLowerCase())
-                    .append("\nSupported resource layers  : ")
-                    .append(extToolsManager.getSupportedLayers().toString().toLowerCase());
-
-                renderUnsupportedDetails(details, unsupportedProvidersWithResons, "storage providers");
-                renderUnsupportedDetails(details, unsupportedLayersWithResons, "resource layers");
-
-                flux = ((TcpConnectorPeer) satellitePeer).apiCall(
-                        InternalApiConsts.API_FULL_SYNC_DATA,
-                        data,
-                        true,
-                        false
-                    )
-                    .concatMap(inputStream -> handleFullSyncResponse(satellitePeer, inputStream))
-                    .thenMany(
-                        Flux.just(
-                            ApiCallRcImpl.singletonApiCallRc(
-                                ApiCallRcImpl.simpleEntry(
-                                    ApiConsts.ConnectionStatus.AUTHENTICATED.getValue(),
-                                    "Node '" + satelliteNode.getName().displayValue + "' authenticated"
-                                )
-                                .setDetails(details.toString())
-                            )
-                        )
-                    );
-            }
-            else
-            {
-                satellitePeer.sendMessage(data);
-            }
         }
-        catch (AccessDeniedException accDeniedExc)
+
+        // we need to send all snaps, since the stlt might need them for e.g. incremental backup shipping
+        snapshots.addAll(satelliteNode.getSnapshots());
+
+        externalFiles.addAll(externalFilesRepo.getMapForView().values());
+        remotes.addAll(remoteRepo.getMapForView().values());
+
+        Peer satellitePeer = satelliteNode.getPeer();
+        satellitePeer.setFullSyncId(expectedFullSyncId);
+
+        errorReporter.logInfo("Sending full sync to " + satelliteNode + ".");
+
+        CtrlStltSerializerBuilder builder;
+        if (waitForAnswer)
         {
-            errorReporter.reportError(
-                new ImplementationError(
-                    "ApiCtx does not have enough privileges to create a full sync for satellite " +
-                        satelliteNode.getName(),
-                    accDeniedExc
-                )
+            builder = interComSerializer.headerlessBuilder();
+        }
+        else
+        {
+            builder = interComSerializer.apiCallBuilder(
+                InternalApiConsts.API_FULL_SYNC_DATA,
+                FULL_SYNC_RPC_ID
             );
+        }
+
+        byte[] data = builder
+            .fullSync(
+                nodes, storPools, rscs, snapshots, externalFiles, remotes, expectedFullSyncId, FULL_SYNC_RPC_ID
+            )
+            .build();
+
+        if (waitForAnswer)
+        {
+            StringBuilder details = new StringBuilder();
+            ExtToolsManager extToolsManager = satellitePeer.getExtToolsManager();
+            Map<DeviceLayerKind, List<String>> unsupportedLayersWithResons =
+                extToolsManager.getUnsupportedLayersWithReasons();
+            Map<DeviceProviderKind, List<String>> unsupportedProvidersWithResons =
+                extToolsManager.getUnsupportedProvidersWithReasons();
+
+            details.append("Supported storage providers: ")
+                .append(extToolsManager.getSupportedProviders().toString().toLowerCase())
+                .append("\nSupported resource layers  : ")
+                .append(extToolsManager.getSupportedLayers().toString().toLowerCase());
+
+            renderUnsupportedDetails(details, unsupportedProvidersWithResons, "storage providers");
+            renderUnsupportedDetails(details, unsupportedLayersWithResons, "resource layers");
+
+            flux = ((TcpConnectorPeer) satellitePeer).apiCall(
+                    InternalApiConsts.API_FULL_SYNC_DATA,
+                    data,
+                    true,
+                    false
+                )
+                .concatMap(inputStream -> handleFullSyncResponse(satellitePeer, inputStream))
+                .thenMany(
+                    Flux.just(
+                        ApiCallRcImpl.singletonApiCallRc(
+                            ApiCallRcImpl.simpleEntry(
+                                ApiConsts.ConnectionStatus.AUTHENTICATED.getValue(),
+                                "Node '" + satelliteNode.getName().displayValue + "' authenticated"
+                            )
+                            .setDetails(details.toString())
+                        )
+                    )
+                );
+        }
+        else
+        {
+            satellitePeer.sendMessage(data);
         }
 
         return flux;

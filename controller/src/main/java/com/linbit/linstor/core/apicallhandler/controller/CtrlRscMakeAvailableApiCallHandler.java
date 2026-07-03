@@ -51,7 +51,6 @@ import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -195,7 +194,6 @@ public class CtrlRscMakeAvailableApiCallHandler
                     )
                 );
             }
-
 
             boolean updateSatellite = false;
             if (isAnyFlagSet(rsc, Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
@@ -418,7 +416,6 @@ public class CtrlRscMakeAvailableApiCallHandler
     private @Nullable Resource getActiveRsc(Resource myRsc)
     {
         Resource activeRsc = null;
-        ResourceDefinition rscDfn = myRsc.getResourceDefinition();
         TreeSet<Resource> sharedResources = sharedRscMgr.getSharedResources(myRsc);
         for (Resource rsc : sharedResources)
         {
@@ -457,7 +454,6 @@ public class CtrlRscMakeAvailableApiCallHandler
         try
         {
             Set<String> storPoolNames = new HashSet<>();
-            AccessContext peerCtx = peerCtxProvider.get();
 
             for (VolumeApi vlmApi : rscToCreateRef.getRscApi().getVlmList())
             {
@@ -574,7 +570,6 @@ public class CtrlRscMakeAvailableApiCallHandler
         long rscFlags = 0;
         boolean disklessForErrorMsg = false;
 
-        AccessContext peerAccCtx = peerCtxProvider.get();
         if (layerStack.contains(DeviceLayerKind.DRBD))
         {
             if (!diskfulRef && hasDrbdDiskfulPeer(rscDfn))
@@ -624,31 +619,22 @@ public class CtrlRscMakeAvailableApiCallHandler
                     if (isEbsInitSupported)
                     {
                         String nodeName = node.getName().displayValue;
-                        Iterator<StorPool> spIt;
-                        try
+                        Iterator<StorPool> spIt = node.iterateStorPools();
+                        while (spIt.hasNext() && !hasEbsTargetWithoutInit)
                         {
-                            spIt = node.iterateStorPools();
-                            while (spIt.hasNext() && !hasEbsTargetWithoutInit)
+                            StorPool sp = spIt.next();
+                            if (sp.getDeviceProviderKind().equals(DeviceProviderKind.EBS_INIT))
                             {
-                                StorPool sp = spIt.next();
-                                if (sp.getDeviceProviderKind().equals(DeviceProviderKind.EBS_INIT))
-                                {
-                                    String az = RscStorageLayerHelper.getAvailabilityZone(remoteMap, sp);
-                                    Resource targetEbsResource = RscStorageLayerHelper.findTargetEbsResource(
-                                        remoteMap,
-                                        rscDfn,
-                                        az,
-                                        nodeName
-                                    );
-                                    hasEbsTargetWithoutInit = targetEbsResource != null;
-                                }
+                                String az = RscStorageLayerHelper.getAvailabilityZone(remoteMap, sp);
+                                Resource targetEbsResource = RscStorageLayerHelper.findTargetEbsResource(
+                                    remoteMap,
+                                    rscDfn,
+                                    az,
+                                    nodeName
+                                );
+                                hasEbsTargetWithoutInit = targetEbsResource != null;
                             }
                         }
-                        catch (AccessDeniedException exc1)
-                        {
-                            hasEbsTargetWithoutInit = false; // redundant, but for clarity
-                        }
-
                     }
                     if (hasEbsTargetWithoutInit)
                     {
@@ -952,7 +938,6 @@ public class CtrlRscMakeAvailableApiCallHandler
         return sp;
     }
 
-
     static ApiRcException failNoStorPoolFound(String nodeName, boolean diskless)
     {
         return new ApiRcException(
@@ -965,7 +950,6 @@ public class CtrlRscMakeAvailableApiCallHandler
             )
         );
     }
-
 
     private List<DeviceLayerKind> getDeployedLayerStack(Resource rscRef)
     {

@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.helpers;
 
-import com.linbit.ImplementationError;
 
 public class ApiUtils
 {

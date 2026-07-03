@@ -30,14 +30,12 @@ import com.linbit.linstor.core.objects.ResourceConnectionKey;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
-import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.satellitestate.SatelliteState;
 import com.linbit.linstor.utils.layer.DrbdLayerUtils;
 import com.linbit.locks.LockGuardFactory;
 
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
 import static com.linbit.locks.LockGuardFactory.LockObj.NODES_MAP;
 import static com.linbit.locks.LockGuardFactory.LockObj.RSC_DFN_MAP;
 import static com.linbit.locks.LockGuardFactory.LockObj.STOR_POOL_DFN_MAP;
@@ -66,7 +64,6 @@ import static java.util.stream.Collectors.toList;
 @Singleton
 public class CtrlRscApiCallHandler
 {
-    private final ErrorReporter errorReporter;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -83,7 +80,6 @@ public class CtrlRscApiCallHandler
 
     @Inject
     public CtrlRscApiCallHandler(
-        ErrorReporter errorReporterRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -99,7 +95,6 @@ public class CtrlRscApiCallHandler
         Provider<CtrlRscAutoHelper> ctrlRscAutoHelperProviderRef
     )
     {
-        errorReporter = errorReporterRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -301,79 +296,71 @@ public class CtrlRscApiCallHandler
     )
     {
         final ResourceList rscList = new ResourceList();
-        try
-        {
-            final List<String> upperFilterNodes = filterNodes.stream().map(String::toUpperCase).collect(toList());
-            final List<String> upperFilterResources =
-                filterResources.stream().map(String::toUpperCase).collect(toList());
+        final List<String> upperFilterNodes = filterNodes.stream().map(String::toUpperCase).collect(toList());
+        final List<String> upperFilterResources =
+            filterResources.stream().map(String::toUpperCase).collect(toList());
 
-            resourceDefinitionRepository.getMapForView().values().stream()
-                .filter(rscDfn -> upperFilterResources.isEmpty() ||
-                    upperFilterResources.contains(rscDfn.getName().value))
-                .forEach(rscDfn ->
-                {
-                    for (Resource rsc : rscDfn.streamResource()
-                        .filter(rsc -> upperFilterNodes.isEmpty() ||
-                            upperFilterNodes.contains(rsc.getNode().getName().value))
-                        .collect(toList()))
-                    {
-                        rscList.addResource(
-                            rsc.getApiData(
-                                null,
-                                null,
-                                rsc.getEffectiveProps(stltCfgAccessor)
-                            )
-                        );
-                        // fullSyncId and updateId null, as they are not going to be serialized anyways
-                    }
-                }
-                );
-
-            // get resource states of all nodes
-            for (final Node node : nodeRepository.getMapForView().values())
+        resourceDefinitionRepository.getMapForView().values().stream()
+            .filter(rscDfn -> upperFilterResources.isEmpty() ||
+                upperFilterResources.contains(rscDfn.getName().value))
+            .forEach(rscDfn ->
             {
-                if (upperFilterNodes.isEmpty() || upperFilterNodes.contains(node.getName().value))
+                for (Resource rsc : rscDfn.streamResource()
+                    .filter(rsc -> upperFilterNodes.isEmpty() ||
+                        upperFilterNodes.contains(rsc.getNode().getName().value))
+                    .collect(toList()))
                 {
-                    final Peer curPeer = node.getPeer();
-                    if (curPeer != null)
+                    rscList.addResource(
+                        rsc.getApiData(
+                            null,
+                            null,
+                            rsc.getEffectiveProps(stltCfgAccessor)
+                        )
+                    );
+                    // fullSyncId and updateId null, as they are not going to be serialized anyways
+                }
+            }
+            );
+
+        // get resource states of all nodes
+        for (final Node node : nodeRepository.getMapForView().values())
+        {
+            if (upperFilterNodes.isEmpty() || upperFilterNodes.contains(node.getName().value))
+            {
+                final Peer curPeer = node.getPeer();
+                if (curPeer != null)
+                {
+                    Lock readLock = curPeer.getSatelliteStateLock().readLock();
+                    readLock.lock();
+                    try
                     {
-                        Lock readLock = curPeer.getSatelliteStateLock().readLock();
-                        readLock.lock();
-                        try
-                        {
-                            final SatelliteState satelliteState = curPeer.getSatelliteState();
+                        final SatelliteState satelliteState = curPeer.getSatelliteState();
 
-                            if (satelliteState != null)
+                        if (satelliteState != null)
+                        {
+                            final SatelliteState filterStates = new SatelliteState(satelliteState);
+
+                            // states are already complete, we remove all resource that are not interesting from
+                            // our clone
+                            Set<ResourceName> removeSet = new TreeSet<>();
+                            for (ResourceName rscName : filterStates.getResourceStates().keySet())
                             {
-                                final SatelliteState filterStates = new SatelliteState(satelliteState);
-
-                                // states are already complete, we remove all resource that are not interesting from
-                                // our clone
-                                Set<ResourceName> removeSet = new TreeSet<>();
-                                for (ResourceName rscName : filterStates.getResourceStates().keySet())
+                                if (!(upperFilterResources.isEmpty() ||
+                                      upperFilterResources.contains(rscName.value)))
                                 {
-                                    if (!(upperFilterResources.isEmpty() ||
-                                          upperFilterResources.contains(rscName.value)))
-                                    {
-                                        removeSet.add(rscName);
-                                    }
+                                    removeSet.add(rscName);
                                 }
-                                removeSet.forEach(rscName -> filterStates.getResourceStates().remove(rscName));
-                                rscList.putSatelliteState(node.getName(), filterStates);
                             }
+                            removeSet.forEach(rscName -> filterStates.getResourceStates().remove(rscName));
+                            rscList.putSatelliteState(node.getName(), filterStates);
                         }
-                        finally
-                        {
-                            readLock.unlock();
-                        }
+                    }
+                    finally
+                    {
+                        readLock.unlock();
                     }
                 }
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            // for now return an empty list.
-            errorReporter.reportError(accDeniedExc);
         }
 
         return rscList;

@@ -717,7 +717,6 @@ public class ConfFileBuilder
                     "Ignoring property '" + key + "' with value '" + value + "' as it is not whitelisted."
                 ),
                 null,
-                null,
                 "The whitelist was generated from 'drbdsetup xml-help {resource,peer-device,net,disk}-options'" +
                     " when the satellite started."
             );
@@ -973,7 +972,7 @@ public class ConfFileBuilder
 
     private void appendVlmIfPresent(DrbdVlmData<Resource> vlmData, boolean isPeerRsc)
     {
-        if (((Volume) vlmData.getVolume()).getFlags().isUnset(localAccCtx, Volume.Flags.DELETE))
+        if (((Volume) vlmData.getVolume()).getFlags().isUnset(Volume.Flags.DELETE))
         {
             final String disk;
             if ((!isPeerRsc && vlmData.getDataDevice() == null) ||
@@ -1044,7 +1043,7 @@ public class ConfFileBuilder
                 {
                     appendLine(
                         "tiebreaker %s;",
-                        vlmData.getRscLayerObject().getFlags().isSet(localAccCtx, DrbdRscFlags.CLIENT) ? "no" : "yes"
+                        vlmData.getRscLayerObject().getFlags().isSet(DrbdRscFlags.CLIENT) ? "no" : "yes"
                     );
                 }
                 else
@@ -1100,7 +1099,7 @@ public class ConfFileBuilder
                         );
                         if (exactSize != null && Boolean.parseBoolean(exactSize))
                         {
-                            appendLine("size    %sk;", Long.toString(vlmDfn.getVolumeSize(localAccCtx)));
+                            appendLine("size    %sk;", Long.toString(vlmDfn.getVolumeSize()));
                         }
                     }
                 }

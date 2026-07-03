@@ -29,11 +29,9 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.getRscDescription;
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.makeRscContext;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.Collections;
@@ -329,7 +327,6 @@ public class CtrlRscActivateApiCallHandler
     {
         boolean ret = false;
         // check if rscRef is an nvme- or ebs-target. if so, check if there is already an initiator -> inUse = true
-        AccessContext peerCtx = peerAccCtx.get();
         boolean isNvmeTarget = false;
         boolean isEbsTarget = false;
         {

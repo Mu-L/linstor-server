@@ -32,7 +32,6 @@ public class NetInterfaceTestFactory
     private final AtomicInteger nextIp = new AtomicInteger(1);
     private final AtomicInteger nextPort = new AtomicInteger(19000);
 
-    public AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     public Supplier<LsIpAddress> dfltAddrSupplier =
         () ->
         {
@@ -94,12 +93,6 @@ public class NetInterfaceTestFactory
         return netIf;
     }
 
-    public NetInterfaceTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
-    }
-
     public NetInterfaceTestFactory setDfltAddrSupplier(Supplier<LsIpAddress> dfltAddrSupplierRef)
     {
         dfltAddrSupplier = dfltAddrSupplierRef;
@@ -156,11 +149,6 @@ public class NetInterfaceTestFactory
             addr = dfltAddrSupplier.get();
             port = dfltPortSupplier.get();
             encrType = dfltEncrType;
-        }
-
-        public NetInterfaceBuilder setAccCtx()
-        {
-            return this;
         }
 
         public NetInterfaceBuilder setNodeName(String nodeNameRef)

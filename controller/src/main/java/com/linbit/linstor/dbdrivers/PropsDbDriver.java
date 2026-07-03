@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 @Singleton
-public class PropsDbDriver extends AbsProtectedDatabaseDriver<PropsDbEntry, Void, Void>
+public class PropsDbDriver extends AbsDatabaseDriver<PropsDbEntry, Void, Void>
     implements PropsCtrlDatabaseDriver
 {
     private final SingleColumnDatabaseDriver<PropsDbEntry, String> valueDriver;
@@ -31,11 +31,10 @@ public class PropsDbDriver extends AbsProtectedDatabaseDriver<PropsDbEntry, Void
     @Inject
     public PropsDbDriver(
         ErrorReporter errorReporterRef,
-        DbEngine dbEngineRef,
-        ObjectProtectionFactory objProtFactoryRef
+        DbEngine dbEngineRef
     )
     {
-        super(errorReporterRef, PROPS_CONTAINERS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, PROPS_CONTAINERS, dbEngineRef);
 
         setColumnSetter(
             PROPS_INSTANCE,

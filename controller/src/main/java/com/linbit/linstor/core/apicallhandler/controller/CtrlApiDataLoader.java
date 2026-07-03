@@ -44,13 +44,7 @@ import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscGrpApiCallHandler.getRscGrpDescriptionInline;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlVlmGrpApiCallHandler.getVlmGrpDescriptionInline;
-import static com.linbit.linstor.core.apicallhandler.controller.helpers.StorPoolHelper.getStorPoolDescriptionInline;
-
 import javax.inject.Inject;
-import javax.inject.Provider;
 
 public class CtrlApiDataLoader
 {
@@ -106,7 +100,7 @@ public class CtrlApiDataLoader
         if (!ignoreSearchDomain && !nodeName.getDisplayName().contains("."))
         {
             // TODO: use user properties
-            final ReadOnlyProps ctrlProps = systemConfRepository.getCtrlConfForView(systemCtx);
+            final ReadOnlyProps ctrlProps = systemConfRepository.getCtrlConfForView();
             try
             {
                 final String domain = ctrlProps.getProp(ApiConsts.KEY_SEARCH_DOMAIN);
@@ -264,7 +258,7 @@ public class CtrlApiDataLoader
         Resource rscA = loadRsc(nodeANameRef, rscNameRef, true);
         Resource rscB = loadRsc(nodeBNameRef, rscNameRef, true);
         ResourceConnection rscCon;
-        rscCon = rscA.getAbsResourceConnection(systemCtx, rscB);
+        rscCon = rscA.getAbsResourceConnection(rscB);
         return rscCon;
     }
 

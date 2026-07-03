@@ -114,15 +114,6 @@ public class SnapshotInternalCallHandler
                 )
             );
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            errorReporter.reportError(
-                new ImplementationError(
-                    "Controller's api context has not enough privileges to gather requested storpool data.",
-                    accDeniedExc
-                )
-            );
-        }
     }
 
     public void handleSnapshotRollbackResult(String nodeNameRef, String rscNameRef, boolean successRef)

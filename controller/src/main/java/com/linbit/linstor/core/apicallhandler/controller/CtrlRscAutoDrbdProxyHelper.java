@@ -14,7 +14,6 @@ import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.Iterator;
@@ -79,7 +78,6 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
         ApiCallRcImpl apiCallRcImplRef
     )
     {
-        AccessContext peerCtx = peerCtxProvider.get();
         ResourceConnection rscConn = firstRscRef.getAbsResourceConnection(secondRscRef);
 
         if (
@@ -135,7 +133,6 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
         boolean isAutoProxyEnabled = false;
         if (hasFirstNodeAutoProxyEnabled && hasSecondNodeAutoProxyEnabled)
         {
-            AccessContext peerCtx = peerCtxProvider.get();
             PriorityProps prioProps;
 
             ResourceConnection rscCon = firstRscRef.getAbsResourceConnection(secondRscRef);
@@ -165,7 +162,6 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
      */
     private boolean isProxySupported(Node node)
     {
-        AccessContext peerCtx = peerCtxProvider.get();
         ExtToolsInfo drbdProxyInfo = node.getPeer().getExtToolsManager().getExtToolInfo(
             ExtTools.DRBD_PROXY
         );
@@ -174,7 +170,6 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
 
     private PriorityProps getPrioProps(Resource rsc)
     {
-        AccessContext peerCtx = peerCtxProvider.get();
         return new PriorityProps(
             rsc.getProps(),
             rsc.getResourceDefinition().getProps(),
@@ -186,7 +181,6 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
 
     private PriorityProps getPrioProps(Resource firstRsc, Resource secondRsc)
     {
-        AccessContext peerCtx = peerCtxProvider.get();
         return new PriorityProps(
             firstRsc.getProps(),
             secondRsc.getProps(),
@@ -199,7 +193,6 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
 
     private PriorityProps getPrioProps(ResourceConnection rscCon)
     {
-        AccessContext peerCtx = peerCtxProvider.get();
         Resource srcRsc = rscCon.getSourceResource();
         Resource targetRsc = rscCon.getTargetResource();
         return new PriorityProps(

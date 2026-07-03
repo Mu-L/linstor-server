@@ -700,50 +700,32 @@ public class CtrlConfApiCallHandler
     {
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
         boolean notifyStlts = false;
-        try
+        @Nullable Props optNamespace = systemConfRepository.getCtrlConfForChange()
+            .getNamespace(deleteNamespaceRef);
+        if (optNamespace != null)
         {
-            @Nullable Props optNamespace = systemConfRepository.getCtrlConfForChange()
-                .getNamespace(deleteNamespaceRef);
-            if (optNamespace != null)
+            Iterator<String> keysIterator = optNamespace.keysIterator();
+            while (keysIterator.hasNext())
             {
-                Iterator<String> keysIterator = optNamespace.keysIterator();
-                while (keysIterator.hasNext())
-                {
-                    TripleNonNull<ApiCallRc, Boolean, Set<Resource>> result = deleteProp(
-                        keysIterator.next(),
-                        deleteNamespaceRef,
-                        propsChangedListenersRef
-                    );
-                    apiCallRc.addEntries(result.objA);
-                    notifyStlts |= result.objB;
-                }
-
-                Iterator<String> iterateNamespaces = optNamespace.iterateNamespaces();
-                while (iterateNamespaces.hasNext())
-                {
-                    PairNonNull<ApiCallRc, Boolean> result = deleteNamespace(
-                        deleteNamespaceRef + "/" + iterateNamespaces.next(),
-                        propsChangedListenersRef
-                    );
-                    apiCallRc.addEntries(result.objA);
-                    notifyStlts |= result.objB;
-                }
+                TripleNonNull<ApiCallRc, Boolean, Set<Resource>> result = deleteProp(
+                    keysIterator.next(),
+                    deleteNamespaceRef,
+                    propsChangedListenersRef
+                );
+                apiCallRc.addEntries(result.objA);
+                notifyStlts |= result.objB;
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            String errorMsg = ResponseUtils.getAccDeniedMsg(
-                "set a controller config property"
-            );
-            apiCallRc.addEntry(
-                errorMsg,
-                ApiConsts.FAIL_ACC_DENIED_CTRL_CFG | ApiConsts.MASK_CTRL_CONF | ApiConsts.MASK_CRT
-            );
-            errorReporter.reportError(
-                exc,
-                null,
-                errorMsg
-            );
+
+            Iterator<String> iterateNamespaces = optNamespace.iterateNamespaces();
+            while (iterateNamespaces.hasNext())
+            {
+                PairNonNull<ApiCallRc, Boolean> result = deleteNamespace(
+                    deleteNamespaceRef + "/" + iterateNamespaces.next(),
+                    propsChangedListenersRef
+                );
+                apiCallRc.addEntries(result.objA);
+                notifyStlts |= result.objB;
+            }
         }
         return new PairNonNull<>(apiCallRc, notifyStlts);
     }
@@ -1072,14 +1054,6 @@ public class CtrlConfApiCallHandler
             String errorMsg;
             long rc;
             boolean createErrorReport = false;
-            if (exc instanceof AccessDeniedException)
-            {
-                errorMsg = ResponseUtils.getAccDeniedMsg(
-                    "set a controller config property"
-                );
-                rc = ApiConsts.FAIL_ACC_DENIED_CTRL_CFG;
-            }
-            else
             if (exc instanceof InvalidKeyException invKeyExc)
             {
                 errorMsg = "Invalid key: " + invKeyExc.invalidKey;
@@ -1380,14 +1354,7 @@ public class CtrlConfApiCallHandler
         {
             String errorMsg;
             long rc;
-            if (exc instanceof AccessDeniedException)
-            {
-                errorMsg = ResponseUtils.getAccDeniedMsg(
-                    "set a netcom (controller) config property"
-                );
-                rc = ApiConsts.FAIL_ACC_DENIED_CTRL_CFG;
-            }
-            else if (exc instanceof InvalidKeyException invKeyExc)
+            if (exc instanceof InvalidKeyException invKeyExc)
             {
                 errorMsg = "Invalid key: " + invKeyExc.invalidKey;
                 rc = ApiConsts.FAIL_INVLD_PROP;
@@ -1563,14 +1530,6 @@ public class CtrlConfApiCallHandler
         {
             String errorMsg;
             long rc;
-            if (exc instanceof AccessDeniedException)
-            {
-                errorMsg = ResponseUtils.getAccDeniedMsg(
-                    "delete a controller config property"
-                );
-                rc = ApiConsts.FAIL_ACC_DENIED_CTRL_CFG;
-            }
-            else
             if (exc instanceof InvalidKeyException invKeyExc)
             {
                 errorMsg = "Invalid key: " + invKeyExc.invalidKey;
@@ -1596,7 +1555,6 @@ public class CtrlConfApiCallHandler
 
     private void reloadAllNodesTcpPortPools()
     {
-        AccessContext peerCtx = peerAccCtx.get();
         for (Node node : nodesMap.values())
         {
             node.getTcpPortPool().reloadRange();
@@ -1669,20 +1627,6 @@ public class CtrlConfApiCallHandler
                     errorReporter
                 );
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            ResponseUtils.addAnswerStatic(
-                ResponseUtils.getAccDeniedMsg("view the controller properties"),
-                null, // cause
-                null, // details
-                null, // correction
-                ApiConsts.MASK_CTRL_CONF | ApiConsts.FAIL_ACC_DENIED_CTRL_CFG,
-                null, // objRefs
-                null, // errorId
-                false,
-                apiCallRc
-            );
         }
         catch (InvalidKeyException exc)
         {
@@ -1866,19 +1810,6 @@ public class CtrlConfApiCallHandler
                 "Hardcoded namespace or property key invalid",
                 ApiConsts.FAIL_IMPL_ERROR,
                 null,
-                false,
-                apiCallRc,
-                errorReporter,
-                peerProvider.get()
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            ResponseUtils.reportStatic(
-                accDeniedExc,
-                ResponseUtils.getAccDeniedMsg("access the controller properties"),
-                ApiConsts.FAIL_ACC_DENIED_CTRL_CFG,
-                null, // objects
                 false,
                 apiCallRc,
                 errorReporter,
@@ -2118,17 +2049,10 @@ public class CtrlConfApiCallHandler
 
     private boolean isAutoHttpsEnabled()
     {
-        try
-        {
-            @Nullable String autoHttps = systemConfRepository
-                .getCtrlConfForView()
-                .getProp(ApiConsts.KEY_AUTO_HTTPS, ApiConsts.NAMESPC_REST);
-            return Boolean.parseBoolean(autoHttps);
-        }
-        catch (AccessDeniedException ignored)
-        {
-            return false;
-        }
+        @Nullable String autoHttps = systemConfRepository
+            .getCtrlConfForView()
+            .getProp(ApiConsts.KEY_AUTO_HTTPS, ApiConsts.NAMESPC_REST);
+        return Boolean.parseBoolean(autoHttps);
     }
 
     private void restartGrizzlyHttpService()

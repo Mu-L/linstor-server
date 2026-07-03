@@ -783,18 +783,6 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     break;
                 }
             }
-            catch (AccessDeniedException accExc)
-            {
-                errLog.reportError(
-                    Level.ERROR,
-                    new ImplementationError(
-                        "The DeviceManager was started with an access context that does not have sufficient " +
-                        "privileges to access all required information",
-                        accExc
-                    )
-                );
-                break;
-            }
             catch (ExtCmdConditionNotFullfilledException exc)
             {
                 errLog.reportError(Level.ERROR, exc);

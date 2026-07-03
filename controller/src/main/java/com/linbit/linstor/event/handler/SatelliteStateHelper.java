@@ -1,6 +1,5 @@
 package com.linbit.linstor.event.handler;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.NodeName;

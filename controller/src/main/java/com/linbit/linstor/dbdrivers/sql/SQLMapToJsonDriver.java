@@ -1,7 +1,6 @@
 package com.linbit.linstor.dbdrivers.sql;
 
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.dbdrivers.DatabaseLoader;
 import com.linbit.linstor.dbdrivers.DatabaseTable;
 import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine.DataToString;
@@ -94,10 +93,6 @@ class SQLMapToJsonDriver<DATA, KEY, VALUE> implements MapDatabaseDriver<DATA, KE
         catch (SQLException sqlExc)
         {
             throw new DatabaseException(sqlExc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            DatabaseLoader.handleAccessDeniedException(exc);
         }
     }
 }

@@ -124,9 +124,8 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         super.setUp();
         MINOR_GEN.set(MINOR_NR_MIN);
 
-        dfltRscGrp = createDefaultResourceGroup(BOB_ACC_CTX);
+        dfltRscGrp = createDefaultResourceGroup();
 
-        Mockito.when(mockPeer.getAccessContext()).thenReturn(BOB_ACC_CTX);
         Mockito.when(mockPeer.isOnline()).thenReturn(true);
         Mockito.when(freeCapacityFetcher.fetchThinFreeCapacities(any())).thenReturn(Mono.just(Collections.emptyMap()));
         Mockito.when(eventWaiter.waitForStream(any(), any())).thenReturn(Flux.empty());
@@ -171,7 +170,7 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         assertNotNull("resource should have been created on nodeC", rscOnNodeC);
         assertFalse(
             "resource on nodeC must be diskful",
-            rscOnNodeC.getStateFlags().isSet(GenericDbBase.SYS_CTX, Resource.Flags.DRBD_DISKLESS)
+            rscOnNodeC.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS)
         );
 
         // ... and no tiebreaker was created (odd diskful count -> none needed)
@@ -219,7 +218,7 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         );
         assertTrue(
             "the tiebreaker must be diskless",
-            tieBreaker.getStateFlags().isSet(GenericDbBase.SYS_CTX, Resource.Flags.DRBD_DISKLESS)
+            tieBreaker.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS)
         );
         assertEquals("expected exactly 2 diskful resources", 2, countDiskful());
     }
@@ -258,14 +257,14 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         {
             enterScope();
 
-            Node stlt = nodeFactory.create(BOB_ACC_CTX, new NodeName(nodeNameStr), Node.Type.SATELLITE, null);
+            Node stlt = nodeFactory.create(new NodeName(nodeNameStr), Node.Type.SATELLITE, null);
             nodesMap.put(stlt.getName(), stlt);
 
-            stlt.setPeer(GenericDbBase.SYS_CTX, mockSatellitePeer());
+            stlt.setPeer(mockSatellitePeer());
 
             for (Entry<String, String> propEntry : nodeProps.entrySet())
             {
-                stlt.getProps(BOB_ACC_CTX).setProp(propEntry.getKey(), propEntry.getValue());
+                stlt.getProps().setProp(propEntry.getKey(), propEntry.getValue());
             }
 
             // every node needs a diskless storage pool so the diskless tiebreaker can be placed on it
@@ -314,7 +313,7 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         enterScope();
         createStorPool(stlt, storPoolNameStr, DeviceProviderKind.LVM)
             .getFreeSpaceTracker()
-            .setCapacityInfo(GenericDbBase.SYS_CTX, 10 * GB, 10 * GB);
+            .setCapacityInfo( 10 * GB, 10 * GB);
         commitAndCleanUp(true);
     }
 
@@ -326,19 +325,18 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         throws Exception
     {
         StorPoolName storPoolName = new StorPoolName(storPoolNameStr);
-        StorPoolDefinition storPoolDfn = storPoolDefinitionRepository.get(SYS_CTX, storPoolName);
+        StorPoolDefinition storPoolDfn = storPoolDefinitionRepository.get(storPoolName);
         if (storPoolDfn == null)
         {
-            storPoolDfn = storPoolDefinitionFactory.create(BOB_ACC_CTX, storPoolName);
+            storPoolDfn = storPoolDefinitionFactory.create(storPoolName);
             storPoolDfnMap.put(storPoolDfn.getName(), storPoolDfn);
         }
 
         return storPoolFactory.create(
-            BOB_ACC_CTX,
             stlt,
             storPoolDfn,
             providerKind,
-            freeSpaceMgrFactory.getInstance(BOB_ACC_CTX, new SharedStorPoolName(stlt.getName(), storPoolDfn.getName())),
+            freeSpaceMgrFactory.getInstance(new SharedStorPoolName(stlt.getName(), storPoolDfn.getName())),
             false
         );
     }
@@ -358,7 +356,6 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         drbdRscDfn.transportType = TransportType.IP;
 
         ResourceDefinition rscDfn = resourceDefinitionFactory.create(
-            BOB_ACC_CTX,
             new ResourceName(rscNameStr),
             null,
             null,
@@ -369,14 +366,13 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         rscDfnMap.put(rscDfn.getName(), rscDfn);
 
         // enable the auto-tiebreaker feature (no default -> must be set explicitly)
-        rscDfn.getProps(BOB_ACC_CTX).setProp(
+        rscDfn.getProps().setProp(
             ApiConsts.KEY_DRBD_AUTO_ADD_QUORUM_TIEBREAKER,
             ApiConsts.VAL_TRUE,
             ApiConsts.NAMESPC_DRBD_OPTIONS
         );
 
         volumeDefinitionFactory.create(
-            BOB_ACC_CTX,
             rscDfn,
             new VolumeNumber(0),
             MINOR_GEN.incrementAndGet(),
@@ -532,18 +528,18 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
     private @Nullable Resource getResource(String nodeNameStr) throws Exception
     {
         return rscDfnMap.get(new ResourceName(TEST_RSC_NAME))
-            .getResource(SYS_CTX, new NodeName(nodeNameStr));
+            .getResource(new NodeName(nodeNameStr));
     }
 
     private @Nullable Resource findTieBreaker() throws Exception
     {
         ResourceDefinition rscDfn = rscDfnMap.get(new ResourceName(TEST_RSC_NAME));
         Resource tieBreaker = null;
-        Iterator<Resource> rscIt = rscDfn.iterateResource(SYS_CTX);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
-            if (rsc.getStateFlags().isSet(SYS_CTX, Resource.Flags.TIE_BREAKER))
+            if (rsc.getStateFlags().isSet(Resource.Flags.TIE_BREAKER))
             {
                 tieBreaker = rsc;
                 break;
@@ -556,11 +552,11 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
     {
         ResourceDefinition rscDfn = rscDfnMap.get(new ResourceName(TEST_RSC_NAME));
         int count = 0;
-        Iterator<Resource> rscIt = rscDfn.iterateResource(SYS_CTX);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
-            if (!rsc.getStateFlags().isSet(SYS_CTX, Resource.Flags.DRBD_DISKLESS))
+            if (!rsc.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS))
             {
                 count++;
             }

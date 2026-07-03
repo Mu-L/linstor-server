@@ -1,7 +1,6 @@
 package com.linbit.linstor.core;
 
 import com.linbit.GuiceConfigModule;
-import com.linbit.ImplementationError;
 import com.linbit.ServiceName;
 import com.linbit.SystemService;
 import com.linbit.SystemServiceStartException;
@@ -113,8 +112,6 @@ public final class Controller
 
     // Error & exception logging facility
     private final ErrorReporter errorReporter;
-
-    // System security context
 
     private final CoreTimer timerEventSvc;
 
@@ -239,9 +236,6 @@ public final class Controller
 
         try
         {
-            AccessContext initCtx = sysCtx.clone();
-            initCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-
             Level tmpLinLevel = null;
             String logLevelLinstorStr = linstorCfgRef.getLogLevelLinstor();
             String logLevelStr = linstorCfgRef.getLogLevel();
@@ -375,11 +369,6 @@ public final class Controller
         try
         {
             errorReporter.logInfo("Entering debug console");
-
-            AccessContext privCtx = sysCtx.clone();
-            AccessContext debugCtx = sysCtx.clone();
-            privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-            debugCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
 
             DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(null);
             dbgConsole.stdStreamsConsole(DebugConsoleImpl.CONSOLE_PROMPT);
@@ -528,8 +517,6 @@ public final class Controller
                 Arrays.asList(
                     new GuiceConfigModule(),
                     new LoggingModule(errorLog),
-                    new SecurityModule(),
-                    new ControllerSecurityModule(),
                     new CtrlConfigModule(cfg),
                     new CoreTimerModule(),
                     new MetaDataModule(),

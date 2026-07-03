@@ -26,14 +26,6 @@ import com.linbit.linstor.dbdrivers.interfaces.ResourceConnectionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceDefinitionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceGroupDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecConfigDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecIdRoleDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecIdentityDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecObjProtAclDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecObjProtDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecRoleDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecTypeDatabaseDriver;
-import com.linbit.linstor.dbdrivers.interfaces.SecTypeRulesDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDefinitionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeDatabaseDriver;
@@ -56,7 +48,6 @@ public class SatelliteDbModule extends AbstractModule
     {
         // we need to override objProtFactory so that every requested objProt already exists without needing to change
         // the "failIfNotExists" everywhere in production code
-        bind(ObjectProtectionFactory.class).to(ObjectProtectionStltFactory.class);
 
         bind(DatabaseDriver.class).to(SatelliteDbDriver.class);
 
@@ -106,13 +97,5 @@ public class SatelliteDbModule extends AbstractModule
         bind(LayerBCacheRscDatabaseDriver.class).to(SatelliteLayerBCacheRscDbDriver.class);
         bind(LayerBCacheVlmDatabaseDriver.class).to(SatelliteLayerBCacheVlmDbDriver.class);
 
-        bind(SecConfigDatabaseDriver.class).to(SatelliteSecConfigDbDriver.class);
-        bind(SecIdentityDatabaseDriver.class).to(SatelliteSecIdentityDbDriver.class);
-        bind(SecIdRoleDatabaseDriver.class).to(SatelliteSecIdRoleDbDriver.class);
-        bind(SecObjProtAclDatabaseDriver.class).to(SatelliteSecObjProtAclDbDriver.class);
-        bind(SecObjProtDatabaseDriver.class).to(SatelliteSecObjProtDbDriver.class);
-        bind(SecRoleDatabaseDriver.class).to(SatelliteSecRoleDbDriver.class);
-        bind(SecTypeDatabaseDriver.class).to(SatelliteSecTypeDbDriver.class);
-        bind(SecTypeRulesDatabaseDriver.class).to(SatelliteSecTypeRulesDbDriver.class);
     }
 }

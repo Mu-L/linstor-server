@@ -38,7 +38,6 @@ public class SharedStorPoolManagerTest extends GenericDbBase
         setUpAndEnterScope();
 
         sharedStorPoolMgr = new SharedStorPoolManager(
-            TestAccessContextProvider.SYS_CTX,
             errorReporter
         );
 

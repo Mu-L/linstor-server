@@ -1078,7 +1078,7 @@ public class RscDrbdLayerHelper extends
     /**
      * <p>
      * Checks if the given <code>peerSlots</code> is large enough for the given {@link ResourceDefinition} based on
-     * {@link ResourceDefinition#getDiskfulCount(AccessContext)}. The <code>reservedPeerSlotCount</code> should be used
+     * {@link ResourceDefinition#getDiskfulCount()}. The <code>reservedPeerSlotCount</code> should be used
      * to indicate how much larger <code>peerSlots</code> should be than the count of already deployed diskful
      * resources. </p>
      * <p>Usual use-cases are

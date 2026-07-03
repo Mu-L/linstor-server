@@ -324,7 +324,7 @@ public class WorkerPoolTest
         }
 
         @Override
-        public void setLogLevel(@Nullable AccessContext accCtx, @Nullable Level level, @Nullable Level linstorLevel)
+        public void setLogLevel(@Nullable Level level, @Nullable Level linstorLevel)
         {
             // Tracing on/off not implemented, no-op
         }

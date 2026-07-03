@@ -76,8 +76,8 @@ public class LuksLayerSizeCalculatorTest extends GenericDbBase
     {
         setUpAndEnterScope();
         byte[] testMasterKey = encrHelper.generateSecret();
-        encrHelper.setPassphraseImpl("testPassphrase".getBytes(), testMasterKey, SYS_CTX);
-        @Nullable ReadOnlyProps encryptedNamespace = encrHelper.getEncryptedNamespace(SYS_CTX);
+        encrHelper.setPassphraseImpl("testPassphrase".getBytes(), testMasterKey);
+        @Nullable ReadOnlyProps encryptedNamespace = encrHelper.getEncryptedNamespace();
         if (encryptedNamespace == null)
         {
             throw new ImplementationError(
@@ -255,7 +255,7 @@ public class LuksLayerSizeCalculatorTest extends GenericDbBase
                 .thenReturn(
                     new ExtToolsInfo(ExtTools.CRYPT_SETUP, cryptSetupVersion != null, cryptSetupVersion, null)
                 );
-            node.setPeer(SYS_CTX, mockedPeer);
+            node.setPeer(mockedPeer);
 
             Resource rsc = rscFactory.builder(nodeName, rscName)
                 .setLayerStack(layerStack)
@@ -263,7 +263,7 @@ public class LuksLayerSizeCalculatorTest extends GenericDbBase
             StorPool storPool = spFactory.builder(nodeName, spName)
                 .setDriverKind(spKind)
                 .build();
-            storPool.getProps(SYS_CTX).map().putAll(spPropsMap);
+            storPool.getProps().map().putAll(spPropsMap);
             layerPayload.putStorageVlmPayload("", vlmNr, storPool);
             VolumeDefinitionBuilder vlmDfnBuilder = volumeDefinitionTestFactory.builder(rscName)
                 .setSize(size);
@@ -279,7 +279,7 @@ public class LuksLayerSizeCalculatorTest extends GenericDbBase
                 .build();
 
             Set<AbsRscLayerObject<Resource>> rscDataSet = LayerRscUtils.getRscDataByLayer(
-                rsc.getLayerData(SYS_CTX),
+                rsc.getLayerData(),
                 DeviceLayerKind.LUKS
             );
             LuksRscData<Resource> luksRscData = (LuksRscData<Resource>) rscDataSet.iterator().next();

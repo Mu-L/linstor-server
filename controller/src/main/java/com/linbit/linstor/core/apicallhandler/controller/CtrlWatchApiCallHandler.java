@@ -6,13 +6,10 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.response.ResponseUtils;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
-import com.linbit.linstor.core.repository.NodeRepository;
-import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.event.EventBroker;
 import com.linbit.linstor.event.EventIdentifier;
 import com.linbit.linstor.event.ObjectIdentifier;
@@ -33,23 +30,17 @@ public class CtrlWatchApiCallHandler
     private final ErrorReporter errorReporter;
     private final Provider<Peer> peer;
     private final EventBroker eventBroker;
-    private final NodeRepository nodeRepository;
-    private final ResourceDefinitionRepository resourceDefinitionRepository;
 
     @Inject
     public CtrlWatchApiCallHandler(
         ErrorReporter errorReporterRef,
         Provider<Peer> peerRef,
-        EventBroker eventBrokerRef,
-        NodeRepository nodeRepositoryRef,
-        ResourceDefinitionRepository resourceDefinitionRepositoryRef
+        EventBroker eventBrokerRef
     )
     {
         errorReporter = errorReporterRef;
         peer = peerRef;
         eventBroker = eventBrokerRef;
-        nodeRepository = nodeRepositoryRef;
-        resourceDefinitionRepository = resourceDefinitionRepositoryRef;
     }
 
     public ApiCallRc createWatch(
@@ -139,10 +130,6 @@ public class CtrlWatchApiCallHandler
         {
             try
             {
-                // Watches can result in data being retrieved for objects that do not yet exist.
-                // For these objects we do not know the access requirements.
-                // Hence we require read access to the entire node and resource definition collections.
-
                 eventBroker.createWatch(peer.get(), new Watch(
                     UUID.randomUUID(), peer.get().getId(), peerWatchId,
                     new EventIdentifier(
@@ -157,14 +144,6 @@ public class CtrlWatchApiCallHandler
             {
                 errorMsg = "Unknown event name '" + exc.getEventName() + "'";
                 rc = ApiConsts.FAIL_UNKNOWN_ERROR;
-                errorExc = exc;
-            }
-            catch (AccessDeniedException exc)
-            {
-                errorMsg = ResponseUtils.getAccDeniedMsg(
-                    "create a watch"
-                );
-                rc = ApiConsts.FAIL_ACC_DENIED_WATCH;
                 errorExc = exc;
             }
         }

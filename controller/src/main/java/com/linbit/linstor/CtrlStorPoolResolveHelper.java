@@ -26,7 +26,6 @@ import static com.linbit.linstor.api.ApiConsts.KEY_RSC_ALLOW_MIXING_DEVICE_KIND;
 import static com.linbit.linstor.api.ApiConsts.KEY_STOR_POOL_NAME;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;

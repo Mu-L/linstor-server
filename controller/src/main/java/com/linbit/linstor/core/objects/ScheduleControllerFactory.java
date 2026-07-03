@@ -31,7 +31,6 @@ import com.cronutils.parser.CronParser;
 public class ScheduleControllerFactory
 {
     private final ScheduleDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objProtFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
     private final ScheduleRepository scheduleRepo;
@@ -39,14 +38,12 @@ public class ScheduleControllerFactory
     @Inject
     public ScheduleControllerFactory(
         ScheduleDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objProtFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
         ScheduleRepository scheduleRepoRef
     )
     {
         dbDriver = dbDriverRef;
-        objProtFactory = objProtFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
         scheduleRepo = scheduleRepoRef;
@@ -120,10 +117,6 @@ public class ScheduleControllerFactory
             throw new ApiRcException(errorRc);
         }
         Schedule schedule = new Schedule(
-            objProtFactory.getInstance(
-                ObjectProtection.buildPath(nameRef),
-                true
-            ),
             UUID.randomUUID(),
             dbDriver,
             nameRef,

@@ -50,7 +50,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
-import com.google.inject.Key;
 import reactor.core.publisher.Flux;
 import reactor.util.context.Context;
 
@@ -184,7 +183,6 @@ public class ReconnectorTask implements Task
                         Context.of(
                             ApiModule.API_CALL_NAME,
                             "Abort currently shipped snapshots",
-                            AccessContext.class,
                             Peer.class,
                             peer
                         )
@@ -428,8 +426,7 @@ public class ReconnectorTask implements Task
 
                 // Check if the Node's current peer is connected, not the stale peer in config.
                 // The node might have reconnected via a different Peer object.
-                @Nullable Peer currentPeer = null;
-                currentPeer = node.getPeer();
+                @Nullable Peer currentPeer = node.getPeer();
                 if (currentPeer != null && currentPeer.isConnected(false))
                 {
                     errorReporter.logInfo(
@@ -496,11 +493,10 @@ public class ReconnectorTask implements Task
                 // waiting for the lock)
                 if (!node.isDeleted())
                 {
-                    reconnScope.seed(Key.get(AccessContext.class, PeerContext.class));
                     TransactionMgrUtil.seedTransactionMgr(reconnScope, transMgr);
 
                     // look for another netIf configured as satellite connection and set it as active
-                    setNextNetIf(node, config);
+                    setNextNetIf(node);
 
                     transMgr.commit();
 
@@ -553,8 +549,6 @@ public class ReconnectorTask implements Task
                 Context.of(
                     ApiModule.API_CALL_NAME,
                     "Recon:AutoEvicting",
-                    AccessContext.class,
-                    peer.getAccessContext(),
                     Peer.class,
                     peer
                 )
@@ -568,10 +562,10 @@ public class ReconnectorTask implements Task
      * makes sure to not simply toggle between the first two (first non-selected netIf), but to actually iterate
      * through all available NetIfs before starting at the first again.
      */
-    private void setNextNetIf(Node node, ReconnectConfig config) throws DatabaseException
+    private void setNextNetIf(Node node) throws DatabaseException
     {
-        final @Nullable NetInterface currentActiveStltConn = node.getActiveStltConn(config.peer.getAccessContext());
-        Iterator<NetInterface> netIfIt = node.iterateNetInterfaces(config.peer.getAccessContext());
+        final @Nullable NetInterface currentActiveStltConn = node.getActiveStltConn();
+        Iterator<NetInterface> netIfIt = node.iterateNetInterfaces();
         @Nullable NetInterface firstNetIf = null;
         @Nullable NetInterface nextNetIf = null;
         boolean setNext = false;
@@ -579,7 +573,7 @@ public class ReconnectorTask implements Task
         while (netIfIt.hasNext())
         {
             NetInterface netInterface = netIfIt.next();
-            boolean usableAsStltConn = netInterface.isUsableAsStltConn(config.peer.getAccessContext());
+            boolean usableAsStltConn = netInterface.isUsableAsStltConn();
             if (firstNetIf == null && usableAsStltConn)
             {
                 firstNetIf = netInterface;
@@ -596,9 +590,9 @@ public class ReconnectorTask implements Task
                 errorReporter.logInfo(
                     "Setting new active satellite connection on " + node.getName().displayValue + " '" +
                         netInterface.getName() + "' " +
-                        netInterface.getAddress(config.peer.getAccessContext()).getAddress()
+                        netInterface.getAddress().getAddress()
                 );
-                node.setActiveStltConn(config.peer.getAccessContext(), netInterface);
+                node.setActiveStltConn(netInterface);
                 netIfUpdated = true;
                 break;
             }
@@ -615,9 +609,9 @@ public class ReconnectorTask implements Task
                 errorReporter.logInfo(
                     "Setting new active satellite connection: '" +
                         nextNetIf.getName() + "' " +
-                        nextNetIf.getAddress(config.peer.getAccessContext()).getAddress()
+                        nextNetIf.getAddress().getAddress()
                 );
-                node.setActiveStltConn(config.peer.getAccessContext(), nextNetIf);
+                node.setActiveStltConn(nextNetIf);
             }
         }
         else
@@ -643,105 +637,98 @@ public class ReconnectorTask implements Task
         ArrayList<PairNonNull<Flux<ApiCallRc>, Peer>> fluxes = new ArrayList<>();
         for (ReconnectConfig config : copy)
         {
-            try
+            @Nullable Node node = config.peer.getNode();
+            if (node != null && !node.isDeleted())
             {
-                @Nullable Node node = config.peer.getNode();
-                if (node != null && !node.isDeleted())
+                boolean drbdOkNew = drbdConnectionsOk(node);
+                final PriorityProps props = new PriorityProps(
+                    node.getProps(),
+                    systemConfRepo.getCtrlConfForView()
+                );
+                final long timeout = Long.parseLong(
+                    props.getProp(
+                        ApiConsts.KEY_AUTO_EVICT_AFTER_TIME,
+                        ApiConsts.NAMESPC_DRBD_OPTIONS,
+                        "720" // 12 hours
+                    )
+                ) * 60 * 1000; // to milliseconds
+                final boolean allowEviction = Boolean.parseBoolean(
+                    props.getProp(
+                        ApiConsts.KEY_AUTO_EVICT_ALLOW_EVICTION,
+                        ApiConsts.NAMESPC_DRBD_OPTIONS,
+                        "false"
+                    )
+                );
+                if (config.drbdOk != drbdOkNew)
                 {
-                    boolean drbdOkNew = drbdConnectionsOk(node);
-                    final PriorityProps props = new PriorityProps(
-                        node.getProps(),
-                        systemConfRepo.getCtrlConfForView()
-                    );
-                    final long timeout = Long.parseLong(
-                        props.getProp(
-                            ApiConsts.KEY_AUTO_EVICT_AFTER_TIME,
-                            ApiConsts.NAMESPC_DRBD_OPTIONS,
-                            "720" // 12 hours
-                        )
-                    ) * 60 * 1000; // to milliseconds
-                    final boolean allowEviction = Boolean.parseBoolean(
-                        props.getProp(
-                            ApiConsts.KEY_AUTO_EVICT_ALLOW_EVICTION,
-                            ApiConsts.NAMESPC_DRBD_OPTIONS,
-                            "false"
-                        )
-                    );
-                    if (config.drbdOk != drbdOkNew)
+                    config.drbdOk = drbdOkNew;
+                    if (!config.drbdOk)
                     {
-                        config.drbdOk = drbdOkNew;
-                        if (!config.drbdOk)
-                        {
-                            config.offlineSince = System.currentTimeMillis();
-                        }
+                        config.offlineSince = System.currentTimeMillis();
                     }
-                    if (!node.getFlags().isSet(Node.Flags.EVICTED))
+                }
+                if (!node.getFlags().isSet(Node.Flags.EVICTED))
+                {
+                    retry.add(config);
+                    long evictionTimestamp = config.offlineSince + timeout;
+                    if (allowEviction)
                     {
-                        retry.add(config);
-                        long evictionTimestamp = config.offlineSince + timeout;
+                        node.setEvictionTimestamp(evictionTimestamp);
+                    }
+                    else
+                    {
+                        node.setEvictionTimestamp(null);
+                    }
+                    if (!config.drbdOk && System.currentTimeMillis() >= evictionTimestamp)
+                    {
                         if (allowEviction)
                         {
-                            node.setEvictionTimestamp(evictionTimestamp);
-                        }
-                        else
-                        {
-                            node.setEvictionTimestamp(null);
-                        }
-                        if (!config.drbdOk && System.currentTimeMillis() >= evictionTimestamp)
-                        {
-                            if (allowEviction)
+                            int numDiscon = reconnectorConfigSet.size();
+                            int maxPercentDiscon = Integer.parseInt(
+                                props.getProp(
+                                    ApiConsts.KEY_AUTO_EVICT_MAX_DISCONNECTED_NODES,
+                                    ApiConsts.NAMESPC_DRBD_OPTIONS,
+                                    "34"
+                                )
+                            );
+                            int numNodes = nodeRepository.getMapForView().size();
+                            int maxDiscon = Math.round(maxPercentDiscon * numNodes / 100.0f);
+                            if (numDiscon <= maxDiscon)
                             {
-                                int numDiscon = reconnectorConfigSet.size();
-                                int maxPercentDiscon = Integer.parseInt(
-                                    props.getProp(
-                                        ApiConsts.KEY_AUTO_EVICT_MAX_DISCONNECTED_NODES,
-                                        ApiConsts.NAMESPC_DRBD_OPTIONS,
-                                        "34"
+                                errorReporter.logInfo(
+                                    config.peer + " has been offline for too long, relocation of resources started."
+                                );
+                                fluxes.add(
+                                    new PairNonNull<>(
+                                        ctrlNodeApiCallHandler.get().declareEvicted(node),
+                                        config.peer
                                     )
                                 );
-                                int numNodes = nodeRepository.getMapForView().size();
-                                int maxDiscon = Math.round(maxPercentDiscon * numNodes / 100.0f);
-                                if (numDiscon <= maxDiscon)
-                                {
-                                    errorReporter.logInfo(
-                                        config.peer + " has been offline for too long, relocation of resources started."
-                                    );
-                                    fluxes.add(
-                                        new PairNonNull<>(
-                                            ctrlNodeApiCallHandler.get().declareEvicted(node),
-                                            config.peer
-                                        )
-                                    );
 
-                                    // evicted, stop trying reconnect
-                                    retry.remove(config);
-                                    reconnectorConfigSet.remove(config);
-                                }
-                                else
-                                {
-                                    errorReporter.logInfo(
-                                        "Currently more than %d%% nodes are not connected to the controller. " +
-                                            "The controller might have a problem with it's connections, therefore " +
-                                            "no nodes will be declared as EVICTED",
-                                        maxPercentDiscon
-                                    );
-                                }
+                                // evicted, stop trying reconnect
+                                retry.remove(config);
+                                reconnectorConfigSet.remove(config);
                             }
                             else
                             {
-                                errorReporter.logDebug(
-                                    "The node %s will not be evicted since the property AutoEvictAllowEviction is " +
-                                        "set to false.",
-                                    node.getKey().displayValue
+                                errorReporter.logInfo(
+                                    "Currently more than %d%% nodes are not connected to the controller. " +
+                                        "The controller might have a problem with it's connections, therefore " +
+                                        "no nodes will be declared as EVICTED",
+                                    maxPercentDiscon
                                 );
                             }
                         }
+                        else
+                        {
+                            errorReporter.logDebug(
+                                "The node %s will not be evicted since the property AutoEvictAllowEviction is " +
+                                    "set to false.",
+                                node.getKey().displayValue
+                            );
+                        }
                     }
                 }
-            }
-            catch (AccessDeniedException exc)
-            {
-                errorReporter.reportError(exc);
             }
         }
         return new PairNonNull<>(retry, fluxes);

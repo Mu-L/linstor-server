@@ -144,7 +144,6 @@ public class Resource extends AbsResource<Resource>
     /**
      * Sets a property for the device manager to restart this DRBD resource
      *
-     * @param accCtx Access context for accessing the resource's properties
      * @throws DatabaseException if a database operation fails
      */
     public void requireDrbdRestart()

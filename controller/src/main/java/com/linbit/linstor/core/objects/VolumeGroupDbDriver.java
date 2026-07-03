@@ -6,7 +6,7 @@ import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -32,7 +32,7 @@ import java.util.Map;
 
 @Singleton
 public final class VolumeGroupDbDriver
-    extends AbsProtectedDatabaseDriver<VolumeGroup, Void, Map<ResourceGroupName, ? extends ResourceGroup>>
+    extends AbsDatabaseDriver<VolumeGroup, Void, Map<ResourceGroupName, ? extends ResourceGroup>>
     implements VolumeGroupCtrlDatabaseDriver
 {
     private final StateFlagsPersistence<VolumeGroup> flagsDriver;
@@ -45,12 +45,11 @@ public final class VolumeGroupDbDriver
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.VOLUME_GROUPS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.VOLUME_GROUPS, dbEngineRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;

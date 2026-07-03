@@ -82,8 +82,6 @@ import com.linbit.utils.StringUtils;
 import static com.linbit.linstor.api.ApiConsts.MASK_STOR_POOL;
 import static com.linbit.linstor.api.ApiConsts.MASK_WARN;
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.getRscDescriptionInline;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlVlmDfnApiCallHandler.getVlmDfnDescriptionInline;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -240,7 +238,6 @@ public class CtrlRscCrtApiHelper
         Resource rsc;
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
-        AccessContext peerCtx = peerAccCtx.get();
         Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
         if (backupInfoMgr.restoreContainsRscDfn(rscDfn))
         {
@@ -773,7 +770,6 @@ public class CtrlRscCrtApiHelper
     {
         try
         {
-            AccessContext peerCtx = peerAccCtx.get();
             AbsRscLayerObject<Resource> rscLayerObj = vlmRef.getAbsResource().getLayerData();
             if (LayerUtils.hasLayer(rscLayerObj, DeviceLayerKind.DRBD))
             {
@@ -950,9 +946,7 @@ public class CtrlRscCrtApiHelper
 
                 for (Resource rsc : deployedResources)
                 {
-                    if (AccessUtils.execPrivileged(
-                        () -> DrbdLayerUtils.isAnyDrbdResourceExpected(rsc)
-                    ))
+                    if (DrbdLayerUtils.isAnyDrbdResourceExpected(rsc))
                     {
                         NodeName nodeName = rsc.getNode().getName();
                         if (containsDrbdLayerData(rsc))
@@ -1074,7 +1068,6 @@ public class CtrlRscCrtApiHelper
         Flux<ApiCallRc> flux;
         try
         {
-            AccessContext peerCtx = peerAccCtx.get();
             for (Resource rsc : deployedResourcesRef)
             {
                 // rsc might have been deleted.
@@ -1406,7 +1399,6 @@ public class CtrlRscCrtApiHelper
     private boolean allDiskless(ResourceDefinition rscDfn)
     {
         boolean allDiskless = true;
-        AccessContext accCtx = peerAccCtx.get();
         Iterator<Resource> rscIter = rscDfn.iterateResource();
         while (rscIter.hasNext())
         {

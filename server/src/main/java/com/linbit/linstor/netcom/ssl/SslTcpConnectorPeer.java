@@ -142,7 +142,6 @@ public class SslTcpConnectorPeer extends TcpConnectorPeer
      * @param peerId LINSTOR netcom ID for this connection (usually identified by the peer's address)
      * @param sslConnectorService LINSTOR netcom connector for this connection
      * @param connKey SelectionKey associated with this connection, for the nonblocking I/O Selector
-     * @param peerAccCtx AccessContext associated with the peer (the peer's security credentials)
      * @param sslCtxRef SSLContext for this SSL connection (SSL settings for the SSLEngine)
      * @param peerAddress Address to connect to; null when accepting an inbound connection
      * @param node LINSTOR Node object associated with this connection (e.g., the connected LINSTOR satellite)

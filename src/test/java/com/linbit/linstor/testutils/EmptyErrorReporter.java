@@ -116,7 +116,7 @@ public class EmptyErrorReporter implements ErrorReporter
     }
 
     @Override
-    public void setLogLevel(@Nullable AccessContext accCtx, @Nullable Level levelRef, @Nullable Level linstorLevelRef)
+    public void setLogLevel(@Nullable Level levelRef, @Nullable Level linstorLevelRef)
     {
     }
 

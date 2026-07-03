@@ -1,6 +1,5 @@
 package com.linbit.linstor.tasks;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.BalanceResources;
 import com.linbit.linstor.core.repository.SystemConfRepository;
@@ -53,10 +52,6 @@ public class BalanceResourcesTask implements TaskScheduleService.Task
                 ApiConsts.KEY_BALANCE_RESOURCES_INTERVAL,
                 DEFAULT_TASK_INTERVAL_SEC);
             log.reportError(nfe);
-        }
-        catch (AccessDeniedException exc)
-        {
-            log.reportError(new ImplementationError(exc));
         }
         return nextExecInterval;
     }

@@ -22,7 +22,6 @@ public class SatelliteDebugModule extends AbstractModule
         commandsBinder.addBinding().to(CmdAbortDeviceManager.class);
     }
 
-    // Use Provides methods because the ObjectProtection objects are not present on the satellite
     @Provides
     CmdDisplayNodes cmdDisplayNodes(
         @Named(CoreModule.RECONFIGURATION_LOCK) ReadWriteLock reconfigurationLockRef,
@@ -30,7 +29,7 @@ public class SatelliteDebugModule extends AbstractModule
         CoreModule.NodesMap nodesMapRef
     )
     {
-        return new CmdDisplayNodes(reconfigurationLockRef, nodesMapLockRef, null, nodesMapRef);
+        return new CmdDisplayNodes(reconfigurationLockRef, nodesMapLockRef, nodesMapRef);
     }
 
     @Provides
@@ -42,7 +41,7 @@ public class SatelliteDebugModule extends AbstractModule
     )
     {
         return new CmdDisplayResource(
-            reconfigurationLockRef, nodesMapLockRef, rscDfnMapLockRef, null, rscDfnMapRef);
+            reconfigurationLockRef, nodesMapLockRef, rscDfnMapLockRef, rscDfnMapRef);
     }
 
     @Provides
@@ -52,7 +51,7 @@ public class SatelliteDebugModule extends AbstractModule
         CoreModule.ResourceDefinitionMap rscDfnMapRef
     )
     {
-        return new CmdDisplayResourceDfn(reconfigurationLockRef, rscDfnMapLockRef, null, rscDfnMapRef);
+        return new CmdDisplayResourceDfn(reconfigurationLockRef, rscDfnMapLockRef, rscDfnMapRef);
     }
 
     @Provides
@@ -63,7 +62,7 @@ public class SatelliteDebugModule extends AbstractModule
     )
     {
         return new CmdDisplayStorPool(
-            reconfigurationLockRef, storPoolDfnMapLockRef, null, storPoolDfnMapRef);
+            reconfigurationLockRef, storPoolDfnMapLockRef, storPoolDfnMapRef);
     }
 
     @Provides
@@ -74,6 +73,6 @@ public class SatelliteDebugModule extends AbstractModule
     )
     {
         return new CmdDisplayStorPoolDfn(
-            reconfigurationLockRef, storPoolDfnMapLockRef, null, storPoolDfnMapRef);
+            reconfigurationLockRef, storPoolDfnMapLockRef, storPoolDfnMapRef);
     }
 }

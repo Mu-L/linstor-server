@@ -31,7 +31,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.AbsRemote.RemoteType;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.storage.kinds.ExtTools;
@@ -661,7 +660,7 @@ public class BackupFindUsableNodesTest extends ApiTestBase
         ReentrantReadWriteLock peerLock = new ReentrantReadWriteLock(true);
         Mockito.when(mockedPeer.getSatelliteStateLock()).thenReturn(peerLock);
 
-        node.setPeer(GenericDbBase.SYS_CTX, mockedPeer);
+        node.setPeer(mockedPeer);
 
         return node;
     }

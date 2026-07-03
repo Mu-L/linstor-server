@@ -142,9 +142,6 @@ public class ConfFileBuilderTest
         MockitoAnnotations.initMocks(this);
 
         errorReporter = new EmptyErrorReporter();
-        accessContext = DummySecurityInitializer.getSystemAccessContext();
-
-        dummyObjectProtection = DummySecurityInitializer.getDummyObjectProtection();
 
         whitelistProps = new WhitelistProps(errorReporter);
         // just let it empty - we do not want test drbd-options anyways here
@@ -382,7 +379,7 @@ public class ConfFileBuilderTest
         when(volumeDefinition.getVolumeNumber()).thenReturn(new VolumeNumber(volumeNumber));
         when(volumeDefinition.getResourceDefinition()).thenReturn(resourceDefinition);
 
-        when(volumeFlags.isUnset(any(AccessContext.class), eq(Volume.Flags.DELETE)))
+        when(volumeFlags.isUnset(eq(Volume.Flags.DELETE)))
             .thenReturn(!volumeDeleted);
 
         when(volume.getFlags()).thenReturn(volumeFlags);
@@ -392,11 +389,11 @@ public class ConfFileBuilderTest
         when(volume.getAbsResource()).thenReturn(resource);
         when(volume.getVolumeNumber()).thenReturn(new VolumeNumber(volumeNumber));
 
-        when(netInterface.getAddress(any(AccessContext.class)))
+        when(netInterface.getAddress())
                 .thenReturn(new LsIpAddress(ipAddr));
 
         when(assignedNode.getName()).thenReturn(new NodeName(nodeName));
-        when(assignedNode.streamNetInterfaces(any(AccessContext.class)))
+        when(assignedNode.streamNetInterfaces())
                 .thenAnswer(makeStreamAnswer(netInterface));
 
         when(assignedNode.getNetInterface(new NetInterfaceName("eth0"))).thenReturn(netInterface);
@@ -406,19 +403,19 @@ public class ConfFileBuilderTest
         when(assignedNode.getNetInterface(new NetInterfaceName("eth-1"))).thenReturn(null);
         when(netInterface.getNode()).thenReturn(assignedNode);
 
-        when(rscStateFlags.isUnset(any(AccessContext.class), eq(Resource.Flags.DELETE)))
+        when(rscStateFlags.isUnset(eq(Resource.Flags.DELETE)))
             .thenReturn(!resourceDeleted);
-        when(rscStateFlags.isUnset(any(AccessContext.class), eq(Resource.Flags.DRBD_DISKLESS)))
+        when(rscStateFlags.isUnset(eq(Resource.Flags.DRBD_DISKLESS)))
             .thenReturn(!diskless);
-        when(rscStateFlags.isSet(any(AccessContext.class), eq(Resource.Flags.DRBD_DISKLESS)))
+        when(rscStateFlags.isSet(eq(Resource.Flags.DRBD_DISKLESS)))
             .thenReturn(diskless);
-        when(rscStateFlags.isUnset(any(AccessContext.class), eq(Resource.Flags.NVME_INITIATOR)))
+        when(rscStateFlags.isUnset(eq(Resource.Flags.NVME_INITIATOR)))
             .thenReturn(!diskless);
-        when(rscStateFlags.isSet(any(AccessContext.class), eq(Resource.Flags.NVME_INITIATOR)))
+        when(rscStateFlags.isSet(eq(Resource.Flags.NVME_INITIATOR)))
             .thenReturn(diskless);
-        when(rscStateFlags.isUnset(any(AccessContext.class), eq(Resource.Flags.EBS_INITIATOR)))
+        when(rscStateFlags.isUnset(eq(Resource.Flags.EBS_INITIATOR)))
             .thenReturn(!diskless);
-        when(rscStateFlags.isSet(any(AccessContext.class), eq(Resource.Flags.EBS_INITIATOR)))
+        when(rscStateFlags.isSet(eq(Resource.Flags.EBS_INITIATOR)))
             .thenReturn(diskless);
 
         when(resourceDefinition.getName()).thenReturn(new ResourceName("testResource"));
@@ -435,7 +432,6 @@ public class ConfFileBuilderTest
         when(volumeDefinition.getProps()).thenReturn(vlmDfnProps);
         when(vlmDfnProps.getNamespace(ApiConsts.NAMESPC_DRBD_DISK_OPTIONS)).thenReturn(drbdprops);
 
-        when(resource.getObjProt()).thenReturn(dummyObjectProtection);
         when(resource.getResourceDefinition()).thenReturn(resourceDefinition);
         when(resource.getResourceDefinition()).thenReturn(resourceDefinition);
         when(resource.getStateFlags()).thenReturn(rscStateFlags);

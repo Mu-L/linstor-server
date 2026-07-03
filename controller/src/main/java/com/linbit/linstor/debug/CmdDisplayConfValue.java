@@ -1,7 +1,6 @@
 package com.linbit.linstor.debug;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.repository.SystemConfRepository;
@@ -250,10 +249,6 @@ public class CmdDisplayConfValue extends BaseDebugCmd
             catch (NamespaceException nameSpcExc)
             {
                 debugOut.println(nameSpcExc.getMessage());
-            }
-            catch (LinStorException lsExc)
-            {
-                printLsException(debugErr, lsExc);
             }
             finally
             {

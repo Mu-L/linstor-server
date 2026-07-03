@@ -3,8 +3,6 @@ package com.linbit.linstor.core;
 import com.linbit.linstor.InitializationException;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
-import com.linbit.linstor.core.repository.NodeRepository;
-import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
 import com.linbit.linstor.dbdrivers.DatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
@@ -22,14 +20,11 @@ import javax.inject.Named;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 
-import com.google.inject.Key;
 
 public class DbDataInitializer implements StartupInitializer
 {
     private final ErrorReporter errorReporter;
     private final LinStorScope initScope;
-    private final NodeRepository nodeRepository;
-    private final ResourceDefinitionRepository resourceDefinitionRepository;
     private final StorPoolDefinitionRepository storPoolDefinitionRepository;
     private final ReadWriteLock reconfigurationLock;
     private final DatabaseDriver databaseDriver;
@@ -40,8 +35,6 @@ public class DbDataInitializer implements StartupInitializer
     public DbDataInitializer(
         ErrorReporter errorReporterRef,
         LinStorScope initScopeRef,
-        NodeRepository nodeRepositoryRef,
-        ResourceDefinitionRepository resourceDefinitionRepositoryRef,
         StorPoolDefinitionRepository storPoolDefinitionRepositoryRef,
         @Named(CoreModule.RECONFIGURATION_LOCK) ReadWriteLock reconfigurationLockRef,
         DatabaseDriver databaseDriverRef,
@@ -51,8 +44,6 @@ public class DbDataInitializer implements StartupInitializer
     {
         errorReporter = errorReporterRef;
         initScope = initScopeRef;
-        nodeRepository = nodeRepositoryRef;
-        resourceDefinitionRepository = resourceDefinitionRepositoryRef;
         storPoolDefinitionRepository = storPoolDefinitionRepositoryRef;
         reconfigurationLock = reconfigurationLockRef;
         databaseDriver = databaseDriverRef;
@@ -74,12 +65,6 @@ public class DbDataInitializer implements StartupInitializer
         {
             transMgr = transactionMgrGenerator.startTransaction();
             TransactionMgrUtil.seedTransactionMgr(initScope, transMgr);
-
-            // rebuilding layerData also runs an additional check to verify the used storage pools
-            // which needs a peerContext.
-            initScope.seed(Key.get(AccessContext.class, PeerContext.class));
-            initScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class));
-
 
             // Replacing the entire configuration requires locking out all other tasks
             //
@@ -146,11 +131,6 @@ public class DbDataInitializer implements StartupInitializer
     private void loadCoreObjects()
         throws DatabaseException, InitializationException
     {
-        errorReporter.logInfo("Security objects load from database is in progress");
-
-        databaseDriver.loadSecurityObjects();
-
-        errorReporter.logInfo("Security objects load from database completed");
         errorReporter.logInfo("Core objects load from database is in progress");
 
 

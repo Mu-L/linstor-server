@@ -109,7 +109,6 @@ public class CtrlNodeConnectionApiCallHandler
 
         if (nodeARef == null && nodeBRef == null)
         {
-            AccessContext peerCtx = peerAccCtx.get();
             ret = new TreeSet<>();
             for (Node node : nodeRepo.getMapForView().values())
             {
@@ -128,7 +127,6 @@ public class CtrlNodeConnectionApiCallHandler
         {
             Node nodeA = ctrlApiDataLoader.loadNode(nodeARef, true);
             Node nodeB = ctrlApiDataLoader.loadNode(nodeBRef, true);
-            AccessContext peerCtx = peerAccCtx.get();
             ret = new TreeSet<>();
             NodeConnection nodeConn = nodeA.getNodeConnection(
                 nodeB
@@ -157,7 +155,6 @@ public class CtrlNodeConnectionApiCallHandler
     private TreeSet<NodeConnectionApi> getNodeConnPojos(Node node, boolean includeIfEmpty)
     {
         TreeSet<NodeConnectionApi> ret = new TreeSet<>();
-        AccessContext peerCtx = peerAccCtx.get();
         for (NodeConnection nodeConn : node.getNodeConnections())
         {
             if (includeIfEmpty || !nodeConn.getProps().isEmpty())
@@ -380,7 +377,6 @@ public class CtrlNodeConnectionApiCallHandler
 
     private PairNonNull<Node, Node> getNodes(NodeConnection nodeConnRef)
     {
-        AccessContext peerCtx = peerAccCtx.get();
         return new PairNonNull<>(nodeConnRef.getSourceNode(), nodeConnRef.getTargetNode());
     }
 

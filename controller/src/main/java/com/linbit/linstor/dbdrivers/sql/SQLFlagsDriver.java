@@ -1,7 +1,6 @@
 package com.linbit.linstor.dbdrivers.sql;
 
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.dbdrivers.DatabaseLoader;
 import com.linbit.linstor.dbdrivers.DatabaseTable;
 import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine.DataToString;
@@ -86,10 +85,6 @@ class SQLFlagsDriver<DATA, FLAG extends Enum<FLAG> & Flags> implements StateFlag
         catch (SQLException sqlExc)
         {
             throw new DatabaseException(sqlExc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            DatabaseLoader.handleAccessDeniedException(exc);
         }
     }
 }

@@ -72,16 +72,13 @@ public class DrbdResourceFileUtils
             .stream()
             .filter(
                 otherRscData -> !otherRscData.equals(drbdRscData) &&
-                    AccessUtils.execPrivileged(() -> DrbdLayerUtils.isDrbdResourceExpected(workerCtx, otherRscData)) &&
-                    AccessUtils.execPrivileged(
-                        () -> !otherRscData.getAbsResource().getStateFlags().isSet(workerCtx, Resource.Flags.INACTIVE)
-                    )
+                    DrbdLayerUtils.isDrbdResourceExpected(otherRscData) &&
+                    !otherRscData.getAbsResource().getStateFlags().isSet(Resource.Flags.INACTIVE)
             )
             .collect(Collectors.toList());
 
         String content = new ConfFileBuilder(
             errorReporter,
-            workerCtx,
             drbdRscData,
             drbdPeerRscDataList,
             whitelistProps,

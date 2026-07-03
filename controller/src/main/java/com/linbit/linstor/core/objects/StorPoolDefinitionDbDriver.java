@@ -9,7 +9,7 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.StorPoolName;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -34,7 +34,7 @@ import java.util.TreeMap;
 
 @Singleton
 public class StorPoolDefinitionDbDriver
-    extends AbsProtectedDatabaseDriver<StorPoolDefinition, StorPoolDefinition.InitMaps, Void>
+    extends AbsDatabaseDriver<StorPoolDefinition, StorPoolDefinition.InitMaps, Void>
     implements StorPoolDefinitionCtrlDatabaseDriver
 {
     private final Provider<TransactionMgr> transMgrProvider;
@@ -48,7 +48,6 @@ public class StorPoolDefinitionDbDriver
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
@@ -56,8 +55,7 @@ public class StorPoolDefinitionDbDriver
         super(
             errorReporterRef,
             GeneratedDatabaseTables.STOR_POOL_DEFINITIONS,
-            dbEngineRef,
-            objProtFactoryRef
+            dbEngineRef
         );
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
@@ -88,7 +86,6 @@ public class StorPoolDefinitionDbDriver
 
                 disklessStorPoolDfn = new StorPoolDefinition(
                     java.util.UUID.randomUUID(),
-                    getObjectProtection(ObjectProtection.buildPath(storPoolName)),
                     storPoolName,
                     this,
                     propsContainerFactory,
@@ -115,7 +112,6 @@ public class StorPoolDefinitionDbDriver
 
         StorPoolDefinition storPoolDfn = new StorPoolDefinition(
             raw.build(UUID, java.util.UUID::fromString),
-            getObjectProtection(ObjectProtection.buildPath(storPoolName)),
             storPoolName,
             this,
             propsContainerFactory,

@@ -45,8 +45,6 @@ import com.linbit.linstor.logging.StdErrorReporter;
 import com.linbit.linstor.modularcrypto.ModularCryptoProvider;
 import com.linbit.linstor.netcom.NetComModule;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.ControllerSecurityModule;
-import com.linbit.linstor.security.SecurityModule;
 import com.linbit.linstor.timer.CoreTimerModule;
 import com.linbit.linstor.transaction.ControllerTransactionMgrModule;
 import com.linbit.linstor.utils.NameShortenerModule;
@@ -196,8 +194,6 @@ public class LinstorDatabaseTool
             Arrays.asList(
                 new GuiceConfigModule(),
                 new LoggingModule(errorLog),
-                new SecurityModule(),
-                new ControllerSecurityModule(),
                 new CtrlConfigModule(cfg),
                 new CoreTimerModule(),
                 new MetaDataModule(),

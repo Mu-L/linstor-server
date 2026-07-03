@@ -20,7 +20,6 @@ public class CmdDisplayObjectStatistics extends BaseDebugCmd
     private static final Map<String, String> PARAMETER_DESCRIPTIONS = new TreeMap<>();
 
     private static final String PRM_DETAIL_NAME = "DETAIL";
-    private static final String PRM_SECURITY    = "SECURITY";
     private static final String PRM_CONFIG      = "CONFIG";
     private static final String PRM_STOROBJ     = "STOROBJ";
     private static final String PRM_ALL         = "ALL";
@@ -31,8 +30,6 @@ public class CmdDisplayObjectStatistics extends BaseDebugCmd
             PRM_DETAIL_NAME,
             """
             Selects the detail categories to display
-                SECURITY
-                    Display security objects count
                 CONFIG
                     Display controller configuration entries count
                 STOROBJ
@@ -100,19 +97,16 @@ public class CmdDisplayObjectStatistics extends BaseDebugCmd
         rcfgRdLock.lock();
         try
         {
-            boolean catSecurity;
             boolean catConfig;
             boolean catStorObj;
             String prmDetail = parameters.get(PRM_DETAIL_NAME);
             if (prmDetail == null)
             {
-                catSecurity = true;
                 catConfig   = true;
                 catStorObj  = true;
             }
             else
             {
-                catSecurity = false;
                 catConfig   = false;
                 catStorObj  = false;
 
@@ -125,12 +119,10 @@ public class CmdDisplayObjectStatistics extends BaseDebugCmd
                     String curToken = prmDetailTokens.nextToken().trim();
                     switch (curToken)
                     {
-                        case PRM_SECURITY -> { catSecurity = true; }
                         case PRM_CONFIG -> { catConfig = true; }
                         case PRM_STOROBJ -> { catStorObj = true; }
                         case PRM_ALL ->
                         {
-                            catSecurity = true;
                             catConfig   = true;
                             catStorObj  = true;
                         }
@@ -150,27 +142,10 @@ public class CmdDisplayObjectStatistics extends BaseDebugCmd
                 }
             }
 
-            if (catSecurity || catConfig || catStorObj)
+            if (catConfig || catStorObj)
             {
                 debugOut.println("Object counts");
                 printSectionSeparator(debugOut);
-
-                if (catSecurity)
-                {
-                    debugOut.println("Security objects");
-                    debugOut.printf(
-                        """
-                            Identities:             %5d
-                            Roles:                  %5d
-                            Types:                  %5d
-                            Type rules:             %5d
-                        """,
-                        Identity.getIdentityCount(),
-                        Role.getRoleCount(),
-                        SecurityType.getTypeCount(),
-                        SecurityType.getRuleCount()
-                    );
-                }
 
                 if (catConfig)
                 {
@@ -271,7 +246,6 @@ public class CmdDisplayObjectStatistics extends BaseDebugCmd
                 "Enter a valid value for the parameter.",
                 String.format(
                     "Valid values are:\n" +
-                    "    " + PRM_SECURITY + "\n" +
                     "    " + PRM_CONFIG + "\n" +
                     "    " + PRM_STOROBJ + "\n" +
                     "    " + PRM_ALL

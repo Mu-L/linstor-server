@@ -16,7 +16,6 @@ import java.util.UUID;
 public class ResourceSatelliteFactory
 {
     private final ResourceDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
@@ -24,14 +23,12 @@ public class ResourceSatelliteFactory
     @Inject
     public ResourceSatelliteFactory(
         ResourceDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef
     )
     {
         dbDriver = dbDriverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -53,7 +50,6 @@ public class ResourceSatelliteFactory
             {
                 rscData = new Resource(
                     uuid,
-                    objectProtectionFactory.getInstance("", false),
                     rscDfn,
                     node,
                     StateFlagsBits.getMask(initFlags),

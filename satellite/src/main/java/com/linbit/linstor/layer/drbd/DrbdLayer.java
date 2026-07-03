@@ -231,7 +231,7 @@ public class DrbdLayer implements DeviceLayer
     @Override
     public boolean isDiscGranFeasible(AbsRscLayerObject<Resource> rscLayerObjectRef)
     {
-        return !Platform.isWindows() && !rscLayerObjectRef.getAbsResource().isDrbdDiskless(workerCtx);
+        return !Platform.isWindows() && !rscLayerObjectRef.getAbsResource().isDrbdDiskless();
     }
 
     @Override
@@ -244,7 +244,7 @@ public class DrbdLayer implements DeviceLayer
         DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) rscLayerData;
 
         Resource rsc = rscLayerData.getAbsResource();
-        final Map<String, String> rscPropsMap = rsc.getProps(workerCtx).map();
+        final Map<String, String> rscPropsMap = rsc.getProps().map();
 
         condRestartResource(rsc, drbdRscData, rscPropsMap);
 
@@ -301,7 +301,7 @@ public class DrbdLayer implements DeviceLayer
     {
         final ResourceName rscName = rsc.getKey().getResourceName();
         boolean isDeleting = rsc.getStateFlags()
-            .isSomeSet(workerCtx, Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE);
+            .isSomeSet(Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE);
 
         if (!isDeleting)
         {
@@ -430,7 +430,6 @@ public class DrbdLayer implements DeviceLayer
             Resource rsc = drbdRscData.getAbsResource();
             StateFlags<Flags> rscFlags = rsc.getStateFlags();
             ret = rscFlags.isSomeSet(
-                workerCtx,
                 Resource.Flags.DELETE,
                 Resource.Flags.DRBD_DELETE,
                 Resource.Flags.INACTIVE
@@ -441,7 +440,7 @@ public class DrbdLayer implements DeviceLayer
                 while (vlmIt.hasNext())
                 {
                     Volume vlm = vlmIt.next();
-                    if (vlm.getFlags().isSet(workerCtx, Volume.Flags.CLONING))
+                    if (vlm.getFlags().isSet(Volume.Flags.CLONING))
                     {
                         ret = true;
                         break;
@@ -496,16 +495,16 @@ public class DrbdLayer implements DeviceLayer
     )
         throws StorageException, ResourceException, VolumeException, DatabaseException
     {
-        boolean isDiskless = drbdRscData.getAbsResource().isDrbdDiskless(workerCtx);
+        boolean isDiskless = drbdRscData.getAbsResource().isDrbdDiskless();
         StateFlags<Flags> rscFlags = drbdRscData.getAbsResource().getStateFlags();
-        boolean isDiskRemoving = rscFlags.isSet(workerCtx, Resource.Flags.DISK_REMOVING);
+        boolean isDiskRemoving = rscFlags.isSet(Resource.Flags.DISK_REMOVING);
 
         boolean contProcess = isDiskless;
 
         boolean processChildren = !isDiskless || isDiskRemoving;
         // do not process children when ONLY DRBD_DELETE flag is set (DELETE flag is still unset)
-        processChildren &= (!rscFlags.isSet(workerCtx, Resource.Flags.DRBD_DELETE) ||
-            rscFlags.isSet(workerCtx, Resource.Flags.DELETE));
+        processChildren &= (!rscFlags.isSet(Resource.Flags.DRBD_DELETE) ||
+            rscFlags.isSet(Resource.Flags.DELETE));
 
         if (processChildren)
         {
@@ -526,7 +525,7 @@ public class DrbdLayer implements DeviceLayer
     /**
      * Deletes a given DRBD resource, by calling {@code drbdadm down <resource-name>} and deleting
      * the resource specific .res file
-     * {@link Resource#delete(AccessContext)} is also called on the given resource
+     * {@link Resource#delete()} is also called on the given resource
      *
      */
     private void deleteDrbd(DrbdRscData<Resource> drbdRscData, ApiCallRcImpl apiCallRc) throws
@@ -568,7 +567,7 @@ public class DrbdLayer implements DeviceLayer
             drbdRscData.setAdjustRequired(true);
             if (adjustResourcesList != null && !drbdRscData.getAbsResource()
                 .getStateFlags()
-                .isSet(workerCtx, Resource.Flags.DRBD_DELETE))
+                .isSet(Resource.Flags.DRBD_DELETE))
             {
                 /*
                  * If DRBD_DELETE is not set but this method (delete DRBD) got still called, we are most likely in some
@@ -644,7 +643,7 @@ public class DrbdLayer implements DeviceLayer
 
         shrinkVolumesIfNecessary(drbdRscData);
 
-        final boolean skipDisk = drbdRscData.isSkipDiskEnabled(workerCtx, stltCfgAccessor.getReadonlyProps());
+        final boolean skipDisk = drbdRscData.isSkipDiskEnabled(stltCfgAccessor.getReadonlyProps());
 
         if (!childAlreadyProcessed && !skipDisk)
         {
@@ -696,7 +695,7 @@ public class DrbdLayer implements DeviceLayer
         {
             // hasMetaData needs to be run after child-resource processed
             List<DrbdVlmData<Resource>> createMetaData = new ArrayList<>();
-            if (!drbdRscData.getAbsResource().isDrbdDiskless(workerCtx) && !skipDisk)
+            if (!drbdRscData.getAbsResource().isDrbdDiskless() && !skipDisk)
             {
                 // do not try to create meta data while the resource is diskless or skipDisk is enabled
                 for (DrbdVlmData<Resource> drbdVlmData : checkMetaData)
@@ -746,7 +745,7 @@ public class DrbdLayer implements DeviceLayer
                     StateFlags<Flags> otherRscFlags = otherRsc.getAbsResource().getStateFlags();
                     if (!otherRsc.equals(drbdRscData) && // skip local rsc
                         /* also call forget-peer for diskless-peers */
-                        otherRscFlags.isSomeSet(workerCtx, Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
+                        otherRscFlags.isSomeSet(Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
                     {
                         /*
                          * If a peer is getting deleted, we issue a forget-peer (which requires
@@ -782,7 +781,7 @@ public class DrbdLayer implements DeviceLayer
                         {
                             delPeerExc = exc;
                         }
-                        if (!drbdRscData.getAbsResource().isDrbdDiskless(workerCtx))
+                        if (!drbdRscData.getAbsResource().isDrbdDiskless())
                         {
                             if (!skipDisk)
                             {
@@ -793,7 +792,7 @@ public class DrbdLayer implements DeviceLayer
                                 }
                                 catch (ExtCmdFailedException forgetPeerExc)
                                 {
-                                    if (!otherRsc.getAbsResource().isDrbdDiskless(workerCtx))
+                                    if (!otherRsc.getAbsResource().isDrbdDiskless())
                                     {
                                         /*
                                          * let us check our current version of the events2 stream.
@@ -855,7 +854,7 @@ public class DrbdLayer implements DeviceLayer
                                  * is executed later while we can confirm the deletion of the peer-resource in the
                                  * meantime
                                  */
-                                Props rscProps = drbdRscData.getAbsResource().getProps(workerCtx);
+                                Props rscProps = drbdRscData.getAbsResource().getProps();
                                 try
                                 {
                                     String oldIds = rscProps.getPropWithDefault(
@@ -910,8 +909,8 @@ public class DrbdLayer implements DeviceLayer
 
                 if (drbdRscData.getAbsResource()
                     .getStateFlags()
-                    .isSet(workerCtx, Resource.Flags.RESTORE_FROM_SNAPSHOT) &&
-                    !DrbdLayerUtils.isForceInitialSyncSet(workerCtx, drbdRscData))
+                    .isSet(Resource.Flags.RESTORE_FROM_SNAPSHOT) &&
+                    !DrbdLayerUtils.isForceInitialSyncSet(drbdRscData))
                 {
                     /*
                      * If forceInitialSync is set, we already created new metadata, so no resetting needed.
@@ -921,7 +920,7 @@ public class DrbdLayer implements DeviceLayer
                      */
                     String ids = drbdRscData.getAbsResource()
                         .getResourceDefinition()
-                        .getProps(workerCtx)
+                        .getProps()
                         .getProp(
                             InternalApiConsts.KEY_BACKUP_NODE_IDS_TO_RESET,
                             ApiConsts.NAMESPC_BACKUP_SHIPPING
@@ -966,7 +965,7 @@ public class DrbdLayer implements DeviceLayer
 
             // TODO we should move the mkfs outside of the devMgr, but that is a different issue/MR
             Resource rsc = drbdRscDataRef.getAbsResource();
-            if (MkfsUtils.needsToCreateFs(rsc, workerCtx))
+            if (MkfsUtils.needsToCreateFs(rsc))
             {
                 // we need to be primary even if autoPromote is deactivated to create the filesystem
                 // regardless if we need to switch to primary and back afterwards or if we are already primary (i.e.
@@ -975,7 +974,7 @@ public class DrbdLayer implements DeviceLayer
                 waitForValidStateForPrimary(drbdRscDataRef);
                 if (drbdRscDataRef.isPrimary())
                 {
-                    MkfsUtils.makeFileSystemOnMarked(errorReporter, extCmdFactory, workerCtx, rsc);
+                    MkfsUtils.makeFileSystemOnMarked(errorReporter, extCmdFactory, rsc);
                 }
                 else
                 {
@@ -985,7 +984,7 @@ public class DrbdLayer implements DeviceLayer
                      */
                     try (var ignored = drbdUtils.primaryAutoClose(drbdRscDataRef, true, false))
                     {
-                        MkfsUtils.makeFileSystemOnMarked(errorReporter, extCmdFactory, workerCtx, rsc);
+                        MkfsUtils.makeFileSystemOnMarked(errorReporter, extCmdFactory, rsc);
                     }
                     catch (ExtCmdFailedException exc)
                     {
@@ -1073,7 +1072,6 @@ public class DrbdLayer implements DeviceLayer
         {
             StateFlags<Volume.Flags> vlmFlags = ((Volume) drbdVlmData.getVolume()).getFlags();
             if (vlmFlags.isSomeSet(
-                workerCtx,
                 Volume.Flags.DELETE,
                 Volume.Flags.DRBD_DELETE,
                 Volume.Flags.CLONING
@@ -1094,7 +1092,7 @@ public class DrbdLayer implements DeviceLayer
     private void recoverAfterSkipdisk(DrbdRscData<Resource> drbdRscData)
         throws ExtCmdFailedException, DatabaseException, InvalidKeyException
     {
-        Props rscProps = drbdRscData.getAbsResource().getProps(workerCtx);
+        Props rscProps = drbdRscData.getAbsResource().getProps();
         String ids = rscProps
             .getProp(
                 InternalApiConsts.KEY_DRBD_NODE_IDS_TO_RESET,
@@ -1161,28 +1159,28 @@ public class DrbdLayer implements DeviceLayer
             drbdSetupStatusOut.contains(drbdVlmData.getRscLayerObject().getSuffixedResourceName() + " role:") :
             drbdUtils.drbdSetupStatusRscIsUp(drbdVlmData.getRscLayerObject().getSuffixedResourceName());
         StateFlags<DrbdRscFlags> flags = drbdVlmData.getRscLayerObject().getFlags();
-        return flags.isUnset(workerCtx, DrbdRscFlags.INITIALIZED) &&
-            flags.isSet(workerCtx, DrbdRscFlags.FORCE_NEW_METADATA) &&
+        return flags.isUnset(DrbdRscFlags.INITIALIZED) &&
+            flags.isSet(DrbdRscFlags.FORCE_NEW_METADATA) &&
             !isRscUp;
     }
 
     private boolean areBothResizeFlagsSet(DrbdVlmData<Resource> drbdVlmData)
     {
         StateFlags<Volume.Flags> vlmFlags = ((Volume) drbdVlmData.getVolume()).getFlags();
-        return vlmFlags.isSet(workerCtx, Volume.Flags.RESIZE, Volume.Flags.DRBD_RESIZE);
+        return vlmFlags.isSet(Volume.Flags.RESIZE, Volume.Flags.DRBD_RESIZE);
     }
 
     private boolean isNeitherResizeFlagsSet(DrbdVlmData<Resource> drbdVlmData)
     {
         StateFlags<Volume.Flags> vlmFlags = ((Volume) drbdVlmData.getVolume()).getFlags();
-        return vlmFlags.isUnset(workerCtx, Volume.Flags.RESIZE, Volume.Flags.DRBD_RESIZE);
+        return vlmFlags.isUnset(Volume.Flags.RESIZE, Volume.Flags.DRBD_RESIZE);
     }
 
 
     private boolean isFlagSet(DrbdVlmData<Resource> drbdVlmData, Volume.Flags... flagsRef)
     {
         StateFlags<Volume.Flags> vlmFlags = ((Volume) drbdVlmData.getVolume()).getFlags();
-        return vlmFlags.isSet(workerCtx, flagsRef);
+        return vlmFlags.isSet(flagsRef);
     }
 
     private boolean needsResize(DrbdVlmData<Resource> drbdVlmData) throws StorageException
@@ -1190,7 +1188,7 @@ public class DrbdLayer implements DeviceLayer
         // A resize should not be called on a resize without a disk
         // there was a bug in pre 0.9.2 versions where diskless would be chosen for the resize command
         boolean isResizeFlagSet = ((Volume) drbdVlmData.getVolume()).getFlags()
-            .isSet(workerCtx, Volume.Flags.DRBD_RESIZE);
+            .isSet(Volume.Flags.DRBD_RESIZE);
         boolean needsResize = isResizeFlagSet && drbdVlmData.hasDisk();
 
         /* No way to query DRBD size on Windows. The block
@@ -1242,8 +1240,8 @@ public class DrbdLayer implements DeviceLayer
     {
         List<DrbdVlmData<Resource>> checkMetaData = new ArrayList<>();
         Resource rsc = drbdRscData.getAbsResource();
-        if (!rsc.isDrbdDiskless(workerCtx) ||
-            rsc.getStateFlags().isSet(workerCtx, Resource.Flags.DISK_REMOVING)
+        if (!rsc.isDrbdDiskless() ||
+            rsc.getStateFlags().isSet(Resource.Flags.DISK_REMOVING)
         )
         {
             // using a dedicated list to prevent concurrentModificationException
@@ -1253,7 +1251,6 @@ public class DrbdLayer implements DeviceLayer
             for (DrbdVlmData<Resource> drbdVlmData : drbdRscData.getVlmLayerObjects().values())
             {
                 if (((Volume) drbdVlmData.getVolume()).getFlags().isSomeSet(
-                    workerCtx,
                     Volume.Flags.DELETE,
                     Volume.Flags.DRBD_DELETE,
                     Volume.Flags.CLONING
@@ -1265,7 +1262,7 @@ public class DrbdLayer implements DeviceLayer
                     }
                 }
                 else
-                if (rsc.getStateFlags().isSet(workerCtx, Resource.Flags.DISK_REMOVING))
+                if (rsc.getStateFlags().isSet(Resource.Flags.DISK_REMOVING))
                 {
                     if (drbdVlmData.hasDisk() && !drbdVlmData.hasFailed())
                     {
@@ -1328,7 +1325,7 @@ public class DrbdLayer implements DeviceLayer
         {
             if (
                 !drbdRscData.getAbsResource().getStateFlags()
-                    .isSet(workerCtx, Resource.Flags.DRBD_DISKLESS)
+                    .isSet(Resource.Flags.DRBD_DISKLESS)
             )
             {
                 for (DrbdVlmData<Resource> drbdVlmData : drbdRscData.getVlmLayerObjects().values())
@@ -1500,7 +1497,7 @@ public class DrbdLayer implements DeviceLayer
             final AbsVolume absVlm = drbdVlmData.getVolume();
             if (absVlm instanceof Volume vlm)
             {
-                final Props vlmProps = vlm.getProps(workerCtx);
+                final Props vlmProps = vlm.getProps();
                 final @Nullable String valueStr = vlmProps.getProp(ApiConsts.KEY_BITMAP_BLOCK_SIZE);
                 if (valueStr != null)
                 {
@@ -1570,7 +1567,7 @@ public class DrbdLayer implements DeviceLayer
             }
             else
             {
-                if (DrbdLayerUtils.skipInitSync(workerCtx, drbdVlmData))
+                if (DrbdLayerUtils.skipInitSync(drbdVlmData))
                 {
                     final String day0 = getCurrentGiFromVlmDfnProp(drbdVlmData);
                     localNodeIdGiBuilder.withCurrentUUID(day0)
@@ -1635,7 +1632,7 @@ public class DrbdLayer implements DeviceLayer
         boolean ret = false;
         VolumeDefinition vlmDfn = drbdVlmDataRef.getVolume().getVolumeDefinition();
         // if DRBD_INITIALIZED is set, the race is over. It does not matter if we won back then or not.
-        if (!vlmDfn.getFlags().isSet(workerCtx, VolumeDefinition.Flags.DRBD_INITIALIZED))
+        if (!vlmDfn.getFlags().isSet(VolumeDefinition.Flags.DRBD_INITIALIZED))
         {
             DrbdRscData<Resource> drbdRscData = drbdVlmDataRef.getRscLayerObject();
             ret = drbdRscData.getNodeName().value.equalsIgnoreCase(getNodeNameForUpTodate(vlmDfn));
@@ -1645,7 +1642,7 @@ public class DrbdLayer implements DeviceLayer
 
     private String getNodeNameForUpTodate(VolumeDefinition vlmDfn)
     {
-        @Nullable String val = vlmDfn.getProps(workerCtx)
+        @Nullable String val = vlmDfn.getProps()
             .getProp(InternalApiConsts.KEY_LINSTOR_DRBD_INITIAL_UPTODATE_ON);
         if (val == null)
         {
@@ -1663,7 +1660,7 @@ public class DrbdLayer implements DeviceLayer
         try
         {
             currentGi = drbdVlmData.getVlmDfnLayerObject().getVolumeDefinition()
-                .getProps(workerCtx).getProp(ApiConsts.KEY_DRBD_CURRENT_GI);
+                .getProps().getProp(ApiConsts.KEY_DRBD_CURRENT_GI);
         }
         catch (InvalidKeyException invKeyExc)
         {
@@ -1753,7 +1750,7 @@ public class DrbdLayer implements DeviceLayer
 
                 { // check drbd connections
                     Resource localResource = drbdRscData.getAbsResource();
-                    localResource.getResourceDefinition().streamResource(workerCtx)
+                    localResource.getResourceDefinition().streamResource()
                         .filter(otherRsc -> !otherRsc.equals(localResource))
                         .forEach(
                             otherRsc ->
@@ -1907,7 +1904,7 @@ public class DrbdLayer implements DeviceLayer
     {
         Resource localResource = drbdRscData.getAbsResource();
 
-        boolean isRscDisklessFlagSet = localResource.getStateFlags().isSet(workerCtx, Resource.Flags.DRBD_DISKLESS);
+        boolean isRscDisklessFlagSet = localResource.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS);
 
         Iterator<DrbdVlmData<Resource>> drbdVlmDataIter = drbdRscData.getVlmLayerObjects().values().iterator();
         while (drbdVlmDataIter.hasNext())
@@ -1931,9 +1928,8 @@ public class DrbdLayer implements DeviceLayer
             DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) rscLayerObject;
             try
             {
-                if (drbdRscData.isResFileReady(workerCtx) &&
-                    !drbdRscData.getAbsResource().getStateFlags().isSomeSet(
-                        workerCtx, Flags.DRBD_DELETE, Flags.DELETE, Flags.INACTIVE))
+                if (drbdRscData.isResFileReady() &&
+                    !drbdRscData.getAbsResource().getStateFlags().isSomeSet(Flags.DRBD_DELETE, Flags.DELETE, Flags.INACTIVE))
                 {
                     drbdResFileUtils.regenerateResFile(drbdRscData);
                 }
@@ -2077,7 +2073,7 @@ public class DrbdLayer implements DeviceLayer
         DrbdVlmData<Resource> drbdVlmData = (DrbdVlmData<Resource>) vlmTgt;
         try
         {
-            AbsRscLayerObject<?> srcLayerData = vlmSrc.getRscLayerObject().getAbsResource().getLayerData(workerCtx);
+            AbsRscLayerObject<?> srcLayerData = vlmSrc.getRscLayerObject().getAbsResource().getLayerData();
             var optSrcDrbdLayer = LayerRscUtils.getRscDataByLayer(srcLayerData, DeviceLayerKind.DRBD)
                 .stream().findFirst();
             if (optSrcDrbdLayer.isPresent())

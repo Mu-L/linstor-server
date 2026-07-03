@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -34,7 +33,6 @@ import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.utils.PairNonNull;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -115,7 +113,6 @@ public class CtrlRscAutoRePlaceRscHelper implements AutoHelper
                 int minReplicaCount;
                 int placeCount;
                 int curReplicaCount = 0;
-                AccessContext peerAccCtx = peerAccCtxProvider.get();
                 props = new PriorityProps(
                     rscDfn.getProps(),
                     rscDfn.getResourceGroup().getProps(),

@@ -835,18 +835,11 @@ public class StltApiCallHandler
                 catch (ImplementationError | Exception exc)
                 {
                     errorReporter.reportError(exc);
-                    try
-                    {
-                        controllerPeerConnector.getLocalNode().getPeer().closeConnection();
-                        // there is nothing else we can safely do.
-                        // skipping the update might cause data-corruption
-                        // not skipping will queue the new data packets but will not apply those as the
-                        // awaitedUpdateId will never increment.
-                    }
-                    catch (AccessDeniedException exc1)
-                    {
-                        errorReporter.reportError(new ImplementationError(exc));
-                    }
+                    controllerPeerConnector.getLocalNode().getPeer().closeConnection();
+                    // there is nothing else we can safely do.
+                    // skipping the update might cause data-corruption
+                    // not skipping will queue the new data packets but will not apply those as the
+                    // awaitedUpdateId will never increment.
                 }
             }
             else
@@ -905,11 +898,8 @@ public class StltApiCallHandler
         String logLevelLinstor = stltConfRef.getLogLevelLinstor();
         stltCfg.setLogLevel(logLevel);
         stltCfg.setLogLevelLinstor(logLevelLinstor);
-        boolean successFlag = false;
-        errorReporter.setLogLevel(Level.valueOf(logLevel.toUpperCase()), Level.valueOf(logLevelLinstor.toUpperCase())
-        );
-        successFlag = true;
-        return successFlag;
+        errorReporter.setLogLevel(Level.valueOf(logLevel.toUpperCase()), Level.valueOf(logLevelLinstor.toUpperCase()));
+        return true;
     }
 
     private void deleteUnknownResFiles(Set<RscPojo> resourcesToKeep)

@@ -129,7 +129,6 @@ public class BalanceResourcesTest extends GenericDbBase
             .thenReturn(Flux.empty());
 
         balanceResources = new BalanceResources(
-            SYS_CTX,
             errorReporter,
             systemConfRepository,
             resourceDefinitionRepository,
@@ -489,7 +488,7 @@ public class BalanceResourcesTest extends GenericDbBase
             Mockito.when(peerMock.getConnectionStatus()).thenReturn(ApiConsts.ConnectionStatus.ONLINE);
             Mockito.when(peerMock.isOnline()).thenReturn(true);
             Mockito.when(peerMock.getSatelliteStateLock()).thenReturn(new ReentrantReadWriteLock());
-            node.setPeer(SYS_CTX, peerMock);
+            node.setPeer(peerMock);
         }
         return state;
     }
@@ -512,25 +511,25 @@ public class BalanceResourcesTest extends GenericDbBase
 
         ClusterBuilder ctrlProp(String key, String value) throws Exception
         {
-            systemConfRepository.setCtrlProp(SYS_CTX, key, value, null);
+            systemConfRepository.setCtrlProp(key, value, null);
             return this;
         }
 
         ClusterBuilder rscGrpProp(String key, String value) throws Exception
         {
-            resourceGroupTestFactory.get(DFLT_RSC_GRP, false).getProps(SYS_CTX).setProp(key, value);
+            resourceGroupTestFactory.get(DFLT_RSC_GRP, false).getProps().setProp(key, value);
             return this;
         }
 
         ClusterBuilder rscDfnProp(String key, String value) throws Exception
         {
-            resourceDefinitionTestFactory.get(RSC_NAME_STR, true).getProps(SYS_CTX).setProp(key, value);
+            resourceDefinitionTestFactory.get(RSC_NAME_STR, true).getProps().setProp(key, value);
             return this;
         }
 
         ClusterBuilder rscDfnFlags(ResourceDefinition.Flags... flagsRef) throws Exception
         {
-            resourceDefinitionTestFactory.get(RSC_NAME_STR, true).getFlags().enableFlags(SYS_CTX, flagsRef);
+            resourceDefinitionTestFactory.get(RSC_NAME_STR, true).getFlags().enableFlags(flagsRef);
             return this;
         }
 
@@ -586,9 +585,9 @@ public class BalanceResourcesTest extends GenericDbBase
             // the test factories do not register the rscDfn in the repository, but BalanceResources
             // iterates over the repository's map
             ResourceDefinition rscDfn = rsc.getResourceDefinition();
-            if (resourceDefinitionRepository.get(SYS_CTX, rscDfn.getName()) == null)
+            if (resourceDefinitionRepository.get(rscDfn.getName()) == null)
             {
-                resourceDefinitionRepository.put(SYS_CTX, rscDfn);
+                resourceDefinitionRepository.put(rscDfn);
             }
 
             if (volumeDefinitionTestFactory.get(rscNameRef, VLM_NR, SIZE_100_MB, false) == null)
@@ -605,7 +604,7 @@ public class BalanceResourcesTest extends GenericDbBase
             }
             if (disklessRef)
             {
-                rsc.getProps(SYS_CTX).setProp(ApiConsts.KEY_STOR_POOL_NAME, DFLT_DISKLESS_STOR_POOL);
+                rsc.getProps().setProp(ApiConsts.KEY_STOR_POOL_NAME, DFLT_DISKLESS_STOR_POOL);
                 @Nullable StorPool storPool = storPoolTestFactory.get(nodeNameRef, DFLT_DISKLESS_STOR_POOL, false);
                 if (storPool == null)
                 {
@@ -613,18 +612,18 @@ public class BalanceResourcesTest extends GenericDbBase
                         .setDriverKind(DeviceProviderKind.DISKLESS)
                         .build()
                         .getFreeSpaceTracker()
-                        .setCapacityInfo(SYS_CTX, Long.MAX_VALUE, Long.MAX_VALUE);
+                        .setCapacityInfo(Long.MAX_VALUE, Long.MAX_VALUE);
                 }
             }
             else
             {
-                rsc.getProps(SYS_CTX).setProp(ApiConsts.KEY_STOR_POOL_NAME, DFLT_STOR_POOL);
+                rsc.getProps().setProp(ApiConsts.KEY_STOR_POOL_NAME, DFLT_STOR_POOL);
                 storPoolTestFactory.get(nodeNameRef, DFLT_STOR_POOL, true);
             }
             volumeTestFactory.get(nodeNameRef, rscNameRef, VLM_NR, true);
 
             // by default old enough so that the resource is not within the grace period
-            rsc.setCreateTimestamp(SYS_CTX, Instant.now().minusSeconds(OLD_ENOUGH_SECS));
+            rsc.setCreateTimestamp(Instant.now().minusSeconds(OLD_ENOUGH_SECS));
 
             satelliteState(rsc.getNode()).setOnVolume(
                 rsc.getResourceDefinition().getName(),
@@ -712,13 +711,13 @@ public class BalanceResourcesTest extends GenericDbBase
 
         RscBuilder inGracePeriod() throws Exception
         {
-            rsc.setCreateTimestamp(SYS_CTX, Instant.now().minusSeconds(IN_GRACE_PERIOD_SECS));
+            rsc.setCreateTimestamp(Instant.now().minusSeconds(IN_GRACE_PERIOD_SECS));
             return this;
         }
 
         RscBuilder withoutCreateTimestamp() throws Exception
         {
-            rsc.setCreateTimestamp(SYS_CTX, null);
+            rsc.setCreateTimestamp(null);
             return this;
         }
 
@@ -734,7 +733,7 @@ public class BalanceResourcesTest extends GenericDbBase
 
         RscBuilder skipDisk() throws Exception
         {
-            rsc.getProps(SYS_CTX).setProp(
+            rsc.getProps().setProp(
                 ApiConsts.KEY_DRBD_SKIP_DISK,
                 ApiConsts.VAL_TRUE,
                 ApiConsts.NAMESPC_DRBD_OPTIONS
@@ -744,7 +743,7 @@ public class BalanceResourcesTest extends GenericDbBase
 
         RscBuilder flags(Resource.Flags... flagsRef) throws Exception
         {
-            rsc.getStateFlags().enableFlags(SYS_CTX, flagsRef);
+            rsc.getStateFlags().enableFlags(flagsRef);
             return this;
         }
     }

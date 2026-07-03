@@ -36,8 +36,7 @@ public class PmenUtilsTest
             true,
             "",
             null,
-            null,
-            () -> null
+            null
         );
     }
     @Before

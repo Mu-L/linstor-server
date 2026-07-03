@@ -23,7 +23,6 @@ import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -172,10 +171,6 @@ public class ZfsChecks
         return allSnapsZfs;
     }
 
-    public boolean hasZfs(ResourceDefinition rscDfnRef)
-    {
-        return hasZfs(rscDfnRef);
-    }
 
     public static boolean hasZfs(ResourceDefinition rscDfnRef)
     {
@@ -191,10 +186,6 @@ public class ZfsChecks
         return ret;
     }
 
-    public <RSC extends AbsResource<RSC>> boolean isZfs(RSC absRscRef)
-    {
-        return isZfs(absRscRef);
-    }
 
     public static <RSC extends AbsResource<RSC>> boolean isZfs(RSC absRscRef)
     {

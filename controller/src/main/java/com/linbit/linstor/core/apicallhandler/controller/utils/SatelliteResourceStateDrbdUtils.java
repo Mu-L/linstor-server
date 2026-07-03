@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.utils;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;

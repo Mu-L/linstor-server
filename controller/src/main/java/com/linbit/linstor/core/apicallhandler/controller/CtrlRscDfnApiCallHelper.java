@@ -24,7 +24,6 @@ import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.utils.layer.LayerRscUtils;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -72,7 +71,6 @@ public class CtrlRscDfnApiCallHelper
      */
     public boolean updateDrbdProps(ResourceDefinition rscDfnRef)
     {
-        final AccessContext peerCtx = peerAccCtx.get();
         boolean ret = false;
         try
         {

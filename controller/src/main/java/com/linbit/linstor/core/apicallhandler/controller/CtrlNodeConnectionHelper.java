@@ -12,7 +12,6 @@ import com.linbit.linstor.core.objects.NodeConnectionFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 @Singleton

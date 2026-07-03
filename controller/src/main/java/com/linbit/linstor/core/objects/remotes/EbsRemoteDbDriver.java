@@ -6,7 +6,7 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.core.identifier.RemoteName;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -39,7 +39,7 @@ import java.net.URL;
 import java.util.function.Function;
 
 @Singleton
-public final class EbsRemoteDbDriver extends AbsProtectedDatabaseDriver<EbsRemote, EbsRemote.InitMaps, Void>
+public final class EbsRemoteDbDriver extends AbsDatabaseDriver<EbsRemote, EbsRemote.InitMaps, Void>
     implements EbsRemoteCtrlDatabaseDriver
 {
     final PropsContainerFactory propsContainerFactory;
@@ -58,12 +58,11 @@ public final class EbsRemoteDbDriver extends AbsProtectedDatabaseDriver<EbsRemot
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.EBS_REMOTES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.EBS_REMOTES, dbEngine);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -163,7 +162,6 @@ public final class EbsRemoteDbDriver extends AbsProtectedDatabaseDriver<EbsRemot
         {
             return new Pair<>(
                 new EbsRemote(
-                    getObjectProtection(ObjectProtection.buildPath(remoteName)),
                     raw.build(UUID, java.util.UUID::fromString),
                     this,
                     remoteName,

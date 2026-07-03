@@ -101,7 +101,6 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
     @SuppressWarnings("checkstyle:magicnumber")
     public void setUp() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext();
         super.setUpAndEnterScope();
 
         assertEquals(

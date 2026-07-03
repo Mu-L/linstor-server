@@ -41,7 +41,7 @@ public class NameShortenerTest
     public void simpleTest() throws Throwable
     {
         String key = "key";
-        NameShortener shorter = new NameShortener("", key, 10, TestAccessContextProvider.SYS_CTX, "_", null);
+        NameShortener shorter = new NameShortener("", key, 10, "_", null);
 
         addAndAssert(shorter, "rsc", "", key, "rsc"); // < limit
         addAndAssert(shorter, "rscTooLong00", "", key, "rsc_1");
@@ -88,7 +88,7 @@ public class NameShortenerTest
     public void sharedBaseTest() throws Throwable
     {
         String key = "key";
-        NameShortener shorter = new NameShortener("", key, 10, TestAccessContextProvider.SYS_CTX, "_", null);
+        NameShortener shorter = new NameShortener("", key, 10, "_", null);
 
         addAndAssert(shorter, "aaatest000", "", key, "aaatest000");
         addAndAssert(shorter, "aaaatest001", "", key, "aaa_1");
@@ -112,7 +112,7 @@ public class NameShortenerTest
     public void invalidCharsTest() throws Throwable
     {
         String key = "key";
-        NameShortener shorter = new NameShortener("", key, 10, TestAccessContextProvider.SYS_CTX, "_", "a-zA-Z");
+        NameShortener shorter = new NameShortener("", key, 10, "_", "a-zA-Z");
 
         addAndAssert(shorter, "abc123", "", key, "abc");
         addAndAssert(shorter, "abc124", "", key, "abc_1");
@@ -123,7 +123,7 @@ public class NameShortenerTest
     public void notTooLongTest() throws Throwable
     {
         String key = "key";
-        NameShortener shorter = new NameShortener("", key, 10, TestAccessContextProvider.SYS_CTX, "_", "a-zA-Z");
+        NameShortener shorter = new NameShortener("", key, 10, "_", "a-zA-Z");
         addAndAssert(shorter, "ab", "", key, "ab");
         addAndAssert(shorter, "abc", "", key, "abc");
         addAndAssert(shorter, "abcdef", "", key, "abcdef");
@@ -134,7 +134,7 @@ public class NameShortenerTest
     public void namespaceTest() throws Throwable
     {
         String key = "key";
-        NameShortener shorter = new NameShortener("", key, 10, TestAccessContextProvider.SYS_CTX, "_", "a-zA-Z");
+        NameShortener shorter = new NameShortener("", key, 10, "_", "a-zA-Z");
         addAndAssert(shorter, "ab", 0, "", "ns1", key, "ab", false);
         addAndAssert(shorter, "ab", 0, "", "ns2", key, "ab_1", false);
     }
@@ -143,20 +143,20 @@ public class NameShortenerTest
     public void overrideVlmIdTest() throws Throwable
     {
         String key = "key";
-        NameShortener shorter = new NameShortener("", key, 32, TestAccessContextProvider.SYS_CTX, "_", "a-zA-Z");
+        NameShortener shorter = new NameShortener("", key, 32, "_", "a-zA-Z");
 
         VolumeDefinition vlmDfn = getVlmDfn("rsc", 0);
         String overrideVlmId = "test";
-        vlmDfn.getProps(TestAccessContextProvider.SYS_CTX)
+        vlmDfn.getProps()
             .setProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID, overrideVlmId);
         String keyPrefix = "";
         String shorten = shorter.shorten(vlmDfn, keyPrefix, "", false);
 
         assertEquals(overrideVlmId, shorten);
-        assertEquals(overrideVlmId, vlmDfn.getProps(TestAccessContextProvider.SYS_CTX).getProp(keyPrefix + key));
+        assertEquals(overrideVlmId, vlmDfn.getProps().getProp(keyPrefix + key));
 
         VolumeDefinition vlmDfn2 = getVlmDfn("rsc2", 0);
-        vlmDfn2.getProps(TestAccessContextProvider.SYS_CTX)
+        vlmDfn2.getProps()
             .setProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID, overrideVlmId);
         try
         {
@@ -184,7 +184,7 @@ public class NameShortenerTest
 
         assertEquals(expectedShortenedRscName, shortenedName);
         assertEquals(
-            rscDfn.getProps(TestAccessContextProvider.SYS_CTX).getProp(propKey),
+            rscDfn.getProps().getProp(propKey),
             shortenedName
         );
 
@@ -210,7 +210,7 @@ public class NameShortenerTest
 
         assertEquals(expectedShortenedRscName, shortenedName);
         assertEquals(
-            vlmDfn.getProps(TestAccessContextProvider.SYS_CTX).getProp(propKeyPrefix + propKey),
+            vlmDfn.getProps().getProp(propKeyPrefix + propKey),
             shortenedName
         );
 
@@ -237,7 +237,7 @@ public class NameShortenerTest
     private VolumeDefinition getVlmDfn(ResourceDefinition rscDfn, int vlmNr)
         throws ValueOutOfRangeException, Throwable
     {
-        VolumeDefinition vlmDfn = rscDfn.getVolumeDfn(TestAccessContextProvider.SYS_CTX, new VolumeNumber(0));
+        VolumeDefinition vlmDfn = rscDfn.getVolumeDfn(new VolumeNumber(0));
         if (vlmDfn == null)
         {
             vlmDfn = mock(rscDfn, vlmNr);
@@ -251,7 +251,7 @@ public class NameShortenerTest
         ResourceName resName = new ResourceName(rscNameRef);
         Mockito.when(mockedRscDfn.getName()).thenReturn(resName);
         String propsPath = PropsContainer.buildPath(resName);
-        Mockito.when(mockedRscDfn.getProps(Mockito.any()))
+        Mockito.when(mockedRscDfn.getProps())
             .thenReturn(propsContainerFactory.create(propsPath, null, LinStorObject.RSC_DFN));
         return mockedRscDfn;
     }
@@ -263,10 +263,10 @@ public class NameShortenerTest
         VolumeNumber vlmNr = new VolumeNumber(vlmNrInt);
         Mockito.when(mockedVlmDfn.getVolumeNumber()).thenReturn(vlmNr);
         String propsPath = PropsContainer.buildPath(rscDfnRef.getName(), vlmNr);
-        Mockito.when(mockedVlmDfn.getProps(Mockito.any()))
+        Mockito.when(mockedVlmDfn.getProps())
             .thenReturn(propsContainerFactory.create(propsPath, null, LinStorObject.VLM_DFN));
-        Mockito.when(rscDfnRef.getVolumeDfnCount(Mockito.any())).thenReturn(1);
-        Mockito.when(rscDfnRef.getVolumeDfn(Mockito.any(), Mockito.eq(vlmNr))).thenReturn(mockedVlmDfn);
+        Mockito.when(rscDfnRef.getVolumeDfnCount()).thenReturn(1);
+        Mockito.when(rscDfnRef.getVolumeDfn(Mockito.eq(vlmNr))).thenReturn(mockedVlmDfn);
         return mockedVlmDfn;
     }
 }

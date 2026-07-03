@@ -90,7 +90,6 @@ public class ResourceDbDriverTest extends GenericDbBase
         );
 
         resUuid = randomUUID();
-        objProt = objectProtectionFactory.getInstance(ObjectProtection.buildPath(nodeName, resName), true);
 
         initFlags = Resource.Flags.CLEAN.flagValue;
     }

@@ -26,7 +26,6 @@ import java.util.UUID;
 public class ResourceGroupSatelliteFactory
 {
     private final ResourceGroupDatabaseDriver rscGrpDriver;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
@@ -35,7 +34,6 @@ public class ResourceGroupSatelliteFactory
     @Inject
     public ResourceGroupSatelliteFactory(
         ResourceGroupDatabaseDriver rscGrpDriverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -43,7 +41,6 @@ public class ResourceGroupSatelliteFactory
     )
     {
         rscGrpDriver = rscGrpDriverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -76,10 +73,6 @@ public class ResourceGroupSatelliteFactory
         {
             rscGrp = new ResourceGroup(
                 uuid,
-                objectProtectionFactory.getInstance(
-                    ObjectProtection.buildPath(rscGrpName),
-                    true
-                ),
                 rscGrpName,
                 description,
                 copy(layerStackRef),

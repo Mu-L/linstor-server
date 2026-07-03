@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -24,7 +23,6 @@ import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCal
 import static com.linbit.utils.StringUtils.firstLetterCaps;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.Collection;

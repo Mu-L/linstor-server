@@ -65,7 +65,7 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
             TBL_COL_COUNT_VOLUME_DEFINITIONS
         );
 
-        dfltRscGrp = createDefaultResourceGroup(SYS_CTX);
+        dfltRscGrp = createDefaultResourceGroup();
 
         resName = new ResourceName("TestResource");
         LayerPayload payload = new LayerPayload();
@@ -73,7 +73,6 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
         drbdRscDfn.sharedSecret = "secret";
         drbdRscDfn.transportType = TransportType.IP;
         resDfn = resourceDefinitionFactory.create(
-            SYS_CTX,
             resName,
             null,
             null,
@@ -141,7 +140,6 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
         drbdRscDfn.sharedSecret = "secret";
         drbdRscDfn.transportType = TransportType.IP;
         ResourceDefinition resDefinitionTest = resourceDefinitionFactory.create(
-            SYS_CTX,
             new ResourceName("TestResource2"),
             null,
             null,
@@ -151,7 +149,6 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
         );
 
         volumeDefinitionFactory.create(
-            SYS_CTX,
             resDefinitionTest,
             volNr,
             minor,
@@ -177,15 +174,15 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
     public void testLoadGetInstance() throws Exception
     {
         driver.create(volDfn);
-        resDfn.putVolumeDefinition(SYS_CTX, volDfn);
+        resDfn.putVolumeDefinition(volDfn);
 
-        VolumeDefinition loadedVd = resDfn.getVolumeDfn(SYS_CTX, volNr);
+        VolumeDefinition loadedVd = resDfn.getVolumeDfn(volNr);
 
         assertNotNull(loadedVd);
         assertEquals(resName, loadedVd.getResourceDefinition().getName());
         assertEquals(volNr, loadedVd.getVolumeNumber());
-        assertEquals(volSize, loadedVd.getVolumeSize(SYS_CTX));
-        assertTrue(loadedVd.getFlags().isSet(SYS_CTX, VolumeDefinition.Flags.DELETE));
+        assertEquals(volSize, loadedVd.getVolumeSize());
+        assertTrue(loadedVd.getFlags().isSet(VolumeDefinition.Flags.DELETE));
     }
 
     @Test
@@ -203,8 +200,8 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
         assertNotNull(loadedVd);
         assertEquals(resName, loadedVd.getResourceDefinition().getName());
         assertEquals(volNr, loadedVd.getVolumeNumber());
-        assertEquals(volSize, loadedVd.getVolumeSize(SYS_CTX));
-        assertTrue(loadedVd.getFlags().isSet(SYS_CTX, VolumeDefinition.Flags.DELETE));
+        assertEquals(volSize, loadedVd.getVolumeSize());
+        assertTrue(loadedVd.getFlags().isSet(VolumeDefinition.Flags.DELETE));
     }
 
     @Test
@@ -235,7 +232,7 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
     {
         driver.create(volDfn);
 
-        Props props = volDfn.getProps(SYS_CTX);
+        Props props = volDfn.getProps();
         String testKey = "TestKey";
         String testValue = "TestValue";
         props.setProp(testKey, testValue);
@@ -252,7 +249,7 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
     {
         driver.create(volDfn);
 
-        volDfn.getFlags().disableAllFlags(SYS_CTX);
+        volDfn.getFlags().disableAllFlags();
 
         commit();
 
@@ -293,7 +290,7 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
         driver.create(volDfn);
 
         long size = 9001;
-        volDfn.setVolumeSize(SYS_CTX, size);
+        volDfn.setVolumeSize(size);
 
         commit();
 
@@ -315,7 +312,7 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
         driver.create(volDfn);
         commit();
         long size = 9001;
-        volDfn.setVolumeSize(SYS_CTX, size);
+        volDfn.setVolumeSize(size);
         // driver.getVolumeSizeDriver().update(volDfn, size);
 
         PreparedStatement stmt = getConnection().prepareStatement(SELECT_ALL_VOL_DFN);
@@ -333,8 +330,8 @@ public class VolumeDefinitionDbDriverTest extends GenericDbBase
     public void testAlreadyExists() throws Exception
     {
         driver.create(volDfn);
-        resDfn.putVolumeDefinition(SYS_CTX, volDfn);
+        resDfn.putVolumeDefinition(volDfn);
 
-        volumeDefinitionFactory.create(SYS_CTX, resDfn, volNr, minor, volSize, null);
+        volumeDefinitionFactory.create(resDfn, volNr, minor, volSize, null);
     }
 }

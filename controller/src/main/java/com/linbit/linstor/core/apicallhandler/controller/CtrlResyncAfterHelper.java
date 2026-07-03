@@ -149,7 +149,6 @@ public class CtrlResyncAfterHelper
      *         and a set of involved resources, which is useful to notify satellites.
      * @throws ApiException             If an invalid value would be set
      * @throws ApiDatabaseException     if setProp fails
-     * @throws ApiAccessDeniedException if apiCtx doesn't have access to resource definition
      */
     @SuppressWarnings("checkstyle:IllegalToken")
     private PairNonNull<ApiCallRc, Set<Resource>> updateResyncAfter()

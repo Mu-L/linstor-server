@@ -15,7 +15,6 @@ import com.linbit.linstor.core.apicallhandler.controller.db.DbExportPojoData;
 import com.linbit.linstor.core.cfg.CtrlConfig;
 import com.linbit.linstor.dbdrivers.DatabaseDriverInfo.DatabaseType;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.dbdrivers.DatabaseLoader;
 import com.linbit.linstor.dbdrivers.DatabaseTable;
 import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine;
@@ -139,18 +138,11 @@ public class SQLEngine implements DbEngine
     )
         throws DatabaseException
     {
-        try
-        {
-            errorReporter.logTrace("Creating %s %s", table.getName(), dataToString.toString(data));
+        errorReporter.logTrace("Creating %s %s", table.getName(), dataToString.toString(data));
 
-            insertImpl(setters, data, table);
+        insertImpl(setters, data, table);
 
-            errorReporter.logTrace("%s created %s", table.getName(), dataToString.toString(data));
-        }
-        catch (AccessDeniedException exc)
-        {
-            DatabaseLoader.handleAccessDeniedException(exc);
-        }
+        errorReporter.logTrace("%s created %s", table.getName(), dataToString.toString(data));
     }
 
     private <DATA> void insertImpl(
@@ -288,10 +280,6 @@ public class SQLEngine implements DbEngine
         {
             throw new DatabaseException(sqlExc);
         }
-        catch (AccessDeniedException exc)
-        {
-            DatabaseLoader.handleAccessDeniedException(exc);
-        }
     }
 
     private String getSelectSingleStatement(DatabaseTable table)
@@ -373,10 +361,6 @@ public class SQLEngine implements DbEngine
         catch (SQLException sqlExc)
         {
             throw new DatabaseException(sqlExc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            DatabaseLoader.handleAccessDeniedException(exc);
         }
     }
 

@@ -171,7 +171,6 @@ public class VlmDfnInternalCallHandler
             );
             errorReporter.reportError(
                 sqlExc,
-                peer.get().getAccessContext(),
                 currentPeer,
                 errorMessage
             );

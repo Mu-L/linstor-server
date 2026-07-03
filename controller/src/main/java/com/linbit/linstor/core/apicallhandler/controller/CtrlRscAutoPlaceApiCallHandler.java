@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
@@ -543,9 +542,7 @@ public class CtrlRscAutoPlaceApiCallHandler
 
     private boolean isFlagSet(Resource rsc, Resource.Flags... flags)
     {
-        boolean flagSet = false;
-        flagSet = rsc.getStateFlags().isSet(flags);
-        return flagSet;
+        return rsc.getStateFlags().isSet(flags);
     }
 
 
@@ -558,16 +555,12 @@ public class CtrlRscAutoPlaceApiCallHandler
 
     private boolean isSomeFlagSet(Resource rsc, Resource.Flags... flags)
     {
-        boolean flagSet = false;
-        flagSet = rsc.getStateFlags().isSomeSet(flags);
-        return flagSet;
+        return rsc.getStateFlags().isSomeSet(flags);
     }
 
     private boolean isNodeFlagSet(Resource rsc, Node.Flags... flags)
     {
-        boolean flagSet = false;
-        flagSet = rsc.getNode().getFlags().isSet(flags);
-        return flagSet;
+        return rsc.getNode().getFlags().isSet(flags);
     }
 
     static long calculateResourceDefinitionSize(ResourceDefinition rscDfn)

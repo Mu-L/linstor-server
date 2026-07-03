@@ -15,7 +15,6 @@ import com.linbit.linstor.core.apicallhandler.response.ApiException;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.repository.NodeRepository;
-import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.modularcrypto.ModularCryptoProvider;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerNotConnectedException;
@@ -28,7 +27,6 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.utils.Base64;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.io.ByteArrayInputStream;
@@ -49,7 +47,6 @@ import reactor.util.function.Tuples;
 public class CtrlPhysicalStorageApiCallHandler
 {
     private static final int SED_PASSWORD_LENGTH = 20;
-    private final ErrorReporter errorReporter;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlStltSerializer ctrlStltSerializer;
@@ -61,7 +58,6 @@ public class CtrlPhysicalStorageApiCallHandler
 
     @Inject
     public CtrlPhysicalStorageApiCallHandler(
-        ErrorReporter errorReporterRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlStltSerializer ctrlStltSerializerRef,
@@ -71,7 +67,6 @@ public class CtrlPhysicalStorageApiCallHandler
         EncryptionHelper encryptionHelperRef
     )
     {
-        this.errorReporter = errorReporterRef;
         this.scopeRunner = scopeRunnerRef;
         this.lockGuardFactory = lockGuardFactoryRef;
         this.ctrlStltSerializer = ctrlStltSerializerRef;
@@ -113,28 +108,19 @@ public class CtrlPhysicalStorageApiCallHandler
 
     private Flux<Map<NodeName, List<LsBlkEntry>>> listPhysicalStorageInScope()
     {
-        Flux<Map<NodeName, List<LsBlkEntry>>> flux = Flux.empty();
-        try
+        ArrayList<Peer> peers = new ArrayList<>();
+        for (Node node : nodeRepository.getMapForView().values())
         {
-            ArrayList<Peer> peers = new ArrayList<>();
-            for (Node node : nodeRepository.getMapForView().values())
-            {
-                peers.add(node.getPeer());
-            }
+            peers.add(node.getPeer());
+        }
 
-            flux = Flux
-                .fromIterable(peers)
-                .flatMap(peer -> getPhysicalStorageForPeer(peer)
-                    .map(l -> Tuples.of(peer.getNode().getName(), l))
-                    .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty()))
-                .collectMap(Tuple2::getT1, Tuple2::getT2)
-                .flux();
-        }
-        catch (AccessDeniedException accExc)
-        {
-            errorReporter.reportError(accExc);
-        }
-        return flux;
+        return Flux
+            .fromIterable(peers)
+            .flatMap(peer -> getPhysicalStorageForPeer(peer)
+                .map(l -> Tuples.of(peer.getNode().getName(), l))
+                .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty()))
+            .collectMap(Tuple2::getT1, Tuple2::getT2)
+            .flux();
     }
 
     private static List<LsBlkEntry> parsePhysicalDevices(ByteArrayInputStream inputStream)

@@ -6,7 +6,7 @@ import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.objects.remotes.S3Remote.InitMaps;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -37,7 +37,7 @@ import javax.inject.Singleton;
 import java.util.function.Function;
 
 @Singleton
-public final class S3RemoteDbDriver extends AbsProtectedDatabaseDriver<S3Remote, S3Remote.InitMaps, Void>
+public final class S3RemoteDbDriver extends AbsDatabaseDriver<S3Remote, S3Remote.InitMaps, Void>
     implements S3RemoteCtrlDatabaseDriver
 {
     final PropsContainerFactory propsContainerFactory;
@@ -56,12 +56,11 @@ public final class S3RemoteDbDriver extends AbsProtectedDatabaseDriver<S3Remote,
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.S3_REMOTES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.S3_REMOTES, dbEngine);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -139,7 +138,6 @@ public final class S3RemoteDbDriver extends AbsProtectedDatabaseDriver<S3Remote,
         secretKey = raw.get(SECRET_KEY);
         return new Pair<>(
             new S3Remote(
-                getObjectProtection(ObjectProtection.buildPath(remoteName)),
                 raw.build(UUID, java.util.UUID::fromString),
                 this,
                 remoteName,

@@ -20,7 +20,6 @@ import java.util.UUID;
 public class LinstorRemoteControllerFactory
 {
     private final LinstorRemoteDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objProtFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
     private final RemoteRepository remoteRepo;
@@ -28,14 +27,12 @@ public class LinstorRemoteControllerFactory
     @Inject
     public LinstorRemoteControllerFactory(
         LinstorRemoteDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objProtFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
         RemoteRepository extFileRepoRef
     )
     {
         dbDriver = dbDriverRef;
-        objProtFactory = objProtFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
         remoteRepo = extFileRepoRef;
@@ -55,10 +52,6 @@ public class LinstorRemoteControllerFactory
         }
 
         LinstorRemote remote = new LinstorRemote(
-            objProtFactory.getInstance(
-                ObjectProtection.buildPath(nameRef),
-                true
-            ),
             UUID.randomUUID(),
             dbDriver,
             nameRef,

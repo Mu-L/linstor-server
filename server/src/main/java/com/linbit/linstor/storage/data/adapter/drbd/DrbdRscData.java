@@ -565,7 +565,7 @@ public class DrbdRscData<RSC extends AbsResource<RSC>>
      * <ul>
      * <li>{@link AbsResource} (i.e. {@link Resource} or {@link Snapshot})</li>
      * <li>all participating {@link StorPool}s. The order is depending on
-     * {@link LayerVlmUtils#getStorPools(AbsResource, AccessContext)}</li>
+     * {@link LayerVlmUtils#getStorPools(AbsResource)}</li>
      * <li>{@link Node}</li>
      * <li>{@link ResourceDefinition}</li>
      * <li>Satellite props (from parameter)</li>

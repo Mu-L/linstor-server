@@ -38,7 +38,6 @@ public class DebugConsoleCreator
     /**
      * Creates a debug console instance for remote use by a connected peer
      *
-     * @param accCtx The access context to authorize this API call
      * @param client Connected peer
      * @return New DebugConsole instance
      */
@@ -61,7 +60,6 @@ public class DebugConsoleCreator
     /**
      * Destroys the debug console instance of a connected peer
      *
-     * @param accCtx The access context to authorize this API call
      * @param client Connected peer
      */
     public void destroyDebugConsole(Peer client)

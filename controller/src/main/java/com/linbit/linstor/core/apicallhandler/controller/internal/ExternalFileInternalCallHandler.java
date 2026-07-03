@@ -96,14 +96,5 @@ public class ExternalFileInternalCallHandler
                 )
             );
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            errorReporter.reportError(
-                new ImplementationError(
-                    "Controller's api context has not enough privileges to gather requested storpool data.",
-                    accDeniedExc
-                )
-            );
-        }
     }
 }

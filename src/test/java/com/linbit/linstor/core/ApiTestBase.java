@@ -11,7 +11,6 @@ import com.linbit.linstor.api.pojo.NetInterfacePojo;
 import com.linbit.linstor.api.utils.AbsApiCallTester;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlApiCallHandlerModule;
 import com.linbit.linstor.core.apis.NetInterfaceApi;
-import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.objects.NetInterface.EncryptionType;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.netcom.NetComContainer;
@@ -73,9 +72,6 @@ public abstract class ApiTestBase extends GenericDbBase
             ctrlConf.setProp(ControllerNetComInitializer.PROPSCON_KEY_DEFAULT_PLAIN_CON_SVC, "ignore");
             ctrlConf.setProp(ControllerNetComInitializer.PROPSCON_KEY_DEFAULT_SSL_CON_SVC, "ignore");
 
-            create(transMgr);
-            create(transMgr);
-
             transMgr.commit();
             transMgr.returnConnection();
         }
@@ -87,46 +83,10 @@ public abstract class ApiTestBase extends GenericDbBase
         initAfterScopeWasEntered();
     }
 
-    private void create(TransactionMgrSQL transMgr) throws Exception
-    {
-        Identity.create(accCtx.subjectId.name);
-        SecurityType.create(accCtx.subjectDomain.name);
-        Role.create(accCtx.subjectRole.name);
-
-        {
-            // TODO each line in this block should be called in the corresponding .create method from the lines above
-            insertIdentity(transMgr, accCtx.subjectId.name);
-            insertSecType(transMgr, accCtx.subjectDomain.name);
-            insertRole(transMgr, accCtx.subjectRole.name, accCtx.subjectDomain.name);
-        }
-
-        ObjectProtection nodesMapProt = nodeRepository.getObjProt();
-        ObjectProtection rscDfnMapProt = resourceDefinitionRepository.getObjProt();
-        ObjectProtection storPoolDfnMapProt = storPoolDefinitionRepository.getObjProt();
-        nodesMapProt.getSecurityType().addRule(accCtx.subjectDomain, AccessType.CHANGE);
-        rscDfnMapProt.getSecurityType().addRule(accCtx.subjectDomain, AccessType.CHANGE);
-        storPoolDfnMapProt.getSecurityType().addRule(accCtx.subjectDomain, AccessType.CHANGE);
-
-        accCtx.subjectDomain.addRule(accCtx.subjectDomain, AccessType.CONTROL);
-
-        nodesMapProt.setConnection(transMgr);
-        rscDfnMapProt.setConnection(transMgr);
-        storPoolDfnMapProt.setConnection(transMgr);
-        nodesMapProt.addAclEntry(accCtx.subjectRole, AccessType.CHANGE);
-        rscDfnMapProt.addAclEntry(accCtx.subjectRole, AccessType.CHANGE);
-        storPoolDfnMapProt.addAclEntry(accCtx.subjectRole, AccessType.CHANGE);
-
-        ObjectProtection disklessStorPoolDfnProt =
-            storPoolDefinitionRepository.get(new StorPoolName(LinStor.DISKLESS_STOR_POOL_NAME)).getObjProt();
-        disklessStorPoolDfnProt.setConnection(transMgr);
-        disklessStorPoolDfnProt.addAclEntry(accCtx.subjectRole, AccessType.CHANGE);
-    }
-
     protected Context contextWrite()
     {
         return Context.of(
             ApiModule.API_CALL_NAME, "TestApiCallName",
-            AccessContext.class, mockPeer.getAccessContext(),
             Peer.class, mockPeer,
             ApiModule.API_CALL_ID, 1L
         );
@@ -227,13 +187,11 @@ public abstract class ApiTestBase extends GenericDbBase
         Mockito.verify(satelliteConnector, Mockito.times(currentCall.expectedSyncConnectingAttempts.size()))
             .startConnecting(
                 Mockito.any(Node.class),
-                Mockito.any(AccessContext.class),
                 Mockito.eq(false)
             );
         Mockito.verify(satelliteConnector, Mockito.times(currentCall.expectedAsyncConnectingAttempts.size()))
             .startConnecting(
                 Mockito.any(Node.class),
-                Mockito.any(AccessContext.class),
                 Mockito.eq(true)
             );
     }

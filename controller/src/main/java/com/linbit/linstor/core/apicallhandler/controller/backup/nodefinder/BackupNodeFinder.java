@@ -19,7 +19,7 @@ import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.AbsRemote.RemoteType;
-import com.linbit.linstor.core.repository.SystemConfProtectionRepository;
+import com.linbit.linstor.core.repository.SystemConfRepositoryImpl;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmData;
@@ -36,7 +36,6 @@ import com.linbit.linstor.utils.layer.LayerRscUtils;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -57,12 +56,12 @@ public class BackupNodeFinder
     private static final Version VERSION_THIN_SEND_RECV = new ExtToolsInfo.Version(0, 24);
 
     private final CtrlApiDataLoader ctrlApiDataLoader;
-    private final SystemConfProtectionRepository sysCfgRepo;
+    private final SystemConfRepositoryImpl sysCfgRepo;
 
     @Inject
     public BackupNodeFinder(
         CtrlApiDataLoader ctrlApiDataLoaderRef,
-        SystemConfProtectionRepository sysCfgRepoRef
+        SystemConfRepositoryImpl sysCfgRepoRef
     )
     {
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -98,7 +97,6 @@ public class BackupNodeFinder
     )
     {
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
-        AccessContext accCtx = peerAccCtx.get();
         /*
          * This map is needed to make sure only nodes with the exact same meta-layout across all volumes (aka the same
          * Category) are grouped together while looking for sets of nodes that can do the shipping.

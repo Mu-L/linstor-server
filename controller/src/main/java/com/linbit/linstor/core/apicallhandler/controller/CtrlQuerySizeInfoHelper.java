@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcWith;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
@@ -20,7 +19,6 @@ import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.utils.PairNonNull;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -111,12 +109,10 @@ public class CtrlQuerySizeInfoHelper
                         null,
                         null,
                         FreeCapacityAutoPoolSelectorUtils.getFreeCapacityOversubscriptionRatioPrivileged(
-                            sysAccCtx,
                             sp,
                             ctrpProps
                         ),
                         FreeCapacityAutoPoolSelectorUtils.getTotalCapacityOversubscriptionRatioPrivileged(
-                            sysAccCtx,
                             sp,
                             ctrpProps
                         )
@@ -145,7 +141,6 @@ public class CtrlQuerySizeInfoHelper
             {
                 Optional<Long> optFreeCap = FreeCapacityAutoPoolSelectorUtils
                     .getFreeCapacityCurrentEstimationPrivileged(
-                        sysAccCtx,
                         thinFreeCapacitiesRef,
                         sp,
                         ctrlProps,
@@ -163,7 +158,7 @@ public class CtrlQuerySizeInfoHelper
 
     private ReadOnlyProps getCtrlPropsPrivileged()
     {
-        return sysCfgRepo.getCtrlConfForView(sysAccCtx);
+        return sysCfgRepo.getCtrlConfForView();
     }
 
     private long getAvailable(
@@ -187,7 +182,6 @@ public class CtrlQuerySizeInfoHelper
             {
                 Optional<Long> optFreeCap = FreeCapacityAutoPoolSelectorUtils
                     .getFreeCapacityCurrentEstimationPrivileged(
-                        sysAccCtx,
                         thinFreeCapacitiesRef,
                         sp,
                         ctrlProps,
@@ -238,7 +232,6 @@ public class CtrlQuerySizeInfoHelper
 
     private long getCapacity(int placeCountRef, List<StorPool> availableStorPoolListRef)
     {
-        AccessContext peerCtx = peerCtxProvider.get();
         ArrayList<Long> capacitySizes = new ArrayList<>();
         for (StorPool sp : availableStorPoolListRef)
         {

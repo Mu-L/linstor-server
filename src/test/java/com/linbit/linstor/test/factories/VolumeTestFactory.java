@@ -40,7 +40,6 @@ public class VolumeTestFactory
 
     private final HashMap<Triple<String, String, Integer>, Volume> vlmMap = new HashMap<>();
 
-    private AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     private Flags[] dfltFlags = new Flags[0];
     private Map<String, String> dfltStorPoolMap = new TreeMap<>();
     private LayerPayload dfltPayload = new LayerPayload();
@@ -73,12 +72,6 @@ public class VolumeTestFactory
             vlm = create(nodeName, rscName, vlmNr);
         }
         return vlm;
-    }
-
-    public VolumeTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
     }
 
     public VolumeTestFactory setDfltFlags(Flags[] dfltFlagsRef)
@@ -209,11 +202,6 @@ public class VolumeTestFactory
         public VolumeBuilder setVlmNr(int vlmNrRef)
         {
             vlmNr = vlmNrRef;
-            return this;
-        }
-
-        public VolumeBuilder setAccCtx()
-        {
             return this;
         }
 

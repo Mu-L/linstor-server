@@ -5,10 +5,8 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.ExternalFileName;
 import com.linbit.linstor.core.objects.ExternalFile;
 
-public interface ExternalFileRepository extends ProtectedObject
+public interface ExternalFileRepository
 {
-    void requireAccess(AccessType requested);
-
     @Nullable
     ExternalFile get(ExternalFileName externalFileName);
 

@@ -319,7 +319,6 @@ public class TaskScheduleService implements SystemService, Runnable
                     exc
                 ),
                 null,
-                null,
                 "This exception was generated in the service thread of the service '" + SERVICE_NAME + "'"
             );
         }
@@ -345,7 +344,6 @@ public class TaskScheduleService implements SystemService, Runnable
                     "Unhandled exception caught in " + TaskScheduleService.class.getName(),
                     exc
                 ),
-                null,
                 null,
                 "This exception was generated in the service thread of the service '" + SERVICE_NAME + "'"
             );

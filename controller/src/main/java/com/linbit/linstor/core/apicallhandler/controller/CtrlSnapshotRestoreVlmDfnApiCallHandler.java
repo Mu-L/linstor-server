@@ -23,7 +23,6 @@ import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
 
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlVlmDfnApiCallHandler.getVlmDfnDescriptionInline;
 import static com.linbit.utils.StringUtils.firstLetterCaps;
 
 import javax.inject.Inject;

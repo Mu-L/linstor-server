@@ -129,21 +129,6 @@ public class BackupShippingS3Daemon implements Runnable, BackupShippingDaemon
             );
             shutdown(true);
         }
-        catch (AccessDeniedException exc)
-        {
-            errorReporter.reportError(
-                new SystemServiceStartException(
-                    "Unable to daemon for SnapshotShipping",
-                    "Access denied exception attempting to start '" + Arrays.toString(command) + "'",
-                    exc.getMessage(),
-                    null,
-                    null,
-                    exc,
-                    false
-                )
-            );
-            shutdown(true);
-        }
         catch (SdkBaseException exc)
         {
             errorReporter.reportError(
@@ -183,11 +168,6 @@ public class BackupShippingS3Daemon implements Runnable, BackupShippingDaemon
                 errorReporter.reportError(exc);
             }
         }
-        catch (AccessDeniedException exc)
-        {
-            threadFinished(success, true);
-            throw new ImplementationError(exc);
-        }
         threadFinished(success, true);
     }
 
@@ -218,11 +198,6 @@ public class BackupShippingS3Daemon implements Runnable, BackupShippingDaemon
                 // successfully finished previously
                 errorReporter.reportError(exc);
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            threadFinished(success, true);
-            throw new ImplementationError(exc);
         }
         threadFinished(success, true);
     }

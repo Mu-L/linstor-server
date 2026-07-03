@@ -5,7 +5,7 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.core.identifier.NodeName;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -29,7 +29,7 @@ import java.util.Map;
 
 @Singleton
 public final class NodeConnectionDbDriver
-    extends AbsProtectedDatabaseDriver<NodeConnection, Void, Map<NodeName, ? extends Node>>
+    extends AbsDatabaseDriver<NodeConnection, Void, Map<NodeName, ? extends Node>>
     implements NodeConnectionCtrlDatabaseDriver
 {
     private final Provider<TransactionMgr> transMgrProvider;
@@ -41,12 +41,11 @@ public final class NodeConnectionDbDriver
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.NODE_CONNECTIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.NODE_CONNECTIONS, dbEngineRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;

@@ -31,7 +31,6 @@ public class StorPoolTestFactory
 
     private final HashMap<Pair<String, String>, StorPool> storPoolMap = new HashMap<>();
 
-    private AccessContext dfltAccCtx = TestAccessContextProvider.PUBLIC_CTX;
     private DeviceProviderKind dfltDriverKind = DeviceProviderKind.LVM;
 
     @Inject
@@ -58,12 +57,6 @@ public class StorPoolTestFactory
             sp = create(nodeName, storPoolName);
         }
         return sp;
-    }
-
-    public StorPoolTestFactory setDfltAccCtx()
-    {
-        dfltAccCtx = dfltAccCtxRef;
-        return this;
     }
 
     public StorPoolTestFactory setDfltDriverKind(DeviceProviderKind dfltDriverKindRef)
@@ -146,11 +139,6 @@ public class StorPoolTestFactory
         public StorPoolBuilder setDriverKind(DeviceProviderKind driverKindRef)
         {
             driverKind = driverKindRef;
-            return this;
-        }
-
-        public StorPoolBuilder setAccCtx()
-        {
             return this;
         }
 

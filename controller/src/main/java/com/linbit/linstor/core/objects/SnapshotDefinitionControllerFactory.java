@@ -25,19 +25,16 @@ public class SnapshotDefinitionControllerFactory
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
-    private final ObjectProtectionFactory objectProtectionFactory;
 
     @Inject
     public SnapshotDefinitionControllerFactory(
         SnapshotDefinitionDatabaseDriver driverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef
     )
     {
         driver = driverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -60,10 +57,6 @@ public class SnapshotDefinitionControllerFactory
 
         snapshotDfnData = new SnapshotDefinition(
             UUID.randomUUID(),
-            objectProtectionFactory.getInstance(
-                ObjectProtection.buildPath(rscDfn.getName(), snapshotName),
-                true
-            ),
             rscDfn,
             snapshotName,
             StateFlagsBits.getMask(initFlags),

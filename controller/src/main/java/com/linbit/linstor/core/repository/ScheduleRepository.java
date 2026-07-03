@@ -5,10 +5,8 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.ScheduleName;
 import com.linbit.linstor.core.objects.Schedule;
 
-public interface ScheduleRepository extends ProtectedObject
+public interface ScheduleRepository
 {
-    void requireAccess(AccessType requested);
-
     @Nullable
     Schedule get(ScheduleName scheduleName);
 

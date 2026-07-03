@@ -26,7 +26,6 @@ public class NodeControllerFactory
 {
     private final ErrorReporter errorReporter;
     private final NodeDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
@@ -37,7 +36,6 @@ public class NodeControllerFactory
     public NodeControllerFactory(
         ErrorReporter errorReporterRef,
         NodeDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -47,7 +45,6 @@ public class NodeControllerFactory
     {
         errorReporter = errorReporterRef;
         dbDriver = dbDriverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -71,10 +68,6 @@ public class NodeControllerFactory
 
         node = new Node(
             UUID.randomUUID(),
-            objectProtectionFactory.getInstance(
-                ObjectProtection.buildPath(nameRef),
-                true
-            ),
             nameRef,
             type,
             StateFlagsBits.getMask(flags),

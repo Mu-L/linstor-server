@@ -1,6 +1,5 @@
 package com.linbit.linstor.tasks;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
@@ -53,9 +52,7 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import com.google.inject.Key;
 import org.slf4j.MDC;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -139,92 +136,85 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
      */
     public void update(Resource rsc)
     {
-        try
+        if (LayerUtils.hasLayer(rsc.getLayerData(), DeviceLayerKind.DRBD))
         {
-            if (LayerUtils.hasLayer(rsc.getLayerData(), DeviceLayerKind.DRBD))
+            if (rsc.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS))
             {
-                if (rsc.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS))
-                {
-                    @Nullable String autoDiskful = getPrioProps(rsc)
-                        .getProp(ApiConsts.KEY_DRBD_AUTO_DISKFUL, ApiConsts.NAMESPC_DRBD_OPTIONS);
-                    @Nullable SatelliteResourceState rscStates = rsc.getNode().getPeer()
-                            .getSatelliteState().getResourceStates().get(rsc.getResourceDefinition().getName());
-                    @Nullable Boolean isPrimary = rscStates != null ? rscStates.isInUse() : null;
+                @Nullable String autoDiskful = getPrioProps(rsc)
+                    .getProp(ApiConsts.KEY_DRBD_AUTO_DISKFUL, ApiConsts.NAMESPC_DRBD_OPTIONS);
+                @Nullable SatelliteResourceState rscStates = rsc.getNode().getPeer()
+                        .getSatelliteState().getResourceStates().get(rsc.getResourceDefinition().getName());
+                @Nullable Boolean isPrimary = rscStates != null ? rscStates.isInUse() : null;
 
-                    boolean enableAutoDiskful = autoDiskful != null && isPrimary != null && isPrimary;
-                    synchronized (configSet)
-                    {
-                        AutoDiskfulConfig cfg = configSetByRsc.get(rsc);
-                        if (!enableAutoDiskful)
-                        {
-                            if (cfg != null)
-                            {
-                                configSet.remove(cfg);
-                                configSetByRsc.remove(rsc);
-                                errorReporter.logTrace(
-                                    "Removed %s to autoDiskfulTask",
-                                    CtrlRscApiCallHandler.getRscDescription(rsc)
-                                );
-                            }
-                        }
-                        else
-                        {
-                            // property is in minutes
-                            long toggleDiskAfter = Long.parseLong(autoDiskful) * MINUTES_TO_MS;
-                            if (cfg != null)
-                            {
-                                /*
-                                 * changing toggleDiskAfter might change the configSet's order.
-                                 * To force the TreeSet to reorder, we need to remove and re-add the object
-                                 */
-                                configSet.remove(cfg);
-                                cfg.toggleDiskAfter = toggleDiskAfter;
-                                configSet.add(cfg);
-                                // no need to update configSetByRsc, as resource did not change
-                                errorReporter.logTrace(
-                                    "Updated %s to autoDiskfulTask in %dms",
-                                    CtrlRscApiCallHandler.getRscDescription(rsc),
-                                    (cfg.disklessPrimarySince + toggleDiskAfter) - System.currentTimeMillis()
-                                );
-                            }
-                            else
-                            {
-                                cfg = new AutoDiskfulConfig(System.currentTimeMillis(), rsc, toggleDiskAfter);
-                                configSet.add(cfg);
-                                configSetByRsc.put(rsc, cfg);
-                                errorReporter.logTrace(
-                                    "Added %s to autoDiskfulTask in %dms",
-                                    CtrlRscApiCallHandler.getRscDescription(rsc),
-                                    toggleDiskAfter
-                                );
-                            }
-                        }
-                    }
-                }
-                else
+                boolean enableAutoDiskful = autoDiskful != null && isPrimary != null && isPrimary;
+                synchronized (configSet)
                 {
-                    // make sure to delete the no-longer diskless resource if we had it in our sets
-                    synchronized (configSet)
+                    AutoDiskfulConfig cfg = configSetByRsc.get(rsc);
+                    if (!enableAutoDiskful)
                     {
-                        AutoDiskfulConfig cfg = configSetByRsc.remove(rsc);
                         if (cfg != null)
                         {
                             configSet.remove(cfg);
+                            configSetByRsc.remove(rsc);
+                            errorReporter.logTrace(
+                                "Removed %s to autoDiskfulTask",
+                                CtrlRscApiCallHandler.getRscDescription(rsc)
+                            );
+                        }
+                    }
+                    else
+                    {
+                        // property is in minutes
+                        long toggleDiskAfter = Long.parseLong(autoDiskful) * MINUTES_TO_MS;
+                        if (cfg != null)
+                        {
+                            /*
+                             * changing toggleDiskAfter might change the configSet's order.
+                             * To force the TreeSet to reorder, we need to remove and re-add the object
+                             */
+                            configSet.remove(cfg);
+                            cfg.toggleDiskAfter = toggleDiskAfter;
+                            configSet.add(cfg);
+                            // no need to update configSetByRsc, as resource did not change
+                            errorReporter.logTrace(
+                                "Updated %s to autoDiskfulTask in %dms",
+                                CtrlRscApiCallHandler.getRscDescription(rsc),
+                                (cfg.disklessPrimarySince + toggleDiskAfter) - System.currentTimeMillis()
+                            );
+                        }
+                        else
+                        {
+                            cfg = new AutoDiskfulConfig(System.currentTimeMillis(), rsc, toggleDiskAfter);
+                            configSet.add(cfg);
+                            configSetByRsc.put(rsc, cfg);
+                            errorReporter.logTrace(
+                                "Added %s to autoDiskfulTask in %dms",
+                                CtrlRscApiCallHandler.getRscDescription(rsc),
+                                toggleDiskAfter
+                            );
                         }
                     }
                 }
             }
             else
             {
-                errorReporter.logTrace(
-                    "Ignoring %s for autoDiskfulTask as it does not contain DRBD layer",
-                    CtrlRscApiCallHandler.getRscDescription(rsc)
-                );
+                // make sure to delete the no-longer diskless resource if we had it in our sets
+                synchronized (configSet)
+                {
+                    AutoDiskfulConfig cfg = configSetByRsc.remove(rsc);
+                    if (cfg != null)
+                    {
+                        configSet.remove(cfg);
+                    }
+                }
             }
         }
-        catch (AccessDeniedException exc)
+        else
         {
-            errorReporter.reportError(new ImplementationError(exc));
+            errorReporter.logTrace(
+                "Ignoring %s for autoDiskfulTask as it does not contain DRBD layer",
+                CtrlRscApiCallHandler.getRscDescription(rsc)
+            );
         }
     }
 
@@ -243,41 +233,20 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
 
     public void update(Node node)
     {
-        try
-        {
-            node.streamResources()
-                .forEach(this::update);
-        }
-        catch (AccessDeniedException exc)
-        {
-            errorReporter.reportError(new ImplementationError(exc));
-        }
+        node.streamResources()
+            .forEach(this::update);
     }
 
     public void update(ResourceDefinition rscDfn)
     {
-        try
-        {
-            rscDfn.streamResource()
-                .forEach(this::update);
-        }
-        catch (AccessDeniedException exc)
-        {
-            errorReporter.reportError(new ImplementationError(exc));
-        }
+        rscDfn.streamResource()
+            .forEach(this::update);
     }
 
     public void update(ResourceGroup rscGrp)
     {
-        try
-        {
-            rscGrp.getRscDfns().stream().flatMap(this::streamRscsPrivileged)
-                .forEach(this::update);
-        }
-        catch (AccessDeniedException exc)
-        {
-            errorReporter.reportError(new ImplementationError(exc));
-        }
+        rscGrp.getRscDfns().stream().flatMap(ResourceDefinition::streamResource)
+            .forEach(this::update);
     }
 
     /**
@@ -285,20 +254,8 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
      */
     public void update()
     {
-        try
-        {
-            rscDfnRepo.getMapForView().values().stream().flatMap(this::streamRscsPrivileged)
-                .forEach(this::update);
-        }
-        catch (AccessDeniedException exc)
-        {
-            errorReporter.reportError(new ImplementationError(exc));
-        }
-    }
-
-    private Stream<? extends Resource> streamRscsPrivileged(ResourceDefinition rscDfn)
-    {
-        return rscDfn.streamResource();
+        rscDfnRepo.getMapForView().values().stream().flatMap(ResourceDefinition::streamResource)
+            .forEach(this::update);
     }
 
     @Override
@@ -330,81 +287,72 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
 
         for (AutoDiskfulConfig cfg : cfgsToExecute)
         {
-            try
+            Resource rsc = cfg.rsc;
+            StateFlags<Resource.Flags> rscFlags = rsc.getStateFlags();
+            if (
+                rscFlags.isSet(Resource.Flags.DRBD_DISKLESS) &&
+                    !rscFlags.isSet(Resource.Flags.DISK_ADD_REQUESTED) &&
+                    !rscFlags.isSet(Resource.Flags.DISK_ADDING)
+            )
             {
-                Resource rsc = cfg.rsc;
-                StateFlags<Resource.Flags> rscFlags = rsc.getStateFlags();
-                if (
-                    rscFlags.isSet(Resource.Flags.DRBD_DISKLESS) &&
-                        !rscFlags.isSet(Resource.Flags.DISK_ADD_REQUESTED) &&
-                        !rscFlags.isSet(Resource.Flags.DISK_ADDING)
-                )
+                @Nullable Set<StorPool> autoPlace;
+                try (LinStorScope.ScopeAutoCloseable close = linstorScope.enter())
                 {
-                    @Nullable Set<StorPool> autoPlace;
-                    try (LinStorScope.ScopeAutoCloseable close = linstorScope.enter())
-                    {
-                        ResourceDefinition rscDfn = rsc.getResourceDefinition();
-                        long sizeInKib = getSize(rscDfn);
+                    ResourceDefinition rscDfn = rsc.getResourceDefinition();
+                    long sizeInKib = getSize(rscDfn);
 
-                        linstorScope.seed(Key.get(AccessContext.class, PeerContext.class));
 
-                        autoPlace = autoplacer.autoPlace(
-                            AutoSelectFilterPojo.merge(
-                                new AutoSelectFilterBuilder()
-                                    .setPlaceCount(1)
-                                    .setNodeNameList(Collections.singletonList(rsc.getNode().getName().displayValue))
-                                    .setSkipAlreadyPlacedOnNodeNamesCheck(
-                                        rscDfn.streamResource()
-                                            .map(tmpRsc -> tmpRsc.getNode().getName().displayValue)
-                                            .collect(Collectors.toList())
-                                    )
-                                    .build(),
-                                rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData()
-                            ),
-                            rscDfn,
-                            sizeInKib
-                        );
-                    }
-                    // need to exit scope here to ensure the following subscribe does not try to use the same scope
-
-                    if (autoPlace == null || autoPlace.isEmpty())
-                    {
-                        errorReporter.logError(
-                            "Failed to automatically make %s diskful as autoplacer failed to find suitable " +
-                                "storage pool",
-                            CtrlRscApiCallHandler.getRscDescription(rsc)
-                        );
-                    }
-                    else
-                    {
-                        String storPoolNameStr = autoPlace.iterator().next().getName().displayValue;
-                        toggleDisklHandler.resourceToggleDisk(
-                            rsc.getNode().getName().displayValue,
-                            rsc.getResourceDefinition().getName().displayValue,
-                            storPoolNameStr,
-                            null,
-                            null, // TODO: could be a bad idea if not all layers from peer-resources are supported by
-                                  // the local node...
-                            ToggleOp.INTO_DRBD_DISKFUL,
-                            Resource.DiskfulBy.AUTO_DISKFUL
-                        )
-                            .concatWith(removeExcessFlux(rsc))
-                            .contextWrite(
-                                Context.of(
-                                    ApiModule.API_CALL_NAME,
-                                    "Auto diskful task for " + CtrlRscApiCallHandler.getRscDescription(rsc),
-                                    AccessContext.class,
-                                    Peer.class,
-                                    rsc.getNode().getPeer()
+                    autoPlace = autoplacer.autoPlace(
+                        AutoSelectFilterPojo.merge(
+                            new AutoSelectFilterBuilder()
+                                .setPlaceCount(1)
+                                .setNodeNameList(Collections.singletonList(rsc.getNode().getName().displayValue))
+                                .setSkipAlreadyPlacedOnNodeNamesCheck(
+                                    rscDfn.streamResource()
+                                        .map(tmpRsc -> tmpRsc.getNode().getName().displayValue)
+                                        .collect(Collectors.toList())
                                 )
-                            )
-                            .subscribe();
-                    }
+                                .build(),
+                            rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData()
+                        ),
+                        rscDfn,
+                        sizeInKib
+                    );
                 }
-            }
-            catch (AccessDeniedException exc)
-            {
-                errorReporter.reportError(new ImplementationError(exc));
+                // need to exit scope here to ensure the following subscribe does not try to use the same scope
+
+                if (autoPlace == null || autoPlace.isEmpty())
+                {
+                    errorReporter.logError(
+                        "Failed to automatically make %s diskful as autoplacer failed to find suitable " +
+                            "storage pool",
+                        CtrlRscApiCallHandler.getRscDescription(rsc)
+                    );
+                }
+                else
+                {
+                    String storPoolNameStr = autoPlace.iterator().next().getName().displayValue;
+                    toggleDisklHandler.resourceToggleDisk(
+                        rsc.getNode().getName().displayValue,
+                        rsc.getResourceDefinition().getName().displayValue,
+                        storPoolNameStr,
+                        null,
+                        null, // TODO: could be a bad idea if not all layers from peer-resources are supported by
+                              // the local node...
+                        ToggleOp.INTO_DRBD_DISKFUL,
+                        Resource.DiskfulBy.AUTO_DISKFUL
+                    )
+                        .concatWith(removeExcessFlux(rsc))
+                        .contextWrite(
+                            Context.of(
+                                ApiModule.API_CALL_NAME,
+                                "Auto diskful task for " + CtrlRscApiCallHandler.getRscDescription(rsc),
+                                Peer.class,
+                                rsc.getNode().getPeer()
+                            )
+                        )
+                        .subscribe();
+                }
             }
         }
         return getNextFutureReschedule(scheduleAt, Math.min(nextRunIn, TASK_TIMEOUT));
@@ -461,7 +409,6 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
                 Context.of(
                     ApiModule.API_CALL_NAME,
                     "Deleting excess " + CtrlRscApiCallHandler.getRscDescription(excessRsc),
-                    AccessContext.class,
                     Peer.class,
                     excessRsc.getNode().getPeer()
                 )

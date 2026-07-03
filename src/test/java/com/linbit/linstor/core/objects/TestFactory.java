@@ -212,7 +212,6 @@ public class TestFactory
     {
         return new ResourceDefinition(
             resDfnUuidRef,
-            resDfnObjProtRef,
             resNameRef,
             extName,
             flagValueRef,

@@ -21,7 +21,6 @@ import com.linbit.linstor.utils.layer.LayerRscUtils;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.HashMap;
@@ -35,14 +34,8 @@ public class AllocationGranularityHelper
 {
 
     @Inject
-    public AllocationGranularityHelper(Provider<AccessContext> peerAccCtxProviderRef)
+    public AllocationGranularityHelper()
     {
-    }
-
-    public void updateIfNeeded(ResourceDefinition rscDfnRef, boolean includeStorPoolCheckRef)
-        throws DatabaseException
-    {
-        updateIfNeeded(rscDfnRef, includeStorPoolCheckRef);
     }
 
     /**
@@ -51,7 +44,6 @@ public class AllocationGranularityHelper
      * volume-definition's property is large enough so new resources can be added as well as future resize actions can
      * succeed.
      *
-     * @param accCtxRef The accessContext that should be used.
      * @param rscDfnRef All volume definitions of the given resource definition will be checked
      * @param includeStorPoolCheckRef If set to true, this method also checks for the storage pool properties
      */

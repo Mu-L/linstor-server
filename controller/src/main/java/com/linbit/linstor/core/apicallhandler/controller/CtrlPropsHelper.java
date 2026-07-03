@@ -33,7 +33,6 @@ import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -97,40 +96,24 @@ public class CtrlPropsHelper
         }
     }
 
-    public ReadOnlyProps getCtrlPropsForView()
-    {
-        return getCtrlPropsForView();
-    }
 
     public ReadOnlyProps getCtrlPropsForView()
     {
         return systemConfRepository.getCtrlConfForView();
     }
 
-    public Props getCtrlPropsForChange()
-    {
-        return getCtrlPropsForChange();
-    }
 
     public Props getCtrlPropsForChange()
     {
         return systemConfRepository.getCtrlConfForChange();
     }
 
-    public ReadOnlyProps getStltPropsForView()
-    {
-        return getStltPropsForView();
-    }
 
     public ReadOnlyProps getStltPropsForView()
     {
         return systemConfRepository.getStltConfForView();
     }
 
-    public Props getProps(Node node)
-    {
-        return getProps(node);
-    }
 
     public Props getProps(Node node)
     {
@@ -139,10 +122,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(StorPool storPool)
-    {
-        return getProps(storPool);
-    }
 
     public Props getProps(StorPool storPool)
     {
@@ -151,10 +130,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(ResourceDefinition rscDfn)
-    {
-        return getProps(rscDfn);
-    }
 
     public Props getProps(ResourceDefinition rscDfn)
     {
@@ -163,10 +138,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(ResourceGroup rscGrp)
-    {
-        return getProps(rscGrp);
-    }
 
     public Props getProps(ResourceGroup rscGrp)
     {
@@ -175,10 +146,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(VolumeDefinition vlmDfn)
-    {
-        return getProps(vlmDfn);
-    }
 
     public Props getProps(VolumeDefinition vlmDfn)
     {
@@ -187,10 +154,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(Resource rsc)
-    {
-        return getProps(rsc);
-    }
 
     public Props getProps(Resource rsc)
     {
@@ -199,10 +162,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(Volume vlm)
-    {
-        return getProps(vlm);
-    }
 
     public Props getProps(Volume vlm)
     {
@@ -211,10 +170,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(KeyValueStore kvs)
-    {
-        return getProps(kvs);
-    }
 
     public Props getProps(KeyValueStore kvs)
     {
@@ -223,10 +178,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(SnapshotDefinition snapDfn, boolean rscDfnProps)
-    {
-        return getProps(snapDfn, rscDfnProps);
-    }
 
     public Props getProps(SnapshotDefinition snapDfn, boolean rscDfnProps)
     {
@@ -242,10 +193,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(SnapshotVolumeDefinition snapVlmDfn, boolean vlmDfnProps)
-    {
-        return getProps(snapVlmDfn, vlmDfnProps);
-    }
 
     public Props getProps(SnapshotVolumeDefinition snapVlmDfn, boolean vlmDfnProps)
     {
@@ -261,10 +208,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(Snapshot snap, boolean rscProps)
-    {
-        return getProps(snap, rscProps);
-    }
 
     public Props getProps(Snapshot snap, boolean rscProps)
     {
@@ -280,10 +223,6 @@ public class CtrlPropsHelper
         return props;
     }
 
-    public Props getProps(SnapshotVolume snapVlm, boolean vlmProps)
-    {
-        return getProps(snapVlm, vlmProps);
-    }
 
     public Props getProps(SnapshotVolume snapVlm, boolean vlmProps)
     {

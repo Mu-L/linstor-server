@@ -25,10 +25,8 @@ import com.linbit.linstor.storage.kinds.ExtToolsInfo;
 import com.linbit.utils.Pair;
 
 import static com.linbit.linstor.api.ApiConsts.NAMESPC_DRBD_RESOURCE_OPTIONS;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.Iterator;
@@ -234,7 +232,6 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
     {
         int diskfulDrbdCount = 0;
         int disklessDrbdCount = 0;
-        AccessContext peerAccCtx = peerCtx.get();
         Iterator<Resource> rscIt = rscDfn.iterateResource();
         while (rscIt.hasNext())
         {
@@ -325,7 +322,6 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
      * It will delete the rscDfn quorum property if it was auto set by Linstor, to guarantee that the higher level
      * prio prop will be taken into account.
      * @param rscDfn RD to check and delete the quorum prop if necessary
-     * @param accCtx access context
      */
     public static void removeQuorumPropIfSetByLinstor(ResourceDefinition rscDfn)
     {

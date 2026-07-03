@@ -25,7 +25,6 @@ import com.linbit.utils.PairNonNull;
 import com.linbit.utils.StringUtils;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -104,7 +103,6 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
      */
     private boolean allDrbdNodesReportedCryptos(ResourceDefinition rscDfn)
     {
-        final AccessContext peerCtx = peerCtxProvider.get();
         boolean allReported = true;
         for (Resource rsc : rscDfn.streamResource().collect(Collectors.toList()))
         {
@@ -162,14 +160,12 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
      * @return ApiCallRc with the update message if property was changed, else empty
      * @throws ApiException If an invalid value would be set
      * @throws ApiDatabaseException if setProp fails
-     * @throws ApiAccessDeniedException if apiCtx doesn't have access to resource definition
      */
     public PairNonNull<ApiCallRc, Set<Resource>> updateVerifyAlgorithm(ResourceDefinition rscDfn)
     {
         final ApiCallRcImpl rc = new ApiCallRcImpl();
         final Set<Resource> touchedResources = new HashSet<>();
 
-        final AccessContext peerCtx = peerCtxProvider.get();
         try
         {
             final PriorityProps prioProps = new PriorityProps(

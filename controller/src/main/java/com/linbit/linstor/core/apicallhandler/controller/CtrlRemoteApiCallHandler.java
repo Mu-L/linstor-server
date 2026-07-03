@@ -41,11 +41,9 @@ import com.linbit.linstor.tasks.ScheduleBackupService;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
-import com.linbit.utils.ExceptionThrowingFunction;
 import com.linbit.utils.UuidUtils;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.net.MalformedURLException;
@@ -59,6 +57,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -129,7 +128,6 @@ public class CtrlRemoteApiCallHandler
 
     public List<S3RemotePojo> listS3()
     {
-        final AccessContext pAccCtx = peerAccCtx.get();
         return listGeneric(
             S3Remote.class,
             remote -> remote.getApiData(null, null)
@@ -138,7 +136,6 @@ public class CtrlRemoteApiCallHandler
 
     public List<LinstorRemotePojo> listLinstor()
     {
-        final AccessContext pAccCtx = peerAccCtx.get();
         return listGeneric(
             LinstorRemote.class,
             remote -> remote.getApiData(null, null)
@@ -147,7 +144,6 @@ public class CtrlRemoteApiCallHandler
 
     public List<EbsRemotePojo> listEbs()
     {
-        final AccessContext pAccCtx = peerAccCtx.get();
         return listGeneric(
             EbsRemote.class,
             remote -> remote.getApiData(null, null)
@@ -157,17 +153,16 @@ public class CtrlRemoteApiCallHandler
     @SuppressWarnings("unchecked")
     private <RET_TYPE, REMOTE_CLASS extends AbsRemote> List<RET_TYPE> listGeneric(
         Class<REMOTE_CLASS> clazz,
-        ExceptionThrowingFunction<REMOTE_CLASS, RET_TYPE> remoteToApiDataFunc
+        Function<REMOTE_CLASS, RET_TYPE> remoteToApiDataFunc
     )
     {
         ArrayList<RET_TYPE> ret = new ArrayList<>();
-        AccessContext pAccCtx = peerAccCtx.get();
         for (Entry<RemoteName, AbsRemote> entry : remoteRepository.getMapForView().entrySet())
         {
             AbsRemote remote = entry.getValue();
             if (clazz.isInstance(remote))
             {
-                ret.add(remoteToApiDataFunc.accept((REMOTE_CLASS) remote));
+                ret.add(remoteToApiDataFunc.apply((REMOTE_CLASS) remote));
             }
         }
         return ret;
@@ -514,7 +509,6 @@ public class CtrlRemoteApiCallHandler
         );
     }
 
-
     public static URL createUrlWithDefaults(String urlRef)
     {
         URL url;
@@ -857,7 +851,6 @@ public class CtrlRemoteApiCallHandler
 
         try
         {
-            final AccessContext pAccCtx = peerAccCtx.get();
             final String changedEndpoint;
             final String changedRegion;
             if (availabilityZoneRef != null && !availabilityZoneRef.isEmpty())

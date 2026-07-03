@@ -19,7 +19,6 @@ import java.util.UUID;
 public class EbsRemoteControllerFactory
 {
     private final EbsRemoteDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objProtFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
     private final RemoteRepository remoteRepo;
@@ -27,14 +26,12 @@ public class EbsRemoteControllerFactory
     @Inject
     public EbsRemoteControllerFactory(
         EbsRemoteDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objProtFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
         RemoteRepository extFileRepoRef
     )
     {
         dbDriver = dbDriverRef;
-        objProtFactory = objProtFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
         remoteRepo = extFileRepoRef;
@@ -57,10 +54,6 @@ public class EbsRemoteControllerFactory
         }
 
         EbsRemote remote = new EbsRemote(
-            objProtFactory.getInstance(
-                ObjectProtection.buildPath(nameRef),
-                true
-            ),
             UUID.randomUUID(),
             dbDriver,
             nameRef,

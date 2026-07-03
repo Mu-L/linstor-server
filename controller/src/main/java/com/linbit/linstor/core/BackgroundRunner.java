@@ -226,10 +226,9 @@ public class BackgroundRunner
                 exc ->
                 {
                     errorReporter.reportError(
-                    exc,
-                    null,
-                    null,
-                    "Error in background operation " + runCfgRef.description
+                        exc,
+                        null,
+                        "Error in background operation " + runCfgRef.description
                     );
                     if (runCfgRef.subscriptionErrorConsumer != null)
                     {
@@ -445,7 +444,6 @@ public class BackgroundRunner
         private void initializeSubscriberContext(String descriptionRef)
         {
             subscriberContext.put(ApiModule.API_CALL_NAME, descriptionRef);
-            subscriberContext.put(AccessContext.class);
         }
 
         private void runDeferredFlux()

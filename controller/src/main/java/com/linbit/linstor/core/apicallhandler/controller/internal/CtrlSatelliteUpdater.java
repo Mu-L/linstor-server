@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.internal;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;

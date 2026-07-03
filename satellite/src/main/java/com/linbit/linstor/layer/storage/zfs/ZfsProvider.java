@@ -200,7 +200,6 @@ public class ZfsProvider
     protected String asSnapLvIdentifierPrivileged(ZfsData<Snapshot> snapVlmDataRef)
     {
         return asSnapLvIdentifier(snapVlmDataRef, false);
-        return "";
     }
 
     private String asSnapLvIdentifier(ZfsData<Snapshot> snapVlmDataRef, boolean forTakeSnapshotRef)

@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 public class ResourceControllerFactory
 {
     private final ResourceDatabaseDriver dbDriver;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
@@ -45,7 +44,6 @@ public class ResourceControllerFactory
     @Inject
     public ResourceControllerFactory(
         ResourceDatabaseDriver dbDriverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -53,7 +51,6 @@ public class ResourceControllerFactory
     )
     {
         dbDriver = dbDriverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -147,13 +144,6 @@ public class ResourceControllerFactory
         {
             rsc = new Resource(
                 UUID.randomUUID(),
-                objectProtectionFactory.getInstance(
-                    ObjectProtection.buildPath(
-                        node.getName(),
-                        rscDfn.getName()
-                    ),
-                    true
-                ),
                 rscDfn,
                 node,
                 StateFlagsBits.getMask(initFlags),

@@ -1,6 +1,5 @@
 package com.linbit.linstor.core;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
@@ -19,7 +18,7 @@ public class SharedResourceManager
 {
 
     @Inject
-    public SharedResourceManager(AccessContext sysCtxRef)
+    public SharedResourceManager()
     {
     }
 

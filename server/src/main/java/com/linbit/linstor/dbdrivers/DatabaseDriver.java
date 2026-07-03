@@ -1,11 +1,10 @@
 package com.linbit.linstor.dbdrivers;
 
 import com.linbit.ServiceName;
-import com.linbit.linstor.InitializationException;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 
 /**
- * Interface for database drivers that load security objects and core objects.
+ * Interface for database drivers that load core objects.
  *
  * @author Robert Altnoeder &lt;robert.altnoeder@linbit.com&gt;
  */
@@ -16,7 +15,6 @@ public interface DatabaseDriver
      */
     ServiceName getDefaultServiceInstanceName();
 
-    void loadSecurityObjects() throws DatabaseException, InitializationException;
 
     /**
      * Fetches all {@link com.linbit.linstor.core.objects.Node}s, {@link ResourceDefinition}s and

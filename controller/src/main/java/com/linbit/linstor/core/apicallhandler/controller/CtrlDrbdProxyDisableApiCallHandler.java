@@ -28,7 +28,6 @@ import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscConnectio
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.UUID;

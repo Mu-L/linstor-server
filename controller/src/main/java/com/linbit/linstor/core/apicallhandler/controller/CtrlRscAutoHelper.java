@@ -1,10 +1,8 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
-import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
@@ -13,14 +11,13 @@ import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
-import com.linbit.linstor.core.repository.ResourceDefinitionProtectionRepository;
+import com.linbit.linstor.core.repository.ResourceDefinitionRepositoryImpl;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -45,7 +42,7 @@ public class CtrlRscAutoHelper
     private final List<AutoHelper> autohelperList;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
-    private final ResourceDefinitionProtectionRepository rscDfnRepo;
+    private final ResourceDefinitionRepositoryImpl rscDfnRepo;
     private final CtrlTransactionHelper ctrlTxHelper;
 
     public static class AutoHelperResult
@@ -91,7 +88,7 @@ public class CtrlRscAutoHelper
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
-        ResourceDefinitionProtectionRepository rscDfnRepoRef,
+        ResourceDefinitionRepositoryImpl rscDfnRepoRef,
         CtrlTransactionHelper ctrlTxHelperRef,
         ErrorReporter errorReporterRef
     )

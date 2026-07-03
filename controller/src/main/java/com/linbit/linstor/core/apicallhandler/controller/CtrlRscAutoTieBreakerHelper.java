@@ -48,12 +48,10 @@ import static com.linbit.linstor.api.ApiConsts.KEY_DRBD_AUTO_ADD_QUORUM_TIEBREAK
 import static com.linbit.linstor.api.ApiConsts.NAMESPC_DRBD_OPTIONS;
 import static com.linbit.linstor.api.ApiConsts.VAL_FALSE;
 import static com.linbit.linstor.api.ApiConsts.VAL_TRUE;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.getRscDescriptionInline;
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;

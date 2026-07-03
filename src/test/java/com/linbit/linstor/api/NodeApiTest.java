@@ -2,7 +2,6 @@ package com.linbit.linstor.api;
 
 import com.linbit.linstor.api.utils.AbsApiCallTester;
 import com.linbit.linstor.core.ApiTestBase;
-import com.linbit.linstor.core.DoNotSeedDefaultPeer;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlExecNodeApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlNodeApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlNodeCrtApiCallHandler;
@@ -14,7 +13,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.proto.requests.MsgReqDrbdReactorExecOuterClass.DrbdReactorCommand;
 import com.linbit.linstor.proto.responses.MsgRspDrbdReactorExecOuterClass.MsgRspDrbdReactorExec;
-import com.linbit.linstor.security.GenericDbBase;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -29,9 +27,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import com.google.protobuf.ByteString;
-import com.google.inject.Key;
 import com.google.inject.testing.fieldbinder.Bind;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -72,12 +68,11 @@ public class NodeApiTest extends ApiTestBase
     {
         super.setUp();
         testNode = nodeFactory.create(
-            ApiTestBase.BOB_ACC_CTX,
             testNodeName,
             testNodeType,
             null
         );
-        testNode.setPeer(GenericDbBase.SYS_CTX, mockSatellite);
+        testNode.setPeer(mockSatellite);
         nodesMap.put(testNodeName, testNode);
         commitAndCleanUp(true);
         inScope = false;
@@ -102,13 +97,8 @@ public class NodeApiTest extends ApiTestBase
     }
 
     @Test
-    public void crtSecondAccDenied() throws Exception
+    public void crtSecondExists() throws Exception
     {
-        // This test will access node.getPeer().getAccessContext() in order to access some properties
-        // this access will fail as the peer's accCtx is null.
-        // that NPE can be avoided by entirely disabling security (for this test)
-        DummySecurityInitializer.setSecurityLevel(SecurityLevel.NO_SECURITY);
-
         // FIXME: this test only works because the first API call succeeds.
         // if it would fail, the transaction is currently NOT rolled back.
         evaluateTest(
@@ -120,33 +110,6 @@ public class NodeApiTest extends ApiTestBase
         );
         evaluateTest(
             new CreateNodeCall(ApiConsts.FAIL_EXISTS_NODE)
-        );
-    }
-
-    @Test
-    @DoNotSeedDefaultPeer
-    public void crtFailNodesMapViewAccDenied() throws Exception
-    {
-        DummySecurityInitializer.setSecurityLevel(SecurityLevel.MAC);
-
-        enterScope();
-
-        nodeRepository.getObjProt().delAclEntry(GenericDbBase.SYS_CTX, GenericDbBase.PUBLIC_CTX.subjectRole);
-        nodeRepository.getObjProt().addAclEntry(
-            GenericDbBase.SYS_CTX,
-            GenericDbBase.PUBLIC_CTX.subjectRole,
-            AccessType.VIEW
-        );
-
-        testScope.seed(Key.get(AccessContext.class, PeerContext.class), GenericDbBase.PUBLIC_CTX);
-        testScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class), GenericDbBase.PUBLIC_CTX);
-        testScope.seed(Peer.class, mockPeer);
-        Mockito.when(mockPeer.getAccessContext()).thenReturn(GenericDbBase.PUBLIC_CTX);
-
-        commitAndLeaveScope();
-
-        evaluateTest(
-            new CreateNodeCall(ApiConsts.FAIL_ACC_DENIED_NODE)
         );
     }
 
@@ -216,7 +179,7 @@ public class NodeApiTest extends ApiTestBase
         List<JsonGenTypes.ReactorExecResponse> responses = execNodeApiCallHandlerProvider.get()
             .nodeExecDrbdReactor(List.of(testNodeName.displayValue), DrbdReactorCommand.STATUS, null, false)
             .collectList()
-            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class))
+            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test"))
             .block();
 
         assertThat(responses).hasSize(1);
@@ -235,7 +198,7 @@ public class NodeApiTest extends ApiTestBase
         List<JsonGenTypes.ReactorExecResponse> responses = execNodeApiCallHandlerProvider.get()
             .nodeExecDrbdReactor(List.of(testNodeName.displayValue), DrbdReactorCommand.STATUS, null, false)
             .collectList()
-            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class))
+            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test"))
             .block();
 
         assertThat(responses).hasSize(1);
@@ -262,7 +225,7 @@ public class NodeApiTest extends ApiTestBase
         List<JsonGenTypes.ReactorExecResponse> responses = execNodeApiCallHandlerProvider.get()
             .nodeExecDrbdReactor(List.of(testNodeName.displayValue), DrbdReactorCommand.STATUS, null, false)
             .collectList()
-            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class))
+            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test"))
             .block();
 
         assertThat(responses).hasSize(1);
@@ -279,7 +242,6 @@ public class NodeApiTest extends ApiTestBase
     @Test
     public void modSuccess() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext();
         enterScope();
         evaluateTest(
             new ModifyNodeCall(ApiConsts.MODIFIED) // nothing to do
@@ -294,10 +256,8 @@ public class NodeApiTest extends ApiTestBase
 
         DummySecurityInitializer.setSecurityLevel(SecurityLevel.MAC);
 
-        testScope.seed(Key.get(AccessContext.class, PeerContext.class), ApiTestBase.ALICE_ACC_CTX);
-        testScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class), ApiTestBase.ALICE_ACC_CTX);
         testScope.seed(Peer.class, mockPeer);
-        Mockito.when(mockPeer.getAccessContext()).thenReturn(GenericDbBase.PUBLIC_CTX);
+        Mockito.when().thenReturn(GenericDbBase.PUBLIC_CTX);
 
         evaluateTest(
             new ModifyNodeCall(ApiConsts.FAIL_ACC_DENIED_NODE)
@@ -468,14 +428,5 @@ public class NodeApiTest extends ApiTestBase
     {
         inScope = true;
         super.enterScope();
-    }
-
-    // ignore close not initialized, it is set in enterScope, which needs to have been called before this
-    @SuppressFBWarnings("UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
-    private void commitAndLeaveScope() throws Exception
-    {
-        commit();
-        close.close();
-        inScope = false;
     }
 }

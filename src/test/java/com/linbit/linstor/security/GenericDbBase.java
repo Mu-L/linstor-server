@@ -6,8 +6,6 @@ import com.linbit.linstor.ControllerDatabase;
 import com.linbit.linstor.ControllerLinstorModule;
 import com.linbit.linstor.InitializationException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ErrorReporterContext;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.core.ApiTestModule;
 import com.linbit.linstor.core.ControllerCoreModule;
@@ -108,7 +106,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
-import com.google.inject.Key;
 import com.google.inject.Module;
 import com.google.inject.testing.fieldbinder.Bind;
 import com.google.inject.testing.fieldbinder.BoundFieldModule;
@@ -149,18 +146,7 @@ public abstract class GenericDbBase implements GenericDbTestConstants
     private static final int PROPS_COL_ID_VAL = 3;
 
     protected static StdErrorReporter errorReporter =
-        new StdErrorReporter("TESTS", Paths.get("build/test-logs"), true, "", "INFO", "TRACE", () -> null);
-
-    protected static final AccessContext SYS_CTX = DummySecurityInitializer.getSystemAccessContext();
-    protected static final AccessContext PUBLIC_CTX = DummySecurityInitializer.getPublicAccessContext();
-
-    protected static final AccessContext ALICE_ACC_CTX;
-    protected static final AccessContext BOB_ACC_CTX;
-    static
-    {
-        ALICE_ACC_CTX = TestAccessContextProvider.ALICE_ACC_CTX;
-        BOB_ACC_CTX = TestAccessContextProvider.BOB_ACC_CTX;
-    }
+        new StdErrorReporter("TESTS", Paths.get("build/test-logs"), true, "", "INFO", "TRACE");
 
     // This connection pool is shared between the tests
     protected static DbConnectionPool dbConnPool;
@@ -200,18 +186,12 @@ public abstract class GenericDbBase implements GenericDbTestConstants
     // mocked manually in setUp and bound in ApiTestModule
     protected SatelliteConnectorImpl satelliteConnector;
 
-    // @Inject private DbAccessor secureDbDriver;
-    // @Inject private DatabaseDriver persistenceDbDriver;
-    @Inject
-    private SecurityTestUtils securityTestUtils;
     @Inject
     protected CoreModule.NodesMap nodesMap;
     @Inject
     protected CoreModule.ResourceDefinitionMap rscDfnMap;
     @Inject
     protected CoreModule.StorPoolDefinitionMap storPoolDfnMap;
-    @Inject
-    protected CoreModule.ObjProtMap objProtMap;
     @Inject
     protected CoreModule.ExternalFileMap extFileMap;
     @Inject
@@ -236,11 +216,6 @@ public abstract class GenericDbBase implements GenericDbTestConstants
 
     @Inject
     protected DatabaseLoader dbLoader;
-    @Inject
-    protected SecDatabaseLoader secDbLoader;
-
-    @Inject
-    protected ObjectProtectionFactory objectProtectionFactory;
     @Inject
     protected PropsContainerFactory propsContainerFactory;
     @Inject
@@ -310,7 +285,7 @@ public abstract class GenericDbBase implements GenericDbTestConstants
 
     @BeforeClass
     public static void setUpBeforeClass()
-        throws DatabaseException, SQLException, InvalidNameException, InitializationException, AccessDeniedException,
+        throws DatabaseException, SQLException, InvalidNameException, InitializationException,
         ClassNotFoundException
     {
         synchronized (SYNC_OBJ)
@@ -325,16 +300,8 @@ public abstract class GenericDbBase implements GenericDbTestConstants
                 dbConnPool = dbConnectionPoolLoader.loadDbConnectionPool();
 
                 dbConnPool.migrate(dbConnectionPoolLoader.getDbType());
-
-                Identity.ensureDefaultsExist();
-                SecurityType.ensureDefaultsExist();
-                Role.ensureDefaultsExist();
             }
         }
-
-        // every test class must explicitly enable security if they want to test.
-        // we should change this default to MAC once the security mechanism works as intended.
-        SecurityLevel.set(SYS_CTX, SecurityLevel.NO_SECURITY, dbConnPool, null);
     }
 
     protected void setUpAndEnterScope() throws Exception
@@ -363,13 +330,10 @@ public abstract class GenericDbBase implements GenericDbTestConstants
 
         MockitoAnnotations.initMocks(this);
 
-        Mockito.when(mockPeer.getAccessContext()).thenReturn(PUBLIC_CTX);
-
         SatelliteConnectorImpl stltConnector = Mockito.mock(SatelliteConnectorImpl.class);
         Injector injector = Guice.createInjector(
             new GuiceConfigModule(),
             new LoggingModule(errorReporter),
-            new TestSecurityModule(SYS_CTX),
             new ControllerLinstorModule(),
             new CoreModule(),
             new ControllerCoreModule(),
@@ -377,7 +341,6 @@ public abstract class GenericDbBase implements GenericDbTestConstants
             new TestDbModule(),
             new ControllerTransactionMgrModule(DatabaseDriverInfo.DatabaseType.SQL),
             new TestApiModule(),
-            new ControllerSecurityModule(),
             new ApiCallHandlerModule(),
             new CtrlConfigModule(new CtrlConfig(null)),
             additionalModule,
@@ -391,7 +354,6 @@ public abstract class GenericDbBase implements GenericDbTestConstants
         // mock as we just gave guice to bind to. i.e. override with our local mock
         satelliteConnector = stltConnector;
 
-        // injector.getInstance(DbCoreObjProtInitializer.class).initialize();
         injector.getInstance(DbDataInitializer.class).initialize();
 
         Mockito.when(layerRscIdPoolMock.autoAllocate()).then(ignoredContext -> layerRscIdAtomicId.getAndIncrement());
@@ -408,14 +370,6 @@ public abstract class GenericDbBase implements GenericDbTestConstants
         testScope.seed(TransactionMgrSQL.class, transMgr);
         if (seedDefaultPeerRule.shouldSeedDefaultPeer())
         {
-            testScope.seed(
-                Key.get(AccessContext.class, PeerContext.class),
-                seedDefaultPeerRule.getDefaultPeerAccessContext()
-            );
-            testScope.seed(
-                Key.get(AccessContext.class, ErrorReporterContext.class),
-                seedDefaultPeerRule.getDefaultPeerAccessContext()
-            );
             testScope.seed(Peer.class, mockPeer);
         }
     }
@@ -464,24 +418,6 @@ public abstract class GenericDbBase implements GenericDbTestConstants
                 close.close();
             }
         }
-    }
-
-    protected void reloadSecurityObjects() throws AccessDeniedException, InitializationException, DatabaseException
-    {
-        // nodesMap.clear();
-        // rscDfnMap.clear();
-        // storPoolDfnMap.clear();
-        // objProtMap.clear();
-        // extFileMap.clear();
-        // kvsMap.clear();
-        // remoteMap.clear();
-        // rscGrpMap.clear();
-        // rscDfnExtNameMap.clear();
-        // scheduleMap.clear();
-
-        secDbLoader.loadAll();
-        // dbLoader.loadSecurityObjects();
-        // dbLoader.loadCoreObjects();
     }
 
     protected Connection getConnection()
@@ -577,66 +513,6 @@ public abstract class GenericDbBase implements GenericDbTestConstants
         assertTrue(map.isEmpty());
 
         resultSet.close();
-        stmt.close();
-    }
-
-    @SuppressWarnings("checkstyle:magicnumber")
-    public void insertIdentity(TransactionMgrSQL transMgr, IdentityName name) throws SQLException
-    {
-        PreparedStatement stmt = transMgr.getConnection().prepareStatement(
-            "INSERT INTO " + TBL_SEC_IDENTITIES +
-                " (" + IDENTITY_NAME + ", " + IDENTITY_DSP_NAME + ") " +
-                " VALUES (?, ?)"
-        );
-        stmt.setString(1, name.value);
-        stmt.setString(2, name.displayValue);
-        stmt.executeUpdate();
-        stmt.close();
-    }
-
-    @SuppressWarnings("checkstyle:magicnumber")
-    public void insertSecType(TransactionMgrSQL transMgr, SecTypeName name) throws SQLException
-    {
-        PreparedStatement stmt = transMgr.getConnection().prepareStatement(
-            "INSERT INTO " + TBL_SEC_TYPES +
-                " (" + TYPE_NAME + ", " + TYPE_DSP_NAME + ") " +
-                " VALUES (?, ?)"
-        );
-        stmt.setString(1, name.value);
-        stmt.setString(2, name.displayValue);
-        stmt.executeUpdate();
-        stmt.close();
-    }
-
-    @SuppressWarnings("checkstyle:magicnumber")
-    public void insertRole(TransactionMgrSQL transMgr, RoleName name, SecTypeName domain) throws SQLException
-    {
-        PreparedStatement stmt = transMgr.getConnection().prepareStatement(
-            "INSERT INTO " + TBL_SEC_ROLES +
-                " (" + ROLE_NAME + ", " + ROLE_DSP_NAME + ", " + DOMAIN_NAME + ") " +
-                " VALUES (?, ?, ?)"
-        );
-        stmt.setString(1, name.value);
-        stmt.setString(2, name.displayValue);
-        stmt.setString(3, domain.value);
-        stmt.executeUpdate();
-        stmt.close();
-    }
-
-    @SuppressWarnings("checkstyle:magicnumber")
-    public void insertObjProt(
-        TransactionMgrSQL transMgr,
-        String objPath,
-        AccessContext accCtx
-    )
-        throws SQLException
-    {
-        PreparedStatement stmt = transMgr.getConnection().prepareStatement(INSERT_SEC_OBJECT_PROTECTION);
-        stmt.setString(1, objPath);
-        stmt.setString(2, accCtx.subjectId.name.value);
-        stmt.setString(3, accCtx.subjectRole.name.value);
-        stmt.setString(4, accCtx.subjectDomain.name.value);
-        stmt.executeUpdate();
         stmt.close();
     }
 
@@ -884,30 +760,20 @@ public abstract class GenericDbBase implements GenericDbTestConstants
         stmt.close();
     }
 
-    protected ObjectProtection createTestObjectProtection(
-        AccessContext accCtx,
-        String objPath
-    )
+    protected ResourceGroup createDefaultResourceGroup()
+        throws InvalidNameException, DatabaseException
     {
-        return securityTestUtils.createObjectProtection(accCtx, objPath);
-    }
-
-    protected ResourceGroup createDefaultResourceGroup(AccessContext initCtx)
-        throws InvalidNameException, AccessDeniedException, DatabaseException
-    {
-        ResourceGroup rscGrp = ((ResourceGroupDbDriver) rscGrpDbDriver).loadAll(null).keySet().stream()
+        return ((ResourceGroupDbDriver) rscGrpDbDriver).loadAll(null).keySet().stream()
             .filter(grp -> grp.getName().displayValue.equals(InternalApiConsts.DEFAULT_RSC_GRP_NAME))
             .findFirst()
             .get();
-        rscGrp.getObjProt().addAclEntry(SYS_CTX, initCtx.subjectRole, AccessType.CONTROL);
-        return rscGrp;
     }
 
     protected FreeSpaceMgr getFreeSpaceMgr(StorPoolDefinition storPoolDfn, Node node)
-        throws AccessDeniedException, DatabaseException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         return freeSpaceMgrFactory.getInstance(
-            SYS_CTX, new SharedStorPoolName(node.getName(), storPoolDfn.getName())
+            new SharedStorPoolName(node.getName(), storPoolDfn.getName())
         );
     }
 

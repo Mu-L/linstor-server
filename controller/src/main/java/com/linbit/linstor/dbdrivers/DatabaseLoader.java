@@ -7,7 +7,6 @@ import com.linbit.ServiceName;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.CtrlStorPoolResolveHelper;
-import com.linbit.linstor.InitializationException;
 import com.linbit.linstor.LinStorDBRuntimeException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
@@ -92,7 +91,6 @@ import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObje
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.storage.utils.LayerUtils;
-import com.linbit.utils.ExceptionThrowingFunction;
 import com.linbit.utils.Pair;
 import com.linbit.utils.PairNonNull;
 import com.linbit.utils.Triple;
@@ -141,8 +139,6 @@ public class DatabaseLoader implements DatabaseDriver
         }
     }
 
-    private final SecDatabaseLoader securityDbLoader;
-    private final DbCoreObjProtInitializer dbCoreObjProtInitializer;
     private final PropsCtrlDatabaseDriver propsDriver;
     private final ResourceGroupCtrlDatabaseDriver rscGrpDriver;
     private final NodeCtrlDatabaseDriver nodeDriver;
@@ -189,8 +185,6 @@ public class DatabaseLoader implements DatabaseDriver
 
     @Inject
     public DatabaseLoader(
-        SecDatabaseLoader securityDbLoaderRef,
-        DbCoreObjProtInitializer dbCoreObjProtInitializerRef,
         PropsCtrlDatabaseDriver propsDriverRef,
         ResourceGroupCtrlDatabaseDriver rscGrpDriverRef,
         NodeCtrlDatabaseDriver nodeDriverRef,
@@ -235,8 +229,6 @@ public class DatabaseLoader implements DatabaseDriver
         CoreModule.ScheduleMap scheduleMapRef
     )
     {
-        securityDbLoader = securityDbLoaderRef;
-        dbCoreObjProtInitializer = dbCoreObjProtInitializerRef;
         propsDriver = propsDriverRef;
         rscGrpDriver = rscGrpDriverRef;
         nodeDriver = nodeDriverRef;
@@ -296,12 +288,6 @@ public class DatabaseLoader implements DatabaseDriver
         }
     }
 
-    @Override
-    public void loadSecurityObjects() throws DatabaseException, InitializationException
-    {
-        securityDbLoader.loadAll();
-        dbCoreObjProtInitializer.initialize();
-    }
 
     /**
      * This method should only be called with an locked reconfiguration write lock
@@ -809,7 +795,7 @@ public class DatabaseLoader implements DatabaseDriver
 
     private <RSC extends AbsResource<RSC>> Set<RSC> loadLayerData(
         ParentObjects parentObjectsRef,
-        ExceptionThrowingFunction<AbsRscLayerObject<?>, RSC> getter
+        Function<AbsRscLayerObject<?>, RSC> getter
     )
         throws DatabaseException, ImplementationError, InvalidNameException,
         ValueOutOfRangeException, InvalidIpAddressException, MdException
@@ -835,7 +821,7 @@ public class DatabaseLoader implements DatabaseDriver
             for (AbsRscLayerObject<?> rlo : nextRscLayerObjPojoToLoad)
             {
                 Pair<? extends AbsRscLayerObject<RSC>, Set<AbsRscLayerObject<RSC>>> rscLayerObjectPair;
-                RSC rsc = getter.accept(rlo);
+                RSC rsc = getter.apply(rlo);
 
                 if (rsc != null)
                 {
@@ -979,14 +965,6 @@ public class DatabaseLoader implements DatabaseDriver
         return ret;
     }
 
-    public static void handleAccessDeniedException(AccessDeniedException accDeniedExc)
-        throws ImplementationError
-    {
-        throw new ImplementationError(
-            "Database's access context has insufficient permissions",
-            accDeniedExc
-        );
-    }
 
     private static <T> T throwingMerger(T key, T value)
     {

@@ -30,7 +30,7 @@ import com.linbit.linstor.core.objects.remotes.LinstorRemote;
 import com.linbit.linstor.core.objects.remotes.S3Remote;
 import com.linbit.linstor.core.objects.remotes.StltRemote;
 import com.linbit.linstor.core.repository.NodeRepository;
-import com.linbit.linstor.core.repository.SystemConfProtectionRepository;
+import com.linbit.linstor.core.repository.SystemConfRepositoryImpl;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
@@ -69,7 +69,7 @@ public class CtrlBackupQueueInternalCallHandler
     private final Provider<CtrlBackupL2LSrcApiCallHandler> backupL2LSrcHandler;
     private final CtrlBackupCreateApiCallHandler backupCrtHandler;
     private final NodeRepository nodeRepo;
-    private final SystemConfProtectionRepository sysCfgRepo;
+    private final SystemConfRepositoryImpl sysCfgRepo;
     private final CtrlBackupApiHelper backupHelper;
     private final ErrorReporter errorReporter;
 
@@ -83,7 +83,7 @@ public class CtrlBackupQueueInternalCallHandler
         Provider<CtrlBackupL2LSrcApiCallHandler> backupL2LSrcHandlerRef,
         CtrlBackupCreateApiCallHandler backupCrtHandlerRef,
         NodeRepository nodeRepoRef,
-        SystemConfProtectionRepository sysCfgRepoRef,
+        SystemConfRepositoryImpl sysCfgRepoRef,
         CtrlBackupApiHelper backupHelperRef,
         ErrorReporter errorReporterRef
     )
@@ -299,7 +299,6 @@ public class CtrlBackupQueueInternalCallHandler
         }
         catch (InvalidNameException exc)
         {
-            // peerAccessContext comes from stlt which should be privileged
             throw new ImplementationError(exc);
         }
         return flux;
@@ -382,25 +381,17 @@ public class CtrlBackupQueueInternalCallHandler
         }
         if (nodeForShipping != null)
         {
-            try
-            {
-                // call the "...InTransaction" directly to make sure flags are set immediately
-                flux = backupCrtHandler.startShippingInTransaction(
-                    current.snapDfn,
-                    nodeForShipping,
-                    current.s3orLinRemote,
-                    prevSnapDfn,
-                    new ApiCallRcImpl(),
-                    current.preferredNode,
-                    current.l2lData,
-                    current.shipExistingSnap
-                );
-            }
-            catch (ApiAccessDeniedException exc)
-            {
-                // peerAccessContext comes from stlt which should be privileged
-                throw new ImplementationError(exc);
-            }
+            // call the "...InTransaction" directly to make sure flags are set immediately
+            flux = backupCrtHandler.startShippingInTransaction(
+                current.snapDfn,
+                nodeForShipping,
+                current.s3orLinRemote,
+                prevSnapDfn,
+                new ApiCallRcImpl(),
+                current.preferredNode,
+                current.l2lData,
+                current.shipExistingSnap
+            );
         }
         if (!node.equals(nodeForShipping) && nextItem.hasNext())
         {
@@ -626,7 +617,6 @@ public class CtrlBackupQueueInternalCallHandler
     private Flux<ApiCallRc> maxConcurrentShippingsChangedForCtrlInTransaction()
     {
         Flux<ApiCallRc> flux = Flux.empty();
-        AccessContext accCtx = peerAccCtx.get();
         Collection<Node> nodes = nodeRepo.getMapForView().values();
         List<Node> nodesToClear = new ArrayList<>();
         List<Node> nodesToStart = new ArrayList<>();
@@ -743,30 +733,18 @@ public class CtrlBackupQueueInternalCallHandler
     /**
      * Compiles a map of QueueItem to a set of node names (as Strings) from two sources:
      * backupInfoMgr.getSnapToNodeQueues() and backupInfoMgr.getPrevNodeUndecidedQueue().
-     * All nodes from the former list are only included if the user has at least VIEW access; the QueueItems from the
-     * latter get ApiConsts.VAL_NODE_UNDECIDED set as a node name.
-     * In both cases the access rights of QueueItems need to be checked at a later point.
+     * The QueueItems from the latter get ApiConsts.VAL_NODE_UNDECIDED set as a node name.
      */
     private Map<QueueItem, Set<String>> getSnapToNodeQueueMap()
     {
         Map<QueueItem, Set<String>> queueMap = new HashMap<>();
-        Map<Node, Boolean> cachedAccessAllowed = new HashMap<>();
         for (Entry<QueueItem, Set<Node>> queue : backupInfoMgr.getSnapToNodeQueues())
         {
             Set<String> nodeStrs = new HashSet<>();
             queueMap.put(queue.getKey(), nodeStrs);
             for (Node node : queue.getValue())
             {
-                Boolean access = cachedAccessAllowed.get(node);
-                if (access == null)
-                {
-                    access = node.getObjProt().queryAccess() != null;
-                    cachedAccessAllowed.put(node, access);
-                }
-                if (access)
-                {
-                    nodeStrs.add(node.getName().displayValue);
-                }
+                nodeStrs.add(node.getName().displayValue);
             }
         }
         for (QueueItem item : backupInfoMgr.getPrevNodeUndecidedQueue())
@@ -784,8 +762,7 @@ public class CtrlBackupQueueInternalCallHandler
     )
     {
         BackupSnapQueuesPojo ret = null;
-        // not null means at least VIEW access, snapDfn gets checked in queueItemToPojo
-        if (matches && item.s3orLinRemote.getObjProt().queryAccess() != null)
+        if (matches)
         {
             List<BackupNodeQueuesPojo> nodes = new ArrayList<>();
             for (String node : queuedOnNodes)
@@ -850,28 +827,14 @@ public class CtrlBackupQueueInternalCallHandler
     /**
      * Compiles a map of node names (as Strings) to a set of QueueItems from two sources:
      * backupInfoMgr.getNodeToSnapQueues() and backupInfoMgr.getPrevNodeUndecidedQueue().
-     * All nodes from the former list are only included if the user has at least VIEW access; the QueueItems from the
-     * latter are added with ApiConsts.VAL_NODE_UNDECIDED set as their node name.
-     * In both cases the access rights of QueueItems need to be checked at a later point.
+     * The QueueItems from the latter are added with ApiConsts.VAL_NODE_UNDECIDED set as their node name.
      */
     private Map<String, Set<QueueItem>> getNodeToSnapQueueMap()
     {
         Map<String, Set<QueueItem>> queueMap = new HashMap<>();
-        Map<Node, Boolean> cachedAccessAllowed = new HashMap<>();
         for (Entry<Node, Set<QueueItem>> queue : backupInfoMgr.getNodeToSnapQueues())
         {
-            Node node = queue.getKey();
-            Set<QueueItem> items = queue.getValue();
-            Boolean access = cachedAccessAllowed.get(node);
-            if (access == null)
-            {
-                access = node.getObjProt().queryAccess() != null;
-                cachedAccessAllowed.put(node, access);
-            }
-            if (access)
-            {
-                queueMap.put(node.getName().displayValue, items);
-            }
+            queueMap.put(queue.getKey().getName().displayValue, queue.getValue());
         }
         // for queueItems where it is still unknown on which nodes they can be shipped
         queueMap.put(ApiConsts.VAL_NODE_UNDECIDED, backupInfoMgr.getPrevNodeUndecidedQueue());
@@ -885,56 +848,37 @@ public class CtrlBackupQueueInternalCallHandler
         {
             for (QueueItem item : queueItems)
             {
-                // not null means at least VIEW access
-                if (item.s3orLinRemote.getObjProt().queryAccess() != null)
-                {
-                    BackupSnapQueuesPojo queueItemPojo = queueItemToPojo(item, null);
-                    // if no access to snapDfn, queueItemPojo is null
-                    if (queueItemPojo != null)
-                    {
-                        items.add(queueItemPojo);
-                    }
-                }
+                items.add(queueItemToPojo(item, null));
             }
         }
         return items;
     }
 
-    private @Nullable BackupSnapQueuesPojo queueItemToPojo(QueueItem item, @Nullable List<BackupNodeQueuesPojo> nodes)
+    private BackupSnapQueuesPojo queueItemToPojo(QueueItem item, @Nullable List<BackupNodeQueuesPojo> nodes)
     {
-        BackupSnapQueuesPojo ret;
-        String startTimeStr = null;
-        try
-        {
-            startTimeStr = item.snapDfn.getSnapDfnProps()
-                .getProp(
-                    InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
-                    BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + item.s3orLinRemote.getName().displayValue
-                );
-            @Nullable final SnapshotDefinition prevSnapDfn = item.prevSnapDfn;
-            boolean inc = false;
-            @Nullable String basedOn = null;
-            if (prevSnapDfn != null)
-            {
-                inc = true;
-                basedOn = prevSnapDfn.getName().displayValue;
-            }
-            ret = new BackupSnapQueuesPojo(
-                item.snapDfn.getResourceName().displayValue,
-                item.snapDfn.getName().displayValue,
-                item.s3orLinRemote.getName().displayValue,
-                inc,
-                basedOn,
-                (startTimeStr == null || startTimeStr.isEmpty()) ? null : Long.parseLong(startTimeStr),
-                item.preferredNode,
-                nodes
+        @Nullable String startTimeStr = item.snapDfn.getSnapDfnProps()
+            .getProp(
+                InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
+                BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + item.s3orLinRemote.getName().displayValue
             );
-        }
-        catch (AccessDeniedException exc)
+        @Nullable final SnapshotDefinition prevSnapDfn = item.prevSnapDfn;
+        boolean inc = false;
+        @Nullable String basedOn = null;
+        if (prevSnapDfn != null)
         {
-            ret = null;
+            inc = true;
+            basedOn = prevSnapDfn.getName().displayValue;
         }
-        return ret;
+        return new BackupSnapQueuesPojo(
+            item.snapDfn.getResourceName().displayValue,
+            item.snapDfn.getName().displayValue,
+            item.s3orLinRemote.getName().displayValue,
+            inc,
+            basedOn,
+            (startTimeStr == null || startTimeStr.isEmpty()) ? null : Long.parseLong(startTimeStr),
+            item.preferredNode,
+            nodes
+        );
     }
 
     private <T> Predicate<T> createFilter(List<String> list, Function<T, String> mapper)

@@ -79,7 +79,6 @@ public class ConnectionPropsTest extends GenericDbBase
     @Before
     public void setUp() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext();
         super.setUpAndEnterScope();
 
         nodeName1 = new NodeName("Node1");

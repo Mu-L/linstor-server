@@ -22,7 +22,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 
 public class StorPoolHelper
 {

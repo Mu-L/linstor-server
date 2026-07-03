@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -38,7 +37,6 @@ import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCal
 import static com.linbit.utils.StringUtils.firstLetterCaps;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.HashMap;
@@ -172,8 +170,6 @@ public class CtrlRscDfnTruncateApiCallHandler
                 ApiCallRcImpl.entryBuilder(ApiConsts.DELETED, descriptionFirstLetterCaps + " marked for deletion.")
                     .build()
             );
-
-            AccessContext peerAccCtx = peerAccCtxProvider.get();
 
             flux = Flux.just(responses);
             if (rscDfn.hasDiskless())
@@ -330,7 +326,6 @@ public class CtrlRscDfnTruncateApiCallHandler
                 lockGuardFactory.create().write(LockObj.RSC_DFN_MAP).buildDeferred(),
                 () -> deleteResourcesMultiStepInTx(
                     truncateCtxRef,
-                    subScopeDescrRef,
                     actionRef,
                     updateStltsFormatRef,
                     nextStepRef
@@ -414,7 +409,6 @@ public class CtrlRscDfnTruncateApiCallHandler
         // CtrlRscDeleteApiCallHandler.prepareREsourceDeleteInTransaction does?
         try
         {
-            AccessContext peerAccCtx = peerAccCtxProvider.get();
             rscRef.markDeleted();
             Iterator<Volume> volumesIterator = rscRef.iterateVolumes();
             while (volumesIterator.hasNext())

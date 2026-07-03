@@ -123,7 +123,6 @@ public class NvmeUtils
      * depending on the {@link NvmeRscData} and {@link NvmeVlmData}.
      *
      * @param nvmeRscData NvmeRscData object containing all needed information for this method
-     * @param accCtx AccessContext needed to access properties and the IP address
      */
     public void createTargetRsc(NvmeRscData<Resource> nvmeRscData)
         throws StorageException
@@ -279,7 +278,6 @@ public class NvmeUtils
      * Reverses the operations executed by createTargetRsc(), thus deleting the data on the NVMe Target
      *
      * @param nvmeRscData NvmeRscData object containing all needed information for this method
-     * @param accCtx AccessContext needed to access properties and the IP address
      */
     public void deleteTargetRsc(NvmeRscData<Resource> nvmeRscData)
         throws StorageException
@@ -353,8 +351,6 @@ public class NvmeUtils
      *
      * @param nvmeRscData
      *     NvmeRscData object containing all needed information for this method
-     * @param accCtx
-     *     AccessContext needed to access properties and Target resource
      *
      */
     public void connect(NvmeRscData<Resource> nvmeRscData) throws StorageException
@@ -923,7 +919,6 @@ public class NvmeUtils
      * If no preferred net interface is configured, the default net interface is assigned
      *
      * @param rsc Resource object containing all needed information for this method
-     * @param accCtx AccessContext needed to access properties and the net interface
      *
      * @return {@link LsIpAddress} of the resource's net interface
      */
@@ -1091,7 +1086,6 @@ public class NvmeUtils
      * Returns target resource associated with initiator resource
      *
      * @param nvmeRscData NvmeRscData object containing information needed for this method
-     * @param accCtx AccessContext needed to access properties
      *
      * @return Resource target resource
      */

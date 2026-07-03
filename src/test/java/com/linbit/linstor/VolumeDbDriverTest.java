@@ -79,7 +79,6 @@ public class VolumeDbDriverTest extends GenericDbBase
     @SuppressWarnings("checkstyle:magicnumber")
     public void setUp() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext();
         super.setUpAndEnterScope();
         assertEquals(TBL_VOLUMES + " table's column count has changed. Update tests accordingly!",
             8,

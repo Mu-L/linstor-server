@@ -7,7 +7,7 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DatabaseLoader;
 import com.linbit.linstor.dbdrivers.DbEngine;
@@ -55,7 +55,7 @@ import java.util.function.Function;
 
 @Singleton
 public final class ResourceGroupDbDriver
-    extends AbsProtectedDatabaseDriver<ResourceGroup, ResourceGroup.InitMaps, Void>
+    extends AbsDatabaseDriver<ResourceGroup, ResourceGroup.InitMaps, Void>
     implements ResourceGroupCtrlDatabaseDriver
 {
     private final PropsContainerFactory propsContainerFactory;
@@ -81,7 +81,6 @@ public final class ResourceGroupDbDriver
     public ResourceGroupDbDriver(
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef
@@ -90,7 +89,7 @@ public final class ResourceGroupDbDriver
         super(
             errorReporterRef,
             GeneratedDatabaseTables.RESOURCE_GROUPS,
-            dbEngine, objProtFactoryRef
+            dbEngine
         );
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -294,7 +293,6 @@ public final class ResourceGroupDbDriver
         return new Pair<>(
             new ResourceGroup(
                 raw.build(UUID, java.util.UUID::fromString),
-                getObjectProtection(ObjectProtection.buildPath(rscGrpName)),
                 rscGrpName,
                 raw.get(DESCRIPTION),
                 DatabaseLoader.asDevLayerKindList(raw.getAsStringListNonNull(LAYER_STACK)),

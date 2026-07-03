@@ -90,7 +90,6 @@ public class CtrlSatelliteConnectionNotifier
                 errorReporter.reportError(
                     exc,
                     null,
-                    null,
                     "Error determining operations to perform after " + actionMessage
                 );
             }
@@ -107,7 +106,6 @@ public class CtrlSatelliteConnectionNotifier
     {
         errorReporter.reportError(
             exc,
-            null,
             null,
             "Error emitted performing operations after " + actionMessage
         );

@@ -47,15 +47,12 @@ import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 import com.linbit.utils.StringUtils;
 
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler.getRscDescriptionInline;
-import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiCallHandler.getSnapshotDfnDescriptionInline;
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiCallHandler.makeSnapshotContext;
 import static com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller.notConnectedError;
 import static com.linbit.utils.StringUtils.firstLetterCaps;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -853,10 +850,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
 
     private boolean isDiskless(Resource rsc)
     {
-        boolean diskless;
-        AccessContext accCtx = peerAccCtx.get();
-        diskless = rsc.isDrbdDiskless() || rsc.isNvmeInitiator() || rsc.isEbsInitiator();
-        return diskless;
+        return rsc.isDrbdDiskless() || rsc.isNvmeInitiator() || rsc.isEbsInitiator();
     }
 
     private Optional<Resource> anyResourceInUse(ResourceDefinition rscDfn)
@@ -972,13 +966,8 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
 
     private boolean isEbsInitiator(Resource rsc)
     {
-        boolean ebsInit;
-        AccessContext accCtx = peerAccCtx.get();
-        ebsInit = rsc.isEbsInitiator();
-        return ebsInit;
+        return rsc.isEbsInitiator();
     }
-
-
 
     private void markDown(ResourceDefinition rscDfn)
     {

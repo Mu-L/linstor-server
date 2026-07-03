@@ -5,7 +5,7 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.core.identifier.RemoteName;
-import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
+import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.GeneratedDatabaseTables;
@@ -37,7 +37,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 @Singleton
-public final class LinstorRemoteDbDriver extends AbsProtectedDatabaseDriver<LinstorRemote, LinstorRemote.InitMaps, Void>
+public final class LinstorRemoteDbDriver extends AbsDatabaseDriver<LinstorRemote, LinstorRemote.InitMaps, Void>
     implements LinstorRemoteCtrlDatabaseDriver
 {
     final PropsContainerFactory propsContainerFactory;
@@ -54,12 +54,11 @@ public final class LinstorRemoteDbDriver extends AbsProtectedDatabaseDriver<Lins
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
-        ObjectProtectionFactory objProtFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(errorReporterRef, GeneratedDatabaseTables.LINSTOR_REMOTES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.LINSTOR_REMOTES, dbEngine);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -131,7 +130,6 @@ public final class LinstorRemoteDbDriver extends AbsProtectedDatabaseDriver<Lins
         {
             return new Pair<>(
                 new LinstorRemote(
-                    getObjectProtection(ObjectProtection.buildPath(remoteName)),
                     raw.build(UUID, java.util.UUID::fromString),
                     this,
                     remoteName,

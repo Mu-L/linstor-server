@@ -1,6 +1,5 @@
 package com.linbit.linstor.debug;
 
-import com.linbit.AutoIndent;
 import com.linbit.ServiceName;
 import com.linbit.linstor.ControllerPeerCtx;
 import com.linbit.linstor.annotation.Nullable;
@@ -14,7 +13,6 @@ import javax.inject.Inject;
 import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.TreeMap;

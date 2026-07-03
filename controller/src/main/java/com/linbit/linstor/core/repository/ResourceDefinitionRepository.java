@@ -6,12 +6,10 @@ import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 
 /**
- * Provides access to resource definitions with automatic security checks.
+ * Provides access to resource definitions.
  */
-public interface ResourceDefinitionRepository extends ProtectedObject
+public interface ResourceDefinitionRepository
 {
-    void requireAccess(AccessType requested);
-
     @Nullable
     ResourceDefinition get(ResourceName nameRef);
 

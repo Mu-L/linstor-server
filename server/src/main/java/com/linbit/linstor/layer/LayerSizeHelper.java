@@ -146,7 +146,7 @@ public class LayerSizeHelper
     }
 
     /**
-     * Calls {@link #calculateSize(AccessContext, VlmProviderObject)} and returns the usableSize of the given volume /
+     * Calls {@link #calculateSize(VlmProviderObject)} and returns the usableSize of the given volume /
      * rscLayerSuffix
      *
      */

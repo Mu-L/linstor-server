@@ -7,7 +7,6 @@ import com.linbit.linstor.core.CriticalError;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.S3Remote;
-import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteDatabaseDriver;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -22,21 +21,18 @@ public class S3RemoteSatelliteFactory
     private final S3RemoteDatabaseDriver driver;
     private final TransactionObjectFactory transObjFactory;
     private final Provider<TransactionMgr> transMgrProvider;
-    private final ObjectProtectionFactory objectProtectionFactory;
     private final RemoteMap remoteMap;
 
     @Inject
     public S3RemoteSatelliteFactory(
         CoreModule.RemoteMap remoteMapRef,
         S3RemoteDatabaseDriver driverRef,
-        ObjectProtectionFactory objectProtectionFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef
     )
     {
         remoteMap = remoteMapRef;
         driver = driverRef;
-        objectProtectionFactory = objectProtectionFactoryRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
     }
@@ -57,28 +53,20 @@ public class S3RemoteSatelliteFactory
         S3Remote s3remote = null;
         if (remote == null)
         {
-            try
-            {
-                s3remote = new S3Remote(
-                    objectProtectionFactory.getInstance("", true),
-                    uuid,
-                    driver,
-                    remoteNameRef,
-                    initflags,
-                    endpointRef,
-                    bucketRef,
-                    regionRef,
-                    accessKeyRef,
-                    secretKeyRef,
-                    transObjFactory,
-                    transMgrProvider
-                );
-                remoteMap.put(remoteNameRef, s3remote);
-            }
-            catch (DatabaseException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            s3remote = new S3Remote(
+                uuid,
+                driver,
+                remoteNameRef,
+                initflags,
+                endpointRef,
+                bucketRef,
+                regionRef,
+                accessKeyRef,
+                secretKeyRef,
+                transObjFactory,
+                transMgrProvider
+            );
+            remoteMap.put(remoteNameRef, s3remote);
         }
         else
         {

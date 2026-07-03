@@ -99,7 +99,6 @@ public final class SatelliteNetComInitializer
                     commonSerializer,
                     msgProc,
                     bindAddress,
-                    publicCtx,
                     stltConnTracker
                 );
             }
@@ -140,7 +139,6 @@ public final class SatelliteNetComInitializer
                         commonSerializer,
                         msgProc,
                         bindAddress,
-                        publicCtx,
                         stltConnTracker,
                         cryptoProvider,
                         sslProtocol,

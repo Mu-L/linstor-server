@@ -6,14 +6,10 @@ import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.core.objects.ResourceGroup;
 
 /**
- * Provides access to {@link KeyValueStore}s with automatic security checks.
+ * Provides access to {@link KeyValueStore}s.
  */
 public interface ResourceGroupRepository
 {
-    ObjectProtection getObjProt();
-
-    void requireAccess(AccessType requested);
-
     @Nullable
     ResourceGroup get(ResourceGroupName nameRef);
 

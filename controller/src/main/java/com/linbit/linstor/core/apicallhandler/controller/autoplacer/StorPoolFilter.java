@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller.autoplacer;
 
-import com.linbit.ImplementationError;
 import com.linbit.SizeConv;
 import com.linbit.SizeConv.SizeUnit;
 import com.linbit.SizeSpec;
@@ -32,7 +31,6 @@ import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 import com.linbit.utils.StringUtils;
 
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -75,7 +73,6 @@ public class StorPoolFilter
     /**
      * Returns a list of storage pools that are
      * <ul>
-     * <li>accessible (via Peer's {@link AccessContext})</li>
      * <li>diskful if parameter is true, diskless otherwise</li>
      * <li>online</li>
      * </ul>
@@ -84,27 +81,20 @@ public class StorPoolFilter
     public ArrayList<StorPool> listAvailableStorPools(boolean diskful)
     {
         ArrayList<StorPool> ret = new ArrayList<>();
-        AccessContext peerCtx = peerAccCtx.get();
         for (StorPoolDefinition storPoolDfn : storPoolDfnMap.values())
         {
-            // check storPoolDfn access
-            if (storPoolDfn.getObjProt().queryAccess().hasAccess(AccessType.USE))
+            Iterator<StorPool> storPoolsIt = storPoolDfn.iterateStorPools();
+            while (storPoolsIt.hasNext())
             {
-                Iterator<StorPool> storPoolsIt = storPoolDfn.iterateStorPools();
-                while (storPoolsIt.hasNext())
-                {
-                    StorPool storPool = storPoolsIt.next();
+                StorPool storPool = storPoolsIt.next();
 
-                    if (
-                        storPool.getDeviceProviderKind().hasBackingDevice() == diskful &&
-                            // have USE access
-                            storPool.getNode().getObjProt().queryAccess().hasAccess(AccessType.USE) &&
-                            // peer is online
-                            storPool.getNode().getPeer().isOnline()
-                    )
-                    {
-                        ret.add(storPool);
-                    }
+                if (
+                    storPool.getDeviceProviderKind().hasBackingDevice() == diskful &&
+                        // peer is online
+                        storPool.getNode().getPeer().isOnline()
+                )
+                {
+                    ret.add(storPool);
                 }
             }
         }

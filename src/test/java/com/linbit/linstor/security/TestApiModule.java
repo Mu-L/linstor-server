@@ -1,7 +1,6 @@
 package com.linbit.linstor.security;
 
 import com.linbit.linstor.annotation.ApiCallScoped;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiModule;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.netcom.Message;
@@ -21,10 +20,6 @@ public class TestApiModule extends AbstractModule
         bindScope(ApiCallScoped.class, apiCallScope);
         bind(LinStorScope.class).toInstance(apiCallScope);
 
-        bind(AccessContext.class)
-            .annotatedWith(PeerContext.class)
-            .toProvider(LinStorScope.<AccessContext>seededKeyProvider())
-            .in(ApiCallScoped.class);
         bind(Peer.class)
             .toProvider(LinStorScope.<Peer>seededKeyProvider())
             .in(ApiCallScoped.class);

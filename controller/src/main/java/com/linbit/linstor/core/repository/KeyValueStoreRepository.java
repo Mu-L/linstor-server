@@ -6,12 +6,10 @@ import com.linbit.linstor.core.identifier.KeyValueStoreName;
 import com.linbit.linstor.core.objects.KeyValueStore;
 
 /**
- * Provides access to {@link KeyValueStore}s with automatic security checks.
+ * Provides access to {@link KeyValueStore}s.
  */
-public interface KeyValueStoreRepository extends ProtectedObject
+public interface KeyValueStoreRepository
 {
-    void requireAccess(AccessType requested);
-
     @Nullable
     KeyValueStore get(KeyValueStoreName nameRef);
 

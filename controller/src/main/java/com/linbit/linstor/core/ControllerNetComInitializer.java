@@ -280,7 +280,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                 commonSerializer,
                 msgProc,
                 bindAddress,
-                publicCtx,
                 ctrlConnTracker
             );
             try
@@ -407,7 +406,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                         commonSerializer,
                         msgProc,
                         bindAddress,
-                        publicCtx,
                         ctrlConnTracker,
                         cryptoProvider,
                         sslProtocol,
@@ -512,7 +510,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                     "Correct the entry in the database",
                     null
                 ),
-                null, // accCtx
                 null, // client
                 null  // contextInfo
             );

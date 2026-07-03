@@ -1033,11 +1033,6 @@ public class ScheduleBackupService implements SystemService
             lastStartTime = lastStartTimeRef;
         }
 
-        AccessContext getAccCtx()
-        {
-            return accCtx;
-        }
-
         ScheduledShippingConfig getSchedShipCfg()
         {
             return schedShipCfg;

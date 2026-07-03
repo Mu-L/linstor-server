@@ -101,7 +101,6 @@ public class NodeDbDriverTest extends GenericDbBase
     @Before
     public void setUp() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext();
         super.setUpAndEnterScope();
         assertEquals(
             "NODES table's column count has changed. Update tests accordingly!",
@@ -111,10 +110,6 @@ public class NodeDbDriverTest extends GenericDbBase
 
 
         uuid = randomUUID();
-        objProt = objectProtectionFactory.getInstance(
-            ObjectProtection.buildPath(nodeName),
-            true
-        );
         initialFlags = Node.Flags.QIGNORE.flagValue;
         initialType = Node.Type.AUXILIARY;
         node = TestFactory.createNode(
@@ -196,12 +191,6 @@ public class NodeDbDriverTest extends GenericDbBase
         assertFalse("Database persisted non existent stor pool", resultSet.next());
         resultSet.close();
         stmt.close();
-
-        ObjectProtection loadedObjProt = objectProtectionFactory.getInstance(
-            ObjectProtection.buildPath(nodeName),
-            true
-        );
-        assertNotNull("Database did not persist objectProtection", loadedObjProt);
 
         stmt = getConnection().prepareStatement(SELECT_ALL_PROPS_FOR_NODE);
         stmt.setString(1, "NODES/" + nodeName.value);
@@ -528,7 +517,6 @@ public class NodeDbDriverTest extends GenericDbBase
         }
 
         assertEquals(Node.Type.COMBINED, loadedNode.getNodeType());
-        assertNotNull(loadedNode.getObjProt());
         {
             Props nodeProps = loadedNode.getProps();
             assertNotNull(nodeProps);
@@ -544,7 +532,6 @@ public class NodeDbDriverTest extends GenericDbBase
                 assertNotNull(resDfn);
                 assertEquals(ResourceDefinition.Flags.DELETE.flagValue, resDfn.getFlags().getFlagsBits());
                 assertEquals(resName, resDfn.getName());
-                assertNotNull(resDfn.getObjProt());
                 {
                     Props resDfnProps = resDfn.getProps();
                     assertNotNull(resDfnProps);
@@ -556,7 +543,6 @@ public class NodeDbDriverTest extends GenericDbBase
                 assertEquals(resDfnUuid, resDfn.getUuid());
                 assertEquals(res.getVolume(volDfnNr).getVolumeDefinition(), resDfn.getVolumeDfn(volDfnNr));
             }
-            assertNotNull(res.getObjProt());
             {
                 Props resProps = res.getProps();
                 assertNotNull(resProps);
@@ -666,7 +652,6 @@ public class NodeDbDriverTest extends GenericDbBase
                 StorPoolDefinition storPoolDefinition = storPool.getDefinition();
                 assertNotNull(storPoolDefinition);
                 assertEquals(poolName, storPoolDefinition.getName());
-                assertNotNull(storPoolDefinition.getObjProt());
                 assertEquals(storPoolDfnUuid, storPoolDefinition.getUuid());
             }
             {
