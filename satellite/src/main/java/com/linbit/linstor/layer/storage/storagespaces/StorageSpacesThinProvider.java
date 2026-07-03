@@ -3,7 +3,6 @@ package com.linbit.linstor.layer.storage.storagespaces;
 import com.linbit.linstor.api.SpaceInfo;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.interfaces.StorPoolInfo;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.storagespaces.StorageSpacesData;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -22,13 +21,13 @@ public class StorageSpacesThinProvider extends StorageSpacesProvider
 
     @Override
     protected void createLvImpl(StorageSpacesData<Resource> vlmData)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         super.createLvImpl(vlmData);
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPoolRef) throws AccessDeniedException, StorageException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPoolRef) throws StorageException
     {
         SpaceInfo info = super.getSpaceInfo(storPoolRef);
 

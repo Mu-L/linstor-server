@@ -1,7 +1,6 @@
 package com.linbit.linstor.event.handler;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlApiDataLoader;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
@@ -17,8 +16,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.satellitestate.SatelliteVolumeState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -30,7 +27,6 @@ public class StateSequenceDetector
 {
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final ErrorReporter errorReporter;
-    private final AccessContext accCtx;
     private final CtrlRscLayerDataFactory ctrlRscLayerDataFactory;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
 
@@ -38,14 +34,12 @@ public class StateSequenceDetector
     public StateSequenceDetector(
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext accCtxRef,
         CtrlRscLayerDataFactory ctrlRscLayerDataFactoryRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef
     )
     {
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         errorReporter = errorReporterRef;
-        accCtx = accCtxRef;
         ctrlRscLayerDataFactory = ctrlRscLayerDataFactoryRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
     }
@@ -62,7 +56,7 @@ public class StateSequenceDetector
                 Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, false);
                 if (rsc != null)
                 {
-                    rsc.getProps(accCtx)
+                    rsc.getProps()
                         .setProp(
                             ApiConsts.KEY_DRBD_SKIP_DISK,
                             ApiConsts.VAL_TRUE,
@@ -82,7 +76,7 @@ public class StateSequenceDetector
             }
             vlmState.setDiskState(nextState);
         }
-        catch (AccessDeniedException | InvalidKeyException | InvalidValueException exc)
+        catch (InvalidKeyException | InvalidValueException exc)
         {
             throw new ImplementationError(exc);
         }

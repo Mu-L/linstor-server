@@ -7,7 +7,6 @@ import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.core.apicallhandler.response.ApiException;
@@ -28,8 +27,6 @@ import com.linbit.linstor.numberpool.NumberPoolModule;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.nvme.NvmeRscData;
 import com.linbit.linstor.storage.data.adapter.nvme.NvmeVlmData;
@@ -64,7 +61,6 @@ class RscNvmeLayerHelper
     @Inject
     RscNvmeLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef,
         Provider<CtrlRscLayerDataFactory> rscLayerDataFactory
@@ -72,7 +68,6 @@ class RscNvmeLayerHelper
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             // NvmeRscData.class cannot directly be casted to Class<NvmeRscData<Resource>>. because java.
@@ -126,10 +121,10 @@ class RscNvmeLayerHelper
         AbsRscLayerObject<Resource> parentObjectRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException
     {
-        ensureTargetNodeNameIsSet(rscRef, apiCtx);
+        ensureTargetNodeNameIsSet(rscRef);
         return layerDataFactory.createNvmeRscData(
             layerRscIdPool.autoAllocate(),
             rscRef,
@@ -139,23 +134,23 @@ class RscNvmeLayerHelper
     }
 
     Resource getTarget(Resource initiator)
-        throws AccessDeniedException, DatabaseException, ImplementationError, InvalidNameException
+        throws DatabaseException, ImplementationError, InvalidNameException
     {
-        ensureTargetNodeNameIsSet(initiator, apiCtx);
-        String nodeNameStr = initiator.getProps(apiCtx).getProp(InternalApiConsts.PROP_NVME_TARGET_NODE_NAME);
-        return initiator.getResourceDefinition().getResource(apiCtx, new NodeName(nodeNameStr));
+        ensureTargetNodeNameIsSet(initiator);
+        String nodeNameStr = initiator.getProps().getProp(InternalApiConsts.PROP_NVME_TARGET_NODE_NAME);
+        return initiator.getResourceDefinition().getResource(new NodeName(nodeNameStr));
     }
 
     // also called by RscOpenflexLayerHelper
-    static void ensureTargetNodeNameIsSet(Resource rscRef, AccessContext apiCtx)
-        throws AccessDeniedException, DatabaseException, ImplementationError
+    static void ensureTargetNodeNameIsSet(Resource rscRef)
+        throws DatabaseException, ImplementationError
     {
-        Props rscProps = rscRef.getProps(apiCtx);
+        Props rscProps = rscRef.getProps();
         if (rscProps.getProp(InternalApiConsts.PROP_NVME_TARGET_NODE_NAME) == null &&
-            rscRef.isNvmeInitiator(apiCtx))
+            rscRef.isNvmeInitiator())
         {
             ResourceDefinition rscDfn = rscRef.getResourceDefinition();
-            Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
 
             HashMap<String, Integer> initCountPerTarget = new HashMap<>();
 
@@ -164,9 +159,9 @@ class RscNvmeLayerHelper
                 Resource otherRsc = rscIt.next();
                 if (!otherRsc.equals(rscRef))
                 {
-                    if (otherRsc.isNvmeInitiator(apiCtx))
+                    if (otherRsc.isNvmeInitiator())
                     {
-                        String othersTarget = otherRsc.getProps(apiCtx)
+                        String othersTarget = otherRsc.getProps()
                             .getProp(InternalApiConsts.PROP_NVME_TARGET_NODE_NAME);
                         Integer count = initCountPerTarget.get(othersTarget);
                         if (count == null)
@@ -226,7 +221,7 @@ class RscNvmeLayerHelper
 
     @Override
     protected boolean needsChildVlm(AbsRscLayerObject<Resource> childRscDataRef, Volume vlmRef)
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         return true;
     }
@@ -238,7 +233,7 @@ class RscNvmeLayerHelper
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         // no special StorPool - only the one from "below" us, and that will be found when asking the next layer
         return Collections.emptySet();
@@ -251,7 +246,7 @@ class RscNvmeLayerHelper
         LayerPayload payload,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException, LinStorException
     {
         return layerDataFactory.createNvmeVlmData(vlm, nvmeRscData);
@@ -270,7 +265,7 @@ class RscNvmeLayerHelper
 
     @Override
     protected List<ChildResourceData> getChildRsc(NvmeRscData<Resource> rscDataRef, List<DeviceLayerKind> layerListRef)
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         return Arrays.asList(new ChildResourceData(RscLayerSuffixes.SUFFIX_DATA));
     }
@@ -287,10 +282,10 @@ class RscNvmeLayerHelper
         List<DeviceLayerKind> layerListRef,
         LayerPayload payloadRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         boolean changed = false;
-        if (rscDataRef.getAbsResource().isNvmeInitiator(apiCtx))
+        if (rscDataRef.getAbsResource().isNvmeInitiator())
         {
             // we are initiator, ignore everything below us
             changed = addIgnoreReason(rscDataRef, LayerIgnoreReason.NVME_INITIATOR, false, true, true);
@@ -304,9 +299,9 @@ class RscNvmeLayerHelper
     }
 
     @Override
-    protected boolean isExpectedToProvideDevice(NvmeRscData<Resource> nvmeRscData) throws AccessDeniedException
+    protected boolean isExpectedToProvideDevice(NvmeRscData<Resource> nvmeRscData)
     {
-        return nvmeRscData.getAbsResource().isNvmeInitiator(apiCtx) &&
+        return nvmeRscData.getAbsResource().isNvmeInitiator() &&
             !nvmeRscData.hasAnyPreventExecutionIgnoreReason();
     }
 
@@ -354,7 +349,7 @@ class RscNvmeLayerHelper
         Map<String, String> storpoolRenameMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         return layerDataFactory.createNvmeVlmData(vlmRef, rscDataRef);
     }

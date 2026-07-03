@@ -9,7 +9,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.storage.file.utils.FileCommands;
 import com.linbit.linstor.layer.storage.file.utils.FileProviderUtils;
 import com.linbit.linstor.layer.storage.file.utils.LosetupCommands;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.file.FileData;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -44,7 +43,7 @@ public class FileThinProvider extends FileProvider
 
     @Override
     protected void createLvImpl(FileData<Resource> fileData)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         Path backingFile = fileData.getStorageDirectory().resolve(fileData.getIdentifier());
         FileCommands.createThin(
@@ -57,7 +56,7 @@ public class FileThinProvider extends FileProvider
 
     @Override
     protected void resizeLvImpl(FileData<Resource> fileData)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         // no special command for resize, just "re-allocate" to the needed size
         FileCommands.createThin(

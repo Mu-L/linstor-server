@@ -2,14 +2,12 @@ package com.linbit.linstor.systemstarter;
 
 import com.linbit.SystemServiceStartException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelper;
 import com.linbit.linstor.core.cfg.CtrlConfig;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgrGenerator;
@@ -33,7 +31,6 @@ public class PassphraseInitializer implements StartupInitializer
     private final ErrorReporter errorReporter;
     private CtrlConfig ctrlCfg;
     private EncryptionHelper encHelper;
-    private AccessContext accCtx;
     private LinStorScope apiCallScope;
     private TransactionMgrGenerator transactionMgrGenerator;
 
@@ -42,8 +39,6 @@ public class PassphraseInitializer implements StartupInitializer
         ErrorReporter errorReporterRef,
         CtrlConfig ctrlCfgRef,
         EncryptionHelper encHelperRef,
-        @SystemContext
-        AccessContext accCtxRef,
         LinStorScope apiCallScopeRef,
         TransactionMgrGenerator transactionMgrGeneratorRef
     )
@@ -51,7 +46,6 @@ public class PassphraseInitializer implements StartupInitializer
         errorReporter = errorReporterRef;
         ctrlCfg = ctrlCfgRef;
         encHelper = encHelperRef;
-        accCtx = accCtxRef;
         apiCallScope = apiCallScopeRef;
         transactionMgrGenerator = transactionMgrGeneratorRef;
     }
@@ -72,17 +66,16 @@ public class PassphraseInitializer implements StartupInitializer
             try (LinStorScope.ScopeAutoCloseable close = apiCallScope.enter())
             {
                 TransactionMgrUtil.seedTransactionMgr(apiCallScope, txMgr);
-                ReadOnlyProps namespace = encHelper.getEncryptedNamespace(accCtx);
+                ReadOnlyProps namespace = encHelper.getEncryptedNamespace();
                 if (namespace == null || namespace.isEmpty())
                 {
                     byte[] masterKey = encHelper.generateSecret();
                     encHelper.setPassphraseImpl(
                         masterPassphrase,
-                        masterKey,
-                        accCtx
+                        masterKey
                     );
                     // setPassphraseImpl sets the props in this namespace; to ensure they are there, get it again
-                    namespace = encHelper.getEncryptedNamespace(accCtx);
+                    namespace = encHelper.getEncryptedNamespace();
 
                     // we can ignore the returned flux since we should be running during startup before any
                     // node-connection-attempts
@@ -116,7 +109,6 @@ public class PassphraseInitializer implements StartupInitializer
                         errorReporter.reportError(
                             Level.ERROR,
                             dbExc,
-                            accCtx,
                             null,
                             "A database error occurred while trying to rollback"
                         );

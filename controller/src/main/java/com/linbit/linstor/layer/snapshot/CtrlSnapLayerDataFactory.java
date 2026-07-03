@@ -5,7 +5,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -16,8 +15,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
@@ -30,7 +27,6 @@ import java.util.Map;
 public class CtrlSnapLayerDataFactory
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final SnapDrbdLayerHelper drbdLayerHelper;
     private final SnapLuksLayerHelper luksLayerHelper;
     private final SnapStorageLayerHelper storageLayerHelper;
@@ -42,7 +38,6 @@ public class CtrlSnapLayerDataFactory
     @Inject
     public CtrlSnapLayerDataFactory(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         SnapDrbdLayerHelper drbdLayerHelperRef,
         SnapLuksLayerHelper luksLayerHelperRef,
         SnapStorageLayerHelper storageLayerHelperRef,
@@ -53,7 +48,6 @@ public class CtrlSnapLayerDataFactory
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         drbdLayerHelper = drbdLayerHelperRef;
         luksLayerHelper = luksLayerHelperRef;
         storageLayerHelper = storageLayerHelperRef;
@@ -71,14 +65,10 @@ public class CtrlSnapLayerDataFactory
         AbsRscLayerObject<Resource> rscData;
         try
         {
-            rscData = fromResource.getLayerData(apiCtx);
+            rscData = fromResource.getLayerData();
 
             AbsRscLayerObject<Snapshot> snapData = copyRec(toSnapshot, rscData, null);
-            toSnapshot.setLayerData(apiCtx, snapData);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            toSnapshot.setLayerData(snapData);
         }
         catch (DatabaseException exc)
         {
@@ -126,7 +116,7 @@ public class CtrlSnapLayerDataFactory
         AbsRscLayerObject<Resource> rscDataRef,
         @Nullable AbsRscLayerObject<Snapshot> parentRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         AbsSnapLayerHelper<?, ?, ?, ?> layerHelper = getLayerHelperByKind(rscDataRef.getLayerKind());
@@ -156,11 +146,7 @@ public class CtrlSnapLayerDataFactory
                 renameStorPoolMapRef,
                 apiCallRc
             );
-            toSnapshot.setLayerData(apiCtx, snapData);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            toSnapshot.setLayerData(snapData);
         }
         catch (DatabaseException exc)
         {
@@ -197,7 +183,7 @@ public class CtrlSnapLayerDataFactory
         Map<String, String> renameStorPoolMapRef,
         @Nullable ApiCallRc apiCallRc
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, InvalidNameException
     {
         AbsSnapLayerHelper<?, ?, ?, ?> layerHelper = getLayerHelperByKind(fromRscLayerDataApiRef.getLayerKind());

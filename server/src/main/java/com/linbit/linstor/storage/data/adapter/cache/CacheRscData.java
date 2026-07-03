@@ -9,8 +9,6 @@ import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.LayerCacheRscDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.LayerCacheVlmDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.AbsRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
@@ -68,16 +66,16 @@ public class CacheRscData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public RscLayerDataApi asPojo(AccessContext accCtxRef) throws AccessDeniedException
+    public RscLayerDataApi asPojo()
     {
         List<CacheVlmPojo> vlmPojos = new ArrayList<>();
         for (CacheVlmData<RSC> vlmData : vlmMap.values())
         {
-            vlmPojos.add(vlmData.asPojo(accCtxRef));
+            vlmPojos.add(vlmData.asPojo());
         }
         return new CacheRscPojo(
             rscLayerId,
-            getChildrenPojos(accCtxRef),
+            getChildrenPojos(),
             rscSuffix,
             vlmPojos,
             suspend.get(),

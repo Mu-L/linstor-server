@@ -7,7 +7,6 @@ import com.linbit.extproc.ExtCmdFactoryStlt;
 import com.linbit.fsevent.FileSystemWatch;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -54,8 +53,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
@@ -110,7 +107,6 @@ public abstract class AbsStorageProvider<
     {
         private final ErrorReporter errorReporter;
         private final ExtCmdFactoryStlt extCmdFactory;
-        private final AccessContext storDriverAccCtx;
         private final StltConfigAccessor stltConfigAccessor;
         private final WipeHandler wipeHandler;
         private final Provider<NotificationListener> notificationListenerProvider;
@@ -127,7 +123,6 @@ public abstract class AbsStorageProvider<
         public AbsStorageProviderInit(
             ErrorReporter errorReporterRef,
             ExtCmdFactoryStlt extCmdFactoryRef,
-            @DeviceManagerContext AccessContext storDriverAccCtxRef,
             StltConfigAccessor stltConfigAccessorRef,
             WipeHandler wipeHandlerRef,
             Provider<NotificationListener> notificationListenerProviderRef,
@@ -143,7 +138,6 @@ public abstract class AbsStorageProvider<
         {
             errorReporter = errorReporterRef;
             extCmdFactory = extCmdFactoryRef;
-            storDriverAccCtx = storDriverAccCtxRef;
             stltConfigAccessor = stltConfigAccessorRef;
             wipeHandler = wipeHandlerRef;
             notificationListenerProvider = notificationListenerProviderRef;
@@ -164,7 +158,6 @@ public abstract class AbsStorageProvider<
 
     protected final ErrorReporter errorReporter;
     protected final ExtCmdFactoryStlt extCmdFactory;
-    protected final AccessContext storDriverAccCtx;
     protected final Provider<NotificationListener> notificationListenerProvider;
     protected final Provider<TransactionMgr> transMgrProvider;
     protected final WipeHandler wipeHandler;
@@ -255,7 +248,7 @@ public abstract class AbsStorageProvider<
     @SuppressWarnings("unchecked")
     @Override
     public void prepare(List<VlmProviderObject<Resource>> rawVlmDataList, List<VlmProviderObject<Snapshot>> rawSnapVlms)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         clearCache(false);
 
@@ -271,7 +264,7 @@ public abstract class AbsStorageProvider<
     }
 
     private void updateVolumeAndSnapshotStates(List<LAYER_DATA> vlmDataList, List<LAYER_SNAP_DATA> snapVlms)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         Map<String, INFO> currentInfo = getInfoListImpl(vlmDataList, snapVlms);
         if (!subclassMaintainsInfoListCache)
@@ -285,7 +278,7 @@ public abstract class AbsStorageProvider<
     @Override
     @SuppressWarnings("unchecked")
     public void processVolumes(List<VlmProviderObject<Resource>> rawVlmDataList, ApiCallRcImpl apiCallRc)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         if (!prepared)
         {
@@ -308,15 +301,13 @@ public abstract class AbsStorageProvider<
             addChangedStorPool(vlmData.getStorPool());
 
             boolean vlmShouldExist = !((Volume) vlmData.getVolume()).getFlags().isSet(
-                storDriverAccCtx,
                 Volume.Flags.DELETE
             );
             StateFlags<Resource.Flags> rscFlags = vlmData.getRscLayerObject().getAbsResource().getStateFlags();
             vlmShouldExist &= !rscFlags.isSet(
-                storDriverAccCtx,
                 Resource.Flags.DISK_REMOVING
             );
-            boolean vlmShouldBeActive = rscFlags.isUnset(storDriverAccCtx, Resource.Flags.INACTIVE);
+            boolean vlmShouldBeActive = rscFlags.isUnset(Resource.Flags.INACTIVE);
 
             String lvId = vlmData.getIdentifier();
             if (vlmData.exists())
@@ -336,9 +327,9 @@ public abstract class AbsStorageProvider<
                     @Nullable String parentTypeMarkedForDeletion = getParentTypeNameInDeletingState(vlmData);
                     if (!vlmShouldExist)
                     {
-                        if (SharedStorageUtils.isNeededBySharedResource(storDriverAccCtx, vlmData))
+                        if (SharedStorageUtils.isNeededBySharedResource(vlmData))
                         {
-                            if (vlmData.isActive(storDriverAccCtx))
+                            if (vlmData.isActive())
                             {
                                 vlmsToDeactivate.add(vlmData);
                                 errorReporter.logTrace(
@@ -392,7 +383,7 @@ public abstract class AbsStorageProvider<
                     else
                     if (!vlmShouldBeActive)
                     {
-                        if (vlmData.isActive(storDriverAccCtx))
+                        if (vlmData.isActive())
                         {
                             errorReporter.logTrace("Lv %s will be deactivated", lvId);
                             vlmsToDeactivate.add(vlmData);
@@ -404,13 +395,13 @@ public abstract class AbsStorageProvider<
                     }
                     else
                     {
-                        if (vlmData.isActive(storDriverAccCtx))
+                        if (vlmData.isActive())
                         {
                             Size sizeState = vlmData.getSizeState();
                             Volume volume = (Volume) vlmData.getVolume();
                             if (
                                 sizeState.equals(VlmProviderObject.Size.TOO_SMALL) ||
-                                    (volume.getFlags().isSet(storDriverAccCtx, Volume.Flags.RESIZE) &&
+                                    (volume.getFlags().isSet(Volume.Flags.RESIZE) &&
                                     sizeState.equals(VlmProviderObject.Size.TOO_LARGE))
                             )
                             {
@@ -467,7 +458,6 @@ public abstract class AbsStorageProvider<
         for (LAYER_DATA vlmData : vlmDataList)
         {
             if (vlmData.getRscLayerObject().getAbsResource().getStateFlags().isSet(
-                    storDriverAccCtx,
                     Resource.Flags.INACTIVE))
             {
                 setDevicePath(vlmData, null);
@@ -475,31 +465,31 @@ public abstract class AbsStorageProvider<
         }
     }
 
-    private @Nullable String getParentTypeNameInDeletingState(LAYER_DATA vlmDataRef) throws AccessDeniedException
+    private @Nullable String getParentTypeNameInDeletingState(LAYER_DATA vlmDataRef)
     {
         @Nullable String ret = null;
         Volume vlm = (Volume) vlmDataRef.getVolume();
-        if (vlm.getFlags().isSet(storDriverAccCtx, Volume.Flags.DELETE))
+        if (vlm.getFlags().isSet(Volume.Flags.DELETE))
         {
             ret = Volume.class.getSimpleName();
         }
         else
         {
             VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
-            if (vlmDfn.getFlags().isSet(storDriverAccCtx, VolumeDefinition.Flags.DELETE))
+            if (vlmDfn.getFlags().isSet(VolumeDefinition.Flags.DELETE))
             {
                 ret = VolumeDefinition.class.getSimpleName();
             }
             else
             {
                 Resource rsc = vlm.getAbsResource();
-                if (rsc.getStateFlags().isSet(storDriverAccCtx, Resource.Flags.DELETE))
+                if (rsc.getStateFlags().isSet(Resource.Flags.DELETE))
                 {
                     ret = Resource.class.getSimpleName();
                 }
                 else
                 {
-                    if (rsc.getResourceDefinition().getFlags().isSet(storDriverAccCtx, ResourceDefinition.Flags.DELETE))
+                    if (rsc.getResourceDefinition().getFlags().isSet(ResourceDefinition.Flags.DELETE))
                     {
                         ret = ResourceDefinition.class.getSimpleName();
                     }
@@ -512,7 +502,7 @@ public abstract class AbsStorageProvider<
     @Override
     @SuppressWarnings("unchecked")
     public void processSnapshotVolumes(List<VlmProviderObject<Snapshot>> snapVlmDataListRef, ApiCallRcImpl apiCallRcRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         for (VlmProviderObject<Snapshot> absSnapVlmData : snapVlmDataListRef)
         {
@@ -520,7 +510,7 @@ public abstract class AbsStorageProvider<
             if (snapVlmData.getRscLayerObject()
                 .getAbsResource()
                 .getFlags()
-                .isSet(storDriverAccCtx, Snapshot.Flags.DELETE))
+                .isSet(Snapshot.Flags.DELETE))
             {
                 deleteSnapshot(snapVlmData, apiCallRcRef);
             }
@@ -533,7 +523,7 @@ public abstract class AbsStorageProvider<
 
     @Override
     public @Nullable LocalPropsChangePojo setLocalNodeProps(ReadOnlyProps localNodePropsRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         localNodeProps = localNodePropsRef;
         return null;
@@ -544,9 +534,9 @@ public abstract class AbsStorageProvider<
         String overrideId;
         try
         {
-            overrideId = vlmDfn.getProps(storDriverAccCtx).getProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID);
+            overrideId = vlmDfn.getProps().getProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID);
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -558,9 +548,9 @@ public abstract class AbsStorageProvider<
         String overrideId;
         try
         {
-            overrideId = snapVlmDfn.getVlmDfnProps(storDriverAccCtx).getProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID);
+            overrideId = snapVlmDfn.getVlmDfnProps().getProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID);
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -574,18 +564,18 @@ public abstract class AbsStorageProvider<
         return copy;
     }
 
-    private boolean isCloneVolume(LAYER_DATA vlmData) throws AccessDeniedException
+    private boolean isCloneVolume(LAYER_DATA vlmData)
     {
         final Resource rsc = vlmData.getRscLayerObject().getAbsResource();
         StateFlags<Volume.Flags> vlmFlags = rsc.getVolume(vlmData.getVlmNr()).getFlags();
-        return vlmFlags.isSet(storDriverAccCtx, Volume.Flags.CLONING_START) &&
-            !vlmFlags.isSet(storDriverAccCtx, Volume.Flags.CLONING_FINISHED);
+        return vlmFlags.isSet(Volume.Flags.CLONING_START) &&
+            !vlmFlags.isSet(Volume.Flags.CLONING_FINISHED);
     }
 
-    protected boolean isCloning(LAYER_DATA vlmData) throws AccessDeniedException
+    protected boolean isCloning(LAYER_DATA vlmData)
     {
         final Resource rsc = vlmData.getRscLayerObject().getAbsResource();
-        return rsc.getVolume(vlmData.getVlmNr()).getFlags().isSet(storDriverAccCtx, Volume.Flags.CLONING);
+        return rsc.getVolume(vlmData.getVlmNr()).getFlags().isSet(Volume.Flags.CLONING);
     }
 
     /**
@@ -618,15 +608,15 @@ public abstract class AbsStorageProvider<
     }
 
     private void createSnapshotForClone(LAYER_DATA vlmData, String cloneRscName)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         createSnapshotForCloneImpl(vlmData, cloneRscName);
         errorReporter.logInfo("Lv snapshot created %s/%s", vlmData.getIdentifier(), cloneRscName);
     }
 
-    private Set<Map.Entry<String, String>> getCloneForKeyProps(Resource rsc) throws AccessDeniedException
+    private Set<Map.Entry<String, String>> getCloneForKeyProps(Resource rsc)
     {
-        final ReadOnlyProps props = rsc.getProps(storDriverAccCtx);
+        final ReadOnlyProps props = rsc.getProps();
         return props.map().entrySet().stream()
             .filter(e -> e.getKey().startsWith(InternalApiConsts.CLONE_PROP_PREFIX))
             .collect(Collectors.toSet());
@@ -635,7 +625,7 @@ public abstract class AbsStorageProvider<
     private void createCloneSnapshots(
         List<LAYER_DATA> vlmsToSnapshot
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         for (LAYER_DATA vlmData : vlmsToSnapshot)
         {
@@ -657,7 +647,7 @@ public abstract class AbsStorageProvider<
         List<LAYER_DATA> vlmsToCreate,
         ApiCallRcImpl apiCallRc
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         for (LAYER_DATA vlmData : vlmsToCreate)
         {
@@ -714,8 +704,7 @@ public abstract class AbsStorageProvider<
                     Snapshot snap = sourceSnap.getAbsResource();
                     boolean isBackuptarget = BackupShippingUtils.isBackupTarget(
                         snap.getSnapshotDefinition(),
-                        snap.getNode(),
-                        storDriverAccCtx
+                        snap.getNode()
                     );
                     boolean shouldSuffixBeShipped = RscLayerSuffixes.shouldSuffixBeShipped(
                         targetRscData.getResourceNameSuffix()
@@ -818,7 +807,7 @@ public abstract class AbsStorageProvider<
     }
 
     public void postCreate(LAYER_DATA vlmData, boolean wipeData)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         waitUntilDeviceCreated(vlmData, vlmData.getDevicePath());
 
@@ -847,13 +836,12 @@ public abstract class AbsStorageProvider<
     protected abstract boolean waitForSnapshotDevice();
 
     protected long getWaitTimeoutAfterCreate(StorPool storPoolRef)
-        throws AccessDeniedException
     {
         long timeout = DFLT_WAIT_UNTIL_DEVICE_CREATED_TIMEOUT_IN_MS;
         try
         {
             String timeoutStr = new PriorityProps(
-                storPoolRef.getProps(storDriverAccCtx),
+                storPoolRef.getProps(),
                 stltConfigAccessor.getReadonlyProps()
             ).getProp(
                 ApiConsts.KEY_STOR_POOL_WAIT_TIMEOUT_AFTER_CREATE,
@@ -871,14 +859,14 @@ public abstract class AbsStorageProvider<
         return timeout;
     }
 
-    protected void addChangedStorPool(StorPool storPoolRef) throws AccessDeniedException, StorageException
+    protected void addChangedStorPool(StorPool storPoolRef) throws StorageException
     {
         changedStorPools.add(storPoolRef);
         changedStoragePoolStrings.add(getStorageName(storPoolRef));
     }
 
     private void resizeVolumes(List<LAYER_DATA> vlmsToResize, ApiCallRcImpl apiCallRc)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         for (LAYER_DATA vlmData : vlmsToResize)
         {
@@ -893,7 +881,7 @@ public abstract class AbsStorageProvider<
     }
 
     private void deleteVolumes(List<LAYER_DATA> vlmsToDelete, ApiCallRcImpl apiCallRc)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         for (LAYER_DATA vlmData : vlmsToDelete)
         {
@@ -907,7 +895,6 @@ public abstract class AbsStorageProvider<
             deleteLvImpl(vlmData, lvId);
 
             if (!vlmData.getVolume().getAbsResource().getStateFlags().isSet(
-                storDriverAccCtx,
                 Resource.Flags.DISK_REMOVING)
             )
             {
@@ -917,7 +904,7 @@ public abstract class AbsStorageProvider<
     }
 
     private void deactivateVolumes(List<LAYER_DATA> vlmsToDeactivate, ApiCallRcImpl apiCallRc)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         for (LAYER_DATA vlmData : vlmsToDeactivate)
         {
@@ -932,7 +919,6 @@ public abstract class AbsStorageProvider<
             deactivateLvImpl(vlmData, lvId);
 
             if (!vlmData.getVolume().getAbsResource().getStateFlags().isSet(
-                storDriverAccCtx,
                 Resource.Flags.DISK_REMOVING)
             )
             {
@@ -945,7 +931,7 @@ public abstract class AbsStorageProvider<
         LAYER_SNAP_DATA snapVlm,
         ApiCallRcImpl apiCallRc
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         if (!snapVlm.exists())
         {
@@ -977,13 +963,13 @@ public abstract class AbsStorageProvider<
     }
 
     private void takeSnapshots(LAYER_SNAP_DATA snapVlm, ApiCallRcImpl apiCallRc) throws StorageException,
-        AccessDeniedException, DatabaseException
+        DatabaseException
     {
         Snapshot snap = snapVlm.getVolume().getAbsResource();
         SnapshotDefinition snapDfn = snap.getSnapshotDefinition();
-        if (BackupShippingUtils.isBackupTarget(snapDfn, snap.getNode(), storDriverAccCtx))
+        if (BackupShippingUtils.isBackupTarget(snapDfn, snap.getNode()))
         {
-            String remoteName = BackupShippingUtils.getBackupSrcRemote(snapDfn, storDriverAccCtx);
+            String remoteName = BackupShippingUtils.getBackupSrcRemote(snapDfn);
             @Nullable AbsRemote remote;
             try
             {
@@ -1010,7 +996,7 @@ public abstract class AbsStorageProvider<
         }
         else
         {
-            ReadOnlyProps sourceProps = snapDfn.getSnapDfnProps(storDriverAccCtx)
+            ReadOnlyProps sourceProps = snapDfn.getSnapDfnProps()
                 .getNamespaceOrEmpty(BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC);
             if (sourceProps.isEmpty())
             {
@@ -1025,8 +1011,7 @@ public abstract class AbsStorageProvider<
                     String remoteName = namespcIter.next();
                     String stltRemoteName = BackupShippingUtils.getBackupDstRemote(
                         snapDfn,
-                        remoteName,
-                        storDriverAccCtx
+                        remoteName
                     );
                     AbsRemote remote;
                     try
@@ -1069,7 +1054,7 @@ public abstract class AbsStorageProvider<
         @Nullable AbsBackupShippingService service,
         boolean isTarget
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         boolean remoteNameSet = s3orLinRemoteName != null;
         boolean serviceNameSet = service != null;
@@ -1090,7 +1075,7 @@ public abstract class AbsStorageProvider<
         boolean shouldWeShip;
         if (isTarget)
         {
-            shouldWeShip = BackupShippingUtils.isNodeTarget(snapDfn, snap.getNode(), storDriverAccCtx);
+            shouldWeShip = BackupShippingUtils.isNodeTarget(snapDfn, snap.getNode());
         }
         else
         {
@@ -1104,8 +1089,7 @@ public abstract class AbsStorageProvider<
                     snapDfn,
                     snap.getNode(),
                     remoteNameToUse,
-                    service instanceof BackupShippingS3Service,
-                    storDriverAccCtx
+                    service instanceof BackupShippingS3Service
                 );
             }
         }
@@ -1122,30 +1106,26 @@ public abstract class AbsStorageProvider<
             shipping = BackupShippingUtils.hasShippingStatus(
                 snapDfn,
                 remoteNameToUse,
-                InternalApiConsts.VALUE_SHIPPING,
-                storDriverAccCtx
+                InternalApiConsts.VALUE_SHIPPING
             );
             prepShip = BackupShippingUtils.hasShippingStatus(
                 snapDfn,
                 remoteNameToUse,
-                InternalApiConsts.VALUE_PREPARE_SHIPPING,
-                storDriverAccCtx
+                InternalApiConsts.VALUE_PREPARE_SHIPPING
             );
             aborting = BackupShippingUtils.hasShippingStatus(
                 snapDfn,
                 remoteNameToUse,
-                InternalApiConsts.VALUE_ABORTING,
-                storDriverAccCtx
+                InternalApiConsts.VALUE_ABORTING
             );
             prepAbort = BackupShippingUtils.hasShippingStatus(
                 snapDfn,
                 remoteNameToUse,
-                InternalApiConsts.VALUE_PREPARE_ABORT,
-                storDriverAccCtx
+                InternalApiConsts.VALUE_PREPARE_ABORT
             );
         }
-        boolean takeSnapshot = snap.getTakeSnapshot(storDriverAccCtx);
-        boolean shipBackup = snap.getShipBackup(storDriverAccCtx);
+        boolean takeSnapshot = snap.getTakeSnapshot();
+        boolean shipBackup = snap.getShipBackup();
 
         if (shipBackup)
         {
@@ -1281,19 +1261,19 @@ public abstract class AbsStorageProvider<
     }
 
     @SuppressWarnings("unchecked")
-    private @Nullable LAYER_DATA getVlmData(LAYER_SNAP_DATA snapVlmRef) throws AccessDeniedException
+    private @Nullable LAYER_DATA getVlmData(LAYER_SNAP_DATA snapVlmRef)
     {
         @Nullable LAYER_DATA ret;
 
         Snapshot snap = snapVlmRef.getRscLayerObject().getAbsResource();
-        @Nullable Resource rsc = snap.getResourceDefinition().getResource(storDriverAccCtx, snap.getNodeName());
+        @Nullable Resource rsc = snap.getResourceDefinition().getResource(snap.getNodeName());
         if (rsc == null)
         {
             ret = null;
         }
         else
         {
-            AbsRscLayerObject<Resource> rscLayerData = rsc.getLayerData(storDriverAccCtx);
+            AbsRscLayerObject<Resource> rscLayerData = rsc.getLayerData();
             // since we are in the STORAGE layer...
             Set<AbsRscLayerObject<Resource>> storageRscLayerDataSet = LayerRscUtils.getRscDataByLayer(
                 rscLayerData,
@@ -1322,7 +1302,6 @@ public abstract class AbsStorageProvider<
     }
 
     protected @Nullable LAYER_SNAP_DATA getSnapVlmData(LAYER_DATA vlmDataRef, String snapNameStrRef)
-        throws AccessDeniedException
     {
         try
         {
@@ -1330,11 +1309,11 @@ public abstract class AbsStorageProvider<
             final StorageRscData<Resource> rscData = vlmDataRef.getRscLayerObject();
             final Resource rsc = rscData.getAbsResource();
             final @Nullable SnapshotDefinition snapDfn = rsc.getResourceDefinition()
-                .getSnapshotDfn(storDriverAccCtx, snapName);
+                .getSnapshotDfn(snapName);
             @Nullable Snapshot snap = null;
             if (snapDfn != null)
             {
-                snap = snapDfn.getSnapshot(storDriverAccCtx, rsc.getNode().getName());
+                snap = snapDfn.getSnapshot(rsc.getNode().getName());
             }
             return getSnapVlmData(vlmDataRef, snap);
         }
@@ -1346,7 +1325,6 @@ public abstract class AbsStorageProvider<
 
     @SuppressWarnings("unchecked")
     protected @Nullable LAYER_SNAP_DATA getSnapVlmData(LAYER_DATA vlmDataRef, @Nullable Snapshot snapRef)
-        throws AccessDeniedException
     {
         final @Nullable LAYER_SNAP_DATA ret;
         if (snapRef == null)
@@ -1356,7 +1334,7 @@ public abstract class AbsStorageProvider<
         else
         {
             final StorageRscData<Resource> rscData = vlmDataRef.getRscLayerObject();
-            AbsRscLayerObject<Snapshot> snapLayerData = snapRef.getLayerData(storDriverAccCtx);
+            AbsRscLayerObject<Snapshot> snapLayerData = snapRef.getLayerData();
             // since we are in the STORAGE layer...
             Set<AbsRscLayerObject<Snapshot>> storageSnapLayerDataSet = LayerRscUtils.getRscDataByLayer(
                 snapLayerData,
@@ -1392,7 +1370,7 @@ public abstract class AbsStorageProvider<
     }
 
     private void waitForSnapIfNeeded(LAYER_SNAP_DATA snapVlm)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         if (waitForSnapshotDevice())
         {
@@ -1413,7 +1391,7 @@ public abstract class AbsStorageProvider<
         String remoteName,
         boolean isTarget
     )
-        throws InvalidKeyException, AccessDeniedException, InvalidNameException
+        throws InvalidKeyException, InvalidNameException
     {
         LAYER_SNAP_DATA prevSnapVlmData = null;
 
@@ -1427,17 +1405,17 @@ public abstract class AbsStorageProvider<
             namespc = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName;
         }
         String prevSnapName = snap.getSnapshotDefinition()
-            .getSnapDfnProps(storDriverAccCtx)
+            .getSnapDfnProps()
             .getProp(InternalApiConsts.KEY_BACKUP_LAST_SNAPSHOT, namespc);
         if (prevSnapName != null)
         {
             SnapshotDefinition prevSnapDfn = snap.getResourceDefinition()
-                .getSnapshotDfn(storDriverAccCtx, new SnapshotName(prevSnapName));
+                .getSnapshotDfn(new SnapshotName(prevSnapName));
             if (prevSnapDfn != null)
             {
                 AbsRscLayerObject<Snapshot> prevSnapLayerData = prevSnapDfn
-                    .getSnapshot(storDriverAccCtx, snap.getNodeName())
-                    .getLayerData(storDriverAccCtx);
+                    .getSnapshot(snap.getNodeName())
+                    .getLayerData();
 
                 Set<AbsRscLayerObject<Snapshot>> prevSnapStorageDataSet = LayerRscUtils
                     .getRscDataByLayer(prevSnapLayerData, DeviceLayerKind.STORAGE);
@@ -1465,7 +1443,7 @@ public abstract class AbsStorageProvider<
         String s3orLinRemoteName,
         boolean isTarget
     )
-        throws StorageException, AccessDeniedException, InvalidKeyException, InvalidNameException
+        throws StorageException, InvalidKeyException, InvalidNameException
     {
         SnapshotVolume snapVlm = (SnapshotVolume) snapVlmData.getVolume();
         LAYER_SNAP_DATA prevSnapVlmData = getPreviousSnapvlmData(
@@ -1487,12 +1465,12 @@ public abstract class AbsStorageProvider<
     }
 
     private void handleRollbacks(List<LAYER_DATA> vlmsToCheckForRollback, ApiCallRcImpl apiCallRc)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         for (LAYER_DATA vlmData : vlmsToCheckForRollback)
         {
             String rollbackTargetSnapshotName = vlmData.getVolume().getAbsResource()
-                .getProps(storDriverAccCtx).map()
+                .getProps().map()
                 .get(ApiConsts.KEY_RSC_ROLLBACK_TARGET);
             if (rollbackTargetSnapshotName != null)
             {
@@ -1541,7 +1519,7 @@ public abstract class AbsStorageProvider<
         StorPool storPool,
         Consumer<Map<String, Long>> consumer
     )
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         addChangedStorPool(storPool);
         postRunVolumeNotifications.add(consumer);
@@ -1673,10 +1651,10 @@ public abstract class AbsStorageProvider<
     }
 
     private @Nullable LAYER_SNAP_DATA getSourceSnapVlmDataForRestore(LAYER_DATA vlmDataRef)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         final @Nullable LAYER_SNAP_DATA ret;
-        final ReadOnlyProps props = ((Volume) vlmDataRef.getVolume()).getProps(storDriverAccCtx);
+        final ReadOnlyProps props = ((Volume) vlmDataRef.getVolume()).getProps();
         final @Nullable String restoreFromResourceName = props.getProp(ApiConsts.KEY_VLM_RESTORE_FROM_RESOURCE);
         final @Nullable String restoreFromSnapshotProp = props.getProp(ApiConsts.KEY_VLM_RESTORE_FROM_SNAPSHOT);
         if (restoreFromResourceName != null && restoreFromSnapshotProp != null)
@@ -1696,13 +1674,11 @@ public abstract class AbsStorageProvider<
             if (restoreFromRscDfn != null)
             {
                 @Nullable SnapshotDefinition restoreFromSnapDfn = restoreFromRscDfn.getSnapshotDfn(
-                    storDriverAccCtx,
                     snapName
                 );
                 if (restoreFromSnapDfn != null)
                 {
                     @Nullable Snapshot restoreFromSnap = restoreFromSnapDfn.getSnapshot(
-                        storDriverAccCtx,
                         vlmDataRef.getVolume().getAbsResource().getNode().getName()
                     );
                     if (restoreFromSnap != null)
@@ -1732,7 +1708,7 @@ public abstract class AbsStorageProvider<
     }
 
     private void startBackupRestore(LAYER_SNAP_DATA snapVlmData, AbsBackupShippingService service)
-        throws StorageException, AccessDeniedException, InvalidKeyException, InvalidNameException, DatabaseException
+        throws StorageException, InvalidKeyException, InvalidNameException, DatabaseException
     {
         service.restoreBackup(
             getBackupShippingReceivingCommandImpl(snapVlmData),
@@ -1760,7 +1736,7 @@ public abstract class AbsStorageProvider<
      * @param devicePath device path to watch for.
      */
     protected void waitUntilDeviceCreated(LAYER_DATA vlmData, String devicePath)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         StorPool storPool = vlmData.getStorPool();
         long waitTimeoutAfterCreate = getWaitTimeoutAfterCreate(storPool);
@@ -1768,14 +1744,14 @@ public abstract class AbsStorageProvider<
     }
 
     protected final Resource getResource(LAYER_DATA vlmData, String rscName)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         Resource rsc;
         try
         {
             ResourceName tmpName = new ResourceName(rscName);
             rsc = vlmData.getRscLayerObject().getAbsResource()
-                .getNode().getResource(storDriverAccCtx, tmpName);
+                .getNode().getResource(tmpName);
             if (rsc == null)
             {
                 throw new StorageException("Couldn't find resource: " + rscName);
@@ -1789,7 +1765,7 @@ public abstract class AbsStorageProvider<
     }
 
     protected final LAYER_DATA getVlmDataFromOtherResource(LAYER_DATA vlmData, String otherRscName)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         return getVlmDataFromResource(
             getResource(vlmData, otherRscName),
@@ -1799,11 +1775,10 @@ public abstract class AbsStorageProvider<
     }
 
     protected final LAYER_DATA getVlmDataFromResource(Resource rsc, String rscNameSuffix, VolumeNumber vlmNr)
-        throws AccessDeniedException
     {
         LAYER_DATA vlmData = null;
         List<AbsRscLayerObject<Resource>> storageRscDataList = LayerUtils.getChildLayerDataByKind(
-            rsc.getLayerData(storDriverAccCtx), DeviceLayerKind.STORAGE);
+            rsc.getLayerData(), DeviceLayerKind.STORAGE);
         for (AbsRscLayerObject<Resource> storageRscData : storageRscDataList)
         {
             if (storageRscData.getResourceNameSuffix().equals(rscNameSuffix))
@@ -1823,7 +1798,7 @@ public abstract class AbsStorageProvider<
 
     @SuppressWarnings("unchecked")
     public void updateGrossSize(VlmProviderObject<?> vlmData)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         /*
          * First we need to round up to the next extent-size. For this we use a cache, which will be flushed when the
@@ -1891,14 +1866,12 @@ public abstract class AbsStorageProvider<
      *
      * @param storPoolObj The storage pool to operate on
      * @param propsChange A LocalPropsChangePojo object to use for sending the property update to the controller
-     * @throws AccessDeniedException If the access context does not allow access to a volume or properties object
      */
     public void updateBlockDeviceInfo(final StorPool storPoolObj, final LocalPropsChangePojo propsChange)
-        throws AccessDeniedException
     {
         final StorPoolName storPoolObjName = storPoolObj.getName();
         errorReporter.logDebug("ENTER updateBlockDeviceInfo method: Storage pool \"%s\"", storPoolObjName.displayValue);
-        Collection<VlmProviderObject<Resource>> vlmProviderList = storPoolObj.getVolumes(storDriverAccCtx);
+        Collection<VlmProviderObject<Resource>> vlmProviderList = storPoolObj.getVolumes();
         if (!CollectionUtils.isEmpty(vlmProviderList))
         {
             errorReporter.logDebug("updateBlockDeviceInfo: Have vlmProviderList with %d items", vlmProviderList.size());
@@ -1960,7 +1933,7 @@ public abstract class AbsStorageProvider<
         final @Nullable String storDevicePath,
         final LocalPropsChangePojo propsChange
     )
-        throws IOException, AccessDeniedException
+        throws IOException
     {
         if (storDevicePath != null)
         {
@@ -2008,9 +1981,8 @@ public abstract class AbsStorageProvider<
         String propKeyRef,
         String propValueRef
     )
-        throws AccessDeniedException
     {
-        final Props storPoolProps = storPoolObjRef.getProps(storDriverAccCtx);
+        final Props storPoolProps = storPoolObjRef.getProps();
         final @Nullable String currentPropValue = storPoolProps.getProp(propKeyRef);
         if (currentPropValue == null || !currentPropValue.equals(propValueRef))
         {
@@ -2027,12 +1999,12 @@ public abstract class AbsStorageProvider<
     @SuppressWarnings("unchecked")
     @Override
     public void updateAllocatedSize(VlmProviderObject<Resource> vlmDataRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         LAYER_DATA vlmData = (LAYER_DATA) vlmDataRef;
         boolean isVlmActive = !vlmData.getVolume().getAbsResource().getStateFlags()
-            .isSet(storDriverAccCtx, Resource.Flags.INACTIVE) &&
-            ((Volume) vlmData.getVolume()).getFlags().isUnset(storDriverAccCtx, Volume.Flags.CLONING) &&
+            .isSet(Resource.Flags.INACTIVE) &&
+            ((Volume) vlmData.getVolume()).getFlags().isUnset(Volume.Flags.CLONING) &&
             vlmData.exists() &&
             vlmData.getDevicePath() != null;
 
@@ -2054,7 +2026,7 @@ public abstract class AbsStorageProvider<
             String extentSizeInKibStr = extentSizeInKibRef.toString();
             try
             {
-                String oldExtentSizeInKib = storPoolRef.getReadOnlyProps(storDriverAccCtx)
+                String oldExtentSizeInKib = storPoolRef.getReadOnlyProps()
                     .getProp(
                         InternalApiConsts.ALLOCATION_GRANULARITY,
                         StorageConstants.NAMESPACE_INTERNAL
@@ -2068,7 +2040,7 @@ public abstract class AbsStorageProvider<
                     );
                 }
             }
-            catch (InvalidKeyException | AccessDeniedException exc)
+            catch (InvalidKeyException exc)
             {
                 throw new ImplementationError(exc);
             }
@@ -2076,42 +2048,42 @@ public abstract class AbsStorageProvider<
     }
 
     @Override
-    public abstract SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException, AccessDeniedException;
+    public abstract SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException;
 
-    protected abstract String getStorageName(StorPool storPoolRef) throws AccessDeniedException, StorageException;
+    protected abstract String getStorageName(StorPool storPoolRef) throws StorageException;
 
     protected void createSnapshot(LAYER_DATA vlmData, LAYER_SNAP_DATA snapVlmRef, boolean readOnly)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("Snapshots are not supported by " + getClass().getSimpleName());
     }
 
     protected void restoreSnapshot(LAYER_SNAP_DATA sourceSnapVlmData, LAYER_DATA vlmData)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("Snapshots are not supported by " + getClass().getSimpleName());
     }
 
     protected void deleteSnapshotImpl(LAYER_SNAP_DATA snapVlm)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("Snapshots are not supported by " + getClass().getSimpleName());
     }
 
     protected boolean snapshotExists(LAYER_SNAP_DATA snapVlm, boolean forTakeSnapshotRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("Snapshots are not supported by " + getClass().getSimpleName());
     }
 
     protected void rollbackImpl(LAYER_DATA vlmData, LAYER_SNAP_DATA rollbackToSnapVlmData)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("Snapshots are not supported by " + getClass().getSimpleName());
     }
 
     protected String getBackupShippingReceivingCommandImpl(LAYER_SNAP_DATA snapVlmDataRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         throw new StorageException("Snapshot shipping is not supported by " + getClass().getSimpleName());
     }
@@ -2120,7 +2092,7 @@ public abstract class AbsStorageProvider<
         LAYER_SNAP_DATA lastSnapVlmDataRef,
         LAYER_SNAP_DATA curSnapVlmDataRef
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         throw new StorageException("Snapshot shipping is not supported by " + getClass().getSimpleName());
     }
@@ -2133,25 +2105,25 @@ public abstract class AbsStorageProvider<
         List<LAYER_DATA> vlmDataList,
         List<LAYER_SNAP_DATA> snapVlmsRef
     )
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     protected abstract void updateStates(List<LAYER_DATA> vlmDataList, List<LAYER_SNAP_DATA> snapVlms)
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     protected abstract void createLvImpl(LAYER_DATA vlmData)
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     protected abstract void resizeLvImpl(LAYER_DATA vlmData)
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     protected abstract void deleteLvImpl(LAYER_DATA vlmData, String lvId)
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     protected abstract void deactivateLvImpl(LAYER_DATA vlmData, String lvId)
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     protected void createSnapshotForCloneImpl(LAYER_DATA vlmData, String cloneRscName)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("Clone volume is not supported by " + getClass().getSimpleName());
     }
@@ -2165,7 +2137,7 @@ public abstract class AbsStorageProvider<
         );
     }
 
-    protected abstract String asSnapLvIdentifier(LAYER_SNAP_DATA snapVlmData) throws AccessDeniedException;
+    protected abstract String asSnapLvIdentifier(LAYER_SNAP_DATA snapVlmData);
 
     protected String asLvIdentifier(StorPool storPool, String rscNameSuffix, VolumeDefinition vlmDfn)
     {
@@ -2179,19 +2151,19 @@ public abstract class AbsStorageProvider<
         );
     }
 
-    protected long getExtentSizeFromVlmDfn(VlmProviderObject<?> vlmDataRef) throws AccessDeniedException
+    protected long getExtentSizeFromVlmDfn(VlmProviderObject<?> vlmDataRef)
     {
         AbsVolume<?> volume = vlmDataRef.getVolume();
         ReadOnlyProps props;
         if (volume instanceof Volume)
         {
             VolumeDefinition vlmDfn = volume.getVolumeDefinition();
-            props = vlmDfn.getProps(storDriverAccCtx);
+            props = vlmDfn.getProps();
         }
         else
         {
             SnapshotVolumeDefinition snapVlmDfn = ((SnapshotVolume) volume).getSnapshotVolumeDefinition();
-            props = snapVlmDfn.getVlmDfnProps(storDriverAccCtx);
+            props = snapVlmDfn.getVlmDfnProps();
         }
         String allocGran = props.getProp(
             InternalApiConsts.ALLOCATION_GRANULARITY,
@@ -2219,7 +2191,7 @@ public abstract class AbsStorageProvider<
     public abstract String getDevicePath(String storageName, String lvId);
 
     protected abstract String getStorageName(LAYER_DATA vlmData)
-        throws DatabaseException, AccessDeniedException, StorageException;
+        throws DatabaseException, StorageException;
 
     protected abstract void setDevicePath(LAYER_DATA vlmData, @Nullable String devicePath) throws DatabaseException;
 
@@ -2231,5 +2203,5 @@ public abstract class AbsStorageProvider<
         throws DatabaseException, StorageException;
 
     protected abstract long getExtentSize(AbsStorageVlmData<?> vlmDataRef)
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 }

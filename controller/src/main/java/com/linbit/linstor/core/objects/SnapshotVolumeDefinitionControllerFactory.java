@@ -5,9 +5,6 @@ import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -40,18 +37,16 @@ public class SnapshotVolumeDefinitionControllerFactory
     }
 
     public SnapshotVolumeDefinition create(
-        AccessContext accCtx,
         SnapshotDefinition snapshotDfn,
         VolumeDefinition vlmDfn,
         long volSize,
         SnapshotVolumeDefinition.Flags[] initFlags
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, MdException
+        throws DatabaseException, LinStorDataAlreadyExistsException, MdException
     {
-        snapshotDfn.getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.USE);
 
         SnapshotVolumeDefinition snapshotVolumeDefinition =
-            snapshotDfn.getSnapshotVolumeDefinition(accCtx, vlmDfn.getVolumeNumber());
+            snapshotDfn.getSnapshotVolumeDefinition(vlmDfn.getVolumeNumber());
 
         if (snapshotVolumeDefinition != null)
         {
@@ -74,7 +69,7 @@ public class SnapshotVolumeDefinitionControllerFactory
         );
 
         driver.create(snapshotVolumeDefinition);
-        snapshotDfn.addSnapshotVolumeDefinition(accCtx, snapshotVolumeDefinition);
+        snapshotDfn.addSnapshotVolumeDefinition(snapshotVolumeDefinition);
 
         return snapshotVolumeDefinition;
     }

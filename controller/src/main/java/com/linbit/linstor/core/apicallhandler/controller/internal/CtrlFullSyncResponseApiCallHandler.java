@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller.internal;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.ApiConsts.ConnectionStatus;
@@ -24,8 +23,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.utils.PairNonNull;
 
@@ -49,7 +46,6 @@ public class CtrlFullSyncResponseApiCallHandler
 {
     private static final String PROP_NAMESPACE_STLT = "Satellite/";
 
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlSatelliteConnectionNotifier ctrlSatelliteConnectionNotifier;
     private final ReadWriteLock nodesMapLock;
@@ -82,7 +78,6 @@ public class CtrlFullSyncResponseApiCallHandler
 
     @Inject
     public CtrlFullSyncResponseApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlSatelliteConnectionNotifier ctrlSatelliteConnectionNotifierRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
@@ -93,7 +88,6 @@ public class CtrlFullSyncResponseApiCallHandler
         CtrlRemoteApiCallHandler ctrlRemoteApiCallHandlerRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlSatelliteConnectionNotifier = ctrlSatelliteConnectionNotifierRef;
         nodesMapLock = nodesMapLockRef;
@@ -152,7 +146,6 @@ public class CtrlFullSyncResponseApiCallHandler
         try
         {
             PairNonNull<Set<SnapshotDefinition>, Set<RemoteName>> objsToDel = backupInfoMgr.removeAllRestoreEntries(
-                apiCtx,
                 localNode
             );
             for (SnapshotDefinition snapDfn : objsToDel.objA)
@@ -173,7 +166,7 @@ public class CtrlFullSyncResponseApiCallHandler
 
             satellitePeer.setConnectionStatus(ApiConsts.ConnectionStatus.ONLINE);
 
-            Iterator<Resource> localRscIter = localNode.iterateResources(apiCtx);
+            Iterator<Resource> localRscIter = localNode.iterateResources();
             while (localRscIter.hasNext())
             {
                 Resource localRsc = localRscIter.next();
@@ -189,7 +182,7 @@ public class CtrlFullSyncResponseApiCallHandler
 
             throw new ApiDatabaseException(dbExc);
         }
-        catch (AccessDeniedException | InvalidValueException exc)
+        catch (InvalidValueException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -198,9 +191,9 @@ public class CtrlFullSyncResponseApiCallHandler
     }
 
     private void mergeNodeProps(FullSyncSuccessContext ctxRef)
-        throws AccessDeniedException, InvalidValueException, DatabaseException
+        throws InvalidValueException, DatabaseException
     {
-        Props nodeProps = ctxRef.peer.getNode().getProps(apiCtx);
+        Props nodeProps = ctxRef.peer.getNode().getProps();
         for (Map.Entry<String, String> entry : ctxRef.stltPropsToSet.entrySet())
         {
             String key = entry.getKey();

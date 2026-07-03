@@ -6,10 +6,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.types.LsIpAddress;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.utils.TreePrinter;
 import com.linbit.utils.UuidUtils;
 
@@ -79,12 +75,11 @@ public class CmdDisplayNodes extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
     {
-        lister.execute(debugOut, debugErr, accCtx, parameters);
+        lister.execute(debugOut, debugErr, parameters);
     }
 
     private class NodeHandler implements FilteredObjectLister.ObjectHandler<Node>
@@ -96,12 +91,10 @@ public class CmdDisplayNodes extends BaseDebugCmd
         }
 
         @Override
-        public void ensureSearchAccess(final AccessContext accCtx)
-            throws AccessDeniedException
+        public void ensureSearchAccess()
         {
             if (nodesMapProt != null)
             {
-                nodesMapProt.get().requireAccess(accCtx, AccessType.VIEW);
             }
         }
 
@@ -125,12 +118,11 @@ public class CmdDisplayNodes extends BaseDebugCmd
         }
 
         @Override
-        public void displayObjects(final PrintStream output, final Node nodeRef, final AccessContext accCtx)
+        public void displayObjects(final PrintStream output, final Node nodeRef)
         {
             try
             {
                 ObjectProtection objProt = nodeRef.getObjProt();
-                objProt.requireAccess(accCtx, AccessType.VIEW);
 
                 TreePrinter.Builder treeBuilder = TreePrinter
                     .builder(
@@ -139,18 +131,18 @@ public class CmdDisplayNodes extends BaseDebugCmd
                         nodeRef.getUuid().toString().toUpperCase()
                     )
                     .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(nodeRef))
-                    .leaf("Flags: %016x", nodeRef.getFlags().getFlagsBits(accCtx))
+                    .leaf("Flags: %016x", nodeRef.getFlags().getFlagsBits())
                     .leaf("Creator: %-24s Owner: %-24s",
                         objProt.getCreator().name.displayValue, objProt.getOwner().name.displayValue)
                     .leaf("Security type: %-24s", objProt.getSecurityType().name.displayValue);
 
                 treeBuilder.branchHideEmpty("Network interfaces:");
-                nodeRef.streamNetInterfaces(accCtx).forEach(netIf ->
+                nodeRef.streamNetInterfaces().forEach(netIf ->
                 {
                     String address = "<No authorized>";
                     try
                     {
-                        LsIpAddress lsIp = netIf.getAddress(accCtx);
+                        LsIpAddress lsIp = netIf.getAddress();
                         String addrStr = lsIp.getAddress();
                         address = addrStr;
                     }
@@ -180,7 +172,7 @@ public class CmdDisplayNodes extends BaseDebugCmd
         }
 
         @Override
-        public int countObjects(final Node nodeRef, final AccessContext accCtx)
+        public int countObjects(final Node nodeRef)
         {
             return 1;
         }

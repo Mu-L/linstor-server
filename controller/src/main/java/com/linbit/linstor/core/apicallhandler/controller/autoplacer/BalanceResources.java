@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.autoplacer;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.ApiModule;
@@ -29,8 +28,6 @@ import com.linbit.linstor.netcom.PeerTask;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
@@ -59,7 +56,6 @@ import reactor.util.context.Context;
 public class BalanceResources
 {
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
-    private final AccessContext sysCtx;
     private final ErrorReporter log;
     private final AutoUnplacer autoUnplacer;
     private final SystemConfRepository systemConfRepository;
@@ -76,7 +72,6 @@ public class BalanceResources
 
     @Inject
     public BalanceResources(
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef,
         SystemConfRepository systemConfRepositoryRef,
         ResourceDefinitionRepository rscDfnRepoRef,
@@ -90,7 +85,6 @@ public class BalanceResources
 
     )
     {
-        sysCtx = sysCtxRef;
         log = errorReporterRef;
         systemConfRepository = systemConfRepositoryRef;
         rscDfnRepo = rscDfnRepoRef;
@@ -103,16 +97,16 @@ public class BalanceResources
         ctrlRscAutoPlaceApiCallHandler = ctrlRscAutoPlaceApiCallHandlerRef;
     }
 
-    private boolean hasAtLeastOneUpToDate(ResourceDefinition rscDfn) throws AccessDeniedException
+    private boolean hasAtLeastOneUpToDate(ResourceDefinition rscDfn)
     {
         boolean result = false;
-        List<Resource> rscs = rscDfn.streamResource(sysCtx).collect(Collectors.toList());
+        List<Resource> rscs = rscDfn.streamResource().collect(Collectors.toList());
         for (var rsc : rscs)
         {
-            if (!rsc.isDiskless(sysCtx) &&
-                rsc.getStateFlags().isUnset(sysCtx, Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
+            if (!rsc.isDiskless() &&
+                rsc.getStateFlags().isUnset(Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
             {
-                SatelliteResourceState stltRscState = rsc.getNode().getPeer(sysCtx)
+                SatelliteResourceState stltRscState = rsc.getNode().getPeer()
                     .getSatelliteState()
                     .getResourceStates()
                     .get(rsc.getResourceDefinition().getName());
@@ -126,10 +120,10 @@ public class BalanceResources
         return result;
     }
 
-    private long getGracePeriod() throws AccessDeniedException
+    private long getGracePeriod()
     {
         long gracePeriod = DEFAULT_GRACE_PERIOD_SECS;
-        String gracePeriodStr = systemConfRepository.getCtrlConfForView(sysCtx)
+        String gracePeriodStr = systemConfRepository.getCtrlConfForView()
             .getProp(ApiConsts.KEY_BALANCE_RESOURCES_GRACE_PERIOD);
         try
         {
@@ -145,7 +139,7 @@ public class BalanceResources
         return gracePeriod;
     }
 
-    private boolean isResourceInGracePeriod(Resource rsc) throws AccessDeniedException
+    private boolean isResourceInGracePeriod(Resource rsc)
     {
         long gracePeriodSecs = getGracePeriod();
         long nowSecs = System.currentTimeMillis() / 1000L;
@@ -163,9 +157,8 @@ public class BalanceResources
      * (diskless, inuse, grace period, ...)
      * @param resources to evaluate
      * @return A list of resources that should stay in place.
-     * @throws AccessDeniedException shouldn't happen as we use the sysCtx
      */
-    private List<Resource> getFixedResources(List<Resource> resources) throws AccessDeniedException
+    private List<Resource> getFixedResources(List<Resource> resources)
     {
         var fixed = new ArrayList<Resource>();
         for (var rsc : resources)
@@ -174,13 +167,13 @@ public class BalanceResources
             // * diskless resources
             // * resource created within the grace period
             // * resources that don't have a creation date yet (or very old resources before creation date was added)
-            if (rsc.isDiskless(sysCtx) || isResourceInGracePeriod(rsc))
+            if (rsc.isDiskless() || isResourceInGracePeriod(rsc))
             {
                 fixed.add(rsc);
             }
             else
             {
-                @Nullable Peer peer = rsc.getNode().getPeer(sysCtx);
+                @Nullable Peer peer = rsc.getNode().getPeer();
                 if (peer != null)
                 {
                     @Nullable SatelliteState stltState = peer.getSatelliteState();
@@ -220,7 +213,7 @@ public class BalanceResources
     }
 
     private Flux<ApiCallRc> removeExcessFluxInTransaction(Resource rsc)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return rscDeleteApiCallHandler.deleteResource(
             rsc.getNode().getName().displayValue,
@@ -230,18 +223,17 @@ public class BalanceResources
                 ApiModule.API_CALL_NAME,
                 "Deleting excess " + CtrlRscApiCallHandler.getRscDescription(rsc),
                 AccessContext.class,
-                sysCtx,
                 Peer.class,
-                rsc.getNode().getPeer(sysCtx)
+                rsc.getNode().getPeer()
             )
         );
     }
 
     @SuppressWarnings("checkstyle:returncount")
-    private boolean shouldIgnoreRscDfn(ResourceDefinition rscDfn) throws AccessDeniedException
+    private boolean shouldIgnoreRscDfn(ResourceDefinition rscDfn)
     {
         boolean someRscIgnored = false;
-        List<Resource> resources = rscDfn.streamResource(sysCtx).toList();
+        List<Resource> resources = rscDfn.streamResource().toList();
         for (var rsc : resources)
         {
             if (isResourceInGracePeriod(rsc))
@@ -257,13 +249,13 @@ public class BalanceResources
             return true;
         }
 
-        if (!rscDfn.usesLayer(sysCtx, DeviceLayerKind.DRBD))
+        if (!rscDfn.usesLayer(DeviceLayerKind.DRBD))
         {
             log.logDebug("BalanceResourcesTask/%s: Ignore because no DRBD", rscDfn.getName());
             return true;
         }
 
-        if (rscDfn.getFlags().isSet(sysCtx, ResourceDefinition.Flags.DELETE))
+        if (rscDfn.getFlags().isSet(ResourceDefinition.Flags.DELETE))
         {
             log.logDebug("BalanceResourcesTask/%s: Ignore because rscDfn in delete", rscDfn.getName());
             return true;
@@ -301,9 +293,9 @@ public class BalanceResources
 
         { // check SkipDiskLimit
             PriorityProps prioProps = new PriorityProps(
-                rscDfn.getProps(sysCtx),
-                rscDfn.getResourceGroup().getProps(sysCtx),
-                systemConfRepository.getCtrlConfForView(sysCtx)
+                rscDfn.getProps(),
+                rscDfn.getResourceGroup().getProps(),
+                systemConfRepository.getCtrlConfForView()
             );
             @Nullable String skipDiskLimitStr = prioProps.getProp(ApiConsts.KEY_BALANCE_RESOURCES_SKIP_DISK_LIMIT);
             int skipDiskLimit;
@@ -342,15 +334,14 @@ public class BalanceResources
      * Checks if the given resource definition is disabled to balance
      * @param rscDfn resource definition to check
      * @return true if the resource definition shouldn't be balanced (because of prop disable)
-     * @throws AccessDeniedException if reading props failed
      */
-    private boolean isRscDfnDisabled(ResourceDefinition rscDfn) throws AccessDeniedException
+    private boolean isRscDfnDisabled(ResourceDefinition rscDfn)
     {
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         var prioProps = new PriorityProps(
-            rscDfn.getProps(sysCtx),
-            rscGrp.getProps(sysCtx),
-            systemConfRepository.getCtrlConfForView(sysCtx));
+            rscDfn.getProps(),
+            rscGrp.getProps(),
+            systemConfRepository.getCtrlConfForView());
 
         return "false".equalsIgnoreCase(prioProps.getProp(ApiConsts.KEY_BALANCE_RESOURCES_ENABLED, null, "true"));
     }
@@ -375,14 +366,13 @@ public class BalanceResources
      * This is to prevent resources getting removed that are e.g. currently SyncSource.
      * @param rscDfn resource definition to check
      * @return true if all volumes are established, else false.
-     * @throws AccessDeniedException should not happen as we use sysCtx
      */
     @SuppressWarnings({"checkstyle:DescendantToken", "checkstyle:returnCount"})
-    private boolean areAllVolumesInGoodReplicationState(ResourceDefinition rscDfn) throws AccessDeniedException
+    private boolean areAllVolumesInGoodReplicationState(ResourceDefinition rscDfn)
     {
-        for (Resource rsc : rscDfn.streamResource(sysCtx).collect(Collectors.toList()))
+        for (Resource rsc : rscDfn.streamResource().collect(Collectors.toList()))
         {
-            var rscStates = rsc.getNode().getPeer(sysCtx).getSatelliteState().getResourceStates();
+            var rscStates = rsc.getNode().getPeer().getSatelliteState().getResourceStates();
             var satRscStates = rscStates.get(rscDfn.getName());
             if (satRscStates != null)
             {
@@ -405,14 +395,14 @@ public class BalanceResources
      * cleaned up.
      * Skip-disk resources are intentionally excluded so the existing skip-disk handling is unaffected.
      */
-    private boolean hasUnexpectedlyNotUpToDateDiskful(ResourceDefinition rscDfn) throws AccessDeniedException
+    private boolean hasUnexpectedlyNotUpToDateDiskful(ResourceDefinition rscDfn)
     {
         boolean ret = false;
-        List<Resource> diskful = rscDfn.getNotDeletedDiskful(sysCtx); // flag-diskful, excludes DRBD_DISKLESS
+        List<Resource> diskful = rscDfn.getNotDeletedDiskful(); // flag-diskful, excludes DRBD_DISKLESS
         diskful.removeAll(getResourcesWithSkipDisk(diskful)); // do not test SkipDisk rscs
         for (Resource rsc : diskful)
         {
-            @Nullable Peer peer = rsc.getNode().getPeer(sysCtx);
+            @Nullable Peer peer = rsc.getNode().getPeer();
             if (peer != null && peer.getSatelliteState() != null)
             {
                 @Nullable SatelliteResourceState rs = peer.getSatelliteState()
@@ -432,20 +422,19 @@ public class BalanceResources
      * Filter resources that should really considered as UpToDate diskfull resources.
      *
      * @param resources Resource to filter
-     * @throws AccessDeniedException should not we use sysctx
      */
-    private void filterDiskfull(List<Resource> resources) throws AccessDeniedException
+    private void filterDiskfull(List<Resource> resources)
     {
         List<Resource> skipDiskResources = getResourcesWithSkipDisk(resources);
         resources.removeAll(skipDiskResources);
     }
 
-    private List<Resource> getResourcesWithSkipDisk(List<Resource> resources) throws AccessDeniedException
+    private List<Resource> getResourcesWithSkipDisk(List<Resource> resources)
     {
         List<Resource> toRemove = new ArrayList<>();
         for (var res : resources)
         {
-            @Nullable String skipDiskProp = res.getProps(sysCtx)
+            @Nullable String skipDiskProp = res.getProps()
                 .getProp(
                 ApiConsts.KEY_DRBD_SKIP_DISK, ApiConsts.NAMESPC_DRBD_OPTIONS);
             if (StringUtils.propTrueOrYes(skipDiskProp))
@@ -478,7 +467,7 @@ public class BalanceResources
             LockGuard ignored = lockGuardFactory.build(WRITE, RSC_DFN_MAP)
         )
         {
-            for (var rscDfn : rscDfnRepo.getMapForView(sysCtx).values())
+            for (var rscDfn : rscDfnRepo.getMapForView().values())
             {
                 if (shouldIgnoreRscDfn(rscDfn))
                 {
@@ -486,8 +475,8 @@ public class BalanceResources
                     continue;
                 }
 
-                int replicaCount = rscDfn.getResourceGroup().getAutoPlaceConfig().getReplicaCount(sysCtx);
-                List<Resource> notDeletedDiskful = rscDfn.getNotDeletedDiskful(sysCtx);
+                int replicaCount = rscDfn.getResourceGroup().getAutoPlaceConfig().getReplicaCount();
+                List<Resource> notDeletedDiskful = rscDfn.getNotDeletedDiskful();
                 filterDiskfull(notDeletedDiskful);
                 int notDeletedDiskfulCount = notDeletedDiskful.size();
                 if (notDeletedDiskfulCount < replicaCount)
@@ -497,7 +486,7 @@ public class BalanceResources
                 }
                 else if (notDeletedDiskfulCount > replicaCount)
                 {
-                    var fixedResources = getFixedResources(rscDfn.streamResource(sysCtx).collect(Collectors.toList()));
+                    var fixedResources = getFixedResources(rscDfn.streamResource().collect(Collectors.toList()));
 
                     // loop through rscDfn resources, until we meet replicaCount or are out of resource to delete
                     Resource toDelete = autoUnplacer.unplace(rscDfn, fixedResources);
@@ -541,9 +530,8 @@ public class BalanceResources
                     ApiModule.API_CALL_NAME,
                     "Balance resources Adjust and delete",
                     AccessContext.class,
-                    sysCtx,
                     Peer.class,
-                    new PeerTask("BalanceResourceTask", sysCtx))
+                    new PeerTask("BalanceResourceTask"))
             )
             .timeout(Duration.ofSeconds(timeoutSecs))
             .doOnTerminate(() -> isRunning.set(false))

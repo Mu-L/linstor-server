@@ -3,7 +3,6 @@ package com.linbit.linstor.layer.storage;
 import com.linbit.ImplementationError;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.extproc.ExtCmdFailedException;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -29,8 +28,6 @@ import com.linbit.linstor.layer.storage.utils.SEDUtils;
 import com.linbit.linstor.layer.storage.utils.SharedStorageUtils;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -60,7 +57,6 @@ public class StorageLayer implements DeviceLayer
     private static final String SUSPEND_IO_NOT_SUPPORTED_ERR_MSG =
         "Suspending / Resuming IO for Storage resources is not supported";
 
-    private final AccessContext storDriverAccCtx;
     private final DeviceProviderMapper deviceProviderMapper;
     private final ExtCmdFactory extCmdFactory;
     private final Provider<DeviceHandler> resourceProcessorProvider;
@@ -68,14 +64,12 @@ public class StorageLayer implements DeviceLayer
 
     @Inject
     public StorageLayer(
-        @DeviceManagerContext AccessContext storDriverAccCtxRef,
         DeviceProviderMapper deviceProviderMapperRef,
         ExtCmdFactory extCmdFactoryRef,
         Provider<DeviceHandler> resourceProcessorProviderRef,
         StltSecurityObjects secObjsRef
     )
     {
-        storDriverAccCtx = storDriverAccCtxRef;
         deviceProviderMapper = deviceProviderMapperRef;
         extCmdFactory = extCmdFactoryRef;
         resourceProcessorProvider = resourceProcessorProviderRef;
@@ -93,7 +87,7 @@ public class StorageLayer implements DeviceLayer
 
     @Override
     public LocalPropsChangePojo setLocalNodeProps(Props localNodeProps)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         LocalPropsChangePojo ret = new LocalPropsChangePojo();
         for (DeviceProvider devProvider : deviceProviderMapper.getDriverList())
@@ -112,16 +106,16 @@ public class StorageLayer implements DeviceLayer
     }
 
     @Override
-    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef) throws AccessDeniedException
+    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef)
     {
         StateFlags<Flags> rscFlags = layerDataRef.getAbsResource().getStateFlags();
-        if (rscFlags.isSet(storDriverAccCtx, Resource.Flags.DELETE))
+        if (rscFlags.isSet(Resource.Flags.DELETE))
         {
             resourceProcessorProvider.get().sendResourceDeletedEvent(layerDataRef);
         }
         else
         {
-            boolean isActive = rscFlags.isSet(storDriverAccCtx, Resource.Flags.INACTIVE);
+            boolean isActive = rscFlags.isSet(Resource.Flags.INACTIVE);
             resourceProcessorProvider.get().sendResourceCreatedEvent(
                 layerDataRef,
                 new ResourceState(
@@ -169,7 +163,7 @@ public class StorageLayer implements DeviceLayer
         Set<AbsRscLayerObject<Resource>> rscObjList,
         Set<AbsRscLayerObject<Snapshot>> snapObjList
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         Map<DeviceProvider, PairNonNull<List<VlmProviderObject<Resource>>, List<VlmProviderObject<Snapshot>>>> groupedData;
         groupedData = new HashMap<>();
@@ -253,7 +247,7 @@ public class StorageLayer implements DeviceLayer
         AbsRscLayerObject<Resource> rscLayerData,
         ApiCallRcImpl apiCallRc
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException
+        throws StorageException, ResourceException, VolumeException, DatabaseException
     {
         Map<DeviceProvider, List<VlmProviderObject<Resource>>> groupedVolumes =
             rscLayerData == null ? // == null when processing unprocessed snapshots
@@ -286,8 +280,8 @@ public class StorageLayer implements DeviceLayer
             {
                 if (
                     vlmData.exists() &&
-                    !SharedStorageUtils.isNeededBySharedResource(storDriverAccCtx, vlmData) &&
-                    ((Volume) vlmData.getVolume()).getFlags().isSet(storDriverAccCtx, Volume.Flags.DELETE)
+                    !SharedStorageUtils.isNeededBySharedResource(vlmData) &&
+                    ((Volume) vlmData.getVolume()).getFlags().isSet(Volume.Flags.DELETE)
                 )
                 {
                     throw new ImplementationError(
@@ -300,7 +294,7 @@ public class StorageLayer implements DeviceLayer
 
     @Override
     public boolean processSnapshot(AbsRscLayerObject<Snapshot> snapLayerDataRef, ApiCallRcImpl apiCallRcRef)
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException,
+        throws StorageException, ResourceException, VolumeException, DatabaseException,
         AbortLayerProcessingException
     {
         Map<DeviceProvider, List<VlmProviderObject<Snapshot>>> groupedSnapshotVolumes = new HashMap<>();
@@ -336,7 +330,6 @@ public class StorageLayer implements DeviceLayer
     }
 
     public Map<StorPoolInfo, Either<SpaceInfo, ApiRcException>> getFreeSpaceOfAccessedStoagePools()
-        throws AccessDeniedException
     {
         Map<StorPoolInfo, Either<SpaceInfo, ApiRcException>> spaceMap = new HashMap<>();
         Set<StorPool> changedStorPools = new HashSet<>();
@@ -350,14 +343,14 @@ public class StorageLayer implements DeviceLayer
         {
             if (roNode == null)
             {
-                roNode = StltReadOnlyInfo.ReadOnlyNode.copyFrom(storPool.getNode(), storDriverAccCtx);
+                roNode = StltReadOnlyInfo.ReadOnlyNode.copyFrom(storPool.getNode());
             }
             else if (!roNode.getUuid().equals(storPool.getNode().getUuid()))
             {
                 throw new ImplementationError("Satellite modified storage pool from more than one nodes");
             }
             spaceMap.put(
-                StltReadOnlyInfo.ReadOnlyStorPool.copyFrom(roNode, storPool, storDriverAccCtx),
+                StltReadOnlyInfo.ReadOnlyStorPool.copyFrom(roNode, storPool),
                 getStoragePoolSpaceInfoOrError(storPool)
             );
         }
@@ -370,7 +363,6 @@ public class StorageLayer implements DeviceLayer
     }
 
     private Either<SpaceInfo, ApiRcException> getStoragePoolSpaceInfoOrError(StorPool storPool)
-        throws AccessDeniedException
     {
         Either<SpaceInfo, ApiRcException> result;
         try
@@ -391,20 +383,20 @@ public class StorageLayer implements DeviceLayer
 
     @Override
     public SpaceInfo getStoragePoolSpaceInfo(StorPoolInfo storPoolInfo)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         return deviceProviderMapper.getDeviceProviderBy(storPoolInfo).getSpaceInfo(storPoolInfo);
     }
 
     @Override
     public @Nullable LocalPropsChangePojo checkStorPool(StorPoolInfo storPoolInfo, boolean update)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         @Nullable LocalPropsChangePojo setLocalNodePojo;
 
         DeviceProvider deviceProvider = deviceProviderMapper.getDeviceProviderBy(storPoolInfo);
         setLocalNodePojo = deviceProvider.setLocalNodeProps(
-            storPoolInfo.getReadOnlyNode().getReadOnlyProps(storDriverAccCtx)
+            storPoolInfo.getReadOnlyNode().getReadOnlyProps()
         );
         @Nullable LocalPropsChangePojo updatePropsPojo = null;
         if (update)
@@ -420,7 +412,7 @@ public class StorageLayer implements DeviceLayer
         }
 
         // check for locked SEDs
-        @Nullable ReadOnlyProps sedNSProps = storPoolInfo.getReadOnlyProps(storDriverAccCtx)
+        @Nullable ReadOnlyProps sedNSProps = storPoolInfo.getReadOnlyProps()
             .getNamespace(ApiConsts.NAMESPC_SED);
         if (sedNSProps != null)
         {
@@ -529,7 +521,7 @@ public class StorageLayer implements DeviceLayer
 
     @Override
     public void openDeviceForClone(VlmProviderObject<?> vlm, @Nullable String targetRscNameRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         switch (vlm.getProviderKind())
         {

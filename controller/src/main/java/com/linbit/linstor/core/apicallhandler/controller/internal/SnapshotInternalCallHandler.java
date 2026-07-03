@@ -3,8 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.apicallhandler.controller.mgr.SnapshotRollbackManager;
@@ -17,8 +15,6 @@ import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -34,11 +30,9 @@ import java.util.concurrent.locks.ReadWriteLock;
 public class SnapshotInternalCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ResourceDefinitionRepository resourceDefinitionRepository;
     private final CtrlStltSerializer ctrlStltSerializer;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final SnapshotRollbackManager snapRollbackMgr;
 
@@ -47,22 +41,18 @@ public class SnapshotInternalCallHandler
     @Inject
     public SnapshotInternalCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         ResourceDefinitionRepository resourceDefinitionRepositoryRef,
         CtrlStltSerializer ctrlStltSerializerRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         @Named(CoreModule.RSC_DFN_MAP_LOCK) ReadWriteLock rscDfnMapLockRef,
         LockGuardFactory lockGuardFactoryRef,
         SnapshotRollbackManager snapRollbackMgrRef
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         resourceDefinitionRepository = resourceDefinitionRepositoryRef;
         ctrlStltSerializer = ctrlStltSerializerRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         rscDfnMapLock = rscDfnMapLockRef;
         lockGuardFactory = lockGuardFactoryRef;
         snapRollbackMgr = snapRollbackMgrRef;
@@ -83,13 +73,13 @@ public class SnapshotInternalCallHandler
             Peer currentPeer = peer.get();
 
             Snapshot snapshot = null;
-            ResourceDefinition rscDefinition = resourceDefinitionRepository.get(apiCtx, resourceName);
+            ResourceDefinition rscDefinition = resourceDefinitionRepository.get(resourceName);
             if (rscDefinition != null)
             {
-                SnapshotDefinition snapshotDfn = rscDefinition.getSnapshotDfn(apiCtx, snapshotName);
-                if (snapshotDfn != null /* && snapshotDfn.getInProgress(apiCtx) */)
+                SnapshotDefinition snapshotDfn = rscDefinition.getSnapshotDfn(snapshotName);
+                if (snapshotDfn != null /* && snapshotDfn.getInProgress() */)
                 {
-                    snapshot = snapshotDfn.getSnapshot(peerAccCtx.get(), currentPeer.getNode().getName());
+                    snapshot = snapshotDfn.getSnapshot(currentPeer.getNode().getName());
                 }
             }
 

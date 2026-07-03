@@ -4,8 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.identifier.NodeName;
@@ -16,7 +14,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.event.handler.EventHandler;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgrGenerator;
@@ -50,7 +47,6 @@ public class EventProcessor
     private final Map<String, Provider<EventHandler>> eventHandlers;
     private final LockGuardFactory lockGuardFactory;
     private final Provider<Peer> peerProvider;
-    private final AccessContext sysCtx;
     private final LinStorScope linstorScope;
     private final ScopeRunner scopeRunner;
 
@@ -63,7 +59,6 @@ public class EventProcessor
 
     @Inject
     public EventProcessor(
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef,
         Map<String, Provider<EventHandler>> eventHandlersRef,
         ScopeRunner scopeRunnerRef,
@@ -80,7 +75,6 @@ public class EventProcessor
         lockGuardFactory = lockGuardFactoryRef;
         peerProvider = peerProviderRef;
         linstorScope = linstorScopeRef;
-        sysCtx = sysCtxRef;
         transMgrProvider = transMgrProviderRef;
         transactionMgrGenerator = transactionMgrGeneratorRef;
 
@@ -97,7 +91,7 @@ public class EventProcessor
         {
             if (!inScope)
             {
-                linstorScope.seed(Key.get(AccessContext.class, PeerContext.class), sysCtx);
+                linstorScope.seed(Key.get(AccessContext.class, PeerContext.class));
                 seedTxMgr = true;
             }
             else

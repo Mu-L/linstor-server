@@ -15,7 +15,6 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsInfoApiCallHan
 import com.linbit.linstor.core.apis.ControllerConfigApi;
 import com.linbit.linstor.core.cfg.CtrlConfig;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.Pair;
 import com.linbit.utils.TimeUtils;
 

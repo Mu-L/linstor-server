@@ -5,7 +5,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
 import com.linbit.linstor.api.interfaces.VlmLayerDataApi;
@@ -30,8 +29,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheRscData;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheVlmData;
 import com.linbit.linstor.storage.data.adapter.cache.CacheRscData;
@@ -74,11 +71,10 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
 
     @Inject
     public CtrlRscLayerDataMerger(
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef
     )
     {
-        super(apiCtxRef, layerDataFactoryRef);
+        super(layerDataFactoryRef);
     }
 
     @Override
@@ -86,11 +82,10 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         Resource rsc,
         DrbdRscDfnPojo drbdRscDfnPojo
     )
-        throws IllegalArgumentException, DatabaseException, AccessDeniedException
+        throws IllegalArgumentException, DatabaseException
     {
         // nothing to merge
         return rsc.getResourceDefinition().getLayerData(
-            apiCtx,
             DeviceLayerKind.DRBD,
             drbdRscDfnPojo.getRscNameSuffix()
         );
@@ -104,7 +99,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         DrbdRscPojo drbdRscPojoRef,
         DrbdRscDfnData<Resource> drbdRscDfnDataRef
     )
-        throws DatabaseException, ValueOutOfRangeException, AccessDeniedException
+        throws DatabaseException, ValueOutOfRangeException
     {
         throw new ImplementationError("Received unknown drbd resource from satellite");
     }
@@ -115,14 +110,14 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         DrbdRscPojo drbdRscPojoRef,
         DrbdRscData<Resource> drbdRscDataRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
     protected void removeDrbdVlm(DrbdRscData<Resource> drbdRscDataRef, VolumeNumber vlmNrRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -132,12 +127,12 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsVolume<Resource> absVlm,
         DrbdVlmDfnPojo drbdVlmDfnPojoRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // nothing to merge
         VolumeDefinition vlmDfn = absVlm.getVolumeDefinition();
-        return vlmDfn.getLayerData(apiCtx, DeviceLayerKind.DRBD, drbdVlmDfnPojoRef.getRscNameSuffix());
+        return vlmDfn.getLayerData(DeviceLayerKind.DRBD, drbdVlmDfnPojoRef.getRscNameSuffix());
     }
 
     @Override
@@ -148,7 +143,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         VolumeNumber vlmNrRef,
         DrbdVlmDfnData<Resource> drbdVlmDfnDataRef
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException
+        throws InvalidNameException, DatabaseException
     {
         DrbdVlmData<Resource> drbdVlmData = rscDataRef.getVlmLayerObjects().get(vlmNrRef);
 
@@ -166,7 +161,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsRscLayerObject<Resource> parentRef,
         LuksRscPojo luksRscPojoRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         throw new ImplementationError("Received unknown luks resource from satellite");
     }
@@ -177,14 +172,14 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         LuksRscPojo luksRscPojoRef,
         LuksRscData<Resource> luksRscDataRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
     protected void removeLuksVlm(LuksRscData<Resource> luksRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -217,7 +212,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsRscLayerObject<Resource> parentRef,
         StorageRscPojo storRscPojoRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         throw new ImplementationError("Received unknown storage resource from satellite");
     }
@@ -228,14 +223,14 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         StorageRscPojo storRscPojoRef,
         StorageRscData<Resource> storRscDataRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
     protected void removeStorageVlm(StorageRscData<Resource> storRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -430,7 +425,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsRscLayerObject<Resource> parentRef,
         NvmeRscPojo nvmeRscPojoRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         throw new ImplementationError("Received unknown nvme resource from satellite");
     }
@@ -441,7 +436,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         NvmeRscPojo nvmeRscPojoRef,
         NvmeRscData<Resource> nvmeRscDataRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // nothing to merge
     }
@@ -458,7 +453,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
 
     @Override
     protected void removeNvmeVlm(NvmeRscData<Resource> nvmeRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -479,7 +474,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsRscLayerObject<Resource> parentRef,
         WritecacheRscPojo writecacheRscPojoRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         throw new ImplementationError("Received unknown writecache resource from satellite");
     }
@@ -489,7 +484,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsRscLayerObject<Resource> parent,
         WritecacheRscPojo writecacheRscPojo,
         WritecacheRscData<Resource> writecacheRscData)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // nothing to merge
     }
@@ -507,7 +502,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
 
     @Override
     protected void removeWritecacheVlm(WritecacheRscData<Resource> writecacheRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -531,7 +526,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsRscLayerObject<Resource> parentRef,
         CacheRscPojo writecacheRscPojoRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         throw new ImplementationError("Received unknown cache resource from satellite");
     }
@@ -542,7 +537,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         CacheRscPojo cacheRscPojoRef,
         CacheRscData<Resource> cacheRscDataRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // nothing to merge
     }
@@ -560,7 +555,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
 
     @Override
     protected void removeCacheVlm(CacheRscData<Resource> cacheRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -585,7 +580,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsRscLayerObject<Resource> parentRef,
         BCacheRscPojo bcacheRscPojoRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         throw new ImplementationError("Received unknown bcache resource from satellite");
     }
@@ -595,7 +590,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         AbsRscLayerObject<Resource> parent,
         BCacheRscPojo bCacheRscPojo,
         BCacheRscData<Resource> bCacheRscData)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // nothing to merge
     }
@@ -613,7 +608,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
 
     @Override
     protected void removeBCacheVlm(BCacheRscData<Resource> bcacheRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -639,7 +634,7 @@ public class CtrlRscLayerDataMerger extends AbsLayerRscDataMerger<Resource>
         VlmLayerDataApi vlmPojoRef,
         StorPool storPoolRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         throw new ImplementationError("Received unknown EBS resource from satellite");
     }

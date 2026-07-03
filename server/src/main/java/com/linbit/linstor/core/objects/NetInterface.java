@@ -9,11 +9,6 @@ import com.linbit.linstor.core.types.LsIpAddress;
 import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.NetInterfaceDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.transaction.TransactionObject;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.TransactionSimpleObject;
@@ -30,7 +25,7 @@ import java.util.UUID;
  *
  * @author Robert Altnoeder &lt;robert.altnoeder@linbit.com&gt;
  */
-public class NetInterface extends AbsCoreObj<NetInterface> implements ProtectedObject
+public class NetInterface extends AbsCoreObj<NetInterface>
 {
     private final Node niNode;
     private final NetInterfaceName niName;
@@ -101,36 +96,30 @@ public class NetInterface extends AbsCoreObj<NetInterface> implements ProtectedO
         return niKey;
     }
 
-    public LsIpAddress getAddress(AccessContext accCtx)
-        throws AccessDeniedException
+    public LsIpAddress getAddress()
     {
         checkDeleted();
-        niNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return niAddress.get();
     }
 
-    public LsIpAddress setAddress(AccessContext accCtx, LsIpAddress newAddress)
-        throws AccessDeniedException, DatabaseException
+    public LsIpAddress setAddress(LsIpAddress newAddress)
+        throws DatabaseException
     {
         checkDeleted();
-        niNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         return niAddress.set(newAddress);
     }
 
-    public boolean isUsableAsStltConn(AccessContext accCtx)
-        throws AccessDeniedException
+    public boolean isUsableAsStltConn()
     {
         checkDeleted();
-        niNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
         return niStltConnEncrType.get() != null && niStltConnPort.get() != null;
     }
 
-    public boolean setStltConn(AccessContext accCtx, TcpPortNumber port, EncryptionType encrType)
-        throws AccessDeniedException, DatabaseException
+    public boolean setStltConn(TcpPortNumber port, EncryptionType encrType)
+        throws DatabaseException
     {
         checkDeleted();
-        niNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         TcpPortNumber oldPort = niStltConnPort.set(port);
         EncryptionType oldEncrType = niStltConnEncrType.set(encrType);
@@ -138,32 +127,27 @@ public class NetInterface extends AbsCoreObj<NetInterface> implements ProtectedO
         return !Objects.equals(oldPort, port) || !Objects.equals(oldEncrType, encrType);
     }
 
-    public @Nullable TcpPortNumber getStltConnPort(AccessContext accCtx)
-        throws AccessDeniedException
+    public @Nullable TcpPortNumber getStltConnPort()
     {
         checkDeleted();
-        niNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
         return niStltConnPort.get();
     }
 
-    public @Nullable EncryptionType getStltConnEncryptionType(AccessContext accCtx)
-        throws AccessDeniedException
+    public @Nullable EncryptionType getStltConnEncryptionType()
     {
         checkDeleted();
-        niNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
         return niStltConnEncrType.get();
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            niNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
-            niNode.removeNetInterface(accCtx, this);
+            niNode.removeNetInterface(this);
             activateTransMgr();
             dbDriver.delete(this);
 
@@ -171,7 +155,7 @@ public class NetInterface extends AbsCoreObj<NetInterface> implements ProtectedO
         }
     }
 
-    public NetInterfaceApi getApiData(AccessContext accCtx) throws AccessDeniedException
+    public NetInterfaceApi getApiData()
     {
         checkDeleted();
         Integer port = null;
@@ -186,7 +170,7 @@ public class NetInterface extends AbsCoreObj<NetInterface> implements ProtectedO
         return new NetInterfacePojo(
             getUuid(),
             getName().getDisplayName(),
-            getAddress(accCtx).getAddress(),
+            getAddress().getAddress(),
             port,
             encrType
         );
@@ -248,13 +232,6 @@ public class NetInterface extends AbsCoreObj<NetInterface> implements ProtectedO
         {
             return type == null ? null : type.name();
         }
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return niNode.getObjProt();
     }
 
     /**

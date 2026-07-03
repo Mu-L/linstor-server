@@ -11,7 +11,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.ResourceGroup;
 import com.linbit.linstor.core.objects.StorPool;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 
@@ -290,7 +289,7 @@ public class AutoUnplacerTest extends GenericDbBase
         ResourceGroup rscGrp = resourceGroupTestFactory.get(rscGrpNameRef, false);
 
         AutoSelectorConfig cfg = rscGrp.getAutoPlaceConfig();
-        Map<String, Integer> xReplOnDiff = new TreeMap<>(cfg.getXReplicasOnDifferentMap(SYS_CTX));
+        Map<String, Integer> xReplOnDiff = new TreeMap<>(cfg.getXReplicasOnDifferentMap());
         xReplOnDiff.put(propRef, xRef);
 
         cfg.applyChanges(
@@ -300,16 +299,15 @@ public class AutoUnplacerTest extends GenericDbBase
 
     private void setNodeProp(String nodeNameRef, String propKeyRef, String propValueRef) throws Exception
     {
-        nodeTestFactory.get(nodeNameRef, false).getProps(SYS_CTX).setProp(propKeyRef, propValueRef);
+        nodeTestFactory.get(nodeNameRef, false).getProps().setProp(propKeyRef, propValueRef);
     }
 
-    private void expectUnplaced(Resource expectedRscRef) throws AccessDeniedException
+    private void expectUnplaced(Resource expectedRscRef)
     {
         expectUnplaced(Collections.emptyList(), expectedRscRef);
     }
 
     private void expectUnplaced(Collection<Resource> fixedResourcesRef, Resource expectedRscRef)
-        throws AccessDeniedException
     {
         expectUnplaced(
             new AutoUnselectorConfig.CfgBuilder(expectedRscRef.getResourceDefinition())
@@ -318,13 +316,12 @@ public class AutoUnplacerTest extends GenericDbBase
         );
     }
 
-    private void expectUnplacedDiskless(Resource expectedRscRef) throws AccessDeniedException
+    private void expectUnplacedDiskless(Resource expectedRscRef)
     {
         expectUnplacedDiskless(Collections.emptyList(), expectedRscRef);
     }
 
     private void expectUnplacedDiskless(Collection<Resource> fixedResourcesRef, Resource expectedRscRef)
-        throws AccessDeniedException
     {
         expectUnplaced(
             new AutoUnselectorConfig.CfgBuilder(expectedRscRef.getResourceDefinition())
@@ -335,9 +332,8 @@ public class AutoUnplacerTest extends GenericDbBase
     }
 
     private void expectUnplaced(CfgBuilder setFilterForFixedResourcesRef, @Nullable Resource expectedRscRef)
-        throws AccessDeniedException
     {
-        expectUnplaced(setFilterForFixedResourcesRef.build(SYS_CTX), expectedRscRef);
+        expectUnplaced(setFilterForFixedResourcesRef.build(), expectedRscRef);
     }
 
     private void expectUnplaced(AutoUnselectorConfig autoUnplaceCfgRef, @Nullable Resource expectedRscRef)
@@ -359,7 +355,7 @@ public class AutoUnplacerTest extends GenericDbBase
         {
             VlmCfg vlmCfg = vlmConfigs[vlmNr];
             volumeDefinitionTestFactory.get(rscNameStrRef, vlmNr, vlmCfg.size, true);
-            rsc.getProps(SYS_CTX).setProp(ApiConsts.KEY_STOR_POOL_NAME, vlmCfg.storPoolStr);
+            rsc.getProps().setProp(ApiConsts.KEY_STOR_POOL_NAME, vlmCfg.storPoolStr);
             storPoolTestFactory.get(nodeNameRef, vlmCfg.storPoolStr, true);
             volumeTestFactory.get(nodeNameRef, rscNameStrRef, vlmNr, true);
         }
@@ -385,7 +381,7 @@ public class AutoUnplacerTest extends GenericDbBase
         {
             VlmCfg vlmCfg = vlmConfigs[vlmNr];
             volumeDefinitionTestFactory.get(rscNameStrRef, vlmNr, vlmCfg.size, true);
-            rsc.getProps(SYS_CTX).setProp(ApiConsts.KEY_STOR_POOL_NAME, vlmCfg.disklessStorPoolStr);
+            rsc.getProps().setProp(ApiConsts.KEY_STOR_POOL_NAME, vlmCfg.disklessStorPoolStr);
             @Nullable StorPool storPool = storPoolTestFactory.get(nodeNameRef, vlmCfg.disklessStorPoolStr, false);
             if (storPool == null)
             {
@@ -409,7 +405,7 @@ public class AutoUnplacerTest extends GenericDbBase
     {
         storPoolTestFactory.get(nodeNameRef, storPoolRef, false)
             .getFreeSpaceTracker()
-            .setCapacityInfo(SYS_CTX, freeSpaceRef, totalCapacityRef);
+            .setCapacityInfo(freeSpaceRef, totalCapacityRef);
     }
 
     private static class VlmCfg

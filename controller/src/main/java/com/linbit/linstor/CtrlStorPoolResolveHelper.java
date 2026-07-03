@@ -1,9 +1,7 @@
 package com.linbit.linstor;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcWith;
 import com.linbit.linstor.api.ApiConsts;
@@ -17,8 +15,6 @@ import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo.Version;
@@ -41,9 +37,7 @@ import java.util.stream.Collectors;
 @Singleton
 public class CtrlStorPoolResolveHelper
 {
-    private final AccessContext apiCtx;
     private final CtrlPropsHelper ctrlPropsHelper;
-    private final Provider<AccessContext> peerCtxProvider;
 
     /**
      * Disables all checks of this class. Used while loading data from a database that was created with more
@@ -53,13 +47,9 @@ public class CtrlStorPoolResolveHelper
 
     @Inject
     public CtrlStorPoolResolveHelper(
-        @ApiContext AccessContext apiCtxRef,
-        @PeerContext Provider<AccessContext> peerCtxProviderRef,
         CtrlPropsHelper ctrlPropsHelperRef
     )
     {
-        apiCtx = apiCtxRef;
-        peerCtxProvider = peerCtxProviderRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
     }
 
@@ -72,7 +62,7 @@ public class CtrlStorPoolResolveHelper
         boolean isRscDiskless
     )
     {
-        return resolveStorPool(peerCtxProvider.get(), rsc, vlmDfn, isRscDiskless, true, true);
+        return resolveStorPool(rsc, vlmDfn, isRscDiskless, true, true);
     }
 
     /**
@@ -86,7 +76,6 @@ public class CtrlStorPoolResolveHelper
     )
     {
         return resolveStorPool(
-            peerCtxProvider.get(),
             rsc,
             vlmDfn,
             isRscDiskless,
@@ -99,7 +88,6 @@ public class CtrlStorPoolResolveHelper
      * Resolves the correct storage pool and also handles error/warnings in diskless modes.
      */
     public ApiCallRcWith<StorPool> resolveStorPool(
-        AccessContext accCtx,
         Resource rsc,
         VolumeDefinition vlmDfn,
         boolean isRscDiskless,
@@ -112,14 +100,13 @@ public class CtrlStorPoolResolveHelper
         StorPool storPool;
         try
         {
-            ReadOnlyProps rscProps = ctrlPropsHelper.getProps(accCtx, rsc);
-            ReadOnlyProps vlmDfnProps = ctrlPropsHelper.getProps(accCtx, vlmDfn);
-            ReadOnlyProps rscDfnProps = ctrlPropsHelper.getProps(accCtx, rsc.getResourceDefinition());
+            ReadOnlyProps rscProps = ctrlPropsHelper.getProps(rsc);
+            ReadOnlyProps vlmDfnProps = ctrlPropsHelper.getProps(vlmDfn);
+            ReadOnlyProps rscDfnProps = ctrlPropsHelper.getProps(rsc.getResourceDefinition());
             ReadOnlyProps rscGrpProps = ctrlPropsHelper.getProps(
-                accCtx,
                 rsc.getResourceDefinition().getResourceGroup()
             );
-            ReadOnlyProps nodeProps = ctrlPropsHelper.getProps(accCtx, rsc.getNode());
+            ReadOnlyProps nodeProps = ctrlPropsHelper.getProps(rsc.getNode());
 
             PriorityProps vlmPrioProps = new PriorityProps(
                 rscProps, vlmDfnProps, rscDfnProps, rscGrpProps, nodeProps
@@ -127,7 +114,7 @@ public class CtrlStorPoolResolveHelper
             PriorityProps spMixingPrioProps = new PriorityProps(
                 rscDfnProps,
                 rscGrpProps,
-                ctrlPropsHelper.getCtrlPropsForView(accCtx)
+                ctrlPropsHelper.getCtrlPropsForView()
             );
 
             String storPoolNameStr = vlmPrioProps.getProp(KEY_STOR_POOL_NAME);
@@ -142,7 +129,6 @@ public class CtrlStorPoolResolveHelper
                 else
                 {
                     storPool = rsc.getNode().getStorPool(
-                        apiCtx,
                         LinstorParsingUtils.asStorPoolName(storPoolNameStr)
                     );
                 }
@@ -171,7 +157,7 @@ public class CtrlStorPoolResolveHelper
                 storPool = null; // in case possibleStorPools is empty
                 for (StorPoolName storPoolName : possibleStorPools)
                 {
-                    storPool = rsc.getNode().getStorPool(apiCtx, storPoolName);
+                    storPool = rsc.getNode().getStorPool(storPoolName);
                     if (storPool != null)
                     {
                         boolean spMixingAllowed = spMixingPrioProps.getProp(
@@ -197,7 +183,7 @@ public class CtrlStorPoolResolveHelper
                 checkStorPoolLoaded(rsc, storPool, storPoolNameStr, vlmDfn);
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -211,7 +197,6 @@ public class CtrlStorPoolResolveHelper
     }
 
     private void checkSameKindAsPeers(VolumeDefinition vlmDfn, StorPool storPool, boolean allowMixingRef)
-        throws AccessDeniedException
     {
         if (!enableChecks)
         {
@@ -220,21 +205,21 @@ public class CtrlStorPoolResolveHelper
 
         DeviceProviderKind currentDriverKind = storPool.getDeviceProviderKind();
         Node currentNode = storPool.getNode();
-        Version currentDrbdVersion = currentNode.getPeer(apiCtx).getExtToolsManager().getVersion(ExtTools.DRBD9_KERNEL);
+        Version currentDrbdVersion = currentNode.getPeer().getExtToolsManager().getVersion(ExtTools.DRBD9_KERNEL);
 
-        for (Resource peerRsc : vlmDfn.getResourceDefinition().streamResource(apiCtx).collect(Collectors.toList()))
+        for (Resource peerRsc : vlmDfn.getResourceDefinition().streamResource().collect(Collectors.toList()))
         {
-            if (!peerRsc.isDiskless(apiCtx) && !peerRsc.getNode().equals(currentNode))
+            if (!peerRsc.isDiskless() && !peerRsc.getNode().equals(currentNode))
             {
                 Volume peerVlm = peerRsc.getVolume(vlmDfn.getVolumeNumber());
                 if (peerVlm != null)
                 {
                     Version peerDrbdVersion = peerVlm.getAbsResource()
                         .getNode()
-                        .getPeer(apiCtx)
+                        .getPeer()
                         .getExtToolsManager()
                         .getVersion(ExtTools.DRBD9_KERNEL);
-                    for (StorPool peerStorPool : LayerVlmUtils.getStorPoolSet(peerVlm, apiCtx, false))
+                    for (StorPool peerStorPool : LayerVlmUtils.getStorPoolSet(peerVlm, false))
                     {
                         DeviceProviderKind peerKind = peerStorPool.getDeviceProviderKind();
                         if (!DeviceProviderKind.isMixingAllowed(
@@ -270,16 +255,15 @@ public class CtrlStorPoolResolveHelper
     }
 
     private List<StorPoolName> resolveNeighbourDiskfulStorPool(final Resource rsc)
-        throws AccessDeniedException
     {
         ArrayList<StorPoolName> storpools = new ArrayList<>();
-        for (Resource peerRsc : rsc.getResourceDefinition().streamResource(apiCtx).collect(Collectors.toList()))
+        for (Resource peerRsc : rsc.getResourceDefinition().streamResource().collect(Collectors.toList()))
         {
-            if (!peerRsc.isDiskless(apiCtx) && !peerRsc.getNode().getName().equals(rsc.getNode().getName()))
+            if (!peerRsc.isDiskless() && !peerRsc.getNode().getName().equals(rsc.getNode().getName()))
             {
                 for (Volume peerVlm : peerRsc.streamVolumes().collect(Collectors.toList()))
                 {
-                    for (StorPool peerStorPool : LayerVlmUtils.getStorPoolSet(peerVlm, apiCtx, false))
+                    for (StorPool peerStorPool : LayerVlmUtils.getStorPoolSet(peerVlm, false))
                     {
                         if (peerStorPool.getDeviceProviderKind().hasBackingDevice())
                         {

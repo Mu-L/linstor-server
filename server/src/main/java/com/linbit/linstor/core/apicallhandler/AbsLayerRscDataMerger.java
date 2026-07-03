@@ -29,8 +29,6 @@ import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheRscData;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheVlmData;
 import com.linbit.linstor.storage.data.adapter.cache.CacheRscData;
@@ -62,15 +60,12 @@ import java.util.List;
 
 public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
 {
-    protected final AccessContext apiCtx;
     protected final LayerDataFactory layerDataFactory;
 
     public AbsLayerRscDataMerger(
-        AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef
     )
     {
-        apiCtx = apiCtxRef;
         layerDataFactory = layerDataFactoryRef;
     }
 
@@ -83,7 +78,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
             boolean remoteResourceRef,
             List<RscLayerDataApi> pojoChildren
         )
-            throws DatabaseException, ValueOutOfRangeException, AccessDeniedException, IllegalArgumentException,
+            throws DatabaseException, ValueOutOfRangeException, IllegalArgumentException,
                 ExhaustedPoolException, ValueInUseException, InvalidNameException;
     }
 
@@ -97,7 +92,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         {
             merge(rsc, rscLayerDataPojo, null, remoteResource);
         }
-        catch (AccessDeniedException | DatabaseException | ValueOutOfRangeException | IllegalArgumentException |
+        catch (DatabaseException | ValueOutOfRangeException | IllegalArgumentException |
             ExhaustedPoolException | ValueInUseException | InvalidNameException exc)
         {
             throw new ImplementationError(exc);
@@ -110,7 +105,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         @Nullable AbsRscLayerObject<RSC> parent,
         boolean remoteResourceRef
     )
-        throws AccessDeniedException, DatabaseException, IllegalArgumentException,
+        throws DatabaseException, IllegalArgumentException,
             ExhaustedPoolException, ValueOutOfRangeException, ValueInUseException, InvalidNameException
     {
         LayerRscDataMerger<RSC> rscMerger = switch (rscLayerDataPojo.getLayerKind())
@@ -154,7 +149,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
                     {
                         // if we are in FORCE_MERGE strategy and our parent is null, which means that we are the
                         // rootRscData object, we also need to update the resource object accordingly.
-                        rsc.setLayerData(apiCtx, rscLayerObject);
+                        rsc.setLayerData(rscLayerObject);
                     }
                 }
                 case SKIP_MERGE -> { merge = false; }
@@ -186,7 +181,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         boolean ignoredRemoteResource,
         List<RscLayerDataApi> pojoChildren
     )
-        throws DatabaseException, ValueOutOfRangeException, AccessDeniedException, IllegalArgumentException,
+        throws DatabaseException, ValueOutOfRangeException, IllegalArgumentException,
             ExhaustedPoolException, ValueInUseException, InvalidNameException
     {
         DrbdRscPojo drbdRscPojo = (DrbdRscPojo) rscDataPojo;
@@ -199,7 +194,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         DrbdRscData<RSC> drbdRscData = null;
         if (parent == null)
         {
-            drbdRscData = (DrbdRscData<RSC>) rsc.getLayerData(apiCtx);
+            drbdRscData = (DrbdRscData<RSC>) rsc.getLayerData();
         }
         else
         {
@@ -224,7 +219,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
                      */
                     // for this ^ we have to delete drbdRscData to properly free the allocated TCP port(s) from the
                     // NumberPool
-                    drbdRscData.delete(apiCtx);
+                    drbdRscData.delete();
                     drbdRscData = null;
                 }
                 case SKIP_MERGE -> { merge = false; }
@@ -284,7 +279,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
             }
             for (AbsRscLayerObject<RSC> childToDelete : childrenToDelete)
             {
-                childToDelete.delete(apiCtx);
+                childToDelete.delete();
                 drbdRscData.getChildren().remove(childToDelete);
             }
         }
@@ -301,7 +296,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         DrbdRscData<RSC> rscData,
         DrbdVlmPojo vlmPojo
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException, InvalidNameException
     {
         VolumeNumber vlmNr = vlm.getVolumeNumber();
@@ -318,14 +313,14 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         boolean ignoredRemoteResource,
         List<RscLayerDataApi> ignoredPojoChildren
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException
+        throws DatabaseException, ValueOutOfRangeException
     {
         LuksRscPojo luksRscPojo = (LuksRscPojo) rscDataPojo;
 
         LuksRscData<RSC> luksRscData = null;
         if (parent == null)
         {
-            luksRscData = (LuksRscData<RSC>) rsc.getLayerData(apiCtx);
+            luksRscData = (LuksRscData<RSC>) rsc.getLayerData();
         }
         else
         {
@@ -366,14 +361,14 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         boolean remoteResource,
         List<RscLayerDataApi> ignoredPojoChildren
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, InvalidNameException
+        throws DatabaseException, ValueOutOfRangeException, InvalidNameException
     {
         StorageRscPojo storRscPojo = (StorageRscPojo) rscDataPojo;
 
         StorageRscData<RSC> storRscData = null;
         if (parent == null)
         {
-            storRscData = (StorageRscData<RSC>) rsc.getLayerData(apiCtx);
+            storRscData = (StorageRscData<RSC>) rsc.getLayerData();
         }
         else
         {
@@ -414,7 +409,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         VlmLayerDataApi vlmPojo,
         boolean remoteResourceRef
     )
-        throws AccessDeniedException, DatabaseException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         VolumeNumber vlmNr = vlm.getVolumeNumber();
 
@@ -563,14 +558,14 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         boolean ignoredRemoteResource,
         List<RscLayerDataApi> ignoredPojoChildren
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException
+        throws DatabaseException, ValueOutOfRangeException
     {
         NvmeRscPojo nvmeRscPojo = (NvmeRscPojo) rscDataPojo;
 
         NvmeRscData<RSC> nvmeRscData = null;
         if (parent == null)
         {
-            nvmeRscData = (NvmeRscData<RSC>) rsc.getLayerData(apiCtx);
+            nvmeRscData = (NvmeRscData<RSC>) rsc.getLayerData();
         }
         else
         {
@@ -627,14 +622,14 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         boolean ignoredRemoteResource,
         List<RscLayerDataApi> ignoredPojoChildren
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, InvalidNameException
+        throws DatabaseException, ValueOutOfRangeException, InvalidNameException
     {
         WritecacheRscPojo writecacheRscPojo = (WritecacheRscPojo) rscDataPojo;
 
         WritecacheRscData<RSC> writecacheRscData = null;
         if (parent == null)
         {
-            writecacheRscData = (WritecacheRscData<RSC>) rsc.getLayerData(apiCtx);
+            writecacheRscData = (WritecacheRscData<RSC>) rsc.getLayerData();
         }
         else
         {
@@ -673,7 +668,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         WritecacheRscData<RSC> writecacheRscData,
         WritecacheVlmPojo vlmPojo
     )
-        throws DatabaseException, AccessDeniedException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         VolumeNumber vlmNr = vlm.getVolumeNumber();
 
@@ -695,14 +690,14 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         boolean ignoredRemoteResource,
         List<RscLayerDataApi> ignoredPojoChildren
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, InvalidNameException
+        throws DatabaseException, ValueOutOfRangeException, InvalidNameException
     {
         CacheRscPojo cacheRscPojo = (CacheRscPojo) rscDataPojo;
 
         CacheRscData<RSC> cacheRscData = null;
         if (parent == null)
         {
-            cacheRscData = (CacheRscData<RSC>) rsc.getLayerData(apiCtx);
+            cacheRscData = (CacheRscData<RSC>) rsc.getLayerData();
         }
         else
         {
@@ -741,7 +736,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         CacheRscData<RSC> cacheRscData,
         CacheVlmPojo vlmPojo
     )
-        throws DatabaseException, AccessDeniedException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         VolumeNumber vlmNr = vlm.getVolumeNumber();
 
@@ -763,14 +758,14 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         boolean ignoredRemoteResource,
         List<RscLayerDataApi> ignoredPojoChildren
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, InvalidNameException
+        throws DatabaseException, ValueOutOfRangeException, InvalidNameException
     {
         BCacheRscPojo bcacheRscPojo = (BCacheRscPojo) rscDataPojo;
 
         BCacheRscData<RSC> bcacheRscData = null;
         if (parent == null)
         {
-            bcacheRscData = (BCacheRscData<RSC>) rsc.getLayerData(apiCtx);
+            bcacheRscData = (BCacheRscData<RSC>) rsc.getLayerData();
         }
         else
         {
@@ -809,7 +804,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         BCacheRscData<RSC> bcacheRscData,
         BCacheVlmPojo vlmPojo
     )
-        throws DatabaseException, AccessDeniedException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         VolumeNumber vlmNr = vlm.getVolumeNumber();
 
@@ -829,10 +824,9 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         VlmLayerDataApi vlmPojoRef,
         boolean remoteResourceRef
     )
-        throws InvalidNameException, AccessDeniedException
+        throws InvalidNameException
     {
         return vlmRef.getAbsResource().getNode().getStorPool(
-            apiCtx,
             new StorPoolName(vlmPojoRef.getStorPoolApi().getStorPoolName())
         );
     }
@@ -861,7 +855,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         RSC rsc,
         DrbdRscDfnPojo drbdRscDfnPojo
     )
-        throws IllegalArgumentException, DatabaseException, AccessDeniedException, ValueOutOfRangeException;
+        throws IllegalArgumentException, DatabaseException, ValueOutOfRangeException;
 
     protected abstract DrbdRscData<RSC> createDrbdRscData(
         RSC rsc,
@@ -870,7 +864,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         DrbdRscPojo drbdRscPojo,
         DrbdRscDfnData<RSC> drbdRscDfnData
     )
-        throws DatabaseException, ValueOutOfRangeException, AccessDeniedException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException;
 
     protected abstract void mergeDrbdRscData(
@@ -878,17 +872,17 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         DrbdRscPojo drbdRscPojo,
         DrbdRscData<RSC> drbdRscData
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, ImplementationError;
 
     protected abstract void removeDrbdVlm(DrbdRscData<RSC> drbdRscData, VolumeNumber vlmNr)
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     protected abstract DrbdVlmDfnData<RSC> mergeOrCreateDrbdVlmDfnData(
         AbsVolume<RSC> absVlm,
         DrbdVlmDfnPojo drbdVlmDfnPojo
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException;
 
     protected abstract void createOrMergeDrbdVlmData(
@@ -898,7 +892,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         VolumeNumber vlmNr,
         DrbdVlmDfnData<RSC> drbdVlmDfnData
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException;
+        throws InvalidNameException, DatabaseException;
 
     /*
      * LUKS layer methods
@@ -908,17 +902,17 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         AbsRscLayerObject<RSC> parent,
         LuksRscPojo luksRscPojo
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void mergeLuksRscData(
         AbsRscLayerObject<RSC> parent,
         LuksRscPojo luksRscPojo,
         LuksRscData<RSC> luksRscData
     )
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     protected abstract void removeLuksVlm(LuksRscData<RSC> luksRscData, VolumeNumber vlmNr)
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void createOrMergeLuksVlm(
         AbsVolume<RSC> vlm,
@@ -935,17 +929,17 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         AbsRscLayerObject<RSC> parent,
         StorageRscPojo storRscPojo
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void mergeStorageRscData(
         AbsRscLayerObject<RSC> parent,
         StorageRscPojo storRscPojo,
         StorageRscData<RSC> storRscData
     )
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     protected abstract void removeStorageVlm(StorageRscData<RSC> storRscData, VolumeNumber vlmNr)
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract VlmProviderObject<RSC> createDisklessVlmData(
         AbsVolume<RSC> vlm,
@@ -1023,7 +1017,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         throws DatabaseException;
 
     protected abstract void setStorPool(VlmProviderObject<RSC> vlmDataRef, StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     protected abstract void putVlmData(StorageRscData<RSC> storRscDataRef, VlmProviderObject<RSC> vlmDataRef);
 
@@ -1033,7 +1027,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         VlmLayerDataApi vlmPojo,
         StorPool storPool
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void mergeEbsData(VlmLayerDataApi vlmPojo, VlmProviderObject<RSC> vlmData)
         throws DatabaseException;
@@ -1046,17 +1040,17 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         AbsRscLayerObject<RSC> parent,
         NvmeRscPojo nvmeRscPojo
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void mergeNvmeRscData(
         AbsRscLayerObject<RSC> parent,
         NvmeRscPojo nvmeRscPojo,
         NvmeRscData<RSC> nvmeRscData
     )
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     protected abstract void removeNvmeVlm(NvmeRscData<RSC> nvmeRscData, VolumeNumber vlmNr)
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void createNvmeVlm(AbsVolume<RSC> vlm, NvmeRscData<RSC> nvmeRscData, VolumeNumber vlmNr)
         throws DatabaseException;
@@ -1071,17 +1065,17 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         AbsRscLayerObject<RSC> parent,
         WritecacheRscPojo writecacheRscPojo
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void mergeWritecacheRscData(
         AbsRscLayerObject<RSC> parent,
         WritecacheRscPojo writecacheRscPojo,
         WritecacheRscData<RSC> writecacheRscData
     )
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     protected abstract void removeWritecacheVlm(WritecacheRscData<RSC> writecacheRscData, VolumeNumber vlmNr)
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void createWritecacheVlm(
         AbsVolume<RSC> vlm,
@@ -1089,7 +1083,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         WritecacheVlmPojo vlmPojoRef,
         VolumeNumber vlmNr
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException;
+        throws InvalidNameException, DatabaseException;
 
     protected abstract void mergeWritecacheVlm(WritecacheVlmPojo vlmPojo, WritecacheVlmData<RSC> writecacheVlmData)
         throws DatabaseException;
@@ -1102,17 +1096,17 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         AbsRscLayerObject<RSC> parent,
         CacheRscPojo cacheRscPojo
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void mergeCacheRscData(
         AbsRscLayerObject<RSC> parent,
         CacheRscPojo cacheRscPojo,
         CacheRscData<RSC> cacheRscData
     )
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     protected abstract void removeCacheVlm(CacheRscData<RSC> cacheRscData, VolumeNumber vlmNr)
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void createCacheVlm(
         AbsVolume<RSC> vlm,
@@ -1120,7 +1114,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         CacheVlmPojo vlmPojoRef,
         VolumeNumber vlmNr
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException;
+        throws InvalidNameException, DatabaseException;
 
     protected abstract void mergeCacheVlm(CacheVlmPojo vlmPojo, CacheVlmData<RSC> cacheVlmData)
         throws DatabaseException;
@@ -1134,17 +1128,17 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         AbsRscLayerObject<RSC> parent,
         BCacheRscPojo bcacheRscPojo
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void mergeBCacheRscData(
         AbsRscLayerObject<RSC> parent,
         BCacheRscPojo bCacheRscPojo,
         BCacheRscData<RSC> bCacheRscData
     )
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     protected abstract void removeBCacheVlm(BCacheRscData<RSC> bcacheRscData, VolumeNumber vlmNr)
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     protected abstract void createBCacheVlm(
         AbsVolume<RSC> vlm,
@@ -1152,7 +1146,7 @@ public abstract class AbsLayerRscDataMerger<RSC extends AbsResource<RSC>>
         BCacheVlmPojo vlmPojoRef,
         VolumeNumber vlmNr
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException;
+        throws InvalidNameException, DatabaseException;
 
     protected abstract void mergeBCacheVlm(BCacheVlmPojo vlmPojo, BCacheVlmData<RSC> bcacheVlmData)
         throws DatabaseException;

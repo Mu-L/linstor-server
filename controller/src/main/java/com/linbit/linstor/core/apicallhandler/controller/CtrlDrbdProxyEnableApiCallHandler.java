@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -16,7 +15,6 @@ import com.linbit.linstor.core.apicallhandler.response.ResponseConverter;
 import com.linbit.linstor.core.objects.ResourceConnection;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.locks.LockGuard;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscConnectionApiCallHandler.getResourceConnectionDescriptionInline;
@@ -36,7 +34,6 @@ import reactor.core.publisher.Flux;
 public class CtrlDrbdProxyEnableApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
@@ -48,7 +45,6 @@ public class CtrlDrbdProxyEnableApiCallHandler
 
     @Inject
     public CtrlDrbdProxyEnableApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
@@ -60,7 +56,6 @@ public class CtrlDrbdProxyEnableApiCallHandler
         ErrorReporter errorReporterRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
@@ -142,7 +137,7 @@ public class CtrlDrbdProxyEnableApiCallHandler
 
         responses.addEntry(ApiCallRcImpl.simpleEntry(
             ApiConsts.MODIFIED,
-            "DRBD Proxy enabled on " + getResourceConnectionDescriptionInline(apiCtx, rscConn)
+            "DRBD Proxy enabled on " + getResourceConnectionDescriptionInline(rscConn)
         ));
 
         return Flux

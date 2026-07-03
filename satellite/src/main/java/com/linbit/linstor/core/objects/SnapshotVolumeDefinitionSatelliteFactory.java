@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -37,7 +36,6 @@ public class SnapshotVolumeDefinitionSatelliteFactory
     }
 
     public SnapshotVolumeDefinition getInstanceSatellite(
-        AccessContext accCtx,
         UUID snapshotVolumeDefinitionUuid,
         SnapshotDefinition snapshotDfn,
         VolumeDefinition vlmDfn,
@@ -50,7 +48,7 @@ public class SnapshotVolumeDefinitionSatelliteFactory
         SnapshotVolumeDefinition snapshotVolumeDefinition;
         try
         {
-            snapshotVolumeDefinition = snapshotDfn.getSnapshotVolumeDefinition(accCtx, vlmNr);
+            snapshotVolumeDefinition = snapshotDfn.getSnapshotVolumeDefinition(vlmNr);
             if (snapshotVolumeDefinition == null)
             {
                 snapshotVolumeDefinition = new SnapshotVolumeDefinition(
@@ -67,7 +65,7 @@ public class SnapshotVolumeDefinitionSatelliteFactory
                     new TreeMap<>(),
                     new TreeMap<>()
                 );
-                snapshotDfn.addSnapshotVolumeDefinition(accCtx, snapshotVolumeDefinition);
+                snapshotDfn.addSnapshotVolumeDefinition(snapshotVolumeDefinition);
             }
         }
         catch (Exception exc)

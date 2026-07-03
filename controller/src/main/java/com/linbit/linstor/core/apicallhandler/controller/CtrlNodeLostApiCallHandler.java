@@ -2,9 +2,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -13,7 +11,6 @@ import com.linbit.linstor.core.SpecialSatelliteProcessManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.backup.CtrlBackupCreateApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -34,9 +31,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.tasks.ReconnectorTask;
 import com.linbit.locks.LockGuard;
 
@@ -67,7 +61,6 @@ import static java.util.stream.Collectors.toList;
 public class CtrlNodeLostApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlSatelliteConnectionNotifier ctrlSatelliteConnectionNotifier;
     private final ReconnectorTask reconnectorTask;
@@ -79,13 +72,11 @@ public class CtrlNodeLostApiCallHandler
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final ReadWriteLock nodesMapLock;
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlRscDeleteApiHelper ctrlRscDeleteApiHelper;
     private final CtrlBackupCreateApiCallHandler ctrlBackupCrtApiCallHandler;
 
     @Inject
     public CtrlNodeLostApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlSatelliteConnectionNotifier ctrlSatelliteConnectionNotifierRef,
         ReconnectorTask reconnectorTaskRef,
@@ -97,13 +88,11 @@ public class CtrlNodeLostApiCallHandler
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlRscDeleteApiHelper ctrlRscDeleteApiHelperRef,
         CtrlBackupCreateApiCallHandler ctrlBackupCrtApiCallHandlerRef,
         ErrorReporter errorReporterRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlSatelliteConnectionNotifier = ctrlSatelliteConnectionNotifierRef;
         reconnectorTask = reconnectorTaskRef;
@@ -115,7 +104,6 @@ public class CtrlNodeLostApiCallHandler
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         nodesMapLock = nodesMapLockRef;
-        peerAccCtx = peerAccCtxRef;
         ctrlRscDeleteApiHelper = ctrlRscDeleteApiHelperRef;
         ctrlBackupCrtApiCallHandler = ctrlBackupCrtApiCallHandlerRef;
         errorReporter = errorReporterRef;
@@ -279,14 +267,10 @@ public class CtrlNodeLostApiCallHandler
     {
         try
         {
-            if (snapDfn.getAllSnapshots(apiCtx).isEmpty())
+            if (snapDfn.getAllSnapshots().isEmpty())
             {
-                snapDfn.delete(apiCtx);
+                snapDfn.delete();
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
         }
         catch (DatabaseException sqlExc)
         {
@@ -296,127 +280,59 @@ public class CtrlNodeLostApiCallHandler
 
     private void requireNodesMapChangeAccess()
     {
-        try
-        {
-            nodeRepository.requireAccess(
-                peerAccCtx.get(),
-                AccessType.CHANGE
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "change any nodes",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
     }
 
     private @Nullable Peer getPeerPrivileged(Node node)
     {
         @Nullable Peer nodePeer;
-        try
-        {
-            nodePeer = node.getPeer(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        nodePeer = node.getPeer();
         return nodePeer;
     }
 
     private boolean hasVolumesPrivileged(StorPool storPool)
     {
         boolean hasVolumes;
-        try
-        {
-            hasVolumes = !storPool.getVolumes(apiCtx).isEmpty();
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        hasVolumes = !storPool.getVolumes().isEmpty();
         return hasVolumes;
     }
 
     private Stream<Resource> getRscStreamPrivileged(Node node)
     {
         Stream<Resource> stream;
-        try
-        {
-            stream = node.streamResources(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        stream = node.streamResources();
         return stream;
     }
 
     private Stream<Resource> getRscStreamPrivileged(ResourceDefinition rscDfn)
     {
         Stream<Resource> stream;
-        try
-        {
-            stream = rscDfn.streamResource(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        stream = rscDfn.streamResource();
         return stream;
     }
 
     private Iterator<StorPool> getStorPoolIteratorPrivileged(Node node)
     {
         Iterator<StorPool> iterateStorPools;
-        try
-        {
-            // Shallow-copy the storage pool map, because the Iterator is used for
-            // Node.delete(), which removes objects from the original map
-            Map<StorPoolName, StorPool> storPoolMap = new TreeMap<>();
-            node.copyStorPoolMap(apiCtx, storPoolMap);
+        // Shallow-copy the storage pool map, because the Iterator is used for
+        // Node.delete(), which removes objects from the original map
+        Map<StorPoolName, StorPool> storPoolMap = new TreeMap<>();
+        node.copyStorPoolMap(storPoolMap);
 
-            iterateStorPools = storPoolMap.values().iterator();
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        iterateStorPools = storPoolMap.values().iterator();
         return iterateStorPools;
     }
 
     private Collection<Snapshot> getSnapshotsPrivileged(Node node)
     {
         Collection<Snapshot> snapshots;
-        try
-        {
-            snapshots = node.getSnapshots(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        snapshots = node.getSnapshots();
         return snapshots;
     }
 
     private boolean isMarkedForDeletion(Resource rsc)
     {
         boolean isMarkedForDeletion;
-        try
-        {
-            isMarkedForDeletion = rsc.getStateFlags().isSet(peerAccCtx.get(), Resource.Flags.DELETE);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check deleted status of " + rsc,
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        isMarkedForDeletion = rsc.getStateFlags().isSet(Resource.Flags.DELETE);
         return isMarkedForDeletion;
     }
 
@@ -424,15 +340,7 @@ public class CtrlNodeLostApiCallHandler
     {
         try
         {
-            node.markDeleted(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete the node '" + node.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
+            node.markDeleted();
         }
         catch (DatabaseException sqlExc)
         {
@@ -444,7 +352,7 @@ public class CtrlNodeLostApiCallHandler
     {
         try
         {
-            Node.Type nodeType = node.getNodeType(apiCtx);
+            Node.Type nodeType = node.getNodeType();
             if (nodeType.isSpecial())
             {
                 Integer port = specTargetProcMgr.stopProcess(node);
@@ -453,15 +361,7 @@ public class CtrlNodeLostApiCallHandler
                     specStltPortPool.deallocate(port);
                 }
             }
-            node.delete(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete the node '" + node.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
+            node.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -473,11 +373,7 @@ public class CtrlNodeLostApiCallHandler
     {
         try
         {
-            storPool.delete(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            storPool.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -489,11 +385,7 @@ public class CtrlNodeLostApiCallHandler
     {
         try
         {
-            snapshot.delete(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            snapshot.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -503,13 +395,6 @@ public class CtrlNodeLostApiCallHandler
 
     private void removeNodePrivileged(NodeName nodeName)
     {
-        try
-        {
-            nodeRepository.remove(apiCtx, nodeName);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        nodeRepository.remove(nodeName);
     }
 }

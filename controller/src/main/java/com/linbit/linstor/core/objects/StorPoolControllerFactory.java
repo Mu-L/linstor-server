@@ -12,9 +12,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -61,26 +58,23 @@ public class StorPoolControllerFactory
     }
 
     public StorPool create(
-        AccessContext accCtx,
         Node node,
         StorPoolDefinition storPoolDef,
         DeviceProviderKind deviceProviderKindRef,
         FreeSpaceTracker freeSpaceTrackerRef,
         boolean externalLockingRef
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException,
+        throws DatabaseException, LinStorDataAlreadyExistsException,
         IllegalStorageDriverException
     {
-        node.getObjProt().requireAccess(accCtx, AccessType.USE);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
-        StorPool storPool = node.getStorPool(accCtx, storPoolDef.getName());
+        StorPool storPool = node.getStorPool(storPoolDef.getName());
 
         if (storPool != null)
         {
             throw new LinStorDataAlreadyExistsException("The StorPool already exists");
         }
 
-        Node.Type nodeType = node.getNodeType(accCtx);
+        Node.Type nodeType = node.getNodeType();
         if (!nodeType.isDeviceProviderKindAllowed(deviceProviderKindRef))
         {
             throw new IllegalStorageDriverException(
@@ -108,20 +102,20 @@ public class StorPoolControllerFactory
             new TreeMap<>()
         );
         driver.create(storPool);
-        node.addStorPool(accCtx, storPool);
-        storPoolDef.addStorPool(accCtx, storPool);
+        node.addStorPool(storPool);
+        storPoolDef.addStorPool(storPool);
 
-        setDefaultProps(accCtx, storPool);
+        setDefaultProps(storPool);
 
         return storPool;
     }
 
-    private void setDefaultProps(AccessContext accCtxRef, StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException
+    private void setDefaultProps(StorPool storPoolRef)
+        throws DatabaseException
     {
         try
         {
-            Props props = storPoolRef.getProps(accCtxRef);
+            Props props = storPoolRef.getProps();
             String dfltAllocGran = null;
             switch (storPoolRef.getDeviceProviderKind())
             {

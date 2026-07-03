@@ -12,8 +12,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.AbsLayerSizeCalculator;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
 import com.linbit.linstor.storage.data.provider.lvm.LvmData;
@@ -35,21 +33,21 @@ public class StorageLayerSizeCalculator extends AbsLayerSizeCalculator<AbsStorag
 
     @Override
     protected void updateAllocatedSizeFromUsableSizeImpl(AbsStorageVlmData<?> vlmDataRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         updateGrossSize(vlmDataRef);
     }
 
     @Override
     protected void updateUsableSizeFromAllocatedSizeImpl(AbsStorageVlmData<?> vlmDataRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // just copy (for now) usableSize = allocateSize and let the DeviceProviders recalculate the allocatedSize
         vlmDataRef.setUsableSize(vlmDataRef.getAllocatedSize());
         updateGrossSize(vlmDataRef);
     }
 
-    public void updateGrossSize(AbsStorageVlmData<?> vlmDataRef) throws AccessDeniedException
+    public void updateGrossSize(AbsStorageVlmData<?> vlmDataRef)
     {
         if (!vlmDataRef.getProviderKind().equals(DeviceProviderKind.DISKLESS))
         {
@@ -65,11 +63,11 @@ public class StorageLayerSizeCalculator extends AbsLayerSizeCalculator<AbsStorag
              * DO NOT USE PriorityProps here!
              * We need to take the higher allocation granularity here - by VALUE not by PRIORIRTY
              */
-            long spAllocGran = getAllocationGranularity(sp.getProps(sysCtx));
+            long spAllocGran = getAllocationGranularity(sp.getProps());
             int stripes = getStripes(vlmDataRef);
             spAllocGran *= stripes;
             long vlmDfnAllocGran = getAllocationGranularity(
-                vlmDataRef.getVolume().getVolumeDefinition().getProps(sysCtx)
+                vlmDataRef.getVolume().getVolumeDefinition().getProps()
             );
             long maxAllocGran = Math.max(vlmDfnAllocGran, spAllocGran);
 
@@ -109,12 +107,12 @@ public class StorageLayerSizeCalculator extends AbsLayerSizeCalculator<AbsStorag
         }
     }
 
-    private int getStripes(VlmProviderObject<?> vlmDataRef) throws AccessDeniedException
+    private int getStripes(VlmProviderObject<?> vlmDataRef)
     {
         int stripes = 1; // by default
         if (vlmDataRef instanceof LvmData<?> lvmData)
         {
-            @Nullable String stripesStr = getProps(sysCtx, lvmData)
+            @Nullable String stripesStr = getProps(lvmData)
                 .getProp(getStripesPropKey(lvmData));
             if (stripesStr != null)
             {
@@ -163,17 +161,17 @@ public class StorageLayerSizeCalculator extends AbsLayerSizeCalculator<AbsStorag
             suffix;
     }
 
-    public static Props getProps(AccessContext accCtxRef, LvmData<?> vlmDataRef) throws AccessDeniedException
+    public static Props getProps(LvmData<?> vlmDataRef)
     {
         AbsVolume<?> absVlm = vlmDataRef.getVolume();
         Props props;
         if (absVlm instanceof Volume volume)
         {
-            props = volume.getProps(accCtxRef);
+            props = volume.getProps();
         }
         else
         {
-            props = ((SnapshotVolume) absVlm).getSnapVlmProps(accCtxRef);
+            props = ((SnapshotVolume) absVlm).getSnapVlmProps();
         }
         return props;
     }

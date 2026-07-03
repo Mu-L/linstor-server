@@ -1,15 +1,10 @@
 package com.linbit.linstor.core.objects;
 
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceGroupDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -30,7 +25,6 @@ import java.util.UUID;
 @Singleton
 public class ResourceGroupSatelliteFactory
 {
-    private final AccessContext sysCtx;
     private final ResourceGroupDatabaseDriver rscGrpDriver;
     private final ObjectProtectionFactory objectProtectionFactory;
     private final PropsContainerFactory propsContainerFactory;
@@ -40,7 +34,6 @@ public class ResourceGroupSatelliteFactory
 
     @Inject
     public ResourceGroupSatelliteFactory(
-        @SystemContext AccessContext sysCtxRef,
         ResourceGroupDatabaseDriver rscGrpDriverRef,
         ObjectProtectionFactory objectProtectionFactoryRef,
         PropsContainerFactory propsContainerFactoryRef,
@@ -49,7 +42,6 @@ public class ResourceGroupSatelliteFactory
         CoreModule.ResourceGroupMap rscGrpMapRef
     )
     {
-        sysCtx = sysCtxRef;
         rscGrpDriver = rscGrpDriverRef;
         objectProtectionFactory = objectProtectionFactoryRef;
         propsContainerFactory = propsContainerFactoryRef;
@@ -76,7 +68,7 @@ public class ResourceGroupSatelliteFactory
         @Nullable Boolean autoPlaceDisklessOnRemainingRef,
         @Nullable Short peerSlotsRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         ResourceGroup rscGrp = rscGrpMap.get(rscGrpName);
 
@@ -85,7 +77,6 @@ public class ResourceGroupSatelliteFactory
             rscGrp = new ResourceGroup(
                 uuid,
                 objectProtectionFactory.getInstance(
-                    sysCtx,
                     ObjectProtection.buildPath(rscGrpName),
                     true
                 ),

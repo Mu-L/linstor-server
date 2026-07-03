@@ -6,8 +6,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.ResourceGroup;
 import com.linbit.linstor.core.objects.VolumeGroup;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -22,14 +20,12 @@ public class LinstorIteratorUtils
     }
 
     public static <T> ArrayList<T> foreachRsc(
-        AccessContext accCtx,
         Node nodeRef,
         Function<Resource, T> fct
     )
-        throws AccessDeniedException
     {
         ArrayList<T> ret = new ArrayList<>();
-        Iterator<Resource> rscIt = nodeRef.iterateResources(accCtx);
+        Iterator<Resource> rscIt = nodeRef.iterateResources();
         while (rscIt.hasNext())
         {
             ret.add(fct.apply(rscIt.next()));
@@ -38,24 +34,20 @@ public class LinstorIteratorUtils
     }
 
     public static <T> Collection<T> foreachRscDfn(
-        AccessContext accCtxRef,
         VolumeGroup vlmGrpRef,
         Function<ResourceDefinition, T> fct
     )
-        throws AccessDeniedException
     {
-        return foreachRscDfn(accCtxRef, vlmGrpRef.getResourceGroup(), fct);
+        return foreachRscDfn(vlmGrpRef.getResourceGroup(), fct);
     }
 
     public static <T> ArrayList<T> foreachRscDfn(
-        AccessContext accCtx,
         ResourceGroup rscGrpRef,
         Function<ResourceDefinition, T> fct
     )
-        throws AccessDeniedException
     {
         ArrayList<T> ret = new ArrayList<>();
-        for (ResourceDefinition rscDfn : getRscDfns(accCtx, rscGrpRef))
+        for (ResourceDefinition rscDfn : getRscDfns(rscGrpRef))
         {
             ret.add(fct.apply(rscDfn));
         }
@@ -75,16 +67,14 @@ public class LinstorIteratorUtils
         return ret;
     }
 
-    public static Collection<ResourceDefinition> getRscDfns(AccessContext accCtxRef, ResourceGroup rscGrpRef)
-        throws AccessDeniedException
+    public static Collection<ResourceDefinition> getRscDfns(ResourceGroup rscGrpRef)
     {
-        return rscGrpRef.getRscDfns(accCtxRef);
+        return rscGrpRef.getRscDfns();
     }
 
-    public static Collection<ResourceDefinition> getRscDfns(AccessContext accCtxRef, VolumeGroup vlmGrpRef)
-        throws AccessDeniedException
+    public static Collection<ResourceDefinition> getRscDfns(VolumeGroup vlmGrpRef)
     {
-        return getRscDfns(accCtxRef, vlmGrpRef.getResourceGroup());
+        return getRscDfns(vlmGrpRef.getResourceGroup());
     }
 
 }

@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.ExternalFileName;
 import com.linbit.linstor.core.objects.ExternalFile.InitMaps;
 import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
@@ -17,10 +16,6 @@ import com.linbit.linstor.dbdrivers.interfaces.updater.CollectionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -58,7 +53,6 @@ public final class ExternalFileDbDriver extends AbsProtectedDatabaseDriver<Exter
     @Inject
     public ExternalFileDbDriver(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext dbCtxRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
         ObjectProtectionFactory objProtFactoryRef,
@@ -66,30 +60,30 @@ public final class ExternalFileDbDriver extends AbsProtectedDatabaseDriver<Exter
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.FILES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.FILES, dbEngine, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
 
         setColumnSetter(UUID, extFile -> extFile.getUuid().toString());
         setColumnSetter(PATH, extFile -> extFile.getName().extFileName);
-        setColumnSetter(FLAGS, extFile -> extFile.getFlags().getFlagsBits(dbCtxRef));
-        setColumnSetter(CONTENT_CHECKSUM, extFile -> extFile.getContentCheckSumHex(dbCtxRef));
+        setColumnSetter(FLAGS, extFile -> extFile.getFlags().getFlagsBits());
+        setColumnSetter(CONTENT_CHECKSUM, extFile -> extFile.getContentCheckSumHex());
 
-        setColumnSetter(CONTENT, extFile -> extFile.getContent(dbCtxRef));
+        setColumnSetter(CONTENT, extFile -> extFile.getContent());
         contentDriver = generateSingleColumnDriver(
             CONTENT,
-            extFile -> new String(extFile.getContent(dbCtxRef), StandardCharsets.UTF_8),
+            extFile -> new String(extFile.getContent(), StandardCharsets.UTF_8),
             Function.identity()
         );
 
-        setColumnSetter(ALT_SUFFIXES, extFile -> toBlob(extFile.getAltSuffixes(dbCtxRef)));
+        setColumnSetter(ALT_SUFFIXES, extFile -> toBlob(extFile.getAltSuffixes()));
         altSuffixesDriver = generateCollectionToJsonStringArrayDriver(ALT_SUFFIXES);
 
         flagsDriver = generateFlagDriver(FLAGS, ExternalFile.Flags.class);
         contentChecksumDriver = generateSingleColumnDriver(
             CONTENT_CHECKSUM,
-            extFile -> ByteUtils.bytesToHex(extFile.getContentCheckSum(dbCtxRef)),
+            extFile -> ByteUtils.bytesToHex(extFile.getContentCheckSum()),
             byteArr -> ByteUtils.bytesToHex(byteArr)
         );
     }
@@ -119,7 +113,7 @@ public final class ExternalFileDbDriver extends AbsProtectedDatabaseDriver<Exter
     }
 
     @Override
-    protected String getId(ExternalFile dataRef) throws AccessDeniedException
+    protected String getId(ExternalFile dataRef)
     {
         return "External file(" + dataRef.getName().extFileName + ")";
     }

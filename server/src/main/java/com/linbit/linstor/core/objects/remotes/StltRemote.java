@@ -6,10 +6,6 @@ import com.linbit.linstor.api.pojo.StltRemotePojo;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionMap;
@@ -48,7 +44,6 @@ public class StltRemote extends AbsRemote
     private final @Nullable String otherRscName;
 
     public StltRemote(
-        ObjectProtection objProtRef,
         UUID objIdRef,
         RemoteName remoteNameRef,
         long initialFlags,
@@ -88,13 +83,6 @@ public class StltRemote extends AbsRemote
             flags,
             deleted
         );
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
     }
 
     @Override
@@ -163,67 +151,59 @@ public class StltRemote extends AbsRemote
         return otherRscName;
     }
 
-    public String getIp(AccessContext accCtx) throws AccessDeniedException
+    public String getIp()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return ip.get();
     }
 
-    public void setIp(AccessContext accCtx, String ipRef) throws AccessDeniedException, DatabaseException
+    public void setIp(String ipRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         ip.set(ipRef);
     }
 
-    public Map<String, Integer> getPorts(AccessContext accCtx) throws AccessDeniedException
+    public Map<String, Integer> getPorts()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return ports;
     }
 
-    public void setPort(AccessContext accCtx, int portRef, int vlmNrRef, String rscLayerSuffixRef)
-        throws AccessDeniedException, DatabaseException
+    public void setPort(int portRef, int vlmNrRef, String rscLayerSuffixRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         ports.put(vlmNrRef + rscLayerSuffixRef, portRef);
     }
 
     /**
      * This method adds the ports in the map given to the already existing ports
      */
-    public void addPorts(AccessContext accCtx, Map<String, Integer> portsRef) throws AccessDeniedException
+    public void addPorts(Map<String, Integer> portsRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         ports.putAll(portsRef);
     }
 
     /**
      * This method will replace the already existing ports with the ports in the map given
      */
-    public void setAllPorts(AccessContext accCtx, Map<String, Integer> portsRef) throws AccessDeniedException
+    public void setAllPorts(Map<String, Integer> portsRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         ports.clear();
         ports.putAll(portsRef);
     }
 
-    public Boolean useZstd(AccessContext accCtx) throws AccessDeniedException
+    public Boolean useZstd()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return useZstd.get();
     }
 
-    public void useZstd(AccessContext accCtx, Boolean useZstdRef) throws AccessDeniedException, DatabaseException
+    public void useZstd(Boolean useZstdRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         useZstd.set(useZstdRef == null ? false : useZstdRef);
     }
 
@@ -240,15 +220,14 @@ public class StltRemote extends AbsRemote
         return RemoteType.SATELLITE;
     }
 
-    public StltRemotePojo getApiData(AccessContext accCtx, Long fullSyncId, Long updateId) throws AccessDeniedException
+    public StltRemotePojo getApiData(Long fullSyncId, Long updateId)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return new StltRemotePojo(
             objId,
             remoteName.displayValue,
             linstorRemoteName.displayValue,
-            flags.getFlagsBits(accCtx),
+            flags.getFlagsBits(),
             ip.get(),
             ports,
             useZstd.get(),
@@ -260,17 +239,16 @@ public class StltRemote extends AbsRemote
     /**
      * This method removes all currently set values and replaces them with the values found in the given StltRemotePojo
      */
-    public void applyApiData(AccessContext accCtx, StltRemotePojo apiData)
-        throws AccessDeniedException, DatabaseException
+    public void applyApiData(StltRemotePojo apiData)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         ip.set(apiData.getIp());
         ports.clear();
         ports.putAll(apiData.getPorts());
         useZstd.set(apiData.useZstd());
 
-        flags.resetFlagsTo(accCtx, Flags.restoreFlags(apiData.getFlags()));
+        flags.resetFlagsTo(Flags.restoreFlags(apiData.getFlags()));
     }
 
     @Override
@@ -280,13 +258,12 @@ public class StltRemote extends AbsRemote
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
 

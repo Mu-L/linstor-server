@@ -8,7 +8,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Named;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -35,7 +34,6 @@ public class ControllerDebugModule extends AbstractModule
         NodeRepository nodeRepository,
         CoreModule.NodesMap nodesMap
     )
-        throws AccessDeniedException
     {
         return new CmdDisplayNodes(
             reconfigurationLockRef,
@@ -53,7 +51,6 @@ public class ControllerDebugModule extends AbstractModule
         ResourceDefinitionRepository resourceDefinitionRepository,
         CoreModule.ResourceDefinitionMap resourceDefinitionMap
     )
-        throws AccessDeniedException
     {
         return new CmdDisplayResource(
             reconfigurationLockRef,
@@ -71,7 +68,6 @@ public class ControllerDebugModule extends AbstractModule
         ResourceDefinitionRepository resourceDefinitionRepository,
         CoreModule.ResourceDefinitionMap resourceDefinitionMap
     )
-        throws AccessDeniedException
     {
         return new CmdDisplayResourceDfn(
             reconfigurationLockRef,
@@ -88,7 +84,6 @@ public class ControllerDebugModule extends AbstractModule
         StorPoolDefinitionRepository storPoolDefinitionRepository,
         CoreModule.StorPoolDefinitionMap storPoolDefinitionMap
     )
-        throws AccessDeniedException
     {
         return new CmdDisplayStorPool(
             reconfigurationLockRef,
@@ -105,7 +100,6 @@ public class ControllerDebugModule extends AbstractModule
         StorPoolDefinitionRepository storPoolDefinitionRepository,
         CoreModule.StorPoolDefinitionMap storPoolDefinitionMap
     )
-        throws AccessDeniedException
     {
         return new CmdDisplayStorPoolDfn(
             reconfigurationLockRef,

@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -20,9 +19,6 @@ import com.linbit.linstor.dbdrivers.interfaces.updater.MapDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -83,7 +79,6 @@ public final class ResourceGroupDbDriver
 
     @Inject
     public ResourceGroupDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
         ObjectProtectionFactory objProtFactoryRef,
@@ -93,7 +88,6 @@ public final class ResourceGroupDbDriver
     )
     {
         super(
-            dbCtxRef,
             errorReporterRef,
             GeneratedDatabaseTables.RESOURCE_GROUPS,
             dbEngine, objProtFactoryRef
@@ -105,60 +99,60 @@ public final class ResourceGroupDbDriver
         setColumnSetter(UUID, rscGrp -> rscGrp.getUuid().toString());
         setColumnSetter(RESOURCE_GROUP_NAME, rscGrp -> rscGrp.getName().value);
         setColumnSetter(RESOURCE_GROUP_DSP_NAME, rscGrp -> rscGrp.getName().displayValue);
-        setColumnSetter(DESCRIPTION, rscGrp -> rscGrp.getDescription(dbCtxRef));
+        setColumnSetter(DESCRIPTION, rscGrp -> rscGrp.getDescription());
         setColumnSetter(
             LAYER_STACK,
-            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getLayerStackList(dbCtxRef))
+            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getLayerStackList())
         );
-        setColumnSetter(REPLICA_COUNT, rscGrp -> rscGrp.getAutoPlaceConfig().getReplicaCount(dbCtxRef));
-        setColumnSetter(NODE_NAME_LIST, rscGrp -> toString(rscGrp.getAutoPlaceConfig().getNodeNameList(dbCtxRef)));
-        setColumnSetter(POOL_NAME, rscGrp -> toString(rscGrp.getAutoPlaceConfig().getStorPoolNameList(dbCtxRef)));
+        setColumnSetter(REPLICA_COUNT, rscGrp -> rscGrp.getAutoPlaceConfig().getReplicaCount());
+        setColumnSetter(NODE_NAME_LIST, rscGrp -> toString(rscGrp.getAutoPlaceConfig().getNodeNameList()));
+        setColumnSetter(POOL_NAME, rscGrp -> toString(rscGrp.getAutoPlaceConfig().getStorPoolNameList()));
         setColumnSetter(
             POOL_NAME_DISKLESS,
-            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getStorPoolDisklessNameList(dbCtxRef))
+            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getStorPoolDisklessNameList())
         );
         setColumnSetter(
             DO_NOT_PLACE_WITH_RSC_REGEX,
-            rscGrp -> rscGrp.getAutoPlaceConfig().getDoNotPlaceWithRscRegex(dbCtxRef)
+            rscGrp -> rscGrp.getAutoPlaceConfig().getDoNotPlaceWithRscRegex()
         );
         setColumnSetter(
             DO_NOT_PLACE_WITH_RSC_LIST,
-            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getDoNotPlaceWithRscList(dbCtxRef))
+            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getDoNotPlaceWithRscList())
         );
         setColumnSetter(
             ALLOWED_PROVIDER_LIST,
-            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getProviderList(dbCtxRef))
+            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getProviderList())
         );
         setColumnSetter(
             DISKLESS_ON_REMAINING,
-            rscGrp -> rscGrp.getAutoPlaceConfig().getDisklessOnRemaining(dbCtxRef)
+            rscGrp -> rscGrp.getAutoPlaceConfig().getDisklessOnRemaining()
         );
         setColumnSetter(
             REPLICAS_ON_SAME,
-            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getReplicasOnSameList(dbCtxRef))
+            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getReplicasOnSameList())
         );
         setColumnSetter(
             REPLICAS_ON_DIFFERENT,
-            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getReplicasOnDifferentList(dbCtxRef))
+            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getReplicasOnDifferentList())
         );
         setColumnSetter(
             X_REPLICAS_ON_DIFFERENT,
-            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getXReplicasOnDifferentMap(dbCtxRef))
+            rscGrp -> toString(rscGrp.getAutoPlaceConfig().getXReplicasOnDifferentMap())
         );
         setColumnSetter(
             PEER_SLOTS,
-            rscGrp -> rscGrp.getPeerSlots(dbCtxRef)
+            rscGrp -> rscGrp.getPeerSlots()
         );
 
         descriptionDriver = generateSingleColumnDriver(
             DESCRIPTION,
-            rscGrp -> rscGrp.getDescription(dbCtxRef),
+            rscGrp -> rscGrp.getDescription(),
             Function.identity()
         );
         layerStackDriver = generateCollectionToJsonStringArrayDriver(LAYER_STACK);
         replicaCountDriver = generateSingleColumnDriver(
             REPLICA_COUNT,
-            rscGrp -> Objects.toString(rscGrp.getAutoPlaceConfig().getReplicaCount(dbCtxRef)),
+            rscGrp -> Objects.toString(rscGrp.getAutoPlaceConfig().getReplicaCount()),
             Function.identity()
         );
         nodeNameDriver = generateCollectionToJsonStringArrayDriver(NODE_NAME_LIST);
@@ -167,7 +161,7 @@ public final class ResourceGroupDbDriver
         doNotPlaceWithRscListDriver = generateCollectionToJsonStringArrayDriver(DO_NOT_PLACE_WITH_RSC_LIST);
         doNotPlaceWithRscRegexDriver = generateSingleColumnDriver(
             DO_NOT_PLACE_WITH_RSC_REGEX,
-            rscGrp -> Objects.toString(rscGrp.getAutoPlaceConfig().getDoNotPlaceWithRscRegex(dbCtxRef)),
+            rscGrp -> Objects.toString(rscGrp.getAutoPlaceConfig().getDoNotPlaceWithRscRegex()),
             Function.identity()
         );
         replicasOnSameListDriver = generateCollectionToJsonStringArrayDriver(REPLICAS_ON_SAME);
@@ -176,12 +170,12 @@ public final class ResourceGroupDbDriver
         allowedProviderListDriver = generateCollectionToJsonStringArrayDriver(ALLOWED_PROVIDER_LIST);
         disklessOnRemainingDriver = generateSingleColumnDriver(
             DISKLESS_ON_REMAINING,
-            rscGrp -> Objects.toString(rscGrp.getAutoPlaceConfig().getDisklessOnRemaining(dbCtxRef)),
+            rscGrp -> Objects.toString(rscGrp.getAutoPlaceConfig().getDisklessOnRemaining()),
             Function.identity()
         );
         peerSlotsDriver = generateSingleColumnDriver(
             PEER_SLOTS,
-            rscGrp -> Objects.toString(rscGrp.getPeerSlots(dbCtxRef)),
+            rscGrp -> Objects.toString(rscGrp.getPeerSlots()),
             Function.identity()
         );
     }

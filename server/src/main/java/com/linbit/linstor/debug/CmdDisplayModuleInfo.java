@@ -8,7 +8,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.VersionInfoProvider;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Named;
 
@@ -47,7 +46,6 @@ public class CmdDisplayModuleInfo extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     ) throws Exception
     {

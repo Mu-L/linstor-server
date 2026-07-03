@@ -13,7 +13,6 @@ import com.linbit.linstor.core.objects.TestFactory;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.security.GenericDbBase;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
@@ -52,7 +51,6 @@ public class ResourceDbDriverTest extends GenericDbBase
     private ResourceDefinition resDfn;
 
     private java.util.UUID resUuid;
-    private ObjectProtection objProt;
     private long initFlags;
 
     @Inject
@@ -77,23 +75,22 @@ public class ResourceDbDriverTest extends GenericDbBase
             TBL_COL_COUNT_RESOURCES
         );
 
-        node = nodeFactory.create(SYS_CTX, nodeName, null, null);
+        node = nodeFactory.create(nodeName, null, null);
         LayerPayload payload = new LayerPayload();
         DrbdRscDfnPayload drbdRscDfn = payload.getDrbdRscDfn();
         drbdRscDfn.sharedSecret = "secret";
         drbdRscDfn.transportType = TransportType.IP;
         resDfn = resourceDefinitionFactory.create(
-            SYS_CTX,
             resName,
             null,
             null,
             Arrays.asList(DeviceLayerKind.DRBD, DeviceLayerKind.STORAGE),
             payload,
-            createDefaultResourceGroup(SYS_CTX)
+            createDefaultResourceGroup()
         );
 
         resUuid = randomUUID();
-        objProt = objectProtectionFactory.getInstance(SYS_CTX, ObjectProtection.buildPath(nodeName, resName), true);
+        objProt = objectProtectionFactory.getInstance(ObjectProtection.buildPath(nodeName, resName), true);
 
         initFlags = Resource.Flags.CLEAN.flagValue;
     }
@@ -137,7 +134,6 @@ public class ResourceDbDriverTest extends GenericDbBase
         LayerPayload payload = new LayerPayload();
         payload.getDrbdRsc().nodeId = nodeId;
         resourceFactory.create(
-            SYS_CTX,
             resDfn,
             node,
             payload,
@@ -164,7 +160,7 @@ public class ResourceDbDriverTest extends GenericDbBase
     @Test
     public void testLoadGetInstance() throws Exception
     {
-        Resource loadedRes = node.getResource(SYS_CTX, resDfn.getName());
+        Resource loadedRes = node.getResource(resDfn.getName());
         assertNull(loadedRes);
 
         Resource res = TestFactory.createResource(
@@ -181,10 +177,10 @@ public class ResourceDbDriverTest extends GenericDbBase
             new TreeMap<>()
         );
         driver.create(res);
-        node.addResource(SYS_CTX, res);
-        resDfn.addResource(SYS_CTX, res);
+        node.addResource(res);
+        resDfn.addResource(res);
 
-        loadedRes = node.getResource(SYS_CTX, resDfn.getName());
+        loadedRes = node.getResource(resDfn.getName());
 
         assertNotNull("Database did not persist resource / resourceDefinition", loadedRes);
         assertEquals(resUuid, loadedRes.getUuid());
@@ -192,7 +188,7 @@ public class ResourceDbDriverTest extends GenericDbBase
         assertEquals(nodeName, loadedRes.getNode().getName());
         assertNotNull(loadedRes.getResourceDefinition());
         assertEquals(resName, loadedRes.getResourceDefinition().getName());
-        assertEquals(Resource.Flags.CLEAN.flagValue, loadedRes.getStateFlags().getFlagsBits(SYS_CTX));
+        assertEquals(Resource.Flags.CLEAN.flagValue, loadedRes.getStateFlags().getFlagsBits());
     }
 
     @Test
@@ -229,7 +225,7 @@ public class ResourceDbDriverTest extends GenericDbBase
         assertEquals(nodeName, resData.getNode().getName());
         assertNotNull(resData.getResourceDefinition());
         assertEquals(resName, resData.getResourceDefinition().getName());
-        assertEquals(Resource.Flags.CLEAN.flagValue, resData.getStateFlags().getFlagsBits(SYS_CTX));
+        assertEquals(Resource.Flags.CLEAN.flagValue, resData.getStateFlags().getFlagsBits());
     }
 
     @Test
@@ -238,7 +234,6 @@ public class ResourceDbDriverTest extends GenericDbBase
         LayerPayload payload = new LayerPayload();
         payload.getDrbdRsc().nodeId = nodeId;
         Resource storedInstance = resourceFactory.create(
-            SYS_CTX,
             resDfn,
             node,
             payload,
@@ -248,7 +243,7 @@ public class ResourceDbDriverTest extends GenericDbBase
 
         // no clearCaches
 
-        assertEquals(storedInstance, node.getResource(SYS_CTX, resDfn.getName()));
+        assertEquals(storedInstance, node.getResource(resDfn.getName()));
     }
 
     @Test
@@ -332,11 +327,11 @@ public class ResourceDbDriverTest extends GenericDbBase
             new TreeMap<>()
         );
         driver.create(res);
-        node.addResource(SYS_CTX, res);
-        resDfn.addResource(SYS_CTX, res);
+        node.addResource(res);
+        resDfn.addResource(res);
 
         LayerPayload payload = new LayerPayload();
         payload.getDrbdRsc().nodeId = nodeId;
-        resourceFactory.create(SYS_CTX, resDfn, node, payload, null, Collections.emptyList());
+        resourceFactory.create(resDfn, node, payload, null, Collections.emptyList());
     }
 }

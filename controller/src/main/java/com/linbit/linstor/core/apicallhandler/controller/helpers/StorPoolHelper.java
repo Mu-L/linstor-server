@@ -4,12 +4,10 @@ import com.linbit.InvalidNameException;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlApiDataLoader;
 import com.linbit.linstor.core.apicallhandler.controller.exceptions.IllegalStorageDriverException;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
@@ -21,8 +19,6 @@ import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.objects.StorPoolDefinitionControllerFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 
 import javax.inject.Inject;
@@ -33,7 +29,6 @@ public class StorPoolHelper
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final StorPoolDefinitionControllerFactory storPoolDefinitionFactory;
     private final StorPoolControllerFactory storPoolFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final FreeSpaceMgrControllerFactory freeSpaceMgrFactory;
 
     @Inject
@@ -41,15 +36,13 @@ public class StorPoolHelper
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         StorPoolDefinitionControllerFactory storPoolDefinitionFactoryRef,
         StorPoolControllerFactory storPoolFactoryRef,
-        FreeSpaceMgrControllerFactory freeSpaceMgrFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef
+        FreeSpaceMgrControllerFactory freeSpaceMgrFactoryRef
     )
     {
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         storPoolDefinitionFactory = storPoolDefinitionFactoryRef;
         storPoolFactory = storPoolFactoryRef;
         freeSpaceMgrFactory = freeSpaceMgrFactoryRef;
-        peerAccCtx = peerAccCtxRef;
     }
 
     public StorPool createStorPool(
@@ -80,7 +73,6 @@ public class StorPoolHelper
             {
                 // implicitly create storage pool definition if it doesn't exist
                 storPoolDef = storPoolDefinitionFactory.create(
-                    peerAccCtx.get(),
                     LinstorParsingUtils.asStorPoolName(storPoolNameStr)
                 );
             }
@@ -90,20 +82,11 @@ public class StorPoolHelper
                 new SharedStorPoolName(node.getName(), storPoolDef.getName());
 
             storPool = storPoolFactory.create(
-                peerAccCtx.get(),
                 node,
                 storPoolDef,
                 deviceProviderKindRef,
-                freeSpaceMgrFactory.getInstance(peerAccCtx.get(), sharedSpaceName),
+                freeSpaceMgrFactory.getInstance(sharedSpaceName),
                 externalLockingRef
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register " + getStorPoolDescriptionInline(nodeNameStr, storPoolNameStr),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL
             );
         }
         catch (LinStorDataAlreadyExistsException alreadyExistsExc)
@@ -147,20 +130,9 @@ public class StorPoolHelper
     )
     {
         boolean isKindAllowed;
-        try
-        {
-            // TODO try to skip creation of dfltDisklessStorPool if no DRBD is available
-            Peer peer = node.getPeer(peerAccCtx.get());
-            isKindAllowed = peer.getExtToolsManager().isProviderSupported(kind);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "access node " + node.getName() + "'s peer object",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        // TODO try to skip creation of dfltDisklessStorPool if no DRBD is available
+        Peer peer = node.getPeer();
+        isKindAllowed = peer.getExtToolsManager().isProviderSupported(kind);
         return isKindAllowed;
     }
 

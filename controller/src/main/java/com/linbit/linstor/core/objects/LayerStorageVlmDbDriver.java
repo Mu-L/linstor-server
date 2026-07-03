@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -17,8 +16,6 @@ import com.linbit.linstor.dbdrivers.interfaces.LayerResourceIdDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.LayerStorageVlmDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
 import com.linbit.linstor.storage.data.provider.StorageRscData;
 import com.linbit.linstor.storage.data.provider.diskless.DisklessData;
@@ -56,7 +53,6 @@ public class LayerStorageVlmDbDriver
 
     @Inject
     public LayerStorageVlmDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         LayerResourceIdDatabaseDriver rscLayerIdDriverRef,
@@ -65,7 +61,6 @@ public class LayerStorageVlmDbDriver
     )
     {
         super(
-            dbCtxRef,
             errorReporterRef,
             GeneratedDatabaseTables.LAYER_STORAGE_VOLUMES,
             dbEngineRef
@@ -132,7 +127,7 @@ public class LayerStorageVlmDbDriver
         RawParameters rawRef,
         VlmParentObjects<VlmDfnLayerObject, StorageRscData<?>, VlmProviderObject<?>> parentRef
     )
-        throws ValueOutOfRangeException, InvalidNameException, DatabaseException, AccessDeniedException
+        throws ValueOutOfRangeException, InvalidNameException, DatabaseException
     {
         int lri = rawRef.get(LayerStorageVolumes.LAYER_RESOURCE_ID);
         VolumeNumber vlmNr = rawRef.build(LayerStorageVolumes.VLM_NR, VolumeNumber::new);
@@ -185,7 +180,7 @@ public class LayerStorageVlmDbDriver
         DeviceProviderKind providerKindRef,
         Map<String, VlmProviderObject<RSC>> storPoolInitMapRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         AbsStorageVlmData<RSC> vlmProviderObj;
         switch (providerKindRef)
@@ -195,7 +190,7 @@ public class LayerStorageVlmDbDriver
                 vlmProviderObj = new DisklessData<>(
                     absVlmRef,
                     storageRscDataRef,
-                    absVlmRef.getVolumeSize(dbCtx),
+                    absVlmRef.getVolumeSize(),
                     storPoolRef,
                     this,
                     transObjFactory,

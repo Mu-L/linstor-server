@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -18,7 +17,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.LayerDrbdRscDfnDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscDfnData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmDfnData;
@@ -51,7 +49,6 @@ public class LayerDrbdRscDfnDbDriver
 
     @Inject
     public LayerDrbdRscDfnDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         TransactionObjectFactory transObjFactoryRef,
@@ -59,7 +56,6 @@ public class LayerDrbdRscDfnDbDriver
     )
     {
         super(
-            dbCtxRef,
             errorReporterRef,
             GeneratedDatabaseTables.LAYER_DRBD_RESOURCE_DEFINITIONS,
             dbEngineRef

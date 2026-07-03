@@ -1,13 +1,10 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -19,9 +16,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 
@@ -42,45 +36,38 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionListener
 {
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final ResourceDefinitionRepository resourceDefinitionRepository;
     private final ResponseConverter responseConverter;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlRscDfnTruncateApiCallHandler ctrlRscDfnTruncateApiCallHandler;
 
     @Inject
     public CtrlRscDfnDeleteApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         ResourceDefinitionRepository resourceDefinitionRepositoryRef,
         ResponseConverter responseConverterRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlRscDfnTruncateApiCallHandler ctrlRscDfnTruncateApiCallHandlerRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         resourceDefinitionRepository = resourceDefinitionRepositoryRef;
         responseConverter = responseConverterRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         ctrlRscDfnTruncateApiCallHandler = ctrlRscDfnTruncateApiCallHandlerRef;
     }
 
     @Override
     public Collection<Flux<ApiCallRc>> resourceDefinitionConnected(ResourceDefinition rscDfn, ResponseContext context)
-        throws AccessDeniedException
     {
-        return rscDfn.getFlags().isSet(apiCtx, ResourceDefinition.Flags.DELETE) ?
+        return rscDfn.getFlags().isSet(ResourceDefinition.Flags.DELETE) ?
             Collections.singletonList(deleteResourceDefinition(rscDfn.getName().displayValue)) :
             Collections.emptyList();
     }
@@ -151,15 +138,7 @@ public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            rscDfn.markDeleted(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getRscDfnDescriptionInline(rscDfn) + " as deleted",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
+            rscDfn.markDeleted();
         }
         catch (DatabaseException sqlExc)
         {
@@ -209,34 +188,12 @@ public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
 
     private void requireRscDfnMapChangeAccess()
     {
-        try
-        {
-            resourceDefinitionRepository.requireAccess(
-                peerAccCtx.get(),
-                AccessType.CHANGE
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "change any resource definitions",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
     }
 
     private boolean hasSnapshotsPrivileged(ResourceDefinition rscDfn)
     {
         boolean hasSnapshots;
-        try
-        {
-            hasSnapshots = !rscDfn.getSnapshotDfns(apiCtx).isEmpty();
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        hasSnapshots = !rscDfn.getSnapshotDfns().isEmpty();
         return hasSnapshots;
     }
 
@@ -245,15 +202,7 @@ public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            rscDfn.delete(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
+            rscDfn.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -263,14 +212,7 @@ public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
 
     private void removeResourceDefinitionPriveleged(ResourceName rscName, byte[] externalName)
     {
-        try
-        {
-            resourceDefinitionRepository.remove(apiCtx, rscName, externalName);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        resourceDefinitionRepository.remove(rscName, externalName);
     }
 
 }

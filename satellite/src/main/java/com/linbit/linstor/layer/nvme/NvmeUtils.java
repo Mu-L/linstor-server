@@ -32,8 +32,6 @@ import com.linbit.linstor.layer.storage.utils.DeviceUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.AbsRscData;
 import com.linbit.linstor.storage.data.adapter.nvme.NvmeRscData;
@@ -127,7 +125,7 @@ public class NvmeUtils
      * @param nvmeRscData NvmeRscData object containing all needed information for this method
      * @param accCtx AccessContext needed to access properties and the IP address
      */
-    public void createTargetRsc(NvmeRscData<Resource> nvmeRscData, AccessContext accCtx)
+    public void createTargetRsc(NvmeRscData<Resource> nvmeRscData)
         throws StorageException
     {
         final String subsystemName = getNvmeSubsystemPrefix(nvmeRscData) + nvmeRscData.getSuffixedResourceName();
@@ -141,8 +139,8 @@ public class NvmeUtils
         {
             ResourceDefinition rscDfn = nvmeRscData.getAbsResource().getResourceDefinition();
             final PriorityProps nvmePrioProps = new PriorityProps(
-                rscDfn.getProps(accCtx),
-                rscDfn.getResourceGroup().getProps(accCtx),
+                rscDfn.getProps(),
+                rscDfn.getResourceGroup().getProps(),
                 stltProps
             );
             if (nvmeRscData.isSpdk())
@@ -164,7 +162,7 @@ public class NvmeUtils
 
                 spdkCommands.nvmSubsystemCreate(subsystemName);
 
-                LsIpAddress ipAddr = getIpAddr(nvmeRscData.getAbsResource(), accCtx);
+                LsIpAddress ipAddr = getIpAddr(nvmeRscData.getAbsResource());
                 spdkCommands.nvmfSubsystemAddListener(
                     subsystemName,
                     transportType,
@@ -195,7 +193,7 @@ public class NvmeUtils
                 }
 
                 // get port directory or create it if the first subsystem is being added
-                LsIpAddress ipAddr = getIpAddr(nvmeRscData.getAbsResource(), accCtx);
+                LsIpAddress ipAddr = getIpAddr(nvmeRscData.getAbsResource());
                 String portIdx = getPortIdx(ipAddr);
 
                 if (portIdx == null)
@@ -259,7 +257,7 @@ public class NvmeUtils
         {
             throw new StorageException("Failed to configure NVMe target!", exc);
         }
-        catch (InvalidNameException | AccessDeniedException | InvalidKeyException | DatabaseException exc)
+        catch (InvalidNameException | InvalidKeyException | DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -283,7 +281,7 @@ public class NvmeUtils
      * @param nvmeRscData NvmeRscData object containing all needed information for this method
      * @param accCtx AccessContext needed to access properties and the IP address
      */
-    public void deleteTargetRsc(NvmeRscData<Resource> nvmeRscData, AccessContext accCtx)
+    public void deleteTargetRsc(NvmeRscData<Resource> nvmeRscData)
         throws StorageException
     {
         final String subsystemName = getNvmeSubsystemPrefix(nvmeRscData) + nvmeRscData.getSuffixedResourceName();
@@ -303,7 +301,7 @@ public class NvmeUtils
             else
             {
                 // remove soft link
-                String portIdx = getPortIdx(getIpAddr(nvmeRscData.getAbsResource(), accCtx));
+                String portIdx = getPortIdx(getIpAddr(nvmeRscData.getAbsResource()));
                 if (portIdx == null)
                 {
                     throw new StorageException(
@@ -344,7 +342,7 @@ public class NvmeUtils
         {
             throw new StorageException("Failed to delete NVMe target!", exc);
         }
-        catch (InvalidNameException | AccessDeniedException | InvalidKeyException | DatabaseException exc)
+        catch (InvalidNameException | InvalidKeyException | DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -359,7 +357,7 @@ public class NvmeUtils
      *     AccessContext needed to access properties and Target resource
      *
      */
-    public void connect(NvmeRscData<Resource> nvmeRscData, AccessContext accCtx) throws StorageException
+    public void connect(NvmeRscData<Resource> nvmeRscData) throws StorageException
     {
         try
         {
@@ -369,20 +367,17 @@ public class NvmeUtils
                 getIpAddr(
                     // TODO: check on controller
                     nvmeRscData.getAbsResource().getResourceDefinition().getResource(
-                        accCtx,
                         new NodeName(
                             nvmeRscData
                                 .getAbsResource()
-                                .getProps(accCtx)
+                                .getProps()
                                 .getProp(InternalApiConsts.PROP_NVME_TARGET_NODE_NAME)
                         )
-                    ),
-                    accCtx
-                ).getAddress(),
-                accCtx
+                    )
+                ).getAddress()
             );
         }
-        catch (InvalidKeyException | AccessDeniedException | InvalidNameException exc)
+        catch (InvalidKeyException | InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -391,8 +386,7 @@ public class NvmeUtils
     public <VLM_DATA extends VlmProviderObject<Resource>, RSC_DATA extends AbsRscData<Resource, VLM_DATA>> void connect(
         RSC_DATA rscData,
         String subsystemName,
-        String ipAddr,
-        AccessContext accCtx
+        String ipAddr
     )
         throws StorageException
     {
@@ -407,8 +401,8 @@ public class NvmeUtils
 
             ResourceDefinition rscDfn = rscData.getAbsResource().getResourceDefinition();
             final PriorityProps nvmePrioProps = new PriorityProps(
-                rscDfn.getProps(accCtx),
-                rscDfn.getResourceGroup().getProps(accCtx),
+                rscDfn.getProps(),
+                rscDfn.getResourceGroup().getProps(),
                 stltProps
             );
 
@@ -445,7 +439,7 @@ public class NvmeUtils
         {
             throw new StorageException("Failed to connect to NVMe target!", exc);
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -539,7 +533,7 @@ public class NvmeUtils
      * @return boolean true if the subsystem directory exists and false otherwise
      *
      */
-    public boolean isTargetConfigured(NvmeRscData<Resource> nvmeRscData) throws AccessDeniedException
+    public boolean isTargetConfigured(NvmeRscData<Resource> nvmeRscData)
     {
         final String subsystemName = getNvmeSubsystemPrefix(nvmeRscData) + nvmeRscData.getSuffixedResourceName();
 
@@ -768,7 +762,7 @@ public class NvmeUtils
      *
      */
     public void createSpdkNamespace(NvmeVlmData<Resource> nvmeVlmData, String subsystemName)
-        throws IOException, StorageException, ChildProcessTimeoutException, AccessDeniedException, DatabaseException
+        throws IOException, StorageException, ChildProcessTimeoutException, DatabaseException
     {
         SpdkCommands<?> spdkCommands = getSpdkCommands(nvmeVlmData.getRscLayerObject());
         if (!SpdkUtils.checkNamespaceExists(
@@ -804,7 +798,7 @@ public class NvmeUtils
      *
      */
     public void deleteSpdkNamespace(NvmeVlmData<Resource> nvmeVlmData, String subsystemName)
-        throws IOException, ChildProcessTimeoutException, StorageException, AccessDeniedException, DatabaseException
+        throws IOException, ChildProcessTimeoutException, StorageException, DatabaseException
     {
         final int namespaceNr = nvmeVlmData.getVlmNr().getValue() + 1;
 
@@ -933,29 +927,29 @@ public class NvmeUtils
      *
      * @return {@link LsIpAddress} of the resource's net interface
      */
-    private LsIpAddress getIpAddr(Resource rsc, AccessContext accCtx)
-        throws StorageException, InvalidNameException, AccessDeniedException, InvalidKeyException
+    private LsIpAddress getIpAddr(Resource rsc)
+        throws StorageException, InvalidNameException, InvalidKeyException
     {
         LsIpAddress ipAddr;
-        if (rsc.getNode().getNodeType(accCtx).equals(Node.Type.REMOTE_SPDK))
+        if (rsc.getNode().getNodeType().equals(Node.Type.REMOTE_SPDK))
         {
-            ipAddr = getIpAddrFromSpecialStlt(rsc, accCtx);
+            ipAddr = getIpAddrFromSpecialStlt(rsc);
         }
         else
         {
-            ipAddr = getIpAddrFromNormalStlt(rsc, accCtx);
+            ipAddr = getIpAddrFromNormalStlt(rsc);
         }
         return ipAddr;
     }
 
-    private LsIpAddress getIpAddrFromSpecialStlt(Resource rscRef, AccessContext accCtxRef)
-        throws StorageException, InvalidKeyException, AccessDeniedException
+    private LsIpAddress getIpAddrFromSpecialStlt(Resource rscRef)
+        throws StorageException, InvalidKeyException
     {
         try
         {
             // TODO: should be more general
             return new LsIpAddress(
-                rscRef.getNode().getProps(accCtxRef).getProp(
+                rscRef.getNode().getProps().getProp(
                     ApiConsts.KEY_STOR_POOL_REMOTE_SPDK_API_HOST,
                     ApiConsts.NAMESPC_STORAGE_DRIVER
                 )
@@ -967,8 +961,8 @@ public class NvmeUtils
         }
     }
 
-    private LsIpAddress getIpAddrFromNormalStlt(Resource rsc, AccessContext accCtx)
-        throws AccessDeniedException, StorageException, InvalidNameException
+    private LsIpAddress getIpAddrFromNormalStlt(Resource rsc)
+        throws StorageException, InvalidNameException
     {
         PriorityProps prioProps = new PriorityProps();
         Iterator<Volume> iterateVolumes = rsc.iterateVolumes();
@@ -977,16 +971,16 @@ public class NvmeUtils
         while (iterateVolumes.hasNext())
         {
             Volume vlm = iterateVolumes.next();
-            prioProps.addProps(vlm.getProps(accCtx));
+            prioProps.addProps(vlm.getProps());
 
-            storPools.addAll(LayerVlmUtils.getStorPoolSet(vlm, accCtx, true));
+            storPools.addAll(LayerVlmUtils.getStorPoolSet(vlm, true));
         }
         for (StorPool storPool : storPools)
         {
-            prioProps.addProps(storPool.getProps(accCtx));
+            prioProps.addProps(storPool.getProps());
         }
-        prioProps.addProps(rsc.getProps(accCtx));
-        prioProps.addProps(rsc.getNode().getProps(accCtx));
+        prioProps.addProps(rsc.getProps());
+        prioProps.addProps(rsc.getNode().getProps());
         prioProps.addProps(stltProps);
 
         String netIfName = prioProps.getProp(KEY_PREF_NIC, ApiConsts.NAMESPC_NVME);
@@ -994,7 +988,7 @@ public class NvmeUtils
         NetInterface netIf;
         if (netIfName == null)
         {
-            Iterator<NetInterface> iterateNetInterfaces = rsc.getNode().iterateNetInterfaces(accCtx);
+            Iterator<NetInterface> iterateNetInterfaces = rsc.getNode().iterateNetInterfaces();
             if (iterateNetInterfaces.hasNext())
             {
                 netIf = iterateNetInterfaces.next();
@@ -1009,18 +1003,18 @@ public class NvmeUtils
             errorReporter.logDebug("NVMe: querying net interface " + netIfName + "for IP address.");
 
             Node rscNode = rsc.getNode();
-            netIf = rscNode.getNetInterface(accCtx, new NetInterfaceName(netIfName));
+            netIf = rscNode.getNetInterface(new NetInterfaceName(netIfName));
             if (netIf == null)
             {
                 throw new StorageException(
                     "The preferred network interface '" + netIfName + "' of node '" +
                         rscNode.getName() + "' does not exist!"
-                ); // TODO: call checkPrefNic() when rsc.getAssignedNode().getNetInterface(accCtx, new
+                ); // TODO: call checkPrefNic() when rsc.getAssignedNode().getNetInterface(new
                    // NetInterfaceName(netIfName)) is called
             }
         }
 
-        return netIf.getAddress(accCtx);
+        return netIf.getAddress();
     }
 
     /**
@@ -1101,28 +1095,21 @@ public class NvmeUtils
      *
      * @return Resource target resource
      */
-    public Resource getTargetResource(NvmeRscData<Resource> nvmeRscData, AccessContext accCtx)
-        throws AccessDeniedException, StorageException
+    public Resource getTargetResource(NvmeRscData<Resource> nvmeRscData)
+        throws StorageException
     {
-        return getTargetResource(nvmeRscData.getAbsResource(), accCtx);
+        return getTargetResource(nvmeRscData.getAbsResource());
     }
 
-    public Resource getTargetResource(Resource initiatorRsc, AccessContext accCtx)
-        throws AccessDeniedException, StorageException
+    public Resource getTargetResource(Resource initiatorRsc)
+        throws StorageException
     {
         Optional<Resource> targetRscOpt = initiatorRsc
             .getResourceDefinition()
-            .streamResource(accCtx).filter(
+            .streamResource().filter(
                 rsc ->
                 {
-                    try
-                    {
-                        return rsc.getStateFlags().isUnset(accCtx, Resource.Flags.DISKLESS);
-                    }
-                    catch (AccessDeniedException exc)
-                    {
-                        throw new ImplementationError(exc);
-                    }
+                    return rsc.getStateFlags().isUnset(Resource.Flags.DISKLESS);
                 }
             ).findFirst();
         if (!targetRscOpt.isPresent())

@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -34,7 +33,6 @@ public class SnapshotVolumeSatelliteFactory
     }
 
     public SnapshotVolume getInstanceSatellite(
-        AccessContext accCtx,
         UUID snapshotVolumeUuid,
         Snapshot snapshot,
         SnapshotVolumeDefinition snapshotVolumeDefinition
@@ -56,7 +54,7 @@ public class SnapshotVolumeSatelliteFactory
                     transObjFactory,
                     transMgrProvider
                 );
-                snapshot.putVolume(accCtx, snapshotVolume);
+                snapshot.putVolume(snapshotVolume);
             }
         }
         catch (Exception exc)

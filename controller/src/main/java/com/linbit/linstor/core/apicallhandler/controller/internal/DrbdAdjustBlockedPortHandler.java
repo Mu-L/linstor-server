@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ExhaustedPoolException;
 import com.linbit.ImplementationError;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -24,8 +23,6 @@ import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.range.Range;
 import com.linbit.linstor.range.RangeUtils;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -83,7 +80,6 @@ public class DrbdAdjustBlockedPortHandler
     }
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlTransactionHelper ctrlTransactionHelper;
@@ -92,7 +88,6 @@ public class DrbdAdjustBlockedPortHandler
     @Inject
     public DrbdAdjustBlockedPortHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
@@ -100,7 +95,6 @@ public class DrbdAdjustBlockedPortHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
@@ -171,7 +165,7 @@ public class DrbdAdjustBlockedPortHandler
             appendBlockedPortsToNodeProp(node, blockedPorts);
 
             // (2) Refresh the pool's blocked range from the property.
-            DynamicNumberPool tcpPortPool = node.getTcpPortPool(apiCtx);
+            DynamicNumberPool tcpPortPool = node.getTcpPortPool();
             tcpPortPool.reloadBlockedRange();
 
             // (3) For each DrbdRscData of this Resource, deallocate any port that's in the blocked
@@ -190,7 +184,7 @@ public class DrbdAdjustBlockedPortHandler
             );
             return Flux.empty();
         }
-        catch (AccessDeniedException | DatabaseException | InvalidKeyException |
+        catch (DatabaseException | InvalidKeyException |
             InvalidValueException | ExhaustedPoolException | ValueOutOfRangeException exc)
         {
             throw new ImplementationError(exc);
@@ -198,9 +192,9 @@ public class DrbdAdjustBlockedPortHandler
     }
 
     private void appendBlockedPortsToNodeProp(Node node, List<Integer> blockedPorts)
-        throws AccessDeniedException, DatabaseException, InvalidKeyException, InvalidValueException
+        throws DatabaseException, InvalidKeyException, InvalidValueException
     {
-        Props nodeProps = node.getProps(apiCtx);
+        Props nodeProps = node.getProps();
         @Nullable String existing = nodeProps.getProp(ApiConsts.KEY_TCP_PORTS_BLOCKED);
 
         List<Range> list = Range.parseList(existing);
@@ -210,11 +204,11 @@ public class DrbdAdjustBlockedPortHandler
             list = RangeUtils.merge(list, new Range(port, port));
         }
         nodeProps.setProp(ApiConsts.KEY_TCP_PORTS_BLOCKED, RangeUtils.render(list));
-        node.getTcpPortPool(apiCtx).reloadBlockedRange();
+        node.getTcpPortPool().reloadBlockedRange();
     }
 
     private int repickPortsInDrbdRscData(Resource rsc, DynamicNumberPool tcpPortPool, List<Integer> blockedPorts)
-        throws AccessDeniedException, ExhaustedPoolException, ValueOutOfRangeException
+        throws ExhaustedPoolException, ValueOutOfRangeException
     {
         Set<Integer> blockedSet = Set.copyOf(blockedPorts);
         int totalRepicked = 0;
@@ -300,11 +294,11 @@ public class DrbdAdjustBlockedPortHandler
             .build();
     }
 
-    private List<DrbdRscData<Resource>> collectDrbdRscData(Resource rsc) throws AccessDeniedException
+    private List<DrbdRscData<Resource>> collectDrbdRscData(Resource rsc)
     {
         List<DrbdRscData<Resource>> out = new ArrayList<>();
         List<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerUtils.getChildLayerDataByKind(
-            rsc.getLayerData(apiCtx),
+            rsc.getLayerData(),
             DeviceLayerKind.DRBD
         );
         for (AbsRscLayerObject<Resource> layer : drbdRscDataSet)
@@ -316,20 +310,13 @@ public class DrbdAdjustBlockedPortHandler
 
     private Set<NodeName> collectNodeNames(ResourceDefinition rscDfn)
     {
-        try
+        Set<NodeName> names = new LinkedHashSet<>();
+        Iterator<Resource> it = rscDfn.iterateResource();
+        while (it.hasNext())
         {
-            Set<NodeName> names = new LinkedHashSet<>();
-            Iterator<Resource> it = rscDfn.iterateResource(apiCtx);
-            while (it.hasNext())
-            {
-                names.add(it.next().getNode().getName());
-            }
-            return names;
+            names.add(it.next().getNode().getName());
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return names;
     }
 
     private static List<Integer> extractBlockedPorts(ApiCallRc signalRc)

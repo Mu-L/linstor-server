@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.objects.remotes.S3Remote.InitMaps;
 import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
@@ -16,10 +15,6 @@ import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteCtrlDatabaseDrive
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -59,7 +54,6 @@ public final class S3RemoteDbDriver extends AbsProtectedDatabaseDriver<S3Remote,
     @Inject
     public S3RemoteDbDriver(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext dbCtxRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
         ObjectProtectionFactory objProtFactoryRef,
@@ -67,7 +61,7 @@ public final class S3RemoteDbDriver extends AbsProtectedDatabaseDriver<S3Remote,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.S3_REMOTES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.S3_REMOTES, dbEngine, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -75,16 +69,16 @@ public final class S3RemoteDbDriver extends AbsProtectedDatabaseDriver<S3Remote,
         setColumnSetter(UUID, remote -> remote.getUuid().toString());
         setColumnSetter(NAME, remote -> remote.getName().value);
         setColumnSetter(DSP_NAME, remote -> remote.getName().displayValue);
-        setColumnSetter(FLAGS, remote -> remote.getFlags().getFlagsBits(dbCtx));
-        setColumnSetter(ENDPOINT, remote -> remote.getUrl(dbCtx));
-        setColumnSetter(BUCKET, remote -> remote.getBucket(dbCtx));
-        setColumnSetter(REGION, remote -> remote.getRegion(dbCtx));
-        setColumnSetter(ACCESS_KEY, remote -> remote.getAccessKey(dbCtx));
-        setColumnSetter(SECRET_KEY, remote -> remote.getSecretKey(dbCtx));
+        setColumnSetter(FLAGS, remote -> remote.getFlags().getFlagsBits());
+        setColumnSetter(ENDPOINT, remote -> remote.getUrl());
+        setColumnSetter(BUCKET, remote -> remote.getBucket());
+        setColumnSetter(REGION, remote -> remote.getRegion());
+        setColumnSetter(ACCESS_KEY, remote -> remote.getAccessKey());
+        setColumnSetter(SECRET_KEY, remote -> remote.getSecretKey());
 
-        endpointDriver = generateSingleColumnDriver(ENDPOINT, remote -> remote.getUrl(dbCtx), Function.identity());
-        bucketDriver = generateSingleColumnDriver(BUCKET, remote -> remote.getBucket(dbCtx), Function.identity());
-        regionDriver = generateSingleColumnDriver(REGION, remote -> remote.getRegion(dbCtx), Function.identity());
+        endpointDriver = generateSingleColumnDriver(ENDPOINT, remote -> remote.getUrl(), Function.identity());
+        bucketDriver = generateSingleColumnDriver(BUCKET, remote -> remote.getBucket(), Function.identity());
+        regionDriver = generateSingleColumnDriver(REGION, remote -> remote.getRegion(), Function.identity());
         accessKeyDriver = generateSingleColumnDriver(
             ACCESS_KEY, ignored -> MSG_DO_NOT_LOG, Function.identity()
         );
@@ -163,7 +157,7 @@ public final class S3RemoteDbDriver extends AbsProtectedDatabaseDriver<S3Remote,
     }
 
     @Override
-    protected String getId(S3Remote dataRef) throws AccessDeniedException
+    protected String getId(S3Remote dataRef)
     {
         return "S3Remote(" + dataRef.getName().displayValue + ")";
     }

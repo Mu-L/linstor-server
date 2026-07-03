@@ -1,9 +1,6 @@
 package com.linbit.linstor.core;
 
 import com.linbit.linstor.InitializationException;
-import com.linbit.linstor.annotation.ErrorReporterContext;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.repository.NodeRepository;
@@ -13,9 +10,6 @@ import com.linbit.linstor.dbdrivers.DatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.StorPoolDefinitionDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.systemstarter.StartupInitializer;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -33,7 +27,6 @@ import com.google.inject.Key;
 public class DbDataInitializer implements StartupInitializer
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext initCtx;
     private final LinStorScope initScope;
     private final NodeRepository nodeRepository;
     private final ResourceDefinitionRepository resourceDefinitionRepository;
@@ -46,7 +39,6 @@ public class DbDataInitializer implements StartupInitializer
     @Inject
     public DbDataInitializer(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext initCtxRef,
         LinStorScope initScopeRef,
         NodeRepository nodeRepositoryRef,
         ResourceDefinitionRepository resourceDefinitionRepositoryRef,
@@ -58,7 +50,6 @@ public class DbDataInitializer implements StartupInitializer
     )
     {
         errorReporter = errorReporterRef;
-        initCtx = initCtxRef;
         initScope = initScopeRef;
         nodeRepository = nodeRepositoryRef;
         resourceDefinitionRepository = resourceDefinitionRepositoryRef;
@@ -71,7 +62,7 @@ public class DbDataInitializer implements StartupInitializer
 
     @Override
     public void initialize()
-        throws AccessDeniedException, InitializationException
+        throws InitializationException
     {
         TransactionMgr transMgr = null;
         Lock recfgWriteLock = reconfigurationLock.writeLock();
@@ -86,8 +77,8 @@ public class DbDataInitializer implements StartupInitializer
 
             // rebuilding layerData also runs an additional check to verify the used storage pools
             // which needs a peerContext.
-            initScope.seed(Key.get(AccessContext.class, PeerContext.class), initCtx);
-            initScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class), initCtx);
+            initScope.seed(Key.get(AccessContext.class, PeerContext.class));
+            initScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class));
 
 
             // Replacing the entire configuration requires locking out all other tasks
@@ -153,7 +144,7 @@ public class DbDataInitializer implements StartupInitializer
     }
 
     private void loadCoreObjects()
-        throws AccessDeniedException, DatabaseException, InitializationException
+        throws DatabaseException, InitializationException
     {
         errorReporter.logInfo("Security objects load from database is in progress");
 
@@ -162,9 +153,6 @@ public class DbDataInitializer implements StartupInitializer
         errorReporter.logInfo("Security objects load from database completed");
         errorReporter.logInfo("Core objects load from database is in progress");
 
-        nodeRepository.requireAccess(initCtx, AccessType.CONTROL);
-        resourceDefinitionRepository.requireAccess(initCtx, AccessType.CONTROL);
-        storPoolDefinitionRepository.requireAccess(initCtx, AccessType.CONTROL);
 
         databaseDriver.loadCoreObjects();
 
@@ -172,9 +160,9 @@ public class DbDataInitializer implements StartupInitializer
     }
 
     private void initializeDisklessStorPoolDfn()
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         StorPoolDefinition disklessStorPoolDfn = storPoolDfnDbDriver.createDefaultDisklessStorPool();
-        storPoolDefinitionRepository.put(initCtx, disklessStorPoolDfn.getName(), disklessStorPoolDfn);
+        storPoolDefinitionRepository.put(disklessStorPoolDfn.getName(), disklessStorPoolDfn);
     }
 }

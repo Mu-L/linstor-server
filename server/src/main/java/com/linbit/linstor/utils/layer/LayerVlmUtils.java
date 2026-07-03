@@ -2,13 +2,10 @@ package com.linbit.linstor.utils.layer;
 
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.StorPool;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -56,40 +53,35 @@ public class LayerVlmUtils
         return devicePaths;
     }
 
-    public static <RSC extends AbsResource<RSC>> Set<StorPool> getStorPools(RSC absRscRef, AccessContext accCtxRef)
-        throws AccessDeniedException
+    public static <RSC extends AbsResource<RSC>> Set<StorPool> getStorPools(RSC absRscRef)
     {
-        return getStorPools(absRscRef, accCtxRef, true);
+        return getStorPools(absRscRef, true);
     }
 
     public static <RSC extends AbsResource<RSC>> Set<StorPool> getStorPools(
         RSC absRscRef,
-        AccessContext accCtxRef,
         boolean withMetaStoragePools
     )
-        throws AccessDeniedException
     {
         Iterator<? extends AbsVolume<RSC>> vlmIt = absRscRef.iterateVolumes();
         Set<StorPool> storPools = new TreeSet<>();
         while (vlmIt.hasNext())
         {
             AbsVolume<RSC> vlm = vlmIt.next();
-            storPools.addAll(getStorPoolSet(vlm, accCtxRef, withMetaStoragePools));
+            storPools.addAll(getStorPoolSet(vlm, withMetaStoragePools));
         }
         return storPools;
     }
 
     public static <RSC extends AbsResource<RSC>> Set<StorPool> getStorPoolSet(
         AbsVolume<RSC> vlm,
-        AccessContext accCtx,
         boolean withMetaData
     )
-        throws AccessDeniedException
     {
         VolumeNumber vlmNr = vlm.getVolumeNumber();
 
         Set<AbsRscLayerObject<RSC>> storageRscDataSet = LayerRscUtils.getRscDataByLayer(
-            vlm.getAbsResource().getLayerData(accCtx),
+            vlm.getAbsResource().getLayerData(),
             DeviceLayerKind.STORAGE,
             withMetaData ?
                 layerSuffix -> true :
@@ -123,7 +115,7 @@ public class LayerVlmUtils
         return storPools;
     }
 
-    public static Set<StorPool> getStorPoolSet(VlmProviderObject<?> vlmData, AccessContext accCtx)
+    public static Set<StorPool> getStorPoolSet(VlmProviderObject<?> vlmData)
     {
         return getStoragePools(
             vlmData.getVlmNr(), LayerRscUtils.getRscDataByLayer(
@@ -134,59 +126,45 @@ public class LayerVlmUtils
     }
 
     public static <RSC extends AbsResource<RSC>, VLM extends AbsVolume<RSC>> Map<String, StorPool> getStorPoolMap(
-        VLM vlm,
-        AccessContext accCtx
+        VLM vlm
     )
     {
         return getStorPoolMap(
             vlm.getAbsResource(),
-            vlm.getVolumeNumber(),
-            accCtx
+            vlm.getVolumeNumber()
         );
     }
 
     public static <RSC extends AbsResource<RSC>> Map<String, StorPool> getStorPoolMap(
         RSC rsc,
-        VolumeNumber vlmNr,
-        AccessContext accCtx
+        VolumeNumber vlmNr
     )
     {
         Map<String, StorPool> storPoolMap = new TreeMap<>();
-        try
+        List<AbsRscLayerObject<RSC>> storageRscList = LayerUtils.getChildLayerDataByKind(
+            rsc.getLayerData(),
+            DeviceLayerKind.STORAGE
+        );
+        for (AbsRscLayerObject<RSC> storageRsc : storageRscList)
         {
-            List<AbsRscLayerObject<RSC>> storageRscList = LayerUtils.getChildLayerDataByKind(
-                rsc.getLayerData(accCtx),
-                DeviceLayerKind.STORAGE
-            );
-            for (AbsRscLayerObject<RSC> storageRsc : storageRscList)
+            VlmProviderObject<RSC> storageVlmData = storageRsc.getVlmProviderObject(vlmNr);
+            if (storageVlmData != null)
             {
-                VlmProviderObject<RSC> storageVlmData = storageRsc.getVlmProviderObject(vlmNr);
-                if (storageVlmData != null)
-                {
-                    /*
-                     *  storageVlmData is null in the following usecase:
-                     *
-                     *  DRBD with 2 volumes,
-                     *      one has external meta-data, the other has internal
-                     *
-                     *  this will create 2 STORAGE resources ("", and ".meta")
-                     *      "" will have 2 storageVlmData (as usual)
-                     *      ".meta" will only have 1 storageVlmData, as the other has internal metadata
-                     */
-                    storPoolMap.put(
-                        storageRsc.getResourceNameSuffix(),
-                        storageVlmData.getStorPool()
-                    );
-                }
+                /*
+                 *  storageVlmData is null in the following usecase:
+                 *
+                 *  DRBD with 2 volumes,
+                 *      one has external meta-data, the other has internal
+                 *
+                 *  this will create 2 STORAGE resources ("", and ".meta")
+                 *      "" will have 2 storageVlmData (as usual)
+                 *      ".meta" will only have 1 storageVlmData, as the other has internal metadata
+                 */
+                storPoolMap.put(
+                    storageRsc.getResourceNameSuffix(),
+                    storageVlmData.getStorPool()
+                );
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "get storage pool of " + rsc + ", Volume number: " + vlmNr,
-                ApiConsts.FAIL_ACC_DENIED_VLM
-            );
         }
         return storPoolMap;
 

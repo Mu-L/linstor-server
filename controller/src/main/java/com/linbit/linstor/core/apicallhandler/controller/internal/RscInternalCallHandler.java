@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
@@ -39,8 +38,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.provider.utils.ProviderUtils;
@@ -66,7 +63,6 @@ import java.util.Set;
 public class RscInternalCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlStltSerializer ctrlStltSerializer;
     private final Provider<Peer> peer;
@@ -86,7 +82,6 @@ public class RscInternalCallHandler
     @Inject
     public RscInternalCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         NodeRepository nodeRepositoryRef,
         ResourceDefinitionRepository resourceDefinitionRepositoryRef,
@@ -103,7 +98,6 @@ public class RscInternalCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         nodeRepository = nodeRepositoryRef;
         resourceDefinitionRepository = resourceDefinitionRepositoryRef;
@@ -133,12 +127,12 @@ public class RscInternalCallHandler
         {
             NodeName nodeName = new NodeName(nodeNameStr);
 
-            Node node = nodeRepository.get(apiCtx, nodeName); // TODO use CtrlApiLoader.loadNode
+            Node node = nodeRepository.get(nodeName); // TODO use CtrlApiLoader.loadNode
 
             if (node != null)
             {
                 ResourceName rscName = new ResourceName(rscNameStr);
-                Resource rsc = !node.isDeleted() ? node.getResource(apiCtx, rscName) : null;
+                Resource rsc = !node.isDeleted() ? node.getResource(rscName) : null;
 
                 long fullSyncTimestamp = peer.get().getFullSyncId();
                 long updateId = peer.get().getNextSerializerId();
@@ -222,13 +216,13 @@ public class RscInternalCallHandler
             boolean updateSatellite = false;
 
             NodeName nodeName = peer.get().getNode().getName();
-            ResourceDefinition rscDfn = resourceDefinitionRepository.get(apiCtx, new ResourceName(resourceName));
-            Resource rsc = rscDfn.getResource(apiCtx, nodeName);
+            ResourceDefinition rscDfn = resourceDefinitionRepository.get(new ResourceName(resourceName));
+            Resource rsc = rscDfn.getResource(nodeName);
 
             if (rsc.getCreateTimestamp().isPresent() &&
                 rsc.getCreateTimestamp().get().toEpochMilli() == AbsResource.CREATE_DATE_INIT_VALUE)
             {
-                rsc.setCreateTimestamp(apiCtx, Instant.now());
+                rsc.setCreateTimestamp(Instant.now());
             }
 
             // Capture per-volume discGran of the layer below DRBD before the merge so we can later
@@ -239,16 +233,16 @@ public class RscInternalCallHandler
             Map<Integer, Long> discGranBefore = collectDrbdChildDiscGrans(rsc);
 
             layerRscDataMerger.mergeLayerData(rsc, rscLayerDataPojoRef, false);
-            mergeStltProps(rscPropsRef, rsc.getProps(apiCtx));
+            mergeStltProps(rscPropsRef, rsc.getProps());
 
             // also merge snap and snapVlm props
-            for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(apiCtx))
+            for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
             {
-                Snapshot snapshot = snapDfn.getSnapshot(apiCtx, nodeName);
+                Snapshot snapshot = snapDfn.getSnapshot(nodeName);
                 if (snapshot != null)
                 {
                     // no need to merge snap.rsc.props. satellite should only have modified snap.props.
-                    mergeStltProps(snapPropsRef.get(snapDfn.getName().value), snapshot.getSnapProps(apiCtx));
+                    mergeStltProps(snapPropsRef.get(snapDfn.getName().value), snapshot.getSnapProps());
 
                     RscLayerDataApi snapLayerDataPojo = snapLayersRef.get(snapDfn.getName().value);
                     if (snapLayerDataPojo != null)
@@ -259,7 +253,7 @@ public class RscInternalCallHandler
                     Map<Integer, Map<String, String>> allSnapVlmProps = snapVlmPropsRef.get(snapDfn.getName().value);
                     if (allSnapVlmProps != null)
                     {
-                        for (SnapshotVolumeDefinition snapVlmDfn : snapDfn.getAllSnapshotVolumeDefinitions(apiCtx))
+                        for (SnapshotVolumeDefinition snapVlmDfn : snapDfn.getAllSnapshotVolumeDefinitions())
                         {
                             VolumeNumber snapVlmNr = snapVlmDfn.getVolumeNumber();
                             SnapshotVolume snapVlm = snapshot.getVolume(snapVlmNr);
@@ -267,11 +261,11 @@ public class RscInternalCallHandler
                             if (snapVlm != null && snapVlmPropPojo != null)
                             {
 
-                                Props snapVlmProps = snapVlm.getSnapVlmProps(apiCtx);
+                                Props snapVlmProps = snapVlm.getSnapVlmProps();
 
                                 // check has to be done before merging, but adding has to be done after merge is
                                 // complete
-                                boolean addToEbsStatusMgr = EbsUtils.isEbs(apiCtx, snapshot) &&
+                                boolean addToEbsStatusMgr = EbsUtils.isEbs(snapshot) &&
                                     EbsUtils.getEbsSnapId(snapVlmProps, RscLayerSuffixes.SUFFIX_DATA) == null &&
                                     EbsUtils.getEbsSnapId(snapVlmPropPojo, RscLayerSuffixes.SUFFIX_DATA) != null;
                                 mergeStltProps(snapVlmPropPojo, snapVlmProps);
@@ -288,7 +282,7 @@ public class RscInternalCallHandler
             }
 
             Set<AbsRscLayerObject<Resource>> storageResources = LayerRscUtils.getRscDataByLayer(
-                rsc.getLayerData(apiCtx),
+                rsc.getLayerData(),
                 DeviceLayerKind.STORAGE
             );
 
@@ -301,10 +295,10 @@ public class RscInternalCallHandler
                 VlmLayerDataApi vlmLayerDataPojo = rscLayerDataPojoRef.getVolumeMap().get(vlmNr.value);
 
                 Map<String, String> vlmPropPojo = vlmPropsRef.get(vlmNr.value);
-                Props vlmProps = vlm.getProps(apiCtx);
+                Props vlmProps = vlm.getProps();
 
                 // check before merge before add
-                boolean addVlmToEbsStatusMgr = EbsUtils.isEbs(apiCtx, rsc) &&
+                boolean addVlmToEbsStatusMgr = EbsUtils.isEbs(rsc) &&
                     !EbsUtils.hasAnyEbsProp(vlmProps) &&
                     EbsUtils.hasAnyEbsProp(vlmPropPojo);
                 mergeStltProps(vlmPropPojo, vlmProps);
@@ -317,9 +311,9 @@ public class RscInternalCallHandler
 
                 if (vlmLayerDataPojo != null)
                 {
-                    vlm.setDevicePath(apiCtx, vlmLayerDataPojo.getDevicePath());
-                    vlm.setUsableSize(apiCtx, vlmLayerDataPojo.getUsableSize());
-                    vlm.setAllocatedSize(apiCtx, ProviderUtils.getAllocatedSize(vlm, apiCtx));
+                    vlm.setDevicePath(vlmLayerDataPojo.getDevicePath());
+                    vlm.setUsableSize(vlmLayerDataPojo.getUsableSize());
+                    vlm.setAllocatedSize(ProviderUtils.getAllocatedSize(vlm));
                     vlm.clearReports();
 
                     for (AbsRscLayerObject<Resource> storageRsc : storageResources)
@@ -330,7 +324,6 @@ public class RscInternalCallHandler
                             StorPool storPool = vlmProviderObject.getStorPool();
 
                             storPool.getFreeSpaceTracker().vlmCreationFinished(
-                                apiCtx,
                                 vlmProviderObject,
                                 null,
                                 null
@@ -353,10 +346,10 @@ public class RscInternalCallHandler
 
             StateFlags<Flags> rscFlags = rsc.getStateFlags();
 
-            if (rscFlags.isSet(apiCtx, Resource.Flags.RESTORE_FROM_SNAPSHOT))
+            if (rscFlags.isSet(Resource.Flags.RESTORE_FROM_SNAPSHOT))
             {
-                rscFlags.disableFlags(apiCtx, Resource.Flags.RESTORE_FROM_SNAPSHOT);
-                rsc.getResourceDefinition().getProps(apiCtx)
+                rscFlags.disableFlags(Resource.Flags.RESTORE_FROM_SNAPSHOT);
+                rsc.getResourceDefinition().getProps()
                     .removeProp(InternalApiConsts.KEY_BACKUP_NODE_IDS_TO_RESET, ApiConsts.NAMESPC_BACKUP_SHIPPING);
                 updateSatellite = true;
             }
@@ -382,7 +375,7 @@ public class RscInternalCallHandler
                 stltUpdater.updateSatellites(rsc);
             }
         }
-        catch (InvalidNameException | AccessDeniedException | DatabaseException exc)
+        catch (InvalidNameException | DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -402,9 +395,9 @@ public class RscInternalCallHandler
                 rscName,
                 true
             );
-            for (SnapshotDefinition snapDfn : rsc.getResourceDefinition().getSnapshotDfns(apiCtx))
+            for (SnapshotDefinition snapDfn : rsc.getResourceDefinition().getSnapshotDfns())
             {
-                Snapshot snapshot = snapDfn.getSnapshot(apiCtx, new NodeName(nodeName));
+                Snapshot snapshot = snapDfn.getSnapshot(new NodeName(nodeName));
                 if (snapshot != null)
                 {
                     RscLayerDataApi snapLayerDataPojo = snapLayersRef.get(snapDfn.getName().value);
@@ -416,7 +409,7 @@ public class RscInternalCallHandler
             }
             retryResourceTask.add(rsc, null);
         }
-        catch (InvalidNameException | AccessDeniedException exc)
+        catch (InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -428,11 +421,11 @@ public class RscInternalCallHandler
      * consults, so comparing pre- and post-merge maps tells us whether the satellite's report
      * could possibly change the auto-rs-discard-granularity outcome.
      */
-    private Map<Integer, Long> collectDrbdChildDiscGrans(Resource rsc) throws AccessDeniedException
+    private Map<Integer, Long> collectDrbdChildDiscGrans(Resource rsc)
     {
         Map<Integer, Long> result = new HashMap<>();
         Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-            rsc.getLayerData(apiCtx),
+            rsc.getLayerData(),
             DeviceLayerKind.DRBD
         );
         for (AbsRscLayerObject<Resource> drbdRscData : drbdRscDataSet)
@@ -476,7 +469,7 @@ public class RscInternalCallHandler
                     }
                 }
             }
-            catch (InvalidKeyException | InvalidValueException | AccessDeniedException exc)
+            catch (InvalidKeyException | InvalidValueException exc)
             {
                 throw new ImplementationError(exc);
             }

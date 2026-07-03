@@ -3,11 +3,9 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -20,8 +18,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.ProcCryptoEntry;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.utils.layer.LayerRscUtils;
@@ -44,17 +40,14 @@ import java.util.stream.Collectors;
 public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHelper
 {
     private final ErrorReporter errorReporter;
-    private final Provider<AccessContext> peerCtxProvider;
     private final SystemConfRepository sysCfgRepo;
 
     @Inject
     public CtrlRscDfnAutoVerifyAlgoHelper(
         ErrorReporter errorReporterRef,
-        @PeerContext Provider<AccessContext> peerCtxProviderRef,
         SystemConfRepository systemConfRepositoryRef)
     {
         errorReporter = errorReporterRef;
-        this.peerCtxProvider = peerCtxProviderRef;
         sysCfgRepo = systemConfRepositoryRef;
     }
 
@@ -72,19 +65,18 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
     }
 
     private Map<String, List<ProcCryptoEntry>> getCryptoEntryMap(ResourceDefinition rscDfn)
-            throws AccessDeniedException
     {
-        return rscDfn.streamResource(peerCtxProvider.get())
+        return rscDfn.streamResource()
             .filter(
                 rsc ->
                 {
                     boolean result = false;
                     try
                     {
-                        @Nullable Peer peer = rsc.getNode().getPeer(peerCtxProvider.get());
+                        @Nullable Peer peer = rsc.getNode().getPeer();
                         if (!rsc.getNode().isDeleted() && peer != null && peer.isFullSyncApplied())
                         {
-                            result = LayerRscUtils.getLayerStack(rsc, peerCtxProvider.get())
+                            result = LayerRscUtils.getLayerStack(rsc)
                                 .contains(DeviceLayerKind.DRBD);
                         }
                     }
@@ -117,16 +109,15 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
      * stable.</p>
      */
     private boolean allDrbdNodesReportedCryptos(ResourceDefinition rscDfn)
-        throws AccessDeniedException
     {
         final AccessContext peerCtx = peerCtxProvider.get();
         boolean allReported = true;
-        for (Resource rsc : rscDfn.streamResource(peerCtx).collect(Collectors.toList()))
+        for (Resource rsc : rscDfn.streamResource().collect(Collectors.toList()))
         {
             if (!rsc.getNode().isDeleted() &&
-                LayerRscUtils.getLayerStack(rsc, peerCtx).contains(DeviceLayerKind.DRBD))
+                LayerRscUtils.getLayerStack(rsc).contains(DeviceLayerKind.DRBD))
             {
-                final @Nullable Peer peer = rsc.getNode().getPeer(peerCtx);
+                final @Nullable Peer peer = rsc.getNode().getPeer();
                 if (peer == null || !peer.isFullSyncApplied())
                 {
                     allReported = false;
@@ -141,39 +132,28 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
     {
         final ApiCallRcImpl rc = new ApiCallRcImpl();
 
-        try
+        PriorityProps prioProps = new PriorityProps()
+            .addProps(rscDfn.getProps(), "RD (" + rscDfn.getName() + ")")
+            .addProps(
+                rscDfn.getResourceGroup().getProps(),
+                "RG (" + rscDfn.getResourceGroup().getName() + ")")
+            .addProps(sysCfgRepo.getCtrlConfForView(), "C");
+
+        final @Nullable String verifyAlgo = prioProps.getProp(
+            InternalApiConsts.DRBD_VERIFY_ALGO, ApiConsts.NAMESPC_DRBD_NET_OPTIONS);
+
+        if (verifyAlgo != null && rscDfn.usesLayer(DeviceLayerKind.DRBD))
         {
-            PriorityProps prioProps = new PriorityProps()
-                .addProps(rscDfn.getProps(peerCtxProvider.get()), "RD (" + rscDfn.getName() + ")")
-                .addProps(
-                    rscDfn.getResourceGroup().getProps(peerCtxProvider.get()),
-                    "RG (" + rscDfn.getResourceGroup().getName() + ")")
-                .addProps(sysCfgRepo.getCtrlConfForView(peerCtxProvider.get()), "C");
+            final Map<String, List<ProcCryptoEntry>> nodeCryptos = getCryptoEntryMap(rscDfn);
 
-            final @Nullable String verifyAlgo = prioProps.getProp(
-                InternalApiConsts.DRBD_VERIFY_ALGO, ApiConsts.NAMESPC_DRBD_NET_OPTIONS);
-
-            if (verifyAlgo != null && rscDfn.usesLayer(peerCtxProvider.get(), DeviceLayerKind.DRBD))
+            if (!nodeCryptos.isEmpty() &&
+                !ProcCryptoUtils.cryptoDriverSupported(nodeCryptos, ProcCryptoEntry.CryptoType.SHASH, verifyAlgo))
             {
-                final Map<String, List<ProcCryptoEntry>> nodeCryptos = getCryptoEntryMap(rscDfn);
-
-                if (!nodeCryptos.isEmpty() &&
-                    !ProcCryptoUtils.cryptoDriverSupported(nodeCryptos, ProcCryptoEntry.CryptoType.SHASH, verifyAlgo))
-                {
-                    throw new ApiRcException(ApiCallRcImpl.singleApiCallRc(
-                        ApiConsts.FAIL_INVLD_PROP,
-                        String.format("Resource '%s': Verify algorithm '%s' not supported on all nodes."
-                            , rscDfn.getName(), verifyAlgo)));
-                }
+                throw new ApiRcException(ApiCallRcImpl.singleApiCallRc(
+                    ApiConsts.FAIL_INVLD_PROP,
+                    String.format("Resource '%s': Verify algorithm '%s' not supported on all nodes."
+                        , rscDfn.getName(), verifyAlgo)));
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "reading verify algorithm",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
 
         return rc;
@@ -199,15 +179,15 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
         try
         {
             final PriorityProps prioProps = new PriorityProps(
-                rscDfn.getProps(peerCtx),
-                rscDfn.getResourceGroup().getProps(peerCtx),
-                sysCfgRepo.getCtrlConfForView(peerCtx)
+                rscDfn.getProps(),
+                rscDfn.getResourceGroup().getProps(),
+                sysCfgRepo.getCtrlConfForView()
             );
 
             final @Nullable String disableAuto = prioProps.getProp(ApiConsts.KEY_DRBD_DISABLE_AUTO_VERIFY_ALGO,
                 ApiConsts.NAMESPC_DRBD_OPTIONS);
             final boolean autoVerifyAlgoEnabled = StringUtils.propFalseOrNull(disableAuto) &&
-                rscDfn.usesLayer(peerCtx, DeviceLayerKind.DRBD);
+                rscDfn.usesLayer(DeviceLayerKind.DRBD);
 
             // Only (re)compute once every DRBD node of the resource definition has finished its full-sync and has
             // therefore reported its supported crypto algorithms. Computing over a subset of the nodes (e.g. while
@@ -219,7 +199,7 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
             {
                 final Map<String, List<ProcCryptoEntry>> nodeCryptos = getCryptoEntryMap(rscDfn);
 
-                final String allowedAutoAlgosString = sysCfgRepo.getCtrlConfForView(peerCtx)
+                final String allowedAutoAlgosString = sysCfgRepo.getCtrlConfForView()
                         .getPropWithDefault(
                             InternalApiConsts.KEY_DRBD_AUTO_VERIFY_ALGO_ALLOWED_LIST,
                             ApiConsts.NAMESPC_DRBD_OPTIONS,
@@ -239,7 +219,7 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
 
                 if (commonHashAlgo != null)
                 {
-                    final @Nullable String autoVerifyAlgo = rscDfn.getProps(peerCtx).getProp(
+                    final @Nullable String autoVerifyAlgo = rscDfn.getProps().getProp(
                         InternalApiConsts.DRBD_AUTO_VERIFY_ALGO, ApiConsts.NAMESPC_DRBD_OPTIONS
                     );
 
@@ -250,13 +230,12 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
                             rscDfn.getName(),
                             commonHashAlgo.getName()
                         );
-                        rscDfn.getProps(peerCtxProvider.get()).setProp(
+                        rscDfn.getProps().setProp(
                             InternalApiConsts.DRBD_AUTO_VERIFY_ALGO,
                             commonHashAlgo.getName(),
                             ApiConsts.NAMESPC_DRBD_OPTIONS
                         );
-                        touchedResources.addAll(rscDfn.streamResource(
-                            peerCtxProvider.get()).collect(Collectors.toList()));
+                        touchedResources.addAll(rscDfn.streamResource().collect(Collectors.toList()));
                         rc.addEntry(
                             String.format("Updated %s DRBD auto verify algorithm to '%s'",
                                 rscDfn.getName(), commonHashAlgo.getName()),
@@ -272,33 +251,23 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
                             "No common DRBD verify algorithm found for '%s', clearing prop",
                             rscDfn.getName());
                         errorReporter.logInfo(msg);
-                        final Props rscDfnProps = rscDfn.getProps(peerCtx);
+                        final Props rscDfnProps = rscDfn.getProps();
                         rscDfnProps.removeProp(InternalApiConsts.DRBD_AUTO_VERIFY_ALGO, ApiConsts.NAMESPC_DRBD_OPTIONS);
-                        touchedResources.addAll(rscDfn.streamResource(
-                            peerCtxProvider.get()).toList());
+                        touchedResources.addAll(rscDfn.streamResource().toList());
                     }
                 }
             }
             else if (!autoVerifyAlgoEnabled)
             {
                 // Auto Verify Algo is disabled, so delete the property if it is set
-                final Props rscDfnProps = rscDfn.getProps(peerCtx);
+                final Props rscDfnProps = rscDfn.getProps();
                 if (rscDfnProps.getProp(
                         InternalApiConsts.DRBD_AUTO_VERIFY_ALGO, ApiConsts.NAMESPC_DRBD_OPTIONS) != null)
                 {
                     rscDfnProps.removeProp(InternalApiConsts.DRBD_AUTO_VERIFY_ALGO, ApiConsts.NAMESPC_DRBD_OPTIONS);
-                    touchedResources.addAll(rscDfn.streamResource(
-                        peerCtxProvider.get()).collect(Collectors.toList()));
+                    touchedResources.addAll(rscDfn.streamResource().collect(Collectors.toList()));
                 }
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "setting verify algorithm",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         catch (DatabaseException exc)
         {

@@ -5,7 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
@@ -18,9 +17,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeCtrlDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.utils.Pair;
@@ -57,7 +53,6 @@ public class SnapshotVolumeDbDriver
 
     @Inject
     public SnapshotVolumeDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -66,7 +61,7 @@ public class SnapshotVolumeDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.VOLUMES, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.VOLUMES, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -120,7 +115,7 @@ public class SnapshotVolumeDbDriver
     }
 
     @Override
-    protected String getId(SnapshotVolume snapVlm) throws AccessDeniedException
+    protected String getId(SnapshotVolume snapVlm)
     {
         return "(NodeName=" + snapVlm.getNodeName().displayValue +
             " ResName=" + snapVlm.getResourceName().displayValue +

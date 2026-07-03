@@ -3,7 +3,6 @@ package com.linbit.linstor.layer.storage.spdk;
 import com.linbit.linstor.core.pojos.LocalPropsChangePojo;
 import com.linbit.linstor.layer.storage.spdk.utils.SpdkRemoteCommands;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 
@@ -34,7 +33,7 @@ public class SpdkRemoteProvider extends AbsSpdkProvider<JsonNode>
 
     @Override
     public LocalPropsChangePojo setLocalNodeProps(ReadOnlyProps localNodePropsRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         LocalPropsChangePojo changes = super.setLocalNodeProps(localNodePropsRef);
         ((SpdkRemoteCommands) spdkCommands).setLocalNodeProps(localNodePropsRef);

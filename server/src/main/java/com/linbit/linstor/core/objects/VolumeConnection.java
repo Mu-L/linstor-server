@@ -10,12 +10,8 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeConnectionDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -88,12 +84,11 @@ public class VolumeConnection extends AbsCoreObj<VolumeConnection>
         VolumeConnectionDatabaseDriver dbDriverRef,
         PropsContainerFactory propsContainerFactory,
         TransactionObjectFactory transObjFactory,
-        Provider<? extends TransactionMgr> transMgrProviderRef,
-        AccessContext accCtx
-    ) throws DatabaseException, LinStorDataAlreadyExistsException, AccessDeniedException
+        Provider<? extends TransactionMgr> transMgrProviderRef
+    ) throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        VolumeConnection vol1ConData = sourceVolumeRef.getVolumeConnection(accCtx, targetVolumeRef);
-        VolumeConnection vol2ConData = targetVolumeRef.getVolumeConnection(accCtx, sourceVolumeRef);
+        VolumeConnection vol1ConData = sourceVolumeRef.getVolumeConnection(targetVolumeRef);
+        VolumeConnection vol2ConData = targetVolumeRef.getVolumeConnection(sourceVolumeRef);
 
         if (vol1ConData != null || vol2ConData != null)
         {
@@ -181,11 +176,9 @@ public class VolumeConnection extends AbsCoreObj<VolumeConnection>
     }
 
     public static @Nullable VolumeConnection get(
-        AccessContext accCtx,
         Volume sourceVolume,
         Volume targetVolume
     )
-        throws AccessDeniedException
     {
         Volume source;
         Volume target;
@@ -204,20 +197,18 @@ public class VolumeConnection extends AbsCoreObj<VolumeConnection>
             target = sourceVolume;
         }
 
-        return source.getVolumeConnection(accCtx, target);
+        return source.getVolumeConnection(target);
     }
 
-    public Volume getSourceVolume(AccessContext accCtx) throws AccessDeniedException
+    public Volume getSourceVolume()
     {
         checkDeleted();
-        sourceVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return sourceVolume;
     }
 
-    public Volume getTargetVolume(AccessContext accCtx) throws AccessDeniedException
+    public Volume getTargetVolume()
     {
         checkDeleted();
-        targetVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return targetVolume;
     }
 
@@ -227,11 +218,10 @@ public class VolumeConnection extends AbsCoreObj<VolumeConnection>
         return vlmConKey;
     }
 
-    public Props getProps(AccessContext accCtx) throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
         return PropsAccess.secureGetProps(
-            accCtx,
             sourceVolume.getAbsResource().getObjProt(),
             targetVolume.getAbsResource().getObjProt(),
             props
@@ -239,15 +229,13 @@ public class VolumeConnection extends AbsCoreObj<VolumeConnection>
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            sourceVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-            targetVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
-            sourceVolume.removeVolumeConnection(accCtx, this);
-            targetVolume.removeVolumeConnection(accCtx, this);
+            sourceVolume.removeVolumeConnection(this);
+            targetVolume.removeVolumeConnection(this);
 
             props.delete();
 

@@ -20,13 +20,8 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceDatabaseDriver;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -76,7 +71,6 @@ public class Resource extends AbsResource<Resource>
     private final TransactionMap<Resource, VolumeNumber, Volume> vlmMap;
 
     // Access control for this resource
-    private final ObjectProtection objProt;
 
     private final ResourceDatabaseDriver dbDriver;
 
@@ -84,7 +78,6 @@ public class Resource extends AbsResource<Resource>
 
     Resource(
         UUID objIdRef,
-        ObjectProtection objProtRef,
         ResourceDefinition resDfnRef,
         Node nodeRef,
         long initFlags,
@@ -122,7 +115,6 @@ public class Resource extends AbsResource<Resource>
         );
 
         resourceConnections = transObjFactory.createTransactionMap(this, rscConnMapRef, null);
-        objProt = objProtRef;
         vlmMap = transObjFactory.createTransactionMap(this, vlmMapRef, null);
 
         flags = transObjFactory.createStateFlagsImpl(
@@ -145,31 +137,22 @@ public class Resource extends AbsResource<Resource>
         );
     }
 
-    @Override
-    public ObjectProtection getObjProt()
+    public Props getProps()
     {
         checkDeleted();
-        return objProt;
-    }
-
-    public Props getProps(AccessContext accCtx)
-        throws AccessDeniedException
-    {
-        checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, getObjProt(), props);
+        return props;
     }
 
     /**
      * Sets a property for the device manager to restart this DRBD resource
      *
      * @param accCtx Access context for accessing the resource's properties
-     * @throws AccessDeniedException if access to the resource's properties is denied
      * @throws DatabaseException if a database operation fails
      */
-    public void requireDrbdRestart(final AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void requireDrbdRestart()
+        throws DatabaseException
     {
-        final Props rscProps = getProps(accCtx);
+        final Props rscProps = getProps();
         try
         {
             rscProps.setProp(
@@ -203,24 +186,21 @@ public class Resource extends AbsResource<Resource>
         return vlmMap.size();
     }
 
-    public synchronized Volume putVolume(AccessContext accCtx, Volume vol)
-        throws AccessDeniedException
+    public synchronized Volume putVolume(Volume vol)
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         return vlmMap.put(vol.getVolumeNumber(), vol);
     }
 
-    public synchronized void removeVolume(AccessContext accCtx, Volume vol)
-        throws AccessDeniedException, DatabaseException
+    public synchronized void removeVolume(Volume vol)
+        throws DatabaseException
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         VolumeNumber vlmNr = vol.getVolumeNumber();
         vlmMap.remove(vlmNr);
-        rootLayerData.get().remove(accCtx, vlmNr);
+        rootLayerData.get().remove(vlmNr);
     }
 
     @Override
@@ -237,18 +217,15 @@ public class Resource extends AbsResource<Resource>
         return Collections.unmodifiableCollection(vlmMap.values()).stream();
     }
 
-    public void setAbsResourceConnection(AccessContext accCtx, ResourceConnection resCon)
-        throws AccessDeniedException
+    public void setAbsResourceConnection(ResourceConnection resCon)
     {
         synchronized (resourceConnections)
         {
             checkDeleted();
 
-            Resource sourceResource = resCon.getSourceResource(accCtx);
-            Resource targetResource = resCon.getTargetResource(accCtx);
+            Resource sourceResource = resCon.getSourceResource();
+            Resource targetResource = resCon.getTargetResource();
 
-            sourceResource.getObjProt().requireAccess(accCtx, AccessType.USE);
-            targetResource.getObjProt().requireAccess(accCtx, AccessType.USE);
 
             if (this.equals(sourceResource))
             {
@@ -261,17 +238,14 @@ public class Resource extends AbsResource<Resource>
         }
     }
 
-    public void removeResourceConnection(AccessContext accCtx, ResourceConnection con)
-        throws AccessDeniedException
+    public void removeResourceConnection(ResourceConnection con)
     {
         synchronized (resourceConnections)
         {
             checkDeleted();
-            Resource sourceResource = con.getSourceResource(accCtx);
-            Resource targetResource = con.getTargetResource(accCtx);
+            Resource sourceResource = con.getSourceResource();
+            Resource targetResource = con.getTargetResource();
 
-            sourceResource.getObjProt().requireAccess(accCtx, AccessType.USE);
-            targetResource.getObjProt().requireAccess(accCtx, AccessType.USE);
 
             if (this.equals(sourceResource))
             {
@@ -284,24 +258,20 @@ public class Resource extends AbsResource<Resource>
         }
     }
 
-    public List<ResourceConnection> getAbsResourceConnections(AccessContext accCtx)
-        throws AccessDeniedException
+    public List<ResourceConnection> getAbsResourceConnections()
     {
         synchronized (resourceConnections)
         {
             checkDeleted();
-            objProt.requireAccess(accCtx, AccessType.VIEW);
             return new ArrayList<>(resourceConnections.values());
         }
     }
 
-    public @Nullable ResourceConnection getAbsResourceConnection(AccessContext accCtx, Resource otherResource)
-        throws AccessDeniedException
+    public @Nullable ResourceConnection getAbsResourceConnection(Resource otherResource)
     {
         synchronized (resourceConnections)
         {
             checkDeleted();
-            objProt.requireAccess(accCtx, AccessType.VIEW);
             return resourceConnections.get(otherResource.getKey());
         }
     }
@@ -316,62 +286,58 @@ public class Resource extends AbsResource<Resource>
     /**
      * Whether peers should treat this resource as diskless.
      */
-    public boolean disklessForDrbdPeers(AccessContext accCtx)
-        throws AccessDeniedException
+    public boolean disklessForDrbdPeers()
     {
         checkDeleted();
-        return flags.isSet(accCtx, Flags.DRBD_DISKLESS) &&
-            flags.isUnset(accCtx, Flags.DISK_ADDING) &&
-            flags.isUnset(accCtx, Flags.DISK_REMOVING);
+        return flags.isSet(Flags.DRBD_DISKLESS) &&
+            flags.isUnset(Flags.DISK_ADDING) &&
+            flags.isUnset(Flags.DISK_REMOVING);
     }
 
     @Override
-    public void markDeleted(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void markDeleted() throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
-        getStateFlags().enableFlags(accCtx, Flags.DELETE);
+        getStateFlags().enableFlags(Flags.DELETE);
     }
 
-    public void markDrbdDeleted(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void markDrbdDeleted() throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
-        getStateFlags().enableFlags(accCtx, Flags.DRBD_DELETE);
+        getStateFlags().enableFlags(Flags.DRBD_DELETE);
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
-            node.removeResource(accCtx, this);
-            resourceDfn.removeResource(accCtx, this);
+            node.removeResource(this);
+            resourceDfn.removeResource(this);
 
             // preventing ConcurrentModificationException
             Collection<ResourceConnection> rscConnValues = new ArrayList<>(resourceConnections.values());
             for (ResourceConnection rscConn : rscConnValues)
             {
-                rscConn.delete(accCtx);
+                rscConn.delete();
             }
 
             // preventing ConcurrentModificationException
             Collection<AbsVolume<Resource>> vlmValues = new ArrayList<>(vlmMap.values());
             for (AbsVolume<Resource> vlm : vlmValues)
             {
-                vlm.delete(accCtx);
+                vlm.delete();
             }
 
             props.delete();
 
-            objProt.delete(accCtx);
+            objProt.delete();
 
             if (rootLayerData.get() != null)
             {
-                rootLayerData.get().delete(accCtx);
+                rootLayerData.get().delete();
             }
 
             activateTransMgr();
@@ -381,95 +347,85 @@ public class Resource extends AbsResource<Resource>
         }
     }
 
-    public boolean isDrbdDiskless(AccessContext accCtx) throws AccessDeniedException
+    public boolean isDrbdDiskless()
     {
         checkDeleted();
-        return getStateFlags().isSet(accCtx, Flags.DRBD_DISKLESS);
+        return getStateFlags().isSet(Flags.DRBD_DISKLESS);
     }
 
-    public boolean isNvmeInitiator(AccessContext accCtx) throws AccessDeniedException
+    public boolean isNvmeInitiator()
     {
         checkDeleted();
-        return getStateFlags().isSet(accCtx, Flags.NVME_INITIATOR);
+        return getStateFlags().isSet(Flags.NVME_INITIATOR);
     }
 
-    public boolean isEbsInitiator(AccessContext accCtx) throws AccessDeniedException
+    public boolean isEbsInitiator()
     {
         checkDeleted();
-        return getStateFlags().isSet(accCtx, Flags.EBS_INITIATOR);
+        return getStateFlags().isSet(Flags.EBS_INITIATOR);
     }
 
-    public boolean isDiskless(AccessContext accCtx) throws AccessDeniedException
+    public boolean isDiskless()
     {
         checkDeleted();
-        return isDrbdDiskless(accCtx) || isNvmeInitiator(accCtx) || isEbsInitiator(accCtx);
+        return isDrbdDiskless() || isNvmeInitiator() || isEbsInitiator();
     }
 
-    public boolean hasDrbd(AccessContext accCtx)
+    public boolean hasDrbd()
     {
-        try
-        {
-            return !LayerUtils.getChildLayerDataByKind(getLayerData(accCtx), DeviceLayerKind.DRBD).isEmpty();
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return !LayerUtils.getChildLayerDataByKind(getLayerData(), DeviceLayerKind.DRBD).isEmpty();
     }
 
     public RscPojo getApiData(
-        AccessContext accCtx,
         @Nullable Long fullSyncId,
         @Nullable Long updateId,
         @Nullable EffectivePropertiesPojo effectiveProps
     )
-        throws AccessDeniedException
     {
         checkDeleted();
         List<VolumeApi> volumes = new ArrayList<>();
         Iterator<Volume> itVolumes = iterateVolumes();
         while (itVolumes.hasNext())
         {
-            volumes.add(itVolumes.next().getApiData(null, accCtx));
+            volumes.add(itVolumes.next().getApiData(null));
         }
         List<ResourceConnectionApi> rscConns = new ArrayList<>();
-        for (ResourceConnection rscConn : getAbsResourceConnections(accCtx))
+        for (ResourceConnection rscConn : getAbsResourceConnections())
         {
-            rscConns.add(rscConn.getApiData(accCtx));
+            rscConns.add(rscConn.getApiData());
         }
         return new RscPojo(
             getResourceDefinition().getName().getDisplayName(),
             getNode().getName().getDisplayName(),
             getNode().getUuid(),
-            getResourceDefinition().getApiData(accCtx),
+            getResourceDefinition().getApiData(),
             getUuid(),
-            getStateFlags().getFlagsBits(accCtx),
-            getProps(accCtx).cloneMap(),
+            getStateFlags().getFlagsBits(),
+            getProps().cloneMap(),
             volumes,
             null, // otherRscList
             rscConns,
             fullSyncId,
             updateId,
-            getLayerData(accCtx).asPojo(accCtx),
+            getLayerData().asPojo(),
             getCreateTimestamp().orElse(null),
             effectiveProps
         );
     }
 
     public EffectivePropertiesPojo getEffectiveProps(
-        AccessContext accCtx,
         StltConfigAccessor stltCfgAccessor
-    ) throws AccessDeniedException
+    )
     {
         // get prio-props
-        PriorityProps prioProps = new PriorityProps(getProps(accCtx));
-        for (StorPool storPool : LayerVlmUtils.getStorPools(this, accCtx))
+        PriorityProps prioProps = new PriorityProps(getProps());
+        for (StorPool storPool : LayerVlmUtils.getStorPools(this))
         {
-            prioProps.addProps(storPool.getProps(accCtx));
+            prioProps.addProps(storPool.getProps());
         }
         prioProps.addProps(
-            getNode().getProps(accCtx),
-            getResourceDefinition().getProps(accCtx),
+            getNode().getProps(),
+            getResourceDefinition().getProps(),
             stltCfgAccessor.getReadonlyProps()
         );
         // get conflicting map

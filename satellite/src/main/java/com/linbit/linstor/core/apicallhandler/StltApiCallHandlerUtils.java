@@ -2,7 +2,6 @@ package com.linbit.linstor.core.apicallhandler;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -40,8 +39,6 @@ import com.linbit.linstor.layer.storage.DeviceProviderMapper;
 import com.linbit.linstor.layer.storage.lvm.utils.LvmUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.utils.Either;
@@ -60,7 +57,6 @@ import java.util.function.Predicate;
 public class StltApiCallHandlerUtils
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
 
     private final DeviceProviderMapper deviceProviderMapper;
     private final Provider<DeviceManager> devMgr;
@@ -79,7 +75,6 @@ public class StltApiCallHandlerUtils
     @Inject
     public StltApiCallHandlerUtils(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         CoreModule.ExternalFileMap extFilesMapRef,
         StltExternalFileHandler stltExtFileHandlerRef,
         CoreModule.KeyValueStoreMap kvsMapRef,
@@ -96,7 +91,6 @@ public class StltApiCallHandlerUtils
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         extFilesMap = extFilesMapRef;
         stltExtFileHandler = stltExtFileHandlerRef;
         kvsMap = kvsMapRef;
@@ -201,10 +195,6 @@ public class StltApiCallHandlerUtils
                     }
                 }
             }
-            catch (AccessDeniedException accDeniedExc)
-            {
-                throw new ImplementationError(accDeniedExc);
-            }
             catch (StorageException exc)
             {
                 String reportNumber = errorReporter.reportError(exc);
@@ -298,7 +288,6 @@ public class StltApiCallHandlerUtils
         final ControllerPeerConnector ctrlPeerConnector,
         final CtrlStltSerializer interComSerializer
     )
-        throws AccessDeniedException
     {
         final LocalPropsChangePojo propsChange = new LocalPropsChangePojo();
         final @Nullable Node localNode = ctrlPeerConnector.getLocalNode();
@@ -306,7 +295,7 @@ public class StltApiCallHandlerUtils
         {
             for (StorPoolDefinition storPoolDfn : storPoolDfnMap.values())
             {
-                final @Nullable StorPool storPoolObj = localNode.getStorPool(apiCtx, storPoolDfn.getName());
+                final @Nullable StorPool storPoolObj = localNode.getStorPool(storPoolDfn.getName());
                 if (storPoolObj != null)
                 {
                     final DeviceProvider devProvider = deviceProviderMapper.getDeviceProviderBy(storPoolObj);

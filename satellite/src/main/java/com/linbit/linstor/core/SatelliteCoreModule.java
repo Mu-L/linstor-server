@@ -36,8 +36,7 @@ public class SatelliteCoreModule extends AbstractModule
 
     //    @Provides
     //    @Singleton
-    //    @DeviceManagerContext
-    //    public AccessContext deviceManagerContext(@SystemContext AccessContext systemCtx)
+    //    //    public AccessContext deviceManagerContext(AccessContext systemCtx)
     //        throws AccessDeniedException
     //    {
     //        AccessContext devMgrCtx = systemCtx.clone();

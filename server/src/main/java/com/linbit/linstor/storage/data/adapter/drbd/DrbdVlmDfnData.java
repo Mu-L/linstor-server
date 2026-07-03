@@ -15,7 +15,6 @@ import com.linbit.linstor.core.types.MinorNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.LayerDrbdVlmDfnDatabaseDriver;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdVlmDfnObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.transaction.BaseTransactionObject;
@@ -149,7 +148,7 @@ public class DrbdVlmDfnData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public DrbdVlmDfnPojo getApiData(AccessContext accCtxRef)
+    public DrbdVlmDfnPojo getApiData()
     {
         return new DrbdVlmDfnPojo(
             resourceNameSuffix,

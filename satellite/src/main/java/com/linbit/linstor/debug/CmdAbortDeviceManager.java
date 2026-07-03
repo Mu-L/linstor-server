@@ -1,7 +1,6 @@
 package com.linbit.linstor.debug;
 
 import com.linbit.linstor.core.DeviceManager;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 
@@ -43,7 +42,6 @@ public class CmdAbortDeviceManager extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception

@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -28,8 +27,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 
@@ -48,7 +45,6 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlBackupShippingAbortHandler
 {
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlTransactionHelper ctrlTransactionHelper;
@@ -62,7 +58,6 @@ public class CtrlBackupShippingAbortHandler
 
     @Inject
     public CtrlBackupShippingAbortHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockguardFactoryRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
@@ -75,7 +70,6 @@ public class CtrlBackupShippingAbortHandler
         Provider<CtrlRemoteApiCallHandler> ctrlRemoteApiCallHandlerRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockguardFactoryRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
@@ -104,25 +98,18 @@ public class CtrlBackupShippingAbortHandler
     private Flux<ApiCallRc> abortAllShippingPrivilegedInTransaction(Node nodeRef, boolean abortMultiPartRef)
     {
         Flux<ApiCallRc> flux = Flux.empty();
-        try
+        for (Snapshot snap : nodeRef.getSnapshots())
         {
-            for (Snapshot snap : nodeRef.getSnapshots(apiCtx))
+            SnapshotDefinition snapDfn = snap.getSnapshotDefinition();
+            if (
+                BackupShippingUtils.isAnyShippingInProgress(snapDfn) ||
+                    BackupShippingUtils.isAnyAbortInProgress(snapDfn)
+            )
             {
-                SnapshotDefinition snapDfn = snap.getSnapshotDefinition();
-                if (
-                    BackupShippingUtils.isAnyShippingInProgress(snapDfn, apiCtx) ||
-                        BackupShippingUtils.isAnyAbortInProgress(snapDfn, apiCtx)
-                )
-                {
-                    flux = flux.concatWith(abortBackupShippings(snapDfn, abortMultiPartRef));
-                }
+                flux = flux.concatWith(abortBackupShippings(snapDfn, abortMultiPartRef));
             }
-            ctrlTransactionHelper.commit();
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        ctrlTransactionHelper.commit();
         return flux;
     }
 
@@ -154,85 +141,77 @@ public class CtrlBackupShippingAbortHandler
     {
         Flux<ApiCallRc> flux = Flux.empty();
         boolean shouldAbort = false;
-        try
+        for (Snapshot snap : snapDfn.getAllSnapshots())
         {
-            for (Snapshot snap : snapDfn.getAllSnapshots(apiCtx))
+            Map<SnapshotDefinition.Key, AbortInfo> abortEntries = backupInfoMgr.abortCreateGetEntries(
+                snap.getNodeName()
+            );
+            if (abortEntries != null && !abortEntries.isEmpty())
             {
-                Map<SnapshotDefinition.Key, AbortInfo> abortEntries = backupInfoMgr.abortCreateGetEntries(
-                    snap.getNodeName()
-                );
-                if (abortEntries != null && !abortEntries.isEmpty())
+                AbortInfo abortInfo = abortEntries.get(snapDfn.getSnapDfnKey());
+                if (abortInfo != null && !abortInfo.isEmpty())
                 {
-                    AbortInfo abortInfo = abortEntries.get(snapDfn.getSnapDfnKey());
-                    if (abortInfo != null && !abortInfo.isEmpty())
+                    shouldAbort = true;
+                    if (abortMultiPartRef)
                     {
-                        shouldAbort = true;
-                        if (abortMultiPartRef)
+                        List<AbortS3Info> abortS3List = abortInfo.abortS3InfoList;
+                        for (AbortS3Info abortS3Info : abortS3List)
                         {
-                            List<AbortS3Info> abortS3List = abortInfo.abortS3InfoList;
-                            for (AbortS3Info abortS3Info : abortS3List)
+                            try
                             {
-                                try
+                                S3Remote remote = remoteRepo.getS3(new RemoteName(abortS3Info.remoteName));
+                                byte[] masterKey = ctrlSecObj.getCryptKey();
+                                if (masterKey == null || masterKey.length == 0)
                                 {
-                                    S3Remote remote = remoteRepo.getS3(apiCtx, new RemoteName(abortS3Info.remoteName));
-                                    byte[] masterKey = ctrlSecObj.getCryptKey();
-                                    if (masterKey == null || masterKey.length == 0)
-                                    {
-                                        throw new ApiRcException(
-                                            ApiCallRcImpl
-                                                .entryBuilder(
-                                                    ApiConsts.FAIL_NOT_FOUND_CRYPT_KEY,
-                                                    "Unable to decrypt the S3 access key and secret key " +
-                                                        "without having a master key"
-                                                )
-                                                .setCause("The masterkey was not initialized yet")
-                                                .setCorrection("Create or enter the master passphrase")
-                                                .build()
-                                        );
-                                    }
-                                    backupHandler.abortMultipart(
-                                        abortS3Info.backupName,
-                                        abortS3Info.uploadId,
-                                        remote,
-                                        apiCtx,
-                                        masterKey
+                                    throw new ApiRcException(
+                                        ApiCallRcImpl
+                                            .entryBuilder(
+                                                ApiConsts.FAIL_NOT_FOUND_CRYPT_KEY,
+                                                "Unable to decrypt the S3 access key and secret key " +
+                                                    "without having a master key"
+                                            )
+                                            .setCause("The masterkey was not initialized yet")
+                                            .setCorrection("Create or enter the master passphrase")
+                                            .build()
                                     );
                                 }
-                                catch (SdkClientException exc)
+                                backupHandler.abortMultipart(
+                                    abortS3Info.backupName,
+                                    abortS3Info.uploadId,
+                                    remote,
+                                    masterKey
+                                );
+                            }
+                            catch (SdkClientException exc)
+                            {
+                                if (exc.getClass() == AmazonS3Exception.class)
                                 {
-                                    if (exc.getClass() == AmazonS3Exception.class)
-                                    {
-                                        AmazonS3Exception s3Exc = (AmazonS3Exception) exc;
-                                        if (s3Exc.getStatusCode() != 404)
-                                        {
-                                            errorReporter.reportError(exc);
-                                        }
-                                    }
-                                    else
+                                    AmazonS3Exception s3Exc = (AmazonS3Exception) exc;
+                                    if (s3Exc.getStatusCode() != 404)
                                     {
                                         errorReporter.reportError(exc);
                                     }
                                 }
-                                catch (InvalidNameException exc)
+                                else
                                 {
-                                    throw new ImplementationError(exc);
+                                    errorReporter.reportError(exc);
                                 }
                             }
-                            // nothing to do for AbortL2LInfo entries, just enable the ABORT flag
+                            catch (InvalidNameException exc)
+                            {
+                                throw new ImplementationError(exc);
+                            }
                         }
-                        flux = flux.concatWith(
-                            ctrlRemoteApiCallHandler.get()
-                                .cleanupRemotesIfNeeded(
-                                backupInfoMgr.abortCreateDeleteEntries(snap.getNodeName(), snapDfn.getSnapDfnKey())
-                            )
-                        );
+                        // nothing to do for AbortL2LInfo entries, just enable the ABORT flag
                     }
+                    flux = flux.concatWith(
+                        ctrlRemoteApiCallHandler.get()
+                            .cleanupRemotesIfNeeded(
+                            backupInfoMgr.abortCreateDeleteEntries(snap.getNodeName(), snapDfn.getSnapDfnKey())
+                        )
+                    );
                 }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         if (shouldAbort)
         {
@@ -255,7 +234,7 @@ public class CtrlBackupShippingAbortHandler
     {
         try
         {
-            @Nullable Props backupProps = snapDfn.getSnapDfnProps(apiCtx)
+            @Nullable Props backupProps = snapDfn.getSnapDfnProps()
                 .getNamespace(ApiConsts.NAMESPC_BACKUP_SHIPPING);
             // if the decision was made that we need to abort, this namespc should not be able to be null, but check
             // anyways
@@ -266,8 +245,7 @@ public class CtrlBackupShippingAbortHandler
                     dstProps != null && BackupShippingUtils.hasShippingStatus(
                         snapDfn,
                         null,
-                        InternalApiConsts.VALUE_SHIPPING,
-                        apiCtx
+                        InternalApiConsts.VALUE_SHIPPING
                     )
                 )
                 {
@@ -286,8 +264,7 @@ public class CtrlBackupShippingAbortHandler
                                 BackupShippingUtils.hasShippingStatus(
                                     snapDfn,
                                     remoteName,
-                                    InternalApiConsts.VALUE_SHIPPING,
-                                    apiCtx
+                                    InternalApiConsts.VALUE_SHIPPING
                                 )
                             )
                             {
@@ -302,7 +279,7 @@ public class CtrlBackupShippingAbortHandler
                 }
             }
         }
-        catch (AccessDeniedException | InvalidKeyException | InvalidValueException exc)
+        catch (InvalidKeyException | InvalidValueException exc)
         {
             throw new ImplementationError(exc);
         }

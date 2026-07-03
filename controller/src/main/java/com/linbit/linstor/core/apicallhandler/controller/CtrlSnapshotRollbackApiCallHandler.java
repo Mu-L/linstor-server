@@ -4,9 +4,7 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.drbd.md.MaxSizeException;
 import com.linbit.drbd.md.MinSizeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -16,7 +14,6 @@ import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteU
 import com.linbit.linstor.core.apicallhandler.controller.mgr.SnapshotRollbackManager;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ZfsChecks;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ZfsRollbackStrategy;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -40,8 +37,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscDfnData;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -118,14 +113,12 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
     private static final int SAFETY_SNAP_SUFFIX_ID_LEN = 10;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlSnapshotHelper ctrlSnapshotHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final BackupInfoManager backupInfoMgr;
     private final SnapshotRollbackManager snapRollbackMgr;
@@ -141,7 +134,6 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
 
     @Inject
     public CtrlSnapshotRollbackApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlSnapshotHelper ctrlSnapshotHelperRef,
@@ -149,7 +141,6 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         BackupInfoManager backupInfoMgrRef,
         SnapshotRollbackManager snapRollbackMgrRef,
         ErrorReporter errorReporterRef,
@@ -164,7 +155,6 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         ZfsChecks zfsChecksRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlSnapshotHelper = ctrlSnapshotHelperRef;
@@ -172,7 +162,6 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         backupInfoMgr = backupInfoMgrRef;
         snapRollbackMgr = snapRollbackMgrRef;
         errorReporter = errorReporterRef;
@@ -189,15 +178,14 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
 
     @Override
     public Collection<Flux<ApiCallRc>> resourceDefinitionConnected(ResourceDefinition rscDfn, ResponseContext context)
-        throws AccessDeniedException
     {
         boolean anyNodeRollbackPending = false;
 
-        Iterator<Resource> rscIter = rscDfn.iterateResource(apiCtx);
+        Iterator<Resource> rscIter = rscDfn.iterateResource();
         while (rscIter.hasNext())
         {
             Resource rsc = rscIter.next();
-            if (rsc.getProps(apiCtx).map().get(ApiConsts.KEY_RSC_ROLLBACK_TARGET) != null)
+            if (rsc.getProps().map().get(ApiConsts.KEY_RSC_ROLLBACK_TARGET) != null)
             {
                 anyNodeRollbackPending = true;
             }
@@ -209,10 +197,10 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
             fluxes.add(updateForRollback(rscDfn.getName()));
         }
 
-        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns(apiCtx))
+        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
         {
-            if (snapshotDfn.getFlags().isSet(apiCtx, SnapshotDefinition.Flags.SAFETY_SNAPSHOT) &&
-                snapshotDfn.getFlags().isUnset(apiCtx, SnapshotDefinition.Flags.DELETE))
+            if (snapshotDfn.getFlags().isSet(SnapshotDefinition.Flags.SAFETY_SNAPSHOT) &&
+                snapshotDfn.getFlags().isUnset(SnapshotDefinition.Flags.DELETE))
             {
                 fluxes.add(recoverFailedRollback(rscDfn, snapshotDfn));
             }
@@ -320,7 +308,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
                     Collections.emptyMap(),
                     responses
                 );
-                safetySnapDfn.getFlags().enableFlags(peerAccCtx.get(), SnapshotDefinition.Flags.SAFETY_SNAPSHOT);
+                safetySnapDfn.getFlags().enableFlags(SnapshotDefinition.Flags.SAFETY_SNAPSHOT);
                 ctrlTransactionHelper.commit();
                 retFlux = ctrlSnapshotCrtHandler.postCreateSnapshot(safetySnapDfn, false)
                     .concatWith(Flux.<ApiCallRc>just(responses))
@@ -340,14 +328,6 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
                     .concatWith(recreateResources(rscNameStr, rscNodes))
                     .onErrorResume(exc -> deleteSafetySnap(exc, rscDfn));
             }
-        }
-        catch (AccessDeniedException accDenyExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDenyExc,
-                "unable to access snapshots for " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_SNAP_DFN
-            );
         }
         catch (DatabaseException dbExc)
         {
@@ -437,37 +417,35 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
      *
      */
     private Flux<ApiCallRc> resetVlmDfnsInTransaction(ResourceDefinition targetRscDfn, SnapshotDefinition srcSnapDfn)
-        throws AccessDeniedException, DatabaseException, ImplementationError
+        throws DatabaseException, ImplementationError
     {
         // since vlmNrs can be chosen arbitrarily by the user, first remove any vlmDfns that did not exist when the
         // snapshot was created
-        Iterator<VolumeDefinition> rscVlmDfnIterator = targetRscDfn.iterateVolumeDfn(peerAccCtx.get());
+        Iterator<VolumeDefinition> rscVlmDfnIterator = targetRscDfn.iterateVolumeDfn();
         ArrayList<VolumeDefinition> vlmDfnsToDelete = new ArrayList<>();
         while (rscVlmDfnIterator.hasNext())
         {
             VolumeDefinition rscVlmDfn = rscVlmDfnIterator.next();
-            if (srcSnapDfn.getSnapshotVolumeDefinition(peerAccCtx.get(), rscVlmDfn.getVolumeNumber()) == null)
+            if (srcSnapDfn.getSnapshotVolumeDefinition(rscVlmDfn.getVolumeNumber()) == null)
             {
                 vlmDfnsToDelete.add(rscVlmDfn);
             }
         }
         for (VolumeDefinition vlmDfnToDelete : vlmDfnsToDelete)
         {
-            vlmDfnToDelete.delete(peerAccCtx.get());
+            vlmDfnToDelete.delete();
         }
         // now create any vlmDfns that have been deleted since the snap was made, and modify all props and sizes of
         // still existing vlmDfns
-        for (SnapshotVolumeDefinition snapVlmDfn : srcSnapDfn.getAllSnapshotVolumeDefinitions(peerAccCtx.get()))
+        for (SnapshotVolumeDefinition snapVlmDfn : srcSnapDfn.getAllSnapshotVolumeDefinitions())
         {
             @Nullable VolumeDefinition targetVlmDfn = targetRscDfn.getVolumeDfn(
-                peerAccCtx.get(),
                 snapVlmDfn.getVolumeNumber()
             );
-            long snapVlmSize = snapVlmDfn.getVolumeSize(peerAccCtx.get());
+            long snapVlmSize = snapVlmDfn.getVolumeSize();
             if (targetVlmDfn == null)
             {
                 targetVlmDfn = ctrlVlmDfnCrtApiHelper.createVlmDfnData(
-                    peerAccCtx.get(),
                     targetRscDfn,
                     snapVlmDfn.getVolumeNumber(),
                     null,
@@ -479,15 +457,15 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
             {
                 try
                 {
-                    targetVlmDfn.setVolumeSize(peerAccCtx.get(), snapVlmSize);
+                    targetVlmDfn.setVolumeSize(snapVlmSize);
                 }
                 catch (MinSizeException | MaxSizeException exc)
                 {
                     throw new ImplementationError("Invalid size during snapshot rollback", exc);
                 }
             }
-            ReadOnlyProps vlmDfnProps = snapVlmDfn.getVlmDfnProps(peerAccCtx.get());
-            PropsUtils.resetProps(vlmDfnProps.map(), targetVlmDfn.getProps(peerAccCtx.get()));
+            ReadOnlyProps vlmDfnProps = snapVlmDfn.getVlmDfnProps();
+            PropsUtils.resetProps(vlmDfnProps.map(), targetVlmDfn.getProps());
         }
         ctrlTransactionHelper.commit();
         return ctrlSatelliteUpdateCaller.updateSatellites(
@@ -543,24 +521,13 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
     private @Nullable SnapshotDefinition findSafetySnapDfn(ResourceDefinition rscDfn)
     {
         @Nullable SnapshotDefinition snapDfnRet = null;
-        try
+        for (var snapDfn : rscDfn.getSnapshotDfns())
         {
-            for (var snapDfn : rscDfn.getSnapshotDfns(peerAccCtx.get()))
+            if (snapDfn.getFlags().isSet(SnapshotDefinition.Flags.SAFETY_SNAPSHOT))
             {
-                if (snapDfn.getFlags().isSet(peerAccCtx.get(), SnapshotDefinition.Flags.SAFETY_SNAPSHOT))
-                {
-                    snapDfnRet = snapDfn;
-                    break;
-                }
+                snapDfnRet = snapDfn;
+                break;
             }
-        }
-        catch (AccessDeniedException accDenyExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDenyExc,
-                "unable to access snapshots for " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
 
         return snapDfnRet;
@@ -578,7 +545,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
      *      participating nodes.
      */
     private Flux<ApiCallRc> rollbackToSafetySnapInTransaction(SnapshotDefinition snapDfn, boolean restoreStarted)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         ResourceDefinition rscDfn = snapDfn.getResourceDefinition();
         ResourceName rscName = rscDfn.getName();
@@ -602,10 +569,10 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         {
             List<String> nodeNamesNoRsc = new ArrayList<>();
             boolean updateRscDfn = false;
-            for (Snapshot snap : safetySnapDfn.getAllSnapshots(peerAccCtx.get()))
+            for (Snapshot snap : safetySnapDfn.getAllSnapshots())
             {
                 NodeName nodeName = snap.getNodeName();
-                @Nullable Resource stillExistingRsc = rscDfn.getResource(peerAccCtx.get(), nodeName);
+                @Nullable Resource stillExistingRsc = rscDfn.getResource(nodeName);
                 if (stillExistingRsc == null)
                 {
                     nodeNamesNoRsc.add(nodeName.displayValue);
@@ -613,9 +580,9 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
                 else
                 {
                     StateFlags<Flags> rscFlags = stillExistingRsc.getStateFlags();
-                    if (rscFlags.isSomeSet(peerAccCtx.get(), Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
+                    if (rscFlags.isSomeSet(Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
                     {
-                        rscFlags.disableFlags(peerAccCtx.get(), Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE);
+                        rscFlags.disableFlags(Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE);
                         updateRscDfn = true;
                     }
                 }
@@ -887,51 +854,22 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
     private boolean isDiskless(Resource rsc)
     {
         boolean diskless;
-        try
-        {
-            AccessContext accCtx = peerAccCtx.get();
-            diskless = rsc.isDrbdDiskless(accCtx) || rsc.isNvmeInitiator(accCtx) || rsc.isEbsInitiator(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check diskless state of " + getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        AccessContext accCtx = peerAccCtx.get();
+        diskless = rsc.isDrbdDiskless() || rsc.isNvmeInitiator() || rsc.isEbsInitiator();
         return diskless;
     }
 
     private Optional<Resource> anyResourceInUse(ResourceDefinition rscDfn)
     {
         Optional<Resource> rscInUse;
-        try
-        {
-            rscInUse = rscDfn.anyResourceInUse(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check in-use state of " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_DFN
-            );
-        }
+        rscInUse = rscDfn.anyResourceInUse();
         return rscInUse;
     }
 
     private boolean isDisklessPrivileged(Resource rsc)
     {
         boolean diskless;
-        try
-        {
-            diskless = rsc.isDrbdDiskless(apiCtx) || rsc.isNvmeInitiator(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        diskless = rsc.isDrbdDiskless() || rsc.isNvmeInitiator();
         return diskless;
     }
 
@@ -940,17 +878,12 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         try
         {
             Map<String, DrbdRscDfnData<Resource>> drbdRscDfnDataMap = rscDfn.getLayerData(
-                peerAccCtx.get(),
                 DeviceLayerKind.DRBD
             );
             for (DrbdRscDfnData<Resource> drbdRscDfnData : drbdRscDfnDataMap.values())
             {
                 drbdRscDfnData.setDown(false);
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
         }
         catch (DatabaseException sqlExc)
         {
@@ -961,32 +894,14 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
     private Iterator<Resource> iterateResourcePrivileged(ResourceDefinition rscDfn)
     {
         Iterator<Resource> rscIter;
-        try
-        {
-            rscIter = rscDfn.iterateResource(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        rscIter = rscDfn.iterateResource();
         return rscIter;
     }
 
     private Props getProps(Resource rsc)
     {
         Props props;
-        try
-        {
-            props = rsc.getProps(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "get props of " + getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        props = rsc.getProps();
         return props;
     }
 
@@ -1058,19 +973,8 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
     private boolean isEbsInitiator(Resource rsc)
     {
         boolean ebsInit;
-        try
-        {
-            AccessContext accCtx = peerAccCtx.get();
-            ebsInit = rsc.isEbsInitiator(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check if " + getRscDescriptionInline(rsc) + " is an EBS initiator",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        AccessContext accCtx = peerAccCtx.get();
+        ebsInit = rsc.isEbsInitiator();
         return ebsInit;
     }
 
@@ -1081,21 +985,12 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         try
         {
             Map<String, DrbdRscDfnData<Resource>> drbdRscDfnDataMap = rscDfn.getLayerData(
-                peerAccCtx.get(),
                 DeviceLayerKind.DRBD
             );
             for (DrbdRscDfnData<Resource> drbdRscDfnData : drbdRscDfnDataMap.values())
             {
                 drbdRscDfnData.setDown(true);
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getRscDfnDescriptionInline(rscDfn) + " down",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
         }
         catch (DatabaseException sqlExc)
         {

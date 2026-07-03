@@ -2,8 +2,6 @@ package com.linbit.linstor.debug;
 
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 
 import java.io.PrintStream;
@@ -42,7 +40,6 @@ public class FilteredObjectLister<SearchType>
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
@@ -58,13 +55,13 @@ public class FilteredObjectLister<SearchType>
                 {
                     try (LockGuard scopeLock = LockGuard.createLocked(objectHandler.getRequiredLocks()))
                     {
-                        objectHandler.ensureSearchAccess(accCtx);
+                        objectHandler.ensureSearchAccess();
 
                         SearchType objectRef = objectHandler.getByName(prmName);
                         if (objectRef != null)
                         {
                             debugPrintHelper.printSectionSeparator(debugOut);
-                            objectHandler.displayObjects(debugOut, objectRef, accCtx);
+                            objectHandler.displayObjects(debugOut, objectRef);
                             debugPrintHelper.printSectionSeparator(debugOut);
                         }
                         else
@@ -103,7 +100,7 @@ public class FilteredObjectLister<SearchType>
 
                     total = objects.size();
 
-                    objectHandler.ensureSearchAccess(accCtx);
+                    objectHandler.ensureSearchAccess();
 
                     Matcher nameMatcher = null;
                     if (prmFilter != null)
@@ -123,8 +120,8 @@ public class FilteredObjectLister<SearchType>
                                 debugPrintHelper.printSectionSeparator(debugOut);
                                 first = false;
                             }
-                            objectHandler.displayObjects(debugOut, searchObject, accCtx);
-                            count += objectHandler.countObjects(searchObject, accCtx);
+                            objectHandler.displayObjects(debugOut, searchObject);
+                            count += objectHandler.countObjects(searchObject);
                         }
                     }
                     else
@@ -141,8 +138,8 @@ public class FilteredObjectLister<SearchType>
                                     debugPrintHelper.printSectionSeparator(debugOut);
                                     first = false;
                                 }
-                                objectHandler.displayObjects(debugOut, searchObject, accCtx);
-                                count += objectHandler.countObjects(searchObject, accCtx);
+                                objectHandler.displayObjects(debugOut, searchObject);
+                                count += objectHandler.countObjects(searchObject);
                             }
                         }
                     }
@@ -233,8 +230,7 @@ public class FilteredObjectLister<SearchType>
     {
         Lock[] getRequiredLocks();
 
-        void ensureSearchAccess(AccessContext accCtx)
-            throws AccessDeniedException;
+        void ensureSearchAccess();
 
         Collection<SearchType> getAll();
 
@@ -244,8 +240,8 @@ public class FilteredObjectLister<SearchType>
 
         String getName(SearchType searchObject);
 
-        void displayObjects(PrintStream output, SearchType searchObject, AccessContext accCtx);
+        void displayObjects(PrintStream output, SearchType searchObject);
 
-        int countObjects(SearchType searchObject, AccessContext accCtx);
+        int countObjects(SearchType searchObject);
     }
 }

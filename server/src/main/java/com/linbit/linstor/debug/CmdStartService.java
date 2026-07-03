@@ -4,7 +4,6 @@ import javax.inject.Inject;
 import com.linbit.InvalidNameException;
 import com.linbit.ServiceName;
 import com.linbit.SystemService;
-import com.linbit.linstor.security.AccessContext;
 
 import java.io.PrintStream;
 import java.util.Map;
@@ -52,7 +51,6 @@ public class CmdStartService extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     ) throws Exception
     {

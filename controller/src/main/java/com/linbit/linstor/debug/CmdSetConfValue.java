@@ -6,7 +6,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
 import javax.inject.Inject;
@@ -75,7 +74,6 @@ public class CmdSetConfValue extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
@@ -94,7 +92,7 @@ public class CmdSetConfValue extends BaseDebugCmd
                 // Commit changes to the database
                 transMgr = trnActProvider.get();
 
-                String previous = systemConfRepository.setCtrlProp(accCtx, key, value, namespace);
+                String previous = systemConfRepository.setCtrlProp(key, value, namespace);
 
                 transMgr.commit();
 

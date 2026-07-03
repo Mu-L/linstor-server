@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.transaction.BaseTransactionObject;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -69,7 +68,7 @@ public class FreeSpaceMgr extends BaseTransactionObject implements FreeSpaceTrac
      */
     @SuppressWarnings("unchecked")
     @Override
-    public void vlmCreating(AccessContext accCtx, VlmProviderObject<?> vlm)
+    public void vlmCreating(VlmProviderObject<?> vlm)
     {
         // TODO: add check if vlm is part of a registered storPool
 
@@ -89,7 +88,7 @@ public class FreeSpaceMgr extends BaseTransactionObject implements FreeSpaceTrac
      */
     @SuppressWarnings("unchecked")
     @Override
-    public void ensureVlmNoLongerCreating(AccessContext accCtx, VlmProviderObject<?> vlm)
+    public void ensureVlmNoLongerCreating(VlmProviderObject<?> vlm)
     {
         // no need to update capacity or free space as we are only deleting possible references
         // from the pendingAdding list. The "estimated space" will no longer consider this volume
@@ -115,7 +114,6 @@ public class FreeSpaceMgr extends BaseTransactionObject implements FreeSpaceTrac
     @SuppressWarnings("unchecked")
     @Override
     public void vlmCreationFinished(
-        AccessContext accCtx,
         VlmProviderObject<?> vlm,
         Long freeCapacityRef,
         Long totalCapacityRef
@@ -142,13 +140,13 @@ public class FreeSpaceMgr extends BaseTransactionObject implements FreeSpaceTrac
      *
      */
     @Override
-    public Optional<Long> getFreeCapacityLastUpdated(AccessContext accCtx)
+    public Optional<Long> getFreeCapacityLastUpdated()
     {
         return Optional.ofNullable(freeCapacity.get());
     }
 
     @Override
-    public Optional<Long> getTotalCapacity(AccessContext accCtx)
+    public Optional<Long> getTotalCapacity()
     {
         return Optional.ofNullable(totalCapacity.get());
     }
@@ -159,7 +157,7 @@ public class FreeSpaceMgr extends BaseTransactionObject implements FreeSpaceTrac
      *
      */
     @Override
-    public long getPendingAllocatedSum(AccessContext accCtx)
+    public long getPendingAllocatedSum()
     {
         long sum = 0;
         HashSet<VlmProviderObject<?>> pendingAddVlmCopy;
@@ -179,7 +177,7 @@ public class FreeSpaceMgr extends BaseTransactionObject implements FreeSpaceTrac
     }
 
     @Override
-    public void setCapacityInfo(AccessContext accCtx, long freeSpaceRef, long totalCapacityRef)
+    public void setCapacityInfo(long freeSpaceRef, long totalCapacityRef)
     {
         setImpl(freeSpaceRef, totalCapacityRef);
     }

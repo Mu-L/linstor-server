@@ -12,16 +12,10 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceGroupDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.transaction.TransactionMap;
@@ -41,7 +35,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements ProtectedObject
+public class ResourceGroup extends AbsCoreObj<ResourceGroup>
 {
     public interface InitMaps
     {
@@ -49,7 +43,6 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
         Map<ResourceName, ResourceDefinition> getRscDfnMap();
     }
 
-    private final ObjectProtection objProt;
 
     private final ResourceGroupName name;
 
@@ -68,7 +61,6 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
 
     public ResourceGroup(
         UUID uuidRef,
-        ObjectProtection objProtRef,
         ResourceGroupName rscGrpNameRef,
         @Nullable String descriptionRef,
         @Nullable List<DeviceLayerKind> autoPlaceLayerStackRef,
@@ -96,7 +88,6 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
         super(uuidRef, transObjFactory, transMgrProvider);
         name = rscGrpNameRef;
         dbDriver = dbDriverRef;
-        objProt = objProtRef;
 
         description = transObjFactory.createTransactionSimpleObject(
             this,
@@ -144,63 +135,47 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
         );
     }
 
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
-    }
-
     public ResourceGroupName getName()
     {
         checkDeleted();
         return name;
     }
 
-    public @Nullable String getDescription(AccessContext accCtx)
-        throws AccessDeniedException
+    public @Nullable String getDescription()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return description.get();
     }
 
-    public @Nullable String setDescription(AccessContext accCtx, @Nullable String descriptionRef)
-        throws AccessDeniedException, DatabaseException
+    public @Nullable String setDescription(@Nullable String descriptionRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         return description.set(descriptionRef);
     }
 
-    public void addResourceDefinition(AccessContext accCtx, ResourceDefinition rscDfnRef)
-        throws AccessDeniedException
+    public void addResourceDefinition(ResourceDefinition rscDfnRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         rscDfnMap.put(rscDfnRef.getName(), rscDfnRef);
     }
 
-    public void removeResourceDefinition(AccessContext accCtx, ResourceDefinition rscDfnRef)
-        throws AccessDeniedException
+    public void removeResourceDefinition(ResourceDefinition rscDfnRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         rscDfnMap.remove(rscDfnRef.getName());
     }
 
-    public boolean hasResourceDefinitions(AccessContext accCtx) throws AccessDeniedException
+    public boolean hasResourceDefinitions()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return !rscDfnMap.isEmpty();
     }
 
-    public Props getProps(AccessContext accCtxRef)
-        throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtxRef, objProt, rscGrpProps);
+        return rscGrpProps;
     }
 
     /**
@@ -209,10 +184,9 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
      * returns an empty {@link ReadOnlyPropsImpl} instance.
      *
      */
-    public ReadOnlyProps getVolumeGroupProps(AccessContext accCtx, VolumeNumber vlmNrRef) throws AccessDeniedException
+    public ReadOnlyProps getVolumeGroupProps(VolumeNumber vlmNrRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         VolumeGroup vlmGrp = vlmMap.get(vlmNrRef);
 
@@ -223,7 +197,7 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
         }
         else
         {
-            vlmGrpProps = vlmGrp.getProps(accCtx);
+            vlmGrpProps = vlmGrp.getProps();
         }
         return vlmGrpProps;
     }
@@ -234,65 +208,52 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
         return autoPlaceConfig;
     }
 
-    public Stream<VolumeGroup> streamVolumeGroups(AccessContext accCtx)
-        throws AccessDeniedException
+    public Stream<VolumeGroup> streamVolumeGroups()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return vlmMap.values().stream();
     }
 
-    public @Nullable VolumeGroup getVolumeGroup(AccessContext accCtx, VolumeNumber vlmNr)
-        throws AccessDeniedException
+    public @Nullable VolumeGroup getVolumeGroup(VolumeNumber vlmNr)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return vlmMap.get(vlmNr);
     }
 
-    public List<VolumeGroup> getVolumeGroups(AccessContext accCtx) throws AccessDeniedException
+    public List<VolumeGroup> getVolumeGroups()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return Collections.unmodifiableList(new ArrayList<>(vlmMap.values()));
     }
 
-    public void putVolumeGroup(AccessContext accCtx, VolumeGroup vlmGrpDataRef)
-        throws AccessDeniedException
+    public void putVolumeGroup(VolumeGroup vlmGrpDataRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         vlmMap.put(vlmGrpDataRef.getVolumeNumber(), vlmGrpDataRef);
     }
 
-    public void deleteVolumeGroup(AccessContext accCtx, VolumeNumber vlmNrRef)
-        throws AccessDeniedException
+    public void deleteVolumeGroup(VolumeNumber vlmNrRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         vlmMap.remove(vlmNrRef);
     }
 
-    public Collection<ResourceDefinition> getRscDfns(AccessContext accCtx)
-        throws AccessDeniedException
+    public Collection<ResourceDefinition> getRscDfns()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return Collections.unmodifiableCollection(rscDfnMap.values());
     }
 
-    public @Nullable Short getPeerSlots(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable Short getPeerSlots()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return peerSlots.get();
     }
 
-    public void setPeerSlots(AccessContext accCtx, @Nullable Short peerSlotsRef)
-        throws AccessDeniedException, DatabaseException
+    public void setPeerSlots(@Nullable Short peerSlotsRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         peerSlots.set(peerSlotsRef);
     }
 
@@ -327,13 +288,13 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
         return ret;
     }
 
-    public ResourceGroupApi getApiData(AccessContext accCtxRef) throws AccessDeniedException
+    public ResourceGroupApi getApiData()
     {
         checkDeleted();
         List<VolumeGroupApi> vlmGrpApiList = new ArrayList<>(vlmMap.size());
         for (VolumeGroup vlmGrp : vlmMap.values())
         {
-            vlmGrpApiList.add(vlmGrp.getApiData(accCtxRef));
+            vlmGrpApiList.add(vlmGrp.getApiData());
         }
         return new RscGrpPojo(
             objId,
@@ -347,11 +308,10 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
             if (!rscDfnMap.isEmpty())
             {
@@ -362,12 +322,12 @@ public class ResourceGroup extends AbsCoreObj<ResourceGroup> implements Protecte
             List<VolumeGroup> tmpMap = new ArrayList<>(vlmMap.values());
             for (VolumeGroup vlmGrp : tmpMap)
             {
-                vlmGrp.delete(accCtx);
+                vlmGrp.delete();
             }
 
             rscGrpProps.delete();
 
-            objProt.delete(accCtx);
+            objProt.delete();
             activateTransMgr();
             dbDriver.delete(this);
 

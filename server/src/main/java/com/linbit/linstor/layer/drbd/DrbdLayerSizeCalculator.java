@@ -34,7 +34,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
@@ -67,7 +66,7 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
 
     @Override
     protected void updateAllocatedSizeFromUsableSizeImpl(DrbdVlmData<?> drbdVlmDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         DrbdRscData<?> drbdRscData = drbdVlmDataRef.getRscLayerObject();
         short peerSlots = drbdRscData.getPeerSlots();
@@ -76,7 +75,7 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
         try
         {
             boolean isDiskless = isDiskless(drbdVlmDataRef.getRscLayerObject().getAbsResource());
-            if (!isDiskless && !drbdRscData.isSkipDiskEnabled(sysCtx, stltProps))
+            if (!isDiskless && !drbdRscData.isSkipDiskEnabled(stltProps))
             {
                 long netSize = drbdVlmDataRef.getUsableSize();
 
@@ -167,7 +166,7 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
 
     @Override
     protected void updateUsableSizeFromAllocatedSizeImpl(DrbdVlmData<?> drbdVlmDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         DrbdRscData<?> drbdRscData = drbdVlmDataRef.getRscLayerObject();
         short peerSlots = drbdRscData.getPeerSlots();
@@ -176,7 +175,7 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
         try
         {
             boolean isDiskless = isDiskless(drbdVlmDataRef.getRscLayerObject().getAbsResource());
-            if (!isDiskless && !drbdRscData.isSkipDiskEnabled(sysCtx, stltProps))
+            if (!isDiskless && !drbdRscData.isSkipDiskEnabled(stltProps))
             {
                 // let next layer calculate
                 VlmProviderObject<?> dataChildVlmData = drbdVlmDataRef.getChildBySuffix(
@@ -237,7 +236,7 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
         }
     }
 
-    private boolean isDiskless(AbsResource<?> absRscRef) throws AccessDeniedException
+    private boolean isDiskless(AbsResource<?> absRscRef)
     {
         boolean ret;
         if (absRscRef instanceof Snapshot)
@@ -247,8 +246,8 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
         else
         {
             StateFlags<Flags> rscFlags = ((Resource) absRscRef).getStateFlags();
-            ret = rscFlags.isSet(sysCtx, Resource.Flags.DRBD_DISKLESS) &&
-                !rscFlags.isSomeSet(sysCtx, Resource.Flags.DISK_ADD_REQUESTED, Resource.Flags.DISK_ADDING);
+            ret = rscFlags.isSet(Resource.Flags.DRBD_DISKLESS) &&
+                !rscFlags.isSomeSet(Resource.Flags.DISK_ADD_REQUESTED, Resource.Flags.DISK_ADDING);
         }
         return ret;
     }
@@ -258,7 +257,7 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
      * sets it on the Volume.
      */
     private int getAndSetBitmapBlockSizeKiB(final DrbdVlmData<?> drbdVlmDataRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         DrbdRscData rscData = drbdVlmDataRef.getRscLayerObject();
 
@@ -272,14 +271,14 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
         if (absVlm instanceof Volume tmpVlm)
         {
             vlm = tmpVlm;
-            vlmProps = vlm.getProps(sysCtx);
+            vlmProps = vlm.getProps();
         }
 
         final AbsResource absRsc = rscData.getAbsResource();
         if (absRsc instanceof Resource tmpRsc)
         {
             rsc = tmpRsc;
-            rscProps = rsc.getProps(sysCtx);
+            rscProps = rsc.getProps();
         }
 
         int bitmapBlockSizeKiB = MetaData.DRBD_DEFAULT_BM_BIT_COVER_kiB;
@@ -339,7 +338,7 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
             if (vlm != null)
             {
                 final VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
-                vlmDfnProps = vlmDfn.getProps(sysCtx);
+                vlmDfnProps = vlmDfn.getProps();
             }
 
             @Nullable ResourceDefinition rscDfn = null;
@@ -347,9 +346,9 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
             if (rsc != null)
             {
                 rscDfn = rsc.getResourceDefinition();
-                rscDfnProps = rscDfn.getProps(sysCtx);
+                rscDfnProps = rscDfn.getProps();
                 rscGrp = rscDfn.getResourceGroup();
-                rscGrpProps = rscGrp.getProps(sysCtx);
+                rscGrpProps = rscGrp.getProps();
             }
 
             PriorityProps prioProps = new PriorityProps(vlmDfnProps, rscDfnProps, rscGrpProps);
@@ -431,9 +430,9 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
     }
 
     private void setBitmapBlockSizeOnVolume(final Volume vlm, final int bitmapBlockSizeKiB)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
-        final Props vlmProps = vlm.getProps(sysCtx);
+        final Props vlmProps = vlm.getProps();
         final String blockSizeStr = Integer.toString(bitmapBlockSizeKiB);
         try
         {

@@ -3,8 +3,6 @@ package com.linbit.linstor.tasks;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.ApiModule;
@@ -25,8 +23,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.TaskScheduleService.Task;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -70,7 +66,6 @@ public class ReconnectorTask implements Task
      */
     private final Object syncObj = new Object();
 
-    private final AccessContext apiCtx;
     private final HashSet<ReconnectConfig> reconnectorConfigSet = new HashSet<>();
     private final ErrorReporter errorReporter;
     private @Nullable PingTask pingTask;
@@ -86,7 +81,6 @@ public class ReconnectorTask implements Task
 
     @Inject
     public ReconnectorTask(
-        @SystemContext AccessContext apiCtxRef,
         ErrorReporter errorReporterRef,
         Provider<CtrlAuthenticator> authenticatorRef,
         Provider<SatelliteConnector> satelliteConnectorRef,
@@ -99,7 +93,6 @@ public class ReconnectorTask implements Task
         Provider<CtrlNodeApiCallHandler> ctrlNodeApiCallHandlerRef
     )
     {
-        apiCtx = apiCtxRef;
         errorReporter = errorReporterRef;
         authenticatorProvider = authenticatorRef;
         satelliteConnector = satelliteConnectorRef;
@@ -136,43 +129,36 @@ public class ReconnectorTask implements Task
             }
             else
             {
-                try
+                if (node != null && !node.isDeleted())
                 {
-                    if (node != null && !node.isDeleted())
+                    if (!node.getFlags().isSet(Node.Flags.EVICTED))
                     {
-                        if (!node.getFlags().isSet(apiCtx, Node.Flags.EVICTED))
+                        // Remove any existing configs for this node before adding the new one.
+                        // Each reconnection attempt creates a new Peer object, so we need to
+                        // clean up stale entries to prevent duplicates from accumulating.
+                        // Preserve the oldest offlineSince to maintain correct eviction timing.
+                        @Nullable ReconnectConfig oldestRemoved = removeConfigsByNode(node);
+                        ReconnectConfig toAdd;
+                        if (oldestRemoved != null)
                         {
-                            // Remove any existing configs for this node before adding the new one.
-                            // Each reconnection attempt creates a new Peer object, so we need to
-                            // clean up stale entries to prevent duplicates from accumulating.
-                            // Preserve the oldest offlineSince to maintain correct eviction timing.
-                            @Nullable ReconnectConfig oldestRemoved = removeConfigsByNode(node);
-                            ReconnectConfig toAdd;
-                            if (oldestRemoved != null)
-                            {
-                                // Preserve offlineSince from the oldest removed config
-                                toAdd = new ReconnectConfig(oldestRemoved, peer);
-                            }
-                            else
-                            {
-                                toAdd = new ReconnectConfig(peer, drbdConnectionsOk(node));
-                            }
-                            errorReporter.logDebug("ReconnectorTask add: " + toAdd);
-                            reconnectorConfigSet.add(toAdd);
-                            getFailedPeers(); // update evictionTime if necessary
+                            // Preserve offlineSince from the oldest removed config
+                            toAdd = new ReconnectConfig(oldestRemoved, peer);
                         }
                         else
                         {
-                            errorReporter.logInfo(
-                                "Node %s is evicted and will not be reconnected",
-                                node.getKey().displayValue
-                            );
+                            toAdd = new ReconnectConfig(peer, drbdConnectionsOk(node));
                         }
+                        errorReporter.logDebug("ReconnectorTask add: " + toAdd);
+                        reconnectorConfigSet.add(toAdd);
+                        getFailedPeers(); // update evictionTime if necessary
                     }
-                }
-                catch (AccessDeniedException exc)
-                {
-                    throw new ImplementationError(exc);
+                    else
+                    {
+                        errorReporter.logInfo(
+                            "Node %s is evicted and will not be reconnected",
+                            node.getKey().displayValue
+                        );
+                    }
                 }
             }
         }
@@ -199,7 +185,6 @@ public class ReconnectorTask implements Task
                             ApiModule.API_CALL_NAME,
                             "Abort currently shipped snapshots",
                             AccessContext.class,
-                            apiCtx,
                             Peer.class,
                             peer
                         )
@@ -446,7 +431,7 @@ public class ReconnectorTask implements Task
                 @Nullable Peer currentPeer = null;
                 try
                 {
-                    currentPeer = node.getPeer(apiCtx);
+                    currentPeer = node.getPeer();
                 }
                 catch (AccessDeniedException ignored)
                 {
@@ -518,7 +503,7 @@ public class ReconnectorTask implements Task
                 // waiting for the lock)
                 if (!node.isDeleted())
                 {
-                    reconnScope.seed(Key.get(AccessContext.class, PeerContext.class), apiCtx);
+                    reconnScope.seed(Key.get(AccessContext.class, PeerContext.class));
                     TransactionMgrUtil.seedTransactionMgr(reconnScope, transMgr);
 
                     // look for another netIf configured as satellite connection and set it as active
@@ -543,7 +528,7 @@ public class ReconnectorTask implements Task
                     }
                 }
             }
-            catch (AccessDeniedException | DatabaseException exc)
+            catch (DatabaseException exc)
             {
                 errorReporter.logError(exc.getMessage());
             }
@@ -590,7 +575,7 @@ public class ReconnectorTask implements Task
      * makes sure to not simply toggle between the first two (first non-selected netIf), but to actually iterate
      * through all available NetIfs before starting at the first again.
      */
-    private void setNextNetIf(Node node, ReconnectConfig config) throws AccessDeniedException, DatabaseException
+    private void setNextNetIf(Node node, ReconnectConfig config) throws DatabaseException
     {
         final @Nullable NetInterface currentActiveStltConn = node.getActiveStltConn(config.peer.getAccessContext());
         Iterator<NetInterface> netIfIt = node.iterateNetInterfaces(config.peer.getAccessContext());
@@ -672,8 +657,8 @@ public class ReconnectorTask implements Task
                 {
                     boolean drbdOkNew = drbdConnectionsOk(node);
                     final PriorityProps props = new PriorityProps(
-                        node.getProps(apiCtx),
-                        systemConfRepo.getCtrlConfForView(apiCtx)
+                        node.getProps(),
+                        systemConfRepo.getCtrlConfForView()
                     );
                     final long timeout = Long.parseLong(
                         props.getProp(
@@ -697,7 +682,7 @@ public class ReconnectorTask implements Task
                             config.offlineSince = System.currentTimeMillis();
                         }
                     }
-                    if (!node.getFlags().isSet(apiCtx, Node.Flags.EVICTED))
+                    if (!node.getFlags().isSet(Node.Flags.EVICTED))
                     {
                         retry.add(config);
                         long evictionTimestamp = config.offlineSince + timeout;
@@ -721,7 +706,7 @@ public class ReconnectorTask implements Task
                                         "34"
                                     )
                                 );
-                                int numNodes = nodeRepository.getMapForView(apiCtx).size();
+                                int numNodes = nodeRepository.getMapForView().size();
                                 int maxDiscon = Math.round(maxPercentDiscon * numNodes / 100.0f);
                                 if (numDiscon <= maxDiscon)
                                 {
@@ -773,66 +758,59 @@ public class ReconnectorTask implements Task
     {
         boolean drbdOk = false;
 
-        try
+        Set<Node> neighbors = getNeighbors(node);
+        for (Node neighbor : neighbors)
         {
-            Set<Node> neighbors = getNeighbors(node);
-            for (Node neighbor : neighbors)
+            if (neighbor.getPeer() != null)
             {
-                if (neighbor.getPeer(apiCtx) != null)
-                {
-                    Map<ResourceName, SatelliteResourceState> neighborRscStates = neighbor.getPeer(apiCtx)
-                        .getSatelliteState().getResourceStates();
+                Map<ResourceName, SatelliteResourceState> neighborRscStates = neighbor.getPeer()
+                    .getSatelliteState().getResourceStates();
 
-                    for (SatelliteResourceState neighborRscState : neighborRscStates.values())
+                for (SatelliteResourceState neighborRscState : neighborRscStates.values())
+                {
+                    Map<NodeName, Map<NodeName, String>> connStates = neighborRscState.getConnectionStates();
+                    for (Entry<NodeName, Map<NodeName, String>> conStateEntry : connStates.entrySet())
                     {
-                        Map<NodeName, Map<NodeName, String>> connStates = neighborRscState.getConnectionStates();
-                        for (Entry<NodeName, Map<NodeName, String>> conStateEntry : connStates.entrySet())
+                        if (conStateEntry.getKey().equals(node.getKey()))
                         {
-                            if (conStateEntry.getKey().equals(node.getKey()))
+                            Map<NodeName, String> conStates = conStateEntry.getValue();
+                            for (Entry<NodeName, String> conEntry : conStates.entrySet())
                             {
-                                Map<NodeName, String> conStates = conStateEntry.getValue();
-                                for (Entry<NodeName, String> conEntry : conStates.entrySet())
-                                {
-                                    String conVal = conEntry.getValue();
-                                    if (conVal.equalsIgnoreCase(STATUS_CONNECTED))
-                                    {
-                                        drbdOk = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                String conValOrNull = conStateEntry.getValue().get(node.getKey());
-                                if (conValOrNull != null && conValOrNull.equalsIgnoreCase(STATUS_CONNECTED))
+                                String conVal = conEntry.getValue();
+                                if (conVal.equalsIgnoreCase(STATUS_CONNECTED))
                                 {
                                     drbdOk = true;
                                     break;
                                 }
                             }
                         }
+                        else
+                        {
+                            String conValOrNull = conStateEntry.getValue().get(node.getKey());
+                            if (conValOrNull != null && conValOrNull.equalsIgnoreCase(STATUS_CONNECTED))
+                            {
+                                drbdOk = true;
+                                break;
+                            }
+                        }
                     }
                 }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
 
         return drbdOk;
     }
 
-    private Set<Node> getNeighbors(Node nodeToCheck) throws AccessDeniedException
+    private Set<Node> getNeighbors(Node nodeToCheck)
     {
         Set<Node> neighbors = new HashSet<>();
         Iterator<Resource> localRscIt;
-        localRscIt = nodeToCheck.iterateResources(apiCtx);
+        localRscIt = nodeToCheck.iterateResources();
         while (localRscIt.hasNext())
         {
             Resource localRsc = localRscIt.next();
             ResourceDefinition rscDfn = localRsc.getResourceDefinition();
-            Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource otherRsc = rscIt.next();
@@ -845,7 +823,7 @@ public class ReconnectorTask implements Task
         return neighbors;
     }
 
-    public void startReconnecting(Collection<Node> nodes, AccessContext initCtx)
+    public void startReconnecting(Collection<Node> nodes)
     {
         /*
          * We need this method so that all nodes are added starting connecting while having
@@ -859,7 +837,7 @@ public class ReconnectorTask implements Task
             for (Node node : nodes)
             {
                 errorReporter.logDebug("Reconnecting to node '" + node.getKey().displayValue + "'.");
-                stltConnector.startConnecting(node, initCtx);
+                stltConnector.startConnecting(node);
             }
         }
     }

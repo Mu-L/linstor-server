@@ -11,9 +11,6 @@ import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
 import com.linbit.utils.TimeUtils;
 
 import javax.inject.Provider;
@@ -59,7 +56,6 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
     private final Logger mainLogger;
     private final AtomicLong errorNr = new AtomicLong();
     private final Path baseLogDirectory;
-    private final Provider<AccessContext> peerCtxProvider;
     private final H2ErrorReporter h2ErrorReporter;
 
     public StdErrorReporter(
@@ -68,13 +64,11 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
         boolean printStackTraces,
         String nodeName,
         @Nullable String logLevelRef,
-        @Nullable String linstorLogLevelRef,
-        Provider<AccessContext> peerCtxProviderRef
+        @Nullable String linstorLogLevelRef
     )
     {
         super(moduleName, printStackTraces, nodeName);
         this.baseLogDirectory = logDirectory;
-        peerCtxProvider = peerCtxProviderRef;
         mainLogger = org.slf4j.LoggerFactory.getLogger(LinStor.PROGRAM + "/" + moduleName);
 
         // check if the log directory exists, generate if not
@@ -176,10 +170,8 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
     }
 
     @Override
-    public void setLogLevel(AccessContext accCtx, @Nullable Level level, @Nullable Level linstorLevel)
-        throws AccessDeniedException
+    public void setLogLevel(@Nullable Level level, @Nullable Level linstorLevel)
     {
-        accCtx.getEffectivePrivs().requirePrivileges(Privilege.PRIV_SYS_ALL);
         if (level != null || linstorLevel != null)
         {
             setLogLevelImpl(level, linstorLevel);
@@ -240,42 +232,38 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
     @Override
     public @Nullable String reportError(
         Throwable errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         @Nullable String contextInfo
     )
     {
-        return reportImpl(Level.ERROR, errorInfo, accCtx, client, contextInfo, true);
+        return reportImpl(Level.ERROR, errorInfo, client, contextInfo, true);
     }
 
     @Override
     public @Nullable String reportError(
         Level logLevel,
         Throwable errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         @Nullable String contextInfo
     )
     {
-        return reportImpl(logLevel, errorInfo, accCtx, client, contextInfo, true);
+        return reportImpl(logLevel, errorInfo, client, contextInfo, true);
     }
 
     @Override
     public @Nullable String reportProblem(
         Level logLevel,
         LinStorException errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         String contextInfo
     )
     {
-        return reportImpl(logLevel, errorInfo, accCtx, client, contextInfo, false);
+        return reportImpl(logLevel, errorInfo, client, contextInfo, false);
     }
 
     private @Nullable String reportImpl(
         Level logLevel,
         Throwable errorInfo,
-        @Nullable AccessContext accCtxRef,
         @Nullable Peer client,
         @Nullable String contextInfo,
         boolean includeStackTrace
@@ -297,7 +285,6 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
             renderReport(
                 errRepRenderer,
                 reportNr,
-                accCtxRef,
                 client,
                 errorInfo,
                 errorTime,

@@ -11,7 +11,6 @@ import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.extproc.ExtCmdFailedException;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.StltConfigAccessor;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -23,8 +22,6 @@ import com.linbit.linstor.layer.drbd.drbdstate.DrbdEventService;
 import com.linbit.linstor.layer.drbd.drbdstate.DrbdResource;
 import com.linbit.linstor.layer.drbd.drbdstate.DrbdStateTracker;
 import com.linbit.linstor.layer.drbd.drbdstate.ResourceObserver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmData;
@@ -74,7 +71,6 @@ public class DrbdAdm
     private static final String DEVICE_HELD_OPEN_ERR_MSG = "Device is held open by someone";
 
     private final ExtCmdFactory extCmdFactory;
-    private final AccessContext sysCtx;
     private final StltConfigAccessor stltCfgAccessor;
     private final DrbdEventService drbdEventService;
     private final DrbdVersion drbdVersion;
@@ -82,14 +78,12 @@ public class DrbdAdm
     @Inject
     public DrbdAdm(
         ExtCmdFactory extCmdFactoryRef,
-        @SystemContext AccessContext sysCtxRef,
         StltConfigAccessor stltCfgAccessorRef,
         DrbdEventService drbdEventServiceRef,
         DrbdVersion drbdVersionRef
     )
     {
         extCmdFactory = extCmdFactoryRef;
-        sysCtx = sysCtxRef;
         stltCfgAccessor = stltCfgAccessorRef;
         drbdEventService = drbdEventServiceRef;
         drbdVersion = drbdVersionRef;
@@ -105,7 +99,7 @@ public class DrbdAdm
         boolean skipDisk,
         boolean discard
     )
-        throws ExtCmdFailedException, AccessDeniedException
+        throws ExtCmdFailedException
     {
         List<String> command = new ArrayList<>();
         command.addAll(Arrays.asList(DRBDADM_UTIL, "-vvv", "adjust"));
@@ -123,14 +117,14 @@ public class DrbdAdm
             command.add("--skip-net");
         }
         Resource rsc = drbdRscData.getAbsResource();
-        PriorityProps prioProps = new PriorityProps(rsc.getProps(sysCtx));
-        for (StorPool storPool : LayerVlmUtils.getStorPools(rsc, sysCtx))
+        PriorityProps prioProps = new PriorityProps(rsc.getProps());
+        for (StorPool storPool : LayerVlmUtils.getStorPools(rsc))
         {
-            prioProps.addProps(storPool.getProps(sysCtx));
+            prioProps.addProps(storPool.getProps());
         }
         prioProps.addProps(
-            rsc.getNode().getProps(sysCtx),
-            rsc.getResourceDefinition().getProps(sysCtx),
+            rsc.getNode().getProps(),
+            rsc.getResourceDefinition().getProps(),
             stltCfgAccessor.getReadonlyProps()
         );
 
@@ -363,8 +357,7 @@ public class DrbdAdm
      * Connects a resource to its peer resuorces on other hosts
      *
      */
-    public void connect(DrbdRscData<Resource> drbdRscData, boolean discard) throws ExtCmdFailedException,
-        AccessDeniedException
+    public void connect(DrbdRscData<Resource> drbdRscData, boolean discard) throws ExtCmdFailedException
     {
         adjust(drbdRscData, false, true, discard);
     }
@@ -381,7 +374,7 @@ public class DrbdAdm
      * Attaches a volume to its disk
      *
      */
-    public void attach(DrbdVlmData<Resource> drbdVlmData) throws ExtCmdFailedException, AccessDeniedException
+    public void attach(DrbdVlmData<Resource> drbdVlmData) throws ExtCmdFailedException
     {
         adjust(drbdVlmData.getRscLayerObject(), true, false, false);
     }

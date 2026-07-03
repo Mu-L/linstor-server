@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -16,8 +15,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeCtrlDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -58,7 +55,6 @@ public final class VolumeDbDriver
     @Inject
     public VolumeDbDriver(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext dbCtxRef,
         DbEngine dbEngineRef,
         ObjectProtectionFactory objProtFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -66,7 +62,7 @@ public final class VolumeDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.VOLUMES, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.VOLUMES, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -75,7 +71,7 @@ public final class VolumeDbDriver
         setColumnSetter(NODE_NAME, vlm -> vlm.getAbsResource().getNode().getName().value);
         setColumnSetter(RESOURCE_NAME, vlm -> vlm.getResourceDefinition().getName().value);
         setColumnSetter(VLM_NR, vlm -> vlm.getVolumeDefinition().getVolumeNumber().value);
-        setColumnSetter(VLM_FLAGS, vlm -> vlm.getFlags().getFlagsBits(dbCtxRef));
+        setColumnSetter(VLM_FLAGS, vlm -> vlm.getFlags().getFlagsBits());
 
         setColumnSetter(SNAPSHOT_NAME, ignored -> DFLT_SNAP_NAME_FOR_RSC);
 

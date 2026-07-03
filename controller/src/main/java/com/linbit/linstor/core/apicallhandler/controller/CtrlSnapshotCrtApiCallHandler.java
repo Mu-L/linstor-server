@@ -6,7 +6,6 @@ import com.linbit.TimeoutException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -20,7 +19,6 @@ import com.linbit.linstor.core.apicallhandler.controller.internal.helpers.Atomic
 import com.linbit.linstor.core.apicallhandler.controller.req.CreateMultiSnapRequest;
 import com.linbit.linstor.core.apicallhandler.controller.req.CreateMultiSnapRequest.SnapReq;
 import com.linbit.linstor.core.apicallhandler.controller.utils.SatelliteResourceStateDrbdUtils;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -45,8 +43,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
@@ -77,7 +73,6 @@ import reactor.util.function.Tuple2;
 @Singleton
 public class CtrlSnapshotCrtApiCallHandler
 {
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -94,7 +89,6 @@ public class CtrlSnapshotCrtApiCallHandler
 
     @Inject
     public CtrlSnapshotCrtApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -109,7 +103,6 @@ public class CtrlSnapshotCrtApiCallHandler
         BackgroundRunner backgroundRunnerRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -304,9 +297,9 @@ public class CtrlSnapshotCrtApiCallHandler
                 autoSnapshotName = getAutoSnapshotName(rscDfn);
                 try
                 {
-                    snapDfn = rscDfn.getSnapshotDfn(apiCtx, new SnapshotName(autoSnapshotName));
+                    snapDfn = rscDfn.getSnapshotDfn(new SnapshotName(autoSnapshotName));
                 }
-                catch (AccessDeniedException | InvalidNameException exc)
+                catch (InvalidNameException exc)
                 {
                     throw new ImplementationError(exc);
                 }
@@ -343,22 +336,15 @@ public class CtrlSnapshotCrtApiCallHandler
     {
         List<String> offlineNodes = new ArrayList<>();
         Iterator<Resource> rscIt;
-        try
+        rscIt = rscDfnRef.iterateResource();
+        while (rscIt.hasNext())
         {
-            rscIt = rscDfnRef.iterateResource(apiCtx);
-            while (rscIt.hasNext())
+            Resource rsc = rscIt.next();
+            Node node = rsc.getNode();
+            if (!node.getPeer().isOnline())
             {
-                Resource rsc = rscIt.next();
-                Node node = rsc.getNode();
-                if (!node.getPeer(apiCtx).isOnline())
-                {
-                    offlineNodes.add(node.getName().displayValue);
-                }
+                offlineNodes.add(node.getName().displayValue);
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         return offlineNodes;
     }
@@ -392,14 +378,6 @@ public class CtrlSnapshotCrtApiCallHandler
                 ApiConsts.KEY_AUTO_SNAPSHOT_NEXT_ID,
                 Integer.toString(id),
                 ApiConsts.NAMESPC_AUTO_SNAPSHOT
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "increment auto snapshot id of " + CtrlRscDfnApiCallHandler.getRscDfnDescription(rscDfnRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
             );
         }
         catch (DatabaseException sqlExc)
@@ -524,7 +502,6 @@ public class CtrlSnapshotCrtApiCallHandler
                         fluxSupplier::get,
                         logContextMap
                     ),
-                    apiCtx,
                     nodeNamesToLock,
                     false
                 )
@@ -643,9 +620,9 @@ public class CtrlSnapshotCrtApiCallHandler
         // snap for it
         try
         {
-            if (BackupShippingUtils.isAnyShippingInProgress(snapshotDfn, apiCtx))
+            if (BackupShippingUtils.isAnyShippingInProgress(snapshotDfn))
             {
-                Props backupProps = snapshotDfn.getSnapDfnProps(apiCtx).getNamespace(ApiConsts.NAMESPC_BACKUP_SHIPPING);
+                Props backupProps = snapshotDfn.getSnapDfnProps().getNamespace(ApiConsts.NAMESPC_BACKUP_SHIPPING);
                 // this has to be nonnull since a shipping is in progress, but check anyways
                 if (backupProps != null)
                 {
@@ -671,7 +648,7 @@ public class CtrlSnapshotCrtApiCallHandler
                 }
             }
         }
-        catch (AccessDeniedException | InvalidKeyException | InvalidValueException accDeniedExc)
+        catch (InvalidKeyException | InvalidValueException accDeniedExc)
         {
             throw new ImplementationError(accDeniedExc);
         }
@@ -709,8 +686,7 @@ public class CtrlSnapshotCrtApiCallHandler
                 allSnapshots.addAll(snapshots);
                 boolean snapDfnUpToDate = SatelliteResourceStateDrbdUtils.allResourcesUpToDate(
                     snapshots.stream().map(AbsResource::getNode).collect(Collectors.toSet()),
-                    snapDfn.getResourceName(),
-                    apiCtx
+                    snapDfn.getResourceName()
                 );
                 if (!snapDfnUpToDate)
                 {
@@ -848,9 +824,9 @@ public class CtrlSnapshotCrtApiCallHandler
                     unsetSuspendResourcePrivileged(snapshot);
                     try
                     {
-                        snapshot.setCreateTimestamp(apiCtx, createTs);
+                        snapshot.setCreateTimestamp(createTs);
                     }
-                    catch (AccessDeniedException | DatabaseException exc)
+                    catch (DatabaseException exc)
                     {
                         errorReporter.reportError(exc);
                     }
@@ -954,14 +930,7 @@ public class CtrlSnapshotCrtApiCallHandler
     private boolean isEbsSnapshot(Snapshot snapshotRef)
     {
         boolean ret;
-        try
-        {
-            ret = EbsUtils.isEbs(apiCtx, snapshotRef);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        ret = EbsUtils.isEbs(snapshotRef);
         return ret;
     }
 
@@ -969,11 +938,7 @@ public class CtrlSnapshotCrtApiCallHandler
     {
         try
         {
-            snapshotDfn.setInCreation(apiCtx, false);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            snapshotDfn.setInCreation(false);
         }
         catch (DatabaseException sqlExc)
         {
@@ -985,11 +950,7 @@ public class CtrlSnapshotCrtApiCallHandler
     {
         try
         {
-            snapshotDfn.getFlags().enableFlags(apiCtx, flag);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            snapshotDfn.getFlags().enableFlags(flag);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1000,30 +961,19 @@ public class CtrlSnapshotCrtApiCallHandler
     @Deprecated
     private void unsetSuspendResourcePrivileged(Snapshot snapshot)
     {
-        try
-        {
-            snapshot.setSuspendResource(apiCtx, false);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        snapshot.setSuspendResource(false);
     }
 
     private void resumeIoPrivileged(ResourceDefinition rscDfn)
     {
         try
         {
-            Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
-                SuspendLayerUtils.resumeIo(apiCtx, rsc);
+                SuspendLayerUtils.resumeIo(rsc);
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
         }
         catch (DatabaseException dbExc)
         {
@@ -1034,63 +984,28 @@ public class CtrlSnapshotCrtApiCallHandler
     private Collection<Snapshot> getAllSnapshotsPrivileged(SnapshotDefinition snapshotDfn)
     {
         Collection<Snapshot> allSnapshots;
-        try
-        {
-            allSnapshots = snapshotDfn.getAllSnapshots(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        allSnapshots = snapshotDfn.getAllSnapshots();
         return allSnapshots;
     }
 
     private void setTakeSnapshotPrivileged(Snapshot snapshot, boolean takeSnapshot)
     {
-        try
-        {
-            snapshot.setTakeSnapshot(apiCtx, takeSnapshot);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        snapshot.setTakeSnapshot(takeSnapshot);
     }
 
     private void setShipBackupPrivileged(Snapshot snapshot, boolean shipBackupRef)
     {
-        try
-        {
-            snapshot.setShipBackup(apiCtx, shipBackupRef);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        snapshot.setShipBackup(shipBackupRef);
     }
 
     private CreateMultiSnapRequest createSimpleSnapshotRequestPrivileged(SnapshotDefinition snapDfnRef)
     {
-        try
-        {
-            return new CreateMultiSnapRequest(apiCtx, snapDfnRef);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return new CreateMultiSnapRequest(snapDfnRef);
     }
 
     private void updateRequestPrivileged(CreateMultiSnapRequest reqRef)
     {
-        try
-        {
-            reqRef.update(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        reqRef.update();
     }
     private static boolean isFailNotConnected(CtrlResponseUtils.DelayedApiRcException exception)
     {

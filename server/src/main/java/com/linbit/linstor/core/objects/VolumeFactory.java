@@ -5,9 +5,6 @@ import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -40,7 +37,6 @@ public class VolumeFactory
     }
 
     public Volume create(
-        AccessContext accCtx,
         Resource rsc,
         VolumeDefinition vlmDfn,
         StorPool storPool,
@@ -48,9 +44,8 @@ public class VolumeFactory
         String metaDiskPathRef,
         Volume.Flags[] flags
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        rsc.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         Volume volData = rsc.getVolume(vlmDfn.getVolumeNumber());
 
@@ -71,14 +66,13 @@ public class VolumeFactory
             transMgrProvider
         );
         driver.create(volData);
-        rsc.putVolume(accCtx, volData);
-        vlmDfn.putVolume(accCtx, volData);
+        rsc.putVolume(volData);
+        vlmDfn.putVolume(volData);
 
         return volData;
     }
 
     public Volume getInstanceSatellite(
-        AccessContext accCtx,
         UUID vlmUuid,
         Resource rsc,
         VolumeDefinition vlmDfn,
@@ -102,10 +96,10 @@ public class VolumeFactory
                     transObjFactory,
                     transMgrProvider
                 );
-                rsc.putVolume(accCtx, vlmData);
-                vlmDfn.putVolume(accCtx, vlmData);
+                rsc.putVolume(vlmData);
+                vlmDfn.putVolume(vlmData);
 
-                vlmData.setAllocatedSize(accCtx, vlmDfn.getVolumeSize(accCtx));
+                vlmData.setAllocatedSize(vlmDfn.getVolumeSize());
                 // usable size depends on deviceLayer
             }
         }

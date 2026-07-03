@@ -3,8 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -40,7 +38,6 @@ public class ResourceSatelliteFactory
     }
 
     public Resource getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         Node node,
         ResourceDefinition rscDfn,
@@ -51,12 +48,12 @@ public class ResourceSatelliteFactory
         Resource rscData;
         try
         {
-            rscData = node.getResource(accCtx, rscDfn.getName());
+            rscData = node.getResource(rscDfn.getName());
             if (rscData == null)
             {
                 rscData = new Resource(
                     uuid,
-                    objectProtectionFactory.getInstance(accCtx, "", false),
+                    objectProtectionFactory.getInstance("", false),
                     rscDfn,
                     node,
                     StateFlagsBits.getMask(initFlags),
@@ -68,8 +65,8 @@ public class ResourceSatelliteFactory
                     new TreeMap<>(),
                     null
                 );
-                node.addResource(accCtx, rscData);
-                rscDfn.addResource(accCtx, rscData);
+                node.addResource(rscData);
+                rscDfn.addResource(rscData);
             }
         }
         catch (Exception exc)

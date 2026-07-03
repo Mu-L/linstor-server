@@ -8,7 +8,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.layer.drbd.utils.DrbdAdm;
 import com.linbit.linstor.layer.drbd.utils.MdSuperblockBuffer;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
@@ -57,7 +56,7 @@ public class DrbdInvalidateUtils
         drbdUtils = drbdUtilsRef;
     }
 
-    public void invalidate(@Nullable AbsRscLayerObject<Resource> rscData) throws StorageException, AccessDeniedException
+    public void invalidate(@Nullable AbsRscLayerObject<Resource> rscData) throws StorageException
     {
         if (rscData != null)
         {
@@ -79,7 +78,7 @@ public class DrbdInvalidateUtils
         }
     }
 
-    public void invalidate(@Nullable VlmProviderObject<Resource> vlmData) throws StorageException, AccessDeniedException
+    public void invalidate(@Nullable VlmProviderObject<Resource> vlmData) throws StorageException
     {
         if (vlmData != null)
         {

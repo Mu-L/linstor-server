@@ -27,16 +27,10 @@ import com.linbit.linstor.numberpool.DynamicNumberPoolImpl;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.ProcCryptoEntry;
@@ -76,7 +70,7 @@ import static java.util.stream.Collectors.toList;
  *
  * @author Robert Altnoeder &lt;robert.altnoeder@linbit.com&gt;
  */
-public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
+public class Node extends AbsCoreObj<Node> implements NodeInfo
 {
     public interface InitMaps
     {
@@ -119,7 +113,6 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
     private final TransactionMap<Node, NodeName, NodeConnection> nodeConnections;
 
     // Access controls for this object
-    private final ObjectProtection objProt;
 
     // Properties container for this node
     private final Props nodeProps;
@@ -142,7 +135,6 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
 
     Node(
         UUID uuidRef,
-        ObjectProtection objProtRef,
         NodeName nameRef,
         @Nullable Type type,
         long initialFlags,
@@ -177,7 +169,6 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
 
     Node(
         UUID uuidRef,
-        ObjectProtection objProtRef,
         NodeName nameRef,
         @Nullable Type type,
         long initialFlags,
@@ -198,7 +189,6 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
         super(uuidRef, transObjFactory, transMgrProvider);
         ErrorCheck.ctorNotNull(Node.class, NodeName.class, nameRef);
 
-        objProt = objProtRef;
         nodeName = nameRef;
         dbDriver = dbDriverRef;
 
@@ -311,42 +301,32 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
         return nodeName;
     }
 
-    public @Nullable Resource getResource(AccessContext accCtx, ResourceName resName)
-        throws AccessDeniedException
+    public @Nullable Resource getResource(ResourceName resName)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return resourceMap.get(resName);
     }
 
 
-    public @Nullable NodeConnection getNodeConnection(AccessContext accCtx, Node otherNode)
-        throws AccessDeniedException
+    public @Nullable NodeConnection getNodeConnection(Node otherNode)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
-        otherNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return nodeConnections.get(otherNode.getName());
     }
 
-    public Collection<NodeConnection> getNodeConnections(AccessContext accCtx)
-        throws AccessDeniedException
+    public Collection<NodeConnection> getNodeConnections()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return nodeConnections.values();
     }
 
 
-    public void setNodeConnection(AccessContext accCtx, NodeConnection nodeConnection)
-        throws AccessDeniedException
+    public void setNodeConnection(NodeConnection nodeConnection)
     {
         checkDeleted();
-        Node sourceNode = nodeConnection.getSourceNode(accCtx);
-        Node targetNode = nodeConnection.getTargetNode(accCtx);
+        Node sourceNode = nodeConnection.getSourceNode();
+        Node targetNode = nodeConnection.getTargetNode();
 
-        sourceNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-        targetNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         if (this.equals(sourceNode))
         {
@@ -359,16 +339,13 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
     }
 
 
-    public void removeNodeConnection(AccessContext accCtx, NodeConnection nodeConnection)
-        throws AccessDeniedException
+    public void removeNodeConnection(NodeConnection nodeConnection)
     {
         checkDeleted();
 
-        Node sourceNode = nodeConnection.getSourceNode(accCtx);
-        Node targetNode = nodeConnection.getTargetNode(accCtx);
+        Node sourceNode = nodeConnection.getSourceNode();
+        Node targetNode = nodeConnection.getTargetNode();
 
-        sourceNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-        targetNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         if (this.equals(sourceNode))
         {
@@ -381,41 +358,30 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
     }
 
 
-    @Override
-    public ObjectProtection getObjProt()
+
+    public Props getProps()
     {
         checkDeleted();
-        return objProt;
-    }
-
-
-    public Props getProps(AccessContext accCtx)
-        throws AccessDeniedException
-    {
-        checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, objProt, nodeProps);
+        return nodeProps;
     }
 
     @Override
-    public ReadOnlyProps getReadOnlyProps(AccessContext accCtxRef) throws AccessDeniedException
+    public ReadOnlyProps getReadOnlyProps()
     {
         checkDeleted();
-        objProt.requireAccess(accCtxRef, AccessType.VIEW);
         return roNodeProps;
     }
 
-    public void addResource(AccessContext accCtx, Resource resRef) throws AccessDeniedException
+    public void addResource(Resource resRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
 
         resourceMap.put(resRef.getResourceDefinition().getName(), resRef);
     }
 
-    void removeResource(AccessContext accCtx, Resource resRef) throws AccessDeniedException
+    void removeResource(Resource resRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
 
         resourceMap.remove(resRef.getResourceDefinition().getName());
     }
@@ -428,31 +394,25 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
     }
 
 
-    public Iterator<Resource> iterateResources(AccessContext accCtx)
-        throws AccessDeniedException
+    public Iterator<Resource> iterateResources()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return resourceMap.values().iterator();
     }
 
 
-    public Stream<Resource> streamResources(AccessContext accCtx)
-        throws AccessDeniedException
+    public Stream<Resource> streamResources()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return resourceMap.values().stream();
     }
 
 
-    public void addSnapshot(AccessContext accCtx, Snapshot snapshot)
-        throws AccessDeniedException
+    public void addSnapshot(Snapshot snapshot)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
 
         snapshotMap.put(snapshot.getSnapshotDefinition().getSnapDfnKey(), snapshot);
     }
@@ -465,68 +425,56 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
     }
 
 
-    public boolean hasSnapshots(AccessContext accCtx)
-        throws AccessDeniedException
+    public boolean hasSnapshots()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return !snapshotMap.isEmpty();
     }
 
-    public Collection<Snapshot> getSnapshots(AccessContext accCtx)
-        throws AccessDeniedException
+    public Collection<Snapshot> getSnapshots()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return snapshotMap.values();
     }
 
-    public Iterator<Snapshot> iterateSnapshots(AccessContext accCtx)
-        throws AccessDeniedException
+    public Iterator<Snapshot> iterateSnapshots()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return snapshotMap.values().iterator();
     }
 
-    public @Nullable NetInterface getNetInterface(AccessContext accCtx, NetInterfaceName niName)
-        throws AccessDeniedException
+    public @Nullable NetInterface getNetInterface(NetInterfaceName niName)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return netInterfaceMap.get(niName);
     }
 
-    public void addNetInterface(AccessContext accCtx, NetInterface niRef) throws AccessDeniedException
+    public void addNetInterface(NetInterface niRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
 
         netInterfaceMap.put(niRef.getName(), niRef);
     }
 
-    public void removeNetInterface(AccessContext accCtx, NetInterface niRef)
-        throws AccessDeniedException, DatabaseException
+    public void removeNetInterface(NetInterface niRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
 
         netInterfaceMap.remove(niRef.getName());
 
         if (Objects.equals(activeStltConn.get(), niRef))
         {
-            removeActiveSatelliteconnection(accCtx);
+            removeActiveSatelliteconnection();
         }
     }
 
-    public void setOfflinePeer(ErrorReporter errorReporterRef, AccessContext accCtx)
-        throws AccessDeniedException
+    public void setOfflinePeer(ErrorReporter errorReporterRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
 
         final String nodeNameStr = nodeName.displayValue;
         if (Node.Type.CONTROLLER.equals(nodeType.get()))
@@ -535,7 +483,7 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
             Set<String> allMyIps = LocalInetAddresses.LOCAL_ADDRESSES;
             for (Entry<NetInterfaceName, NetInterface> entry : netInterfaceMap.entrySet())
             {
-                String ipAddress = entry.getValue().getAddress(accCtx).getAddress();
+                String ipAddress = entry.getValue().getAddress().getAddress();
                 for (String inetAddress : allMyIps)
                 {
                     if (ipAddress.equals(inetAddress))
@@ -553,49 +501,39 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
         }
     }
 
-    public Iterator<NetInterface> iterateNetInterfaces(AccessContext accCtx)
-        throws AccessDeniedException
+    public Iterator<NetInterface> iterateNetInterfaces()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return netInterfaceMap.values().iterator();
     }
 
 
-    public Stream<NetInterface> streamNetInterfaces(AccessContext accCtx)
-        throws AccessDeniedException
+    public Stream<NetInterface> streamNetInterfaces()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return netInterfaceMap.values().stream();
     }
 
 
-    public @Nullable StorPool getStorPool(AccessContext accCtx, StorPoolName poolName)
-        throws AccessDeniedException
+    public @Nullable StorPool getStorPool(StorPoolName poolName)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return storPoolMap.get(poolName);
     }
 
-    public void addStorPool(AccessContext accCtx, StorPool pool)
-        throws AccessDeniedException
+    public void addStorPool(StorPool pool)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
 
         storPoolMap.put(pool.getName(), pool);
     }
 
-    public void removeStorPool(AccessContext accCtx, StorPool pool)
-        throws AccessDeniedException
+    public void removeStorPool(StorPool pool)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
 
         storPoolMap.remove(pool.getName());
     }
@@ -608,65 +546,53 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
     }
 
 
-    public Iterator<StorPool> iterateStorPools(AccessContext accCtx)
-        throws AccessDeniedException
+    public Iterator<StorPool> iterateStorPools()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return storPoolMap.values().iterator();
     }
 
 
-    public Stream<StorPool> streamStorPools(AccessContext accCtx)
-        throws AccessDeniedException
+    public Stream<StorPool> streamStorPools()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return storPoolMap.values().stream();
     }
 
 
-    public void copyStorPoolMap(AccessContext accCtx, Map<? super StorPoolName, ? super StorPool> dstMap)
-        throws AccessDeniedException
+    public void copyStorPoolMap(Map<? super StorPoolName, ? super StorPool> dstMap)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         dstMap.putAll(storPoolMap);
     }
 
-    public Type setNodeType(AccessContext accCtx, Type newType)
-        throws AccessDeniedException, DatabaseException
+    public Type setNodeType(Type newType)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
 
         return nodeType.set(newType);
     }
 
 
-    public Type getNodeType(AccessContext accCtx)
-        throws AccessDeniedException
+    public Type getNodeType()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         return nodeType.get();
     }
 
-    public DynamicNumberPool getTcpPortPool(AccessContext accCtxRef) throws AccessDeniedException
+    public DynamicNumberPool getTcpPortPool()
     {
         checkDeleted();
-        objProt.requireAccess(accCtxRef, AccessType.USE);
         return tcpPortPool;
     }
 
-    public boolean hasNodeType(AccessContext accCtx, Type reqType)
-        throws AccessDeniedException
+    public boolean hasNodeType(Type reqType)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         long reqFlags = reqType.getFlagValue();
         return (nodeType.get().getFlagValue() & reqFlags) == reqFlags;
@@ -680,18 +606,16 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
     }
 
 
-    public @Nullable Peer getPeer(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable Peer getPeer()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return peer;
     }
 
 
-    public void setPeer(AccessContext accCtx, Peer peerRef) throws AccessDeniedException
+    public void setPeer(Peer peerRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         peer = peerRef;
         reconnectAttemptCount += 1;
     }
@@ -701,19 +625,17 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
         return reconnectAttemptCount;
     }
 
-    public @Nullable NetInterface getActiveStltConn(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable NetInterface getActiveStltConn()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return activeStltConn.get();
     }
 
 
-    public void setActiveStltConn(AccessContext accCtx, NetInterface satelliteConnectionRef)
-        throws AccessDeniedException, DatabaseException
+    public void setActiveStltConn(NetInterface satelliteConnectionRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
 
         activeStltConn.set(satelliteConnectionRef);
         try
@@ -729,11 +651,10 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
         }
     }
 
-    void removeActiveSatelliteconnection(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    void removeActiveSatelliteconnection()
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         activeStltConn.set(null);
         try
         {
@@ -757,21 +678,19 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
         return evictionTimstamp;
     }
 
-    public void markDeleted(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void markDeleted() throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CONTROL);
-        getFlags().enableFlags(accCtx, Flags.DELETE);
+        getFlags().enableFlags(Flags.DELETE);
     }
 
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
             if (!resourceMap.isEmpty())
             {
@@ -787,25 +706,25 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
             ArrayList<NodeConnection> values = new ArrayList<>(nodeConnections.values());
             for (NodeConnection nodeConn : values)
             {
-                nodeConn.delete(accCtx);
+                nodeConn.delete();
             }
 
             // Shallow copy the collection because elements may be removed from it
             ArrayList<NetInterface> netIfs = new ArrayList<>(netInterfaceMap.values());
             for (NetInterface netIf : netIfs)
             {
-                netIf.delete(accCtx);
+                netIf.delete();
             }
 
             // Shallow copy the collection because elements may be removed from it
             ArrayList<StorPool> storPools = new ArrayList<>(storPoolMap.values());
             for (StorPool storPool : storPools)
             {
-                storPool.delete(accCtx);
+                storPool.delete();
             }
 
             nodeProps.delete();
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
             dbDriver.delete(this);
@@ -814,48 +733,42 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
         }
     }
 
-    public void markEvicted(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void markEvicted() throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CONTROL);
-        getFlags().enableFlags(accCtx, Flags.EVICTED);
+        getFlags().enableFlags(Flags.EVICTED);
     }
 
-    public void unMarkEvicted(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void unMarkEvicted() throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CONTROL);
-        getFlags().disableFlags(accCtx, Flags.EVICTED);
+        getFlags().disableFlags(Flags.EVICTED);
     }
 
-    public boolean isEvicted(AccessContext accessCtx) throws AccessDeniedException
+    public boolean isEvicted()
     {
         checkDeleted();
-        objProt.requireAccess(accessCtx, AccessType.VIEW);
         // We can't use isUnset here, because EVICTED contains DELETE
         return getFlags().isSet(accessCtx, Flags.EVICTED);
     }
 
-    public NodePojo getApiData(AccessContext accCtx, @Nullable Long fullSyncId, @Nullable Long updateId)
-        throws AccessDeniedException
+    public NodePojo getApiData(@Nullable Long fullSyncId, @Nullable Long updateId)
     {
         checkDeleted();
-        return getApiData(accCtx, true, fullSyncId, updateId);
+        return getApiData(true, fullSyncId, updateId);
     }
 
     NodePojo getApiData(
-        AccessContext accCtx,
         boolean includeOtherNode,
         @Nullable Long fullSyncId,
         @Nullable Long updateId
     )
-        throws AccessDeniedException
     {
         checkDeleted();
         List<NetInterfaceApi> netInterfaces = new ArrayList<>();
-        for (NetInterface ni : streamNetInterfaces(accCtx).collect(toList()))
+        for (NetInterface ni : streamNetInterfaces().collect(toList()))
         {
-            netInterfaces.add(ni.getApiData(accCtx));
+            netInterfaces.add(ni.getApiData());
         }
 
         List<NodeConnPojo> nodeConns = new ArrayList<>();
@@ -866,11 +779,11 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
              */
             for (NodeConnection nodeConn : nodeConnections.values())
             {
-                nodeConns.add(nodeConn.getApiData(this, accCtx, fullSyncId, updateId));
+                nodeConns.add(nodeConn.getApiData(this, fullSyncId, updateId));
             }
         }
 
-        Peer tmpPeer = getPeer(accCtx);
+        Peer tmpPeer = getPeer();
         ExtToolsManager extToolsManager;
         ConnectionStatus connectionStatus;
         @Nullable ApiConsts.Platform platform;
@@ -893,12 +806,12 @@ public class Node extends AbsCoreObj<Node> implements ProtectedObject, NodeInfo
         return new NodePojo(
             getUuid(),
             getName().getDisplayName(),
-            getNodeType(accCtx).name(),
-            getFlags().getFlagsBits(accCtx),
+            getNodeType().name(),
+            getFlags().getFlagsBits(),
             netInterfaces,
-            activeStltConn.get() != null ? activeStltConn.get().getApiData(accCtx) : null,
+            activeStltConn.get() != null ? activeStltConn.get().getApiData() : null,
             nodeConns,
-            getProps(accCtx).cloneMap(),
+            getProps().cloneMap(),
             connectionStatus,
             platform,
             osVariant,

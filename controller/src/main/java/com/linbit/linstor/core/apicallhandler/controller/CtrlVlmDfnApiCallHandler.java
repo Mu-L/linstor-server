@@ -7,8 +7,6 @@ import com.linbit.crypto.LengthPadding;
 import com.linbit.crypto.SecretGenerator;
 import com.linbit.drbd.md.GidGenerator;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcImpl.ApiCallRcEntry;
@@ -19,7 +17,6 @@ import com.linbit.linstor.core.CtrlSecurityObjects;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
@@ -36,8 +33,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.modularcrypto.ModularCryptoProvider;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.utils.Base64;
 
@@ -70,7 +65,6 @@ class CtrlVlmDfnApiCallHandler
     private static final int SECRET_KEY_BYTES = 20;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final CtrlVlmDfnCrtApiHelper ctrlVlmDfnCrtApiHelper;
@@ -79,7 +73,6 @@ class CtrlVlmDfnApiCallHandler
     private final CtrlSecurityObjects secObjs;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final LengthPadding cryptoLenPad;
     private final ModularCryptoProvider cryptoProvider;
     private final ScopeRunner scopeRunner;
@@ -93,7 +86,6 @@ class CtrlVlmDfnApiCallHandler
     @Inject
     CtrlVlmDfnApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
         CtrlVlmDfnCrtApiHelper ctrlVlmDfnCrtApiHelperRef,
@@ -103,7 +95,6 @@ class CtrlVlmDfnApiCallHandler
         EncryptionHelper encryptionHelperRef,
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ModularCryptoProvider cryptoProviderRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
@@ -112,7 +103,6 @@ class CtrlVlmDfnApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         ctrlVlmDfnCrtApiHelper = ctrlVlmDfnCrtApiHelperRef;
@@ -122,7 +112,6 @@ class CtrlVlmDfnApiCallHandler
         encryptionHelper = encryptionHelperRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         cryptoProvider = cryptoProviderRef;
         cryptoLenPad = cryptoProviderRef.createLengthPadding();
         scopeRunner = scopeRunnerRef;
@@ -270,8 +259,7 @@ class CtrlVlmDfnApiCallHandler
     {
         VolumeNumber volNr = getOrGenerateVlmNr(
             vlmDfnApiRef.getVlmDfn(),
-            rscDfn,
-            apiCtx
+            rscDfn
         );
 
         ResponseContext context = makeVlmDfnContext(
@@ -289,7 +277,6 @@ class CtrlVlmDfnApiCallHandler
                 VolumeDefinition.Flags.restoreFlags(vlmDfnApiRef.getVlmDfn().getFlags());
 
             vlmDfn = ctrlVlmDfnCrtApiHelper.createVlmDfnData(
-                peerAccCtx.get(),
                 rscDfn,
                 volNr,
                 vlmDfnApiRef.getDrbdMinorNr(),
@@ -369,27 +356,19 @@ class CtrlVlmDfnApiCallHandler
     private Iterator<Resource> getRscIterator(ResourceDefinition rscDfn)
     {
         Iterator<Resource> iterator;
-        try
-        {
-            iterator = rscDfn.iterateResource(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        iterator = rscDfn.iterateResource();
         return iterator;
     }
 
     private VolumeNumber getOrGenerateVlmNr(
         VolumeDefinitionApi vlmDfnApi,
-        ResourceDefinition rscDfn,
-        AccessContext accCtx
+        ResourceDefinition rscDfn
     )
     {
         VolumeNumber vlmNr;
         try
         {
-            vlmNr = CtrlRscDfnApiCallHandler.getVlmNr(vlmDfnApi, rscDfn, accCtx);
+            vlmNr = CtrlRscDfnApiCallHandler.getVlmNr(vlmDfnApi, rscDfn);
         }
         catch (ValueOutOfRangeException valOORangeExc)
         {
@@ -413,18 +392,7 @@ class CtrlVlmDfnApiCallHandler
     private Props getVlmDfnProps(VolumeDefinition vlmDfn)
     {
         Props props;
-        try
-        {
-            props = vlmDfn.getProps(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access the properties of " + getVlmDfnDescriptionInline(vlmDfn),
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
-        }
+        props = vlmDfn.getProps();
         return props;
     }
 

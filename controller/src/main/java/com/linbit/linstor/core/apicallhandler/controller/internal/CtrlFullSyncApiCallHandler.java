@@ -2,7 +2,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -22,8 +21,6 @@ import com.linbit.linstor.core.repository.RemoteRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.TcpConnectorPeer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.utils.externaltools.ExtToolsManager;
@@ -56,7 +53,6 @@ public class CtrlFullSyncApiCallHandler
     private static final Long FULL_SYNC_RPC_ID = -1L;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlStltSerializer interComSerializer;
     private final ReadWriteLock nodesMapLock;
@@ -71,7 +67,6 @@ public class CtrlFullSyncApiCallHandler
     @Inject
     CtrlFullSyncApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlStltSerializer interComSerializerRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
@@ -85,7 +80,6 @@ public class CtrlFullSyncApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         interComSerializer = interComSerializerRef;
         nodesMapLock = nodesMapLockRef;
@@ -106,14 +100,7 @@ public class CtrlFullSyncApiCallHandler
     public Flux<ApiCallRc> sendFullSync(Node satelliteNode, long expectedFullSyncId, boolean waitForAnswer)
     {
         Peer peer;
-        try
-        {
-            peer = satelliteNode.getPeer(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        peer = satelliteNode.getPeer();
         return scopeRunner.fluxInTransactionlessScope(
             "Send full sync",
             LockGuard.createDeferred(
@@ -145,30 +132,30 @@ public class CtrlFullSyncApiCallHandler
 
             // some storPools might have been created on the satellite, but are not used by resources / volumes
             // however, when a rsc / vlm is created, they already assume the referenced storPool already exists
-            storPools.addAll(satelliteNode.streamStorPools(apiCtx).collect(toList()));
+            storPools.addAll(satelliteNode.streamStorPools().collect(toList()));
 
-            for (Resource rsc : satelliteNode.streamResources(apiCtx).collect(toList()))
+            for (Resource rsc : satelliteNode.streamResources().collect(toList()))
             {
                 rscs.add(rsc);
-                Iterator<Resource> otherRscIterator = rsc.getResourceDefinition().iterateResource(apiCtx);
+                Iterator<Resource> otherRscIterator = rsc.getResourceDefinition().iterateResource();
                 while (otherRscIterator.hasNext())
                 {
                     Resource otherRsc = otherRscIterator.next();
                     if (!otherRsc.equals(rsc))
                     {
                         nodes.add(otherRsc.getNode());
-                        storPools.addAll(LayerVlmUtils.getStorPools(otherRsc, apiCtx));
+                        storPools.addAll(LayerVlmUtils.getStorPools(otherRsc));
                     }
                 }
             }
 
             // we need to send all snaps, since the stlt might need them for e.g. incremental backup shipping
-            snapshots.addAll(satelliteNode.getSnapshots(apiCtx));
+            snapshots.addAll(satelliteNode.getSnapshots());
 
-            externalFiles.addAll(externalFilesRepo.getMapForView(apiCtx).values());
-            remotes.addAll(remoteRepo.getMapForView(apiCtx).values());
+            externalFiles.addAll(externalFilesRepo.getMapForView().values());
+            remotes.addAll(remoteRepo.getMapForView().values());
 
-            Peer satellitePeer = satelliteNode.getPeer(apiCtx);
+            Peer satellitePeer = satelliteNode.getPeer();
             satellitePeer.setFullSyncId(expectedFullSyncId);
 
             errorReporter.logInfo("Sending full sync to " + satelliteNode + ".");

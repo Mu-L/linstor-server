@@ -4,8 +4,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Resource.Flags;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
@@ -28,7 +26,6 @@ public abstract class AbsCachedRscLayerHelper<
 
     protected AbsCachedRscLayerHelper(
         ErrorReporter errorReporterRef,
-        AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         DynamicNumberPool layerRscIdPoolRef,
         Class<RSC_LO> rscClassRef,
@@ -38,7 +35,6 @@ public abstract class AbsCachedRscLayerHelper<
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             rscClassRef,
@@ -48,13 +44,12 @@ public abstract class AbsCachedRscLayerHelper<
     }
 
     protected boolean genericNeedsCacheDevice(Resource rsc, List<DeviceLayerKind> remainingLayerListRef)
-        throws AccessDeniedException
     {
         boolean isNvmeBelow = remainingLayerListRef.contains(DeviceLayerKind.NVME);
         StateFlags<Flags> rscflags = rsc.getStateFlags();
-        boolean isNvmeInitiator = rscflags.isSet(apiCtx, Resource.Flags.NVME_INITIATOR);
-        boolean isEbsInitiator = rscflags.isSet(apiCtx, Resource.Flags.EBS_INITIATOR);
-        boolean isDrbdDiskless = rscflags.isSet(apiCtx, Resource.Flags.DRBD_DISKLESS);
+        boolean isNvmeInitiator = rscflags.isSet(Resource.Flags.NVME_INITIATOR);
+        boolean isEbsInitiator = rscflags.isSet(Resource.Flags.EBS_INITIATOR);
+        boolean isDrbdDiskless = rscflags.isSet(Resource.Flags.DRBD_DISKLESS);
 
         boolean needsCacheDevice;
         if (isDrbdDiskless)

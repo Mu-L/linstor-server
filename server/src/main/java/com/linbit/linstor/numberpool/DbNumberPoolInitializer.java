@@ -2,15 +2,12 @@ package com.linbit.linstor.numberpool;
 
 import com.linbit.ImplementationError;
 import com.linbit.ValueInUseException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.objects.NetInterface;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.systemstarter.StartupInitializer;
 
@@ -27,7 +24,6 @@ import java.util.Iterator;
 public class DbNumberPoolInitializer implements StartupInitializer
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext initCtx;
     private final DynamicNumberPool minorNrPool;
     private final DynamicNumberPool specStltTargetPortPool;
     private final DynamicNumberPool layerRscIdPool;
@@ -37,7 +33,6 @@ public class DbNumberPoolInitializer implements StartupInitializer
     @Inject
     public DbNumberPoolInitializer(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext initCtxRef,
         @Named(MINOR_NUMBER_POOL) DynamicNumberPool minorNrPoolRef,
         @Named(SPECIAL_SATELLTE_PORT_POOL) DynamicNumberPool specStltTargetPortPoolRef,
         @Named(LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef,
@@ -46,7 +41,6 @@ public class DbNumberPoolInitializer implements StartupInitializer
     )
     {
         errorReporter = errorReporterRef;
-        initCtx = initCtxRef;
         minorNrPool = minorNrPoolRef;
         specStltTargetPortPool = specStltTargetPortPoolRef;
         layerRscIdPool = layerRscIdPoolRef;
@@ -71,67 +65,49 @@ public class DbNumberPoolInitializer implements StartupInitializer
 
     private void initializeTcpPortPools()
     {
-        try
+        for (Node node : nodesMap.values())
         {
-            for (Node node : nodesMap.values())
-            {
-                node.getTcpPortPool(initCtx).reloadRange();
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            node.getTcpPortPool().reloadRange();
         }
     }
 
     private void initializeSpecStltTargetPortPool()
     {
         specStltTargetPortPool.reloadRange();
-        try
+        for (Node curNode : nodesMap.values())
         {
-            for (Node curNode : nodesMap.values())
+            Node.Type nodeType = curNode.getNodeType();
+            if (nodeType.isSpecial())
             {
-                Node.Type nodeType = curNode.getNodeType(initCtx);
-                if (nodeType.isSpecial())
+                try
                 {
-                    try
+                    Iterator<NetInterface> netIfIt = curNode.iterateNetInterfaces();
+                    int netIfCount = 0;
+                    while (netIfIt.hasNext())
                     {
-                        Iterator<NetInterface> netIfIt = curNode.iterateNetInterfaces(initCtx);
-                        int netIfCount = 0;
-                        while (netIfIt.hasNext())
-                        {
-                            if (++netIfCount > 1)
-                            {
-                                throw new ImplementationError(
-                                    "Special target node has more than one network interface!"
-                                );
-                            }
-                            NetInterface netIf = netIfIt.next();
-                            specStltTargetPortPool.allocate(netIf.getStltConnPort(initCtx).value);
-                        }
-                        if (netIfCount == 0)
+                        if (++netIfCount > 1)
                         {
                             throw new ImplementationError(
-                                "Special target node has no network interface!"
+                                "Special target node has more than one network interface!"
                             );
                         }
+                        NetInterface netIf = netIfIt.next();
+                        specStltTargetPortPool.allocate(netIf.getStltConnPort().value);
                     }
-                    catch (ValueInUseException exc)
+                    if (netIfCount == 0)
                     {
-                        errorReporter.logError(
-                            "Skipping initial allocation in pool: " + exc.getMessage()
+                        throw new ImplementationError(
+                            "Special target node has no network interface!"
                         );
                     }
                 }
+                catch (ValueInUseException exc)
+                {
+                    errorReporter.logError(
+                        "Skipping initial allocation in pool: " + exc.getMessage()
+                    );
+                }
             }
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ImplementationError(
-                "An " + accExc.getClass().getSimpleName() + " exception was generated " +
-                    "during number allocation cache initialization",
-                accExc
-            );
         }
     }
 
@@ -143,26 +119,26 @@ public class DbNumberPoolInitializer implements StartupInitializer
         {
             for (Node curNode : nodesMap.values())
             {
-                Iterator<Resource> iterateResources = curNode.iterateResources(initCtx);
+                Iterator<Resource> iterateResources = curNode.iterateResources();
                 while (iterateResources.hasNext())
                 {
                     Resource rsc = iterateResources.next();
-                    AbsRscLayerObject<?> rscLayerData = rsc.getLayerData(initCtx);
+                    AbsRscLayerObject<?> rscLayerData = rsc.getLayerData();
 
                     allocate(rscLayerData);
                 }
-                Iterator<Snapshot> iterateSnapshots = curNode.iterateSnapshots(initCtx);
+                Iterator<Snapshot> iterateSnapshots = curNode.iterateSnapshots();
                 while (iterateSnapshots.hasNext())
                 {
                     Snapshot snapshot = iterateSnapshots.next();
-                    AbsRscLayerObject<?> rscLayerData = snapshot.getLayerData(initCtx);
+                    AbsRscLayerObject<?> rscLayerData = snapshot.getLayerData();
 
                     allocate(rscLayerData);
                 }
 
             }
         }
-        catch (AccessDeniedException | ValueInUseException exc)
+        catch (ValueInUseException exc)
         {
             throw new ImplementationError(
                 "An " + exc.getClass().getSimpleName() + " exception was generated " +

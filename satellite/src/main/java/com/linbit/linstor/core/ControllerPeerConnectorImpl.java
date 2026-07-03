@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.interfaces.serializer.CommonSerializer;
 import com.linbit.linstor.core.apicallhandler.StltApiCallHandlerUtils;
 import com.linbit.linstor.core.apicallhandler.StltExtToolsChecker;
@@ -14,9 +13,6 @@ import com.linbit.linstor.core.objects.NodeSatelliteFactory;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerOffline;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -41,7 +37,6 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
 
     private final ErrorReporter errorReporter;
 
-    private final AccessContext sysCtx;
 
     private final NodeSatelliteFactory nodeFactory;
 
@@ -67,7 +62,6 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
         @Named(CoreModule.RSC_DFN_MAP_LOCK) ReadWriteLock rscDfnMapLockRef,
         @Named(CoreModule.STOR_POOL_DFN_MAP_LOCK) ReadWriteLock storPoolDfnMapLockRef,
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext sysCtxRef,
         NodeSatelliteFactory nodeFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef,
         CommonSerializer commonSerializerRef,
@@ -82,7 +76,6 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
         rscDfnMapLock = rscDfnMapLockRef;
         storPoolDfnMapLock = storPoolDfnMapLockRef;
         errorReporter = errorReporterRef;
-        sysCtx = sysCtxRef;
         nodeFactory = nodeFactoryRef;
         transMgrProvider = transMgrProviderRef;
         commonSerializer = commonSerializerRef;
@@ -173,7 +166,6 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
                 stltUtils.clearCaches();
 
                 localNode = nodeFactory.getInstanceSatellite(
-                    sysCtx,
                     nodeUuid,
                     localNodeName,
                     Node.Type.SATELLITE,
@@ -189,13 +181,6 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
             {
                 errorReporter.reportError(exc);
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(
-                "sysCtx does not have enough privileges to call node.setPeer",
-                accDeniedExc
-            );
         }
         finally
         {
@@ -213,7 +198,7 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
         nodesMapLock.readLock().lock();
         try
         {
-            nodesMap.get(localNodeName).setPeer(sysCtx, controllerPeer);
+            nodesMap.get(localNodeName).setPeer(controllerPeer);
             /*
              * Initialize local node's extToolsList so that methods in the server project can also use the
              * localNode.get...getExtToolsMgr to check for external tools versions and support (like the

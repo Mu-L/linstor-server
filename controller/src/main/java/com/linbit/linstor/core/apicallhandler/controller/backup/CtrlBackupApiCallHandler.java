@@ -5,8 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -61,8 +59,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.locks.LockGuardFactory;
@@ -107,8 +103,6 @@ public class CtrlBackupApiCallHandler
 {
     private static final String KEY_DST = "DST";
     private static final String KEY_SRC = "SRC";
-    private final Provider<AccessContext> peerAccCtx;
-    private final AccessContext sysCtx;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
@@ -127,8 +121,6 @@ public class CtrlBackupApiCallHandler
 
     @Inject
     public CtrlBackupApiCallHandler(
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
-        @SystemContext AccessContext sysCtxRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
@@ -146,8 +138,6 @@ public class CtrlBackupApiCallHandler
         Provider<CtrlRemoteApiCallHandler> ctrlRemoteApiCallHandlerRef
     )
     {
-        peerAccCtx = peerAccCtxRef;
-        sysCtx = sysCtxRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
@@ -247,7 +237,7 @@ public class CtrlBackupApiCallHandler
         String remoteName,
         boolean dryRun,
         boolean keepSnaps
-    ) throws AccessDeniedException, InvalidNameException
+    ) throws InvalidNameException
     {
         S3Remote s3Remote = backupHelper.getS3Remote(remoteName);
         ToDeleteCollections toDelete = new ToDeleteCollections();
@@ -377,7 +367,7 @@ public class CtrlBackupApiCallHandler
                 if (!toDelete.s3keys.isEmpty())
                 {
                     backupHandler
-                        .deleteObjects(toDelete.s3keys, s3Remote, peerAccCtx.get(), backupHelper.getLocalMasterKey());
+                        .deleteObjects(toDelete.s3keys, s3Remote, backupHelper.getLocalMasterKey());
                 }
                 else
                 {
@@ -645,9 +635,9 @@ public class CtrlBackupApiCallHandler
         Map<String, S3ObjectInfo> s3LinstorObjectsRef,
         ToDeleteCollections toDeleteRef
     )
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
-        String localClusterId = sysCfgRepo.getCtrlConfForView(peerAccCtx.get()).getProp(LinStor.PROP_KEY_CLUSTER_ID);
+        String localClusterId = sysCfgRepo.getCtrlConfForView().getProp(LinStor.PROP_KEY_CLUSTER_ID);
         Set<String> s3KeysToDelete = new TreeSet<>();
         for (S3ObjectInfo s3Obj : s3LinstorObjectsRef.values())
         {
@@ -673,7 +663,7 @@ public class CtrlBackupApiCallHandler
         String snapNameRef,
         String remoteNameRef
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         S3Remote remote = backupHelper.getS3Remote(remoteNameRef);
         AccessContext peerCtx = peerAccCtx.get();
@@ -708,7 +698,6 @@ public class CtrlBackupApiCallHandler
                     continue;
                 }
                 PairNonNull<BackupApi, Set<String>> result = getBackupFromMetadata(
-                    peerCtx,
                     s3key,
                     info,
                     remote,
@@ -735,7 +724,7 @@ public class CtrlBackupApiCallHandler
             }
             catch (IOException exc)
             {
-                errorReporter.reportError(exc, peerCtx, null, "used s3 key: " + s3key);
+                errorReporter.reportError(exc, null, "used s3 key: " + s3key);
             }
             catch (ParseException ignored)
             {
@@ -774,7 +763,7 @@ public class CtrlBackupApiCallHandler
         }
         // also check local snapDfns if anything is being uploaded but not yet visible in the s3 list (an upload might
         // only be shown in the list when it is completed)
-        for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(peerCtx).values())
+        for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
         {
             if (!rscNameRef.isEmpty() && rscDfn.getName().displayValue.equalsIgnoreCase(rscNameRef))
             {
@@ -793,13 +782,13 @@ public class CtrlBackupApiCallHandler
                     continue;
                 }
                 String backupNamespc = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteNameRef;
-                String s3Suffix = snapDfn.getSnapDfnProps(peerCtx)
+                String s3Suffix = snapDfn.getSnapDfnProps()
                     .getProp(
                     ApiConsts.KEY_BACKUP_S3_SUFFIX,
                         backupNamespc
                 );
 
-                String backupTimeRaw = snapDfn.getSnapDfnProps(peerCtx)
+                String backupTimeRaw = snapDfn.getSnapDfnProps()
                     .getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, backupNamespc);
 
                 LocalDateTime backupTime = TimeUtils.millisToDate(Long.parseLong(backupTimeRaw));
@@ -807,7 +796,7 @@ public class CtrlBackupApiCallHandler
                 S3VolumeNameInfo firstFutureInfo = null;
 
                 Set<String> futureS3Keys = new TreeSet<>();
-                for (SnapshotVolumeDefinition snapVlmDfn : snapDfn.getAllSnapshotVolumeDefinitions(peerCtx))
+                for (SnapshotVolumeDefinition snapVlmDfn : snapDfn.getAllSnapshotVolumeDefinitions())
                 {
                     S3VolumeNameInfo futureInfo = new S3VolumeNameInfo(
                         rscName,
@@ -848,16 +837,15 @@ public class CtrlBackupApiCallHandler
      * Get all information needed for listBackups from the meta-file
      */
     private PairNonNull<BackupApi, Set<String>> getBackupFromMetadata(
-        AccessContext peerCtx,
         String metadataKey,
         S3MetafileNameInfo info,
         S3Remote remote,
         Set<String> allS3keys
     )
-        throws IOException, AccessDeniedException
+        throws IOException
     {
         BackupMetaDataPojo s3MetaFile = backupHandler
-            .getMetaFile(metadataKey, remote, peerCtx, backupHelper.getLocalMasterKey());
+            .getMetaFile(metadataKey, remote, backupHelper.getLocalMasterKey());
 
         Map<Integer, List<BackupMetaInfoPojo>> s3MetaVlmMap = s3MetaFile.getBackups();
         Map<Integer, BackupVolumePojo> retVlmPojoMap = new TreeMap<>(); // vlmNr, vlmPojo
@@ -994,12 +982,12 @@ public class CtrlBackupApiCallHandler
             String dstNamespc = BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC;
             // Determine backup status based on snapshot definition
             if (
-                snapDfn != null && !snapDfn.getSnapDfnProps(peerCtx)
+                snapDfn != null && !snapDfn.getSnapDfnProps()
                     .getNamespaceOrEmpty(ApiConsts.NAMESPC_BACKUP_SHIPPING)
                     .isEmpty()
             )
             {
-                Props snapDfnProps = snapDfn.getSnapDfnProps(peerCtx);
+                Props snapDfnProps = snapDfn.getSnapDfnProps();
                 String ts = snapDfnProps.getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, srcNamespc);
                 if (ts == null || ts.isEmpty())
                 {
@@ -1015,32 +1003,28 @@ public class CtrlBackupApiCallHandler
                 boolean targetShipping = BackupShippingUtils.hasShippingStatus(
                     snapDfn,
                     null,
-                    InternalApiConsts.VALUE_SHIPPING,
-                    peerCtx
+                    InternalApiConsts.VALUE_SHIPPING
                 );
                 boolean targetShipped = BackupShippingUtils.hasShippingStatus(
                     snapDfn,
                     null,
-                    InternalApiConsts.VALUE_SUCCESS,
-                    peerCtx
+                    InternalApiConsts.VALUE_SUCCESS
                 );
                 boolean sourceShipping = BackupShippingUtils.hasShippingStatus(
                     snapDfn,
                     remoteName,
-                    InternalApiConsts.VALUE_SHIPPING,
-                    peerCtx
+                    InternalApiConsts.VALUE_SHIPPING
                 );
                 boolean sourceShipped = BackupShippingUtils.hasShippingStatus(
                     snapDfn,
                     remoteName,
-                    InternalApiConsts.VALUE_SUCCESS,
-                    peerCtx
+                    InternalApiConsts.VALUE_SUCCESS
                 );
                 boolean isShipping = targetShipping || sourceShipping;
                 boolean isShipped = targetShipped || sourceShipped;
                 if (isShipping || isShipped)
                 {
-                    for (Snapshot snap : snapDfn.getAllSnapshots(peerCtx))
+                    for (Snapshot snap : snapDfn.getAllSnapshots())
                     {
                         if (sourceShipping || sourceShipped)
                         {
@@ -1124,13 +1108,13 @@ public class CtrlBackupApiCallHandler
         boolean createPrm,
         String remoteNameRef
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException, InvalidValueException
+        throws InvalidNameException, DatabaseException, InvalidValueException
     {
         Flux<ApiCallRc> flux = Flux.empty();
         ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, true);
         AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef, true);
         // immediately remove any queued snapshots
-        for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(peerAccCtx.get()))
+        for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
         {
             if (snapNameRef == null || snapDfn.getName().displayValue.equals(snapNameRef))
             {
@@ -1160,15 +1144,15 @@ public class CtrlBackupApiCallHandler
                 if (snapNameRef == null || snapDfn.getName().displayValue.equals(snapNameRef))
                 {
                     boolean isSnapDfnSource = InternalApiConsts.VALUE_SHIPPING.equals(
-                        BackupShippingUtils.getSourceShippingStatus(snapDfn, remoteNameRef, peerAccCtx.get())
+                        BackupShippingUtils.getSourceShippingStatus(snapDfn, remoteNameRef)
                     );
                     boolean isSnapDfnTarget = InternalApiConsts.VALUE_SHIPPING.equals(
-                        BackupShippingUtils.getTargetShippingStatus(snapDfn, peerAccCtx.get())
+                        BackupShippingUtils.getTargetShippingStatus(snapDfn)
                     );
                     boolean abort = (isSnapDfnSource && create) || (isSnapDfnTarget && restore);
                     if (isSnapDfnSource && create)
                     {
-                        String remoteName = snapDfn.getSnapDfnProps(peerAccCtx.get())
+                        String remoteName = snapDfn.getSnapDfnProps()
                             .getProp(
                                 InternalApiConsts.KEY_BACKUP_TARGET_REMOTE,
                                 BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" +
@@ -1182,7 +1166,7 @@ public class CtrlBackupApiCallHandler
                     }
                     else if (isSnapDfnTarget && restore)
                     {
-                        String remoteName = snapDfn.getSnapDfnProps(peerAccCtx.get())
+                        String remoteName = snapDfn.getSnapDfnProps()
                             .getProp(
                                 InternalApiConsts.KEY_BACKUP_SRC_REMOTE,
                                 BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC
@@ -1201,7 +1185,7 @@ public class CtrlBackupApiCallHandler
                         // deleted)
                         if (
                             InternalApiConsts.VALUE_PREPARE_SHIPPING.equals(
-                                BackupShippingUtils.getSourceShippingStatus(snapDfn, remoteNameRef, peerAccCtx.get())
+                                BackupShippingUtils.getSourceShippingStatus(snapDfn, remoteNameRef)
                             )
                         )
                         {
@@ -1209,7 +1193,7 @@ public class CtrlBackupApiCallHandler
                         }
                         else if (
                             InternalApiConsts.VALUE_PREPARE_SHIPPING.equals(
-                                BackupShippingUtils.getTargetShippingStatus(snapDfn, peerAccCtx.get())
+                                BackupShippingUtils.getTargetShippingStatus(snapDfn)
                             )
                         )
                         {
@@ -1238,7 +1222,7 @@ public class CtrlBackupApiCallHandler
             // shippingSent recognize the in-flight abort and route into the abort handling instead of rescheduling.
             for (SnapshotDefinition snapDfn : snapDfnsToUpdateShippingAbort.get(KEY_SRC))
             {
-                snapDfn.getSnapDfnProps(peerAccCtx.get())
+                snapDfn.getSnapDfnProps()
                     .setProp(
                         InternalApiConsts.KEY_SHIPPING_STATUS,
                         InternalApiConsts.VALUE_PREPARE_ABORT,
@@ -1257,13 +1241,13 @@ public class CtrlBackupApiCallHandler
                 String localClusterId;
                 try
                 {
-                    localClusterId = sysCfgRepo.getCtrlConfForView(sysCtx)
+                    localClusterId = sysCfgRepo.getCtrlConfForView()
                         .getProp(
                             InternalApiConsts.KEY_CLUSTER_LOCAL_ID,
                             ApiConsts.NAMESPC_CLUSTER
                         );
                 }
-                catch (InvalidKeyException | AccessDeniedException exc)
+                catch (InvalidKeyException exc)
                 {
                     throw new ImplementationError(exc);
                 }
@@ -1276,7 +1260,7 @@ public class CtrlBackupApiCallHandler
                     LinStor.VERSION_INFO_PROVIDER.getSemanticVersion()
                 );
                 LinstorRemote l2lRemote = (LinstorRemote) remote;
-                flux = backupClient.sendPrepareAbortRequest(data, l2lRemote, peerAccCtx.get())
+                flux = backupClient.sendPrepareAbortRequest(data, l2lRemote)
                     .map(Json::jsonToApiCallRc);
             }
             flux = flux.concatWith(
@@ -1341,7 +1325,7 @@ public class CtrlBackupApiCallHandler
         String remoteName,
         boolean create,
         boolean restore
-    ) throws AccessDeniedException, DatabaseException, InvalidKeyException, InvalidValueException
+    ) throws DatabaseException, InvalidKeyException, InvalidValueException
     {
         String srcNamespace = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName;
         String dstNamespace = BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC;
@@ -1350,7 +1334,7 @@ public class CtrlBackupApiCallHandler
         {
             // these snapDfns are still in VALUE_SHIPPING_PREPARE and therefore no action needs to be taken except
             // updating the status
-            snapDfn.getSnapDfnProps(peerAccCtx.get())
+            snapDfn.getSnapDfnProps()
                 .setProp(
                     InternalApiConsts.KEY_SHIPPING_STATUS,
                     InternalApiConsts.VALUE_ABORTED,
@@ -1361,7 +1345,7 @@ public class CtrlBackupApiCallHandler
         {
             // these snapDfns are still in VALUE_SHIPPING_PREPARE and therefore no action needs to be taken except
             // updating the status
-            snapDfn.getSnapDfnProps(peerAccCtx.get())
+            snapDfn.getSnapDfnProps()
                 .setProp(
                     InternalApiConsts.KEY_SHIPPING_STATUS,
                     InternalApiConsts.VALUE_ABORTED,
@@ -1373,7 +1357,7 @@ public class CtrlBackupApiCallHandler
             // this rscDfn is rejected with "A backup is currently being restored ..." until the controller is
             // restarted. Release it so the next shipment for this resource can proceed.
             ResourceDefinition rscDfn = snapDfn.getResourceDefinition();
-            for (Snapshot snap : snapDfn.getAllSnapshots(peerAccCtx.get()))
+            for (Snapshot snap : snapDfn.getAllSnapshots())
             {
                 remotesToCleanup.addAll(
                     backupInfoMgr.removeAllRestoreEntries(rscDfn, rscDfn.getName().displayValue, snap)
@@ -1383,7 +1367,7 @@ public class CtrlBackupApiCallHandler
         for (SnapshotDefinition snapDfn : snapDfnsToUpdateShippingAbort.get(KEY_SRC))
         {
             // these snapDfns actually need to be aborted, so set VALUE_ABORTING to trigger corresponding actions
-            snapDfn.getSnapDfnProps(peerAccCtx.get())
+            snapDfn.getSnapDfnProps()
                 .setProp(
                     InternalApiConsts.KEY_SHIPPING_STATUS,
                     InternalApiConsts.VALUE_ABORTING,
@@ -1393,7 +1377,7 @@ public class CtrlBackupApiCallHandler
         for (SnapshotDefinition snapDfn : snapDfnsToUpdateShippingAbort.get(KEY_DST))
         {
             // these snapDfns actually need to be aborted, so set VALUE_ABORTING to trigger corresponding actions
-            snapDfn.getSnapDfnProps(peerAccCtx.get())
+            snapDfn.getSnapDfnProps()
                 .setProp(
                     InternalApiConsts.KEY_SHIPPING_STATUS,
                     InternalApiConsts.VALUE_ABORTING,
@@ -1483,7 +1467,7 @@ public class CtrlBackupApiCallHandler
         Map<String, String> renameMap,
         @Nullable String nodeName,
         String remoteName
-    ) throws AccessDeniedException, InvalidNameException
+    ) throws InvalidNameException
     {
         S3Remote remote = backupHelper.getS3Remote(remoteName);
         S3MetafileNameInfo metaFile = null;
@@ -1503,7 +1487,7 @@ public class CtrlBackupApiCallHandler
             try
             {
                 metaFile = new S3MetafileNameInfo(metaName);
-                objects = backupHandler.listObjects(metaFile.rscName, remote, peerAccCtx.get(), masterKey);
+                objects = backupHandler.listObjects(metaFile.rscName, remote, masterKey);
                 // do not use backupHelper.getAllS3Keys here to avoid two listObjects calls since objects is needed
                 // later
                 s3keys = objects.stream().map(S3ObjectSummary::getKey).collect(Collectors.toCollection(TreeSet::new));
@@ -1526,7 +1510,7 @@ public class CtrlBackupApiCallHandler
         else
         {
             // No backup was explicitly selected, use the latest available for the source resource.
-            objects = backupHandler.listObjects(srcRscName, remote, peerAccCtx.get(), masterKey);
+            objects = backupHandler.listObjects(srcRscName, remote, masterKey);
             // do not use backupHelper.getAllS3Keys here to avoid two listObjects calls since objects is needed later
             s3keys = objects.stream().map(S3ObjectSummary::getKey).collect(Collectors.toCollection(TreeSet::new));
             metaFile = backupHelper.getLatestBackup(s3keys, srcSnapName);
@@ -1564,7 +1548,7 @@ public class CtrlBackupApiCallHandler
             do
             {
                 String toCheck = currentMetaName;
-                BackupMetaDataPojo metadata = backupHandler.getMetaFile(toCheck, remote, peerAccCtx.get(), masterKey);
+                BackupMetaDataPojo metadata = backupHandler.getMetaFile(toCheck, remote, masterKey);
                 data.add(metadata);
                 currentMetaName = metadata.getBasedOn();
                 if (currentMetaName == null)
@@ -1644,7 +1628,7 @@ public class CtrlBackupApiCallHandler
         Map<StorPoolApi, List<BackupInfoVlmPojo>> storPoolMap,
         Map<String, String> renameMap,
         String nodeName
-    ) throws AccessDeniedException
+    )
     {
         Map<String, Long> remainingFreeSpace = new HashMap<>();
         for (Entry<StorPoolApi, List<BackupInfoVlmPojo>> entry : storPoolMap.entrySet())
@@ -1660,7 +1644,7 @@ public class CtrlBackupApiCallHandler
             Long freeSpace = remainingFreeSpace.get(sp.getName().value);
             if (freeSpace == null)
             {
-                freeSpace = sp.getFreeSpaceTracker().getFreeCapacityLastUpdated(sysCtx).orElse(null);
+                freeSpace = sp.getFreeSpaceTracker().getFreeCapacityLastUpdated().orElse(null);
             }
             for (BackupInfoVlmPojo vlm : entry.getValue())
             {

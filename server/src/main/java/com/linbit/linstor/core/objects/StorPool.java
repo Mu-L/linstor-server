@@ -20,16 +20,10 @@ import com.linbit.linstor.interfaces.NodeInfo;
 import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.layer.storage.BlockSizeConsts;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -53,7 +47,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public class StorPool extends AbsCoreObj<StorPool>
-    implements LinstorDataObject, ProtectedObject, StorPoolInfo
+    implements LinstorDataObject, StorPoolInfo
 {
     public interface InitMaps
     {
@@ -165,11 +159,9 @@ public class StorPool extends AbsCoreObj<StorPool>
         return node;
     }
 
-    public StorPoolDefinition getDefinition(AccessContext accCtx) throws AccessDeniedException
+    public StorPoolDefinition getDefinition()
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.VIEW);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return storPoolDef;
     }
 
@@ -180,15 +172,15 @@ public class StorPool extends AbsCoreObj<StorPool>
         return deviceProviderKind;
     }
 
-    public Props getProps(AccessContext accCtx) throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, node.getObjProt(), storPoolDef.getObjProt(), props);
+        return PropsAccess.secureGetProps(node.getObjProt(), storPoolDef.getObjProt(), props);
     }
 
-    public long getMinIoSize(AccessContext accCtx) throws AccessDeniedException
+    public long getMinIoSize()
     {
-        final Props poolProps = getProps(accCtx);
+        final Props poolProps = getProps();
         final String poolBlockSizeStr = poolProps.getProp(
             StorageConstants.BLK_DEV_MIN_IO_SIZE,
             StorageConstants.NAMESPACE_INTERNAL
@@ -210,42 +202,32 @@ public class StorPool extends AbsCoreObj<StorPool>
     }
 
     @Override
-    public ReadOnlyProps getReadOnlyProps(AccessContext accCtx) throws AccessDeniedException
+    public ReadOnlyProps getReadOnlyProps()
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.VIEW);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return roProps;
     }
 
-    public void putVolume(AccessContext accCtx, VlmProviderObject<Resource> vlmProviderObj)
-        throws AccessDeniedException
+    public void putVolume(VlmProviderObject<Resource> vlmProviderObj)
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.USE);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         vlmProviderMap.put(vlmProviderObj.getVolumeKey(), vlmProviderObj);
-        freeSpaceTracker.vlmCreating(accCtx, vlmProviderObj);
+        freeSpaceTracker.vlmCreating(vlmProviderObj);
     }
 
-    public void removeVolume(AccessContext accCtx, VlmProviderObject<Resource> vlmProviderObj)
-        throws AccessDeniedException
+    public void removeVolume(VlmProviderObject<Resource> vlmProviderObj)
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.USE);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
 
-        freeSpaceTracker.ensureVlmNoLongerCreating(accCtx, vlmProviderObj);
+        freeSpaceTracker.ensureVlmNoLongerCreating(vlmProviderObj);
 
         vlmProviderMap.remove(vlmProviderObj.getVolumeKey());
     }
 
-    public Collection<VlmProviderObject<Resource>> getVolumes(AccessContext accCtx) throws AccessDeniedException
+    public Collection<VlmProviderObject<Resource>> getVolumes()
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.USE);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         return vlmProviderMap.values();
     }
@@ -262,35 +244,26 @@ public class StorPool extends AbsCoreObj<StorPool>
         isPmem.set(pmemRef);
     }
 
-    public void putSnapshotVolume(AccessContext accCtx, VlmProviderObject<Snapshot> vlmProviderObj)
-        throws AccessDeniedException
+    public void putSnapshotVolume(VlmProviderObject<Snapshot> vlmProviderObj)
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.USE);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         snapVlmProviderMap.put(vlmProviderObj.getVolumeKey(), vlmProviderObj);
-        freeSpaceTracker.vlmCreating(accCtx, vlmProviderObj);
+        freeSpaceTracker.vlmCreating(vlmProviderObj);
     }
 
-    public void removeSnapshotVolume(AccessContext accCtx, VlmProviderObject<Snapshot> vlmProviderObj)
-        throws AccessDeniedException
+    public void removeSnapshotVolume(VlmProviderObject<Snapshot> vlmProviderObj)
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.USE);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
 
-        freeSpaceTracker.ensureVlmNoLongerCreating(accCtx, vlmProviderObj);
+        freeSpaceTracker.ensureVlmNoLongerCreating(vlmProviderObj);
 
         snapVlmProviderMap.remove(vlmProviderObj.getVolumeKey());
     }
 
-    public Collection<VlmProviderObject<Snapshot>> getSnapVolumes(AccessContext accCtx)
-        throws AccessDeniedException
+    public Collection<VlmProviderObject<Snapshot>> getSnapVolumes()
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.USE);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         return snapVlmProviderMap.values();
     }
@@ -302,16 +275,14 @@ public class StorPool extends AbsCoreObj<StorPool>
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            node.getObjProt().requireAccess(accCtx, AccessType.USE);
-            storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
 
-            node.removeStorPool(accCtx, this);
-            storPoolDef.removeStorPool(accCtx, this);
+            node.removeStorPool(this);
+            storPoolDef.removeStorPool(this);
 
             props.delete();
 
@@ -348,21 +319,17 @@ public class StorPool extends AbsCoreObj<StorPool>
         reports = new ApiCallRcImpl();
     }
 
-    public void setSupportsSnapshot(AccessContext accCtx, boolean supportsSnapshotsRef)
-        throws AccessDeniedException, DatabaseException
+    public void setSupportsSnapshot(boolean supportsSnapshotsRef)
+        throws DatabaseException
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.USE);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         supportsSnapshots.set(supportsSnapshotsRef);
     }
 
-    public boolean isSnapshotSupported(AccessContext accCtx) throws AccessDeniedException
+    public boolean isSnapshotSupported()
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.VIEW);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         boolean ret;
         if (deviceProviderKind.equals(DeviceProviderKind.FILE) ||
             deviceProviderKind.equals(DeviceProviderKind.FILE_THIN))
@@ -376,11 +343,9 @@ public class StorPool extends AbsCoreObj<StorPool>
         return ret;
     }
 
-    public boolean isSnapshotSupportedInitialized(AccessContext accCtx) throws AccessDeniedException
+    public boolean isSnapshotSupportedInitialized()
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.VIEW);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
         return supportsSnapshots.get() != null;
     }
@@ -404,12 +369,9 @@ public class StorPool extends AbsCoreObj<StorPool>
         return freeSpaceTracker.getName();
     }
 
-    private Map<String, String> getTraits(AccessContext accCtx)
-        throws AccessDeniedException
+    private Map<String, String> getTraits()
     {
         checkDeleted();
-        node.getObjProt().requireAccess(accCtx, AccessType.VIEW);
-        storPoolDef.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         Map<String, String> traits = new HashMap<>(deviceProviderKind.getStorageDriverKind().getStaticTraits());
 
         traits.put(
@@ -420,8 +382,7 @@ public class StorPool extends AbsCoreObj<StorPool>
         return traits;
     }
 
-    public double getOversubscriptionRatio(AccessContext accCtxRef, @Nullable ReadOnlyProps ctrlPropsRef)
-        throws AccessDeniedException
+    public double getOversubscriptionRatio(@Nullable ReadOnlyProps ctrlPropsRef)
     {
         Double override = null; // override, regardless of property
         Double dfltVal = null; // use value if property is missing
@@ -461,7 +422,7 @@ public class StorPool extends AbsCoreObj<StorPool>
             // argument, which is weird...
             String oversubscriptionProp = new PriorityProps(
                 props,
-                getDefinition(accCtxRef).getProps(accCtxRef),
+                getDefinition().getProps(),
                 ctrlPropsRef
             )
                 .getProp(ApiConsts.KEY_STOR_POOL_MAX_OVERSUBSCRIPTION_RATIO);
@@ -535,13 +496,11 @@ public class StorPool extends AbsCoreObj<StorPool>
     public StorPoolApi getApiData(
         @Nullable Long totalSpaceRef,
         @Nullable Long freeSpaceRef,
-        AccessContext accCtx,
         @Nullable Long fullSyncId,
         @Nullable Long updateId,
         @Nullable Double maxFreeCapacityOversubscriptionRatioRef,
         @Nullable Double maxTotalCapacityOversubscriptionRatioRef
     )
-        throws AccessDeniedException
     {
         checkDeleted();
         return new StorPoolPojo(
@@ -549,17 +508,17 @@ public class StorPool extends AbsCoreObj<StorPool>
             getNode().getUuid(),
             node.getName().getDisplayName(),
             getName().getDisplayName(),
-            getDefinition(accCtx).getUuid(),
+            getDefinition().getUuid(),
             getDeviceProviderKind(),
-            getProps(accCtx).cloneMap(),
-            getDefinition(accCtx).getProps(accCtx).cloneMap(),
-            getTraits(accCtx),
+            getProps().cloneMap(),
+            getDefinition().getProps().cloneMap(),
+            getTraits(),
             fullSyncId,
             updateId,
             getFreeSpaceTracker().getName().displayValue,
             Optional.ofNullable(freeSpaceRef),
             Optional.ofNullable(totalSpaceRef),
-            getOversubscriptionRatio(accCtx, null),
+            getOversubscriptionRatio(null),
             maxFreeCapacityOversubscriptionRatioRef,
             maxTotalCapacityOversubscriptionRatioRef,
             getReports(),
@@ -635,11 +594,5 @@ public class StorPool extends AbsCoreObj<StorPool>
         {
             return "Node: '" + nodeName + "' StorPool: '" + storPoolName + "'";
         }
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        return node.getObjProt();
     }
 }

@@ -3,15 +3,12 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdater;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -26,8 +23,6 @@ import com.linbit.linstor.core.objects.VolumeConnectionFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -41,7 +36,6 @@ import java.util.UUID;
 @Singleton
 class CtrlVlmConnectionApiCallHandler
 {
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -49,22 +43,18 @@ class CtrlVlmConnectionApiCallHandler
     private final CtrlSatelliteUpdater ctrlSatelliteUpdater;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
 
     @Inject
     CtrlVlmConnectionApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         VolumeConnectionFactory volumeConnectionFactoryRef,
         CtrlSatelliteUpdater ctrlSatelliteUpdaterRef,
         ResponseConverter responseConverterRef,
-        Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef
+        Provider<Peer> peerRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -72,7 +62,6 @@ class CtrlVlmConnectionApiCallHandler
         ctrlSatelliteUpdater = ctrlSatelliteUpdaterRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
     }
 
     public ApiCallRc createVolumeConnection(
@@ -108,7 +97,7 @@ class CtrlVlmConnectionApiCallHandler
             responseConverter.addWithOp(
                 responses, context,
                 ApiSuccessUtils.defaultCreatedEntry(
-                    vlmConn.getUuid(), getVlmConnectionDescriptionInline(apiCtx, vlmConn)
+                    vlmConn.getUuid(), getVlmConnectionDescriptionInline(vlmConn)
                 )
             );
             responseConverter.addWithDetail(responses, context, updateSatellites(vlmConn));
@@ -172,7 +161,7 @@ class CtrlVlmConnectionApiCallHandler
             responseConverter.addWithOp(
                 responses, context,
                 ApiSuccessUtils.defaultModifiedEntry(
-                    vlmConn.getUuid(), getVlmConnectionDescriptionInline(apiCtx, vlmConn)
+                    vlmConn.getUuid(), getVlmConnectionDescriptionInline(vlmConn)
                 )
             );
             if (notifyStlts)
@@ -261,17 +250,8 @@ class CtrlVlmConnectionApiCallHandler
         try
         {
             vlmConn = volumeConnectionFactory.create(
-                peerAccCtx.get(),
                 sourceVolume,
                 targetVolume
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "create " + getVlmConnectionDescriptionInline(nodeName1Str, nodeName2Str, rscNameStr, vlmNrInt),
-                ApiConsts.FAIL_ACC_DENIED_VLM_CONN
             );
         }
         catch (LinStorDataAlreadyExistsException alreadyExistsExc)
@@ -306,40 +286,17 @@ class CtrlVlmConnectionApiCallHandler
         Volume vlm2 = getVlm(rsc2, vlmNr);
 
         VolumeConnection vlmConn;
-        try
-        {
-            vlmConn = VolumeConnection.get(
-                peerAccCtx.get(),
-                vlm1,
-                vlm2
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + getVlmConnectionDescriptionInline(nodeName1, nodeName2, rscNameStr, vlmNr),
-                ApiConsts.FAIL_ACC_DENIED_VLM_CONN
-            );
-        }
+        vlmConn = VolumeConnection.get(
+            vlm1,
+            vlm2
+        );
         return vlmConn;
     }
 
     private Resource getRsc(Node node, String rscNameStr)
     {
         Resource rsc;
-        try
-        {
-            rsc = node.getResource(peerAccCtx.get(), LinstorParsingUtils.asRscName(rscNameStr));
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access resource '" + rscNameStr + "' from node '" + node.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        rsc = node.getResource(LinstorParsingUtils.asRscName(rscNameStr));
         return rsc;
     }
 
@@ -351,18 +308,7 @@ class CtrlVlmConnectionApiCallHandler
     private Props getProps(VolumeConnection vlmConn)
     {
         Props props;
-        try
-        {
-            props = vlmConn.getProps(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties of " + getVlmConnectionDescriptionInline(apiCtx, vlmConn),
-                ApiConsts.FAIL_ACC_DENIED_VLM_CONN
-            );
-        }
+        props = vlmConn.getProps();
         return props;
     }
 
@@ -370,15 +316,7 @@ class CtrlVlmConnectionApiCallHandler
     {
         try
         {
-            vlmConn.delete(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete " + getVlmConnectionDescriptionInline(apiCtx, vlmConn),
-                ApiConsts.FAIL_ACC_DENIED_VLM_CONN
-            );
+            vlmConn.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -390,15 +328,8 @@ class CtrlVlmConnectionApiCallHandler
     {
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
-        try
-        {
-            responses.addEntries(
-                ctrlSatelliteUpdater.updateSatellites(vlmConn.getSourceVolume(apiCtx).getResourceDefinition()));
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        responses.addEntries(
+            ctrlSatelliteUpdater.updateSatellites(vlmConn.getSourceVolume().getResourceDefinition()));
 
         return responses;
     }
@@ -415,22 +346,15 @@ class CtrlVlmConnectionApiCallHandler
             vlmNr;
     }
 
-    private static String getVlmConnectionDescriptionInline(AccessContext accCtx, VolumeConnection vlmConn)
+    private static String getVlmConnectionDescriptionInline(VolumeConnection vlmConn)
     {
         String descriptionInline;
-        try
-        {
-            descriptionInline = getVlmConnectionDescriptionInline(
-                vlmConn.getSourceVolume(accCtx).getAbsResource().getNode().getName().displayValue,
-                vlmConn.getTargetVolume(accCtx).getAbsResource().getNode().getName().displayValue,
-                vlmConn.getSourceVolume(accCtx).getResourceDefinition().getName().displayValue,
-                vlmConn.getSourceVolume(accCtx).getVolumeDefinition().getVolumeNumber().value
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        descriptionInline = getVlmConnectionDescriptionInline(
+            vlmConn.getSourceVolume().getAbsResource().getNode().getName().displayValue,
+            vlmConn.getTargetVolume().getAbsResource().getNode().getName().displayValue,
+            vlmConn.getSourceVolume().getResourceDefinition().getName().displayValue,
+            vlmConn.getSourceVolume().getVolumeDefinition().getVolumeNumber().value
+        );
         return descriptionInline;
     }
 

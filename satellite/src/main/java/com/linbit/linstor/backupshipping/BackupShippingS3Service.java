@@ -3,7 +3,6 @@ package com.linbit.linstor.backupshipping;
 import com.linbit.ImplementationError;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.BackupToS3;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.ControllerPeerConnector;
@@ -17,8 +16,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote.RemoteType;
 import com.linbit.linstor.core.objects.remotes.S3Remote;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
 import com.linbit.locks.LockGuardFactory;
 
@@ -57,7 +54,6 @@ public class BackupShippingS3Service extends AbsBackupShippingService
         ExtCmdFactory extCmdFactoryRef,
         ControllerPeerConnector controllerPeerConnectorRef,
         CtrlStltSerializer interComSerializerRef,
-        @SystemContext AccessContext accCtxRef,
         StltSecurityObjects stltSecObjRef,
         StltConfigAccessor stltConfigAccessorRef,
         StltConnTracker stltConnTracker,
@@ -72,7 +68,6 @@ public class BackupShippingS3Service extends AbsBackupShippingService
             extCmdFactoryRef,
             controllerPeerConnectorRef,
             interComSerializerRef,
-            accCtxRef,
             stltSecObjRef,
             stltConfigAccessorRef,
             stltConnTracker,
@@ -97,11 +92,11 @@ public class BackupShippingS3Service extends AbsBackupShippingService
 
     @Override
     protected String getBackupNameForRestore(AbsStorageVlmData<Snapshot> snapVlmDataRef)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         Snapshot snap = snapVlmDataRef.getVolume().getAbsResource();
         String backupId = snap.getSnapshotDefinition()
-            .getSnapDfnProps(accCtx)
+            .getSnapDfnProps()
             .getProp(
                 InternalApiConsts.KEY_BACKUP_TO_RESTORE,
                 BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC
@@ -152,7 +147,6 @@ public class BackupShippingS3Service extends AbsBackupShippingService
                 snapVlmDataRef.getSnapshotAllocatedSize() :
                 snapVlmDataRef.getAllocatedSize(),
             postAction,
-            accCtx,
             stltSecObj.getCryptKey()
         );
     }
@@ -176,11 +170,10 @@ public class BackupShippingS3Service extends AbsBackupShippingService
                     shippingInfo.s3MetaKey,
                     fillPojo(snap, shippingInfo.basedOnS3MetaKey, shippingInfo),
                     s3Remote,
-                    accCtx,
                     stltSecObj.getCryptKey()
                 );
             }
-            catch (InvalidKeyException | AccessDeniedException | IOException | ParseException exc)
+            catch (InvalidKeyException | IOException | ParseException exc)
             {
                 errorReporter.reportError(new ImplementationError(exc));
                 successRet = false;

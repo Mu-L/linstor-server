@@ -3,9 +3,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.CtrlStorPoolResolveHelper;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -15,7 +13,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.CopySnapsHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -49,8 +46,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
@@ -159,7 +154,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         }
     }
 
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final BackgroundRunner backgroundRunner;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -174,7 +168,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     private final ResourceStateEvent resourceStateEvent;
     private final EventWaiter eventWaiter;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final Provider<CtrlRscAutoHelper> rscAutoHelper;
     private final ErrorReporter errorReporter;
     private final CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandler;
@@ -187,7 +180,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
     @Inject
     public CtrlRscToggleDiskApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         BackgroundRunner backgroundRunnerRef, CtrlApiDataLoader ctrlApiDataLoaderRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
@@ -201,7 +193,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         ResourceStateEvent resourceStateEventRef,
         EventWaiter eventWaiterRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         Provider<CtrlRscAutoHelper> rscAutoHelperRef,
         ErrorReporter errorReporterRef,
         CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandlerRef,
@@ -213,7 +204,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         CtrlRscApiCallHandler ctrlRscApiCallHandlerRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         backgroundRunner = backgroundRunnerRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -228,7 +218,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         resourceStateEvent = resourceStateEventRef;
         eventWaiter = eventWaiterRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         rscAutoHelper = rscAutoHelperRef;
         errorReporter = errorReporterRef;
         ctrlRscActivateApiCallHandler = ctrlRscActivateApiCallHandlerRef;
@@ -242,13 +231,12 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
     @Override
     public Collection<Flux<ApiCallRc>> resourceDefinitionConnected(ResourceDefinition rscDfn, ResponseContext context)
-        throws AccessDeniedException
     {
         List<Flux<ApiCallRc>> fluxes = new ArrayList<>();
 
         ResourceName rscName = rscDfn.getName();
 
-        Iterator<Resource> rscIter = rscDfn.iterateResource(apiCtx);
+        Iterator<Resource> rscIter = rscDfn.iterateResource();
         while (rscIter.hasNext())
         {
             Resource rsc = rscIter.next();
@@ -266,30 +254,30 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     /**
      * Returns the {@link ToggleOp} the given resource is in, if any.
      */
-    private @Nullable ToggleOp getToggleOperation(Resource rsc) throws AccessDeniedException
+    private @Nullable ToggleOp getToggleOperation(Resource rsc)
     {
         @Nullable ToggleOp toggleOp = null; // resource not in toggle-disk state
         StateFlags<Flags> rscFlags = rsc.getStateFlags();
-        if (rscFlags.isSet(apiCtx, Resource.Flags.DISK_ADD_REQUESTED))
+        if (rscFlags.isSet(Resource.Flags.DISK_ADD_REQUESTED))
         {
             toggleOp = ToggleOp.INTO_DRBD_DISKFUL;
         }
-        else if (rscFlags.isSet(apiCtx, Resource.Flags.DISK_REMOVE_REQUESTED))
+        else if (rscFlags.isSet(Resource.Flags.DISK_REMOVE_REQUESTED))
         {
-            if (rscFlags.isSet(apiCtx, Resource.Flags.TIE_BREAKER))
+            if (rscFlags.isSet(Resource.Flags.TIE_BREAKER))
             {
                 toggleOp = ToggleOp.INTO_DRBD_TIEBREAKER;
             }
             else
             {
                 Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-                    rsc.getLayerData(apiCtx),
+                    rsc.getLayerData(),
                     DeviceLayerKind.DRBD
                 );
                 for (AbsRscLayerObject<Resource> drbdRscObj : drbdRscDataSet)
                 {
                     DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) drbdRscObj;
-                    if (drbdRscData.getFlags().isSet(apiCtx, DrbdRscFlags.CLIENT))
+                    if (drbdRscData.getFlags().isSet(DrbdRscFlags.CLIENT))
                     {
                         toggleOp = ToggleOp.INTO_DRBD_CLIENT;
                         break;
@@ -306,7 +294,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
     @Override
     public Collection<Flux<ApiCallRc>> resourceConnected(Resource rsc)
-        throws AccessDeniedException
     {
         ResponseContext context = makeRscContext(
             ApiOperation.makeModifyOperation(),
@@ -316,7 +303,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         String migrateFromNodeNameStr = getPropsPrivileged(rsc).map().get(ApiConsts.KEY_RSC_MIGRATE_FROM);
 
         // Only restart the migration watch if adding the disk is complete
-        boolean diskAddRequested = rsc.getStateFlags().isSet(apiCtx, Resource.Flags.DISK_ADD_REQUESTED);
+        boolean diskAddRequested = rsc.getStateFlags().isSet(Resource.Flags.DISK_ADD_REQUESTED);
 
         return migrateFromNodeNameStr == null || !diskAddRequested ?
             Collections.emptySet() :
@@ -544,15 +531,8 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         {
             boolean isClient;
             boolean isTiebreaker;
-            try
-            {
-                isClient = DrbdLayerUtils.isDrbdClient(apiCtx, rscRef);
-                isTiebreaker = DrbdLayerUtils.isTiebreaker(apiCtx, rscRef);
-            }
-            catch (AccessDeniedException accDeniedExc)
-            {
-                throw new ImplementationError(accDeniedExc);
-            }
+            isClient = DrbdLayerUtils.isDrbdClient(rscRef);
+            isTiebreaker = DrbdLayerUtils.isTiebreaker(rscRef);
 
             boolean disklessTypeChange = switch (toggleOpRef)
             {
@@ -801,14 +781,13 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         try
         {
             rsc.getStateFlags().disableFlags(
-                apiCtx,
                 Resource.Flags.DISK_ADD_REQUESTED,
                 Resource.Flags.DISK_ADDING,
                 Resource.Flags.DISK_REMOVE_REQUESTED,
                 Resource.Flags.DISK_REMOVING
             );
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -826,7 +805,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
             ));
         }
 
-        if (!LayerUtils.hasLayer(getLayerData(peerAccCtx.get(), rsc), DeviceLayerKind.DRBD))
+        if (!LayerUtils.hasLayer(getLayerData(rsc), DeviceLayerKind.DRBD))
         {
             throw new ApiRcException(ApiCallRcImpl.simpleEntry(
                 ApiConsts.FAIL_INVLD_LAYER_STACK,
@@ -903,7 +882,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
         try
         {
-            Props rscProps = rscRef.getProps(apiCtx);
+            Props rscProps = rscRef.getProps();
             if (spNameVal != null)
             {
                 rscProps.setProp(ApiConsts.KEY_STOR_POOL_NAME, spNameVal);
@@ -913,7 +892,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
                 rscProps.removeProp(ApiConsts.KEY_STOR_POOL_NAME);
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -996,7 +975,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
         removeLayerData(rsc);
         List<DeviceLayerKind> layerList = CtrlRscCrtApiHelper.getLayerstackOrBuildDefault(
-            peerAccCtx.get(),
             ctrlLayerStackHelper,
             errorReporter,
             layerListStr,
@@ -1015,41 +993,22 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
      */
     private void validateLayerSupport(Resource rsc)
     {
-        try
+        List<DeviceLayerKind> unsupportedLayers = CtrlRscCrtApiHelper.getUnsupportedLayers(rsc);
+        if (!unsupportedLayers.isEmpty())
         {
-            List<DeviceLayerKind> unsupportedLayers = CtrlRscCrtApiHelper.getUnsupportedLayers(peerAccCtx.get(), rsc);
-            if (!unsupportedLayers.isEmpty())
-            {
-                throw new ApiRcException(
-                    ApiCallRcImpl.simpleEntry(
-                        ApiConsts.FAIL_STLT_DOES_NOT_SUPPORT_LAYER,
-                        "Satellite '" + rsc.getNode().getName() + "' does not support the following layers: " +
-                            unsupportedLayers
-                    )
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "toggle disk resource " + rsc.getResourceDefinition().getName().displayValue + " on node " +
-                    rsc.getNode().getName(),
-                ApiConsts.FAIL_ACC_DENIED_RSC
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_STLT_DOES_NOT_SUPPORT_LAYER,
+                    "Satellite '" + rsc.getNode().getName() + "' does not support the following layers: " +
+                        unsupportedLayers
+                )
             );
         }
     }
 
     private long getVlmDfnSizePrivileged(VolumeDefinition vlmDfnRef)
     {
-        try
-        {
-            return vlmDfnRef.getVolumeSize(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return vlmDfnRef.getVolumeSize();
     }
 
     private void checkFreeSpace(
@@ -1080,8 +1039,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
                     true,
                     spRef.getName(),
                     spRef.getNode(),
-                    ctrlPropsHelper.getCtrlPropsForView(),
-                    apiCtx
+                    ctrlPropsHelper.getCtrlPropsForView()
                 )
                 // allow the volume to be created if the free capacity is unknown
                 .orElse(true)
@@ -1103,69 +1061,58 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
     private void ensureAllPeersHavePeerSlotLeft(ResourceDefinition rscDfnRef)
     {
-        try
+        AccessContext peerCtx = peerAccCtx.get();
+        List<Resource> diskfulRscList = rscDfnRef.getDiskfulResources();
+
+        /*
+         * usually we need one peer slot less than we have diskful resources, but we are about to toggle disk a
+         * resource so the "new" diskful resource count will be +1. Therefore the -1 and +1 eliminate each other.
+         */
+        int requiredPeerSlots = diskfulRscList.size();
+
+        LinkedHashMap<Resource, Short> rscListWithInsufficientPeerSlots = new LinkedHashMap<>();
+        for (Resource rsc : diskfulRscList)
         {
-            AccessContext peerCtx = peerAccCtx.get();
-            List<Resource> diskfulRscList = rscDfnRef.getDiskfulResources(peerCtx);
-
-            /*
-             * usually we need one peer slot less than we have diskful resources, but we are about to toggle disk a
-             * resource so the "new" diskful resource count will be +1. Therefore the -1 and +1 eliminate each other.
-             */
-            int requiredPeerSlots = diskfulRscList.size();
-
-            LinkedHashMap<Resource, Short> rscListWithInsufficientPeerSlots = new LinkedHashMap<>();
-            for (Resource rsc : diskfulRscList)
+            Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
+                getLayerData(rsc),
+                DeviceLayerKind.DRBD
+            );
+            if (drbdRscDataSet.size() >= 2)
             {
-                Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-                    getLayerData(apiCtx, rsc),
-                    DeviceLayerKind.DRBD
-                );
-                if (drbdRscDataSet.size() >= 2)
-                {
-                    throw new ImplementationError("Unexpected layer tree");
-                }
-                if (!drbdRscDataSet.isEmpty())
-                {
-                    DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) drbdRscDataSet.iterator().next();
-                    if (drbdRscData.getPeerSlots() < requiredPeerSlots)
-                    {
-                        rscListWithInsufficientPeerSlots.put(rsc, drbdRscData.getPeerSlots());
-                    }
-                }
+                throw new ImplementationError("Unexpected layer tree");
             }
-            if (!rscListWithInsufficientPeerSlots.isEmpty())
+            if (!drbdRscDataSet.isEmpty())
             {
-                StringBuilder detailsBuilder = new StringBuilder("Resources with insufficient peer slots (")
-                    .append(requiredPeerSlots)
-                    .append(" required): \n");
-                for (Entry<Resource, Short> entry : rscListWithInsufficientPeerSlots.entrySet())
+                DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) drbdRscDataSet.iterator().next();
+                if (drbdRscData.getPeerSlots() < requiredPeerSlots)
                 {
-                    detailsBuilder.append(" * ")
-                        .append(entry.getKey().toString())
-                        .append(" has peer slots: ")
-                        .append(entry.getValue())
-                        .append("\n");
+                    rscListWithInsufficientPeerSlots.put(rsc, drbdRscData.getPeerSlots());
                 }
-                detailsBuilder.setLength(detailsBuilder.length() - 1);
-
-                throw new ApiRcException(
-                    ApiCallRcImpl.entryBuilder(
-                        ApiConsts.FAIL_INSUFFICIENT_PEER_SLOTS,
-                        "Existing resources do not have enough peer slots"
-                    )
-                        .setDetails(detailsBuilder.toString())
-                        .setAppendObjectDescriptionToDetails(false)
-                        .build()
-                );
             }
         }
-        catch (AccessDeniedException accDeniedExc)
+        if (!rscListWithInsufficientPeerSlots.isEmpty())
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check rscDfn for resources with insufficient peer slots",
-                ApiConsts.FAIL_ACC_DENIED_RSC
+            StringBuilder detailsBuilder = new StringBuilder("Resources with insufficient peer slots (")
+                .append(requiredPeerSlots)
+                .append(" required): \n");
+            for (Entry<Resource, Short> entry : rscListWithInsufficientPeerSlots.entrySet())
+            {
+                detailsBuilder.append(" * ")
+                    .append(entry.getKey().toString())
+                    .append(" has peer slots: ")
+                    .append(entry.getValue())
+                    .append("\n");
+            }
+            detailsBuilder.setLength(detailsBuilder.length() - 1);
+
+            throw new ApiRcException(
+                ApiCallRcImpl.entryBuilder(
+                    ApiConsts.FAIL_INSUFFICIENT_PEER_SLOTS,
+                    "Existing resources do not have enough peer slots"
+                )
+                    .setDetails(detailsBuilder.toString())
+                    .setAppendObjectDescriptionToDetails(false)
+                    .build()
             );
         }
     }
@@ -1188,7 +1135,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     private void copyDrbdNodeIdIfExists(Resource rsc, LayerPayload payload) throws ImplementationError
     {
         Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-            getLayerData(apiCtx, rsc),
+            getLayerData(rsc),
             DeviceLayerKind.DRBD
         );
         if (drbdRscDataSet.size() >= 2)
@@ -1206,7 +1153,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     private void copyDrbdTcpPortsIfExists(Resource rsc, LayerPayload payload) throws ImplementationError
     {
         Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-            getLayerData(apiCtx, rsc),
+            getLayerData(rsc),
             DeviceLayerKind.DRBD
         );
         if (!drbdRscDataSet.isEmpty())
@@ -1230,14 +1177,10 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         List<DeviceLayerKind> layerList;
         try
         {
-            layerList = LayerRscUtils.getLayerStack(rscRef, apiCtx);
-            AbsRscLayerObject<Resource> layerData = rscRef.getLayerData(apiCtx);
-            layerData.delete(apiCtx);
-            rscRef.setLayerData(apiCtx, null);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            layerList = LayerRscUtils.getLayerStack(rscRef);
+            AbsRscLayerObject<Resource> layerData = rscRef.getLayerData();
+            layerData.delete();
+            rscRef.setLayerData(null);
         }
         catch (DatabaseException exc)
         {
@@ -1249,33 +1192,26 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     private boolean isSharedSpAlreadyUsed(Resource rscRef, StorPool sp)
     {
         boolean sharedSPAlreadyInUse = false;
-        try
+        if (sp.isShared())
         {
-            if (sp.isShared())
+            SharedStorPoolName sharedStorPoolName = sp.getSharedStorPoolName();
+            ResourceDefinition rscDfn = rscRef.getResourceDefinition();
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
+            while (rscIt.hasNext())
             {
-                SharedStorPoolName sharedStorPoolName = sp.getSharedStorPoolName();
-                ResourceDefinition rscDfn = rscRef.getResourceDefinition();
-                Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
-                while (rscIt.hasNext())
+                Resource otherRsc = rscIt.next();
+                if (!otherRsc.equals(rscRef))
                 {
-                    Resource otherRsc = rscIt.next();
-                    if (!otherRsc.equals(rscRef))
+                    Set<StorPool> otherStorPools = LayerVlmUtils.getStorPools(otherRsc);
+                    for (StorPool otherStorPool : otherStorPools)
                     {
-                        Set<StorPool> otherStorPools = LayerVlmUtils.getStorPools(otherRsc, apiCtx);
-                        for (StorPool otherStorPool : otherStorPools)
+                        if (otherStorPool.getSharedStorPoolName().equals(sharedStorPoolName))
                         {
-                            if (otherStorPool.getSharedStorPoolName().equals(sharedStorPoolName))
-                            {
-                                sharedSPAlreadyInUse = true;
-                            }
+                            sharedSPAlreadyInUse = true;
                         }
                     }
                 }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
 
         return sharedSPAlreadyInUse;
@@ -1310,17 +1246,10 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
         ApiCallRcImpl offlineWarnings = new ApiCallRcImpl();
 
-        try
+        Node node = rsc.getNode();
+        if (node.getPeer().getConnectionStatus() != ApiConsts.ConnectionStatus.ONLINE)
         {
-            Node node = rsc.getNode();
-            if (node.getPeer(apiCtx).getConnectionStatus() != ApiConsts.ConnectionStatus.ONLINE)
-            {
-                offlineWarnings.addEntry(ResponseUtils.makeNotConnectedWarning(node.getName()));
-            }
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
+            offlineWarnings.addEntry(ResponseUtils.makeNotConnectedWarning(node.getName()));
         }
 
         // Don't start the operation if any of the required nodes are offline
@@ -1399,10 +1328,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
                 ),
                 exc
             );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "checking for mixed storage setups", ApiConsts.FAIL_ACC_DENIED_VLM);
         }
         catch (DatabaseException exc)
         {
@@ -1547,22 +1472,15 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     {
         Flux<ApiCallRc> ret = Flux.empty();
         StateFlags<Flags> rscFlags = rsc.getStateFlags();
-        try
+        if (
+            rscFlags.isSet(Resource.Flags.INACTIVE) &&
+            !rscFlags.isSet(Resource.Flags.INACTIVE_PERMANENTLY)
+        )
         {
-            if (
-                rscFlags.isSet(apiCtx, Resource.Flags.INACTIVE) &&
-                !rscFlags.isSet(apiCtx, Resource.Flags.INACTIVE_PERMANENTLY)
-            )
-            {
-                ret = ctrlRscActivateApiCallHandler.activateRsc(
-                    rsc.getNode().getName().displayValue,
-                    rsc.getResourceDefinition().getName().displayValue
-                );
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            ret = ctrlRscActivateApiCallHandler.activateRsc(
+                rsc.getNode().getName().displayValue,
+                rsc.getResourceDefinition().getName().displayValue
+            );
         }
         return ret;
     }
@@ -1570,21 +1488,14 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     private boolean isSharedSourceStorPool(Resource rsc)
     {
         boolean ret = false;
-        try
+        Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc);
+        for (StorPool sp : storPools)
         {
-            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, apiCtx);
-            for (StorPool sp : storPools)
+            if (isSharedSpAlreadyUsed(rsc, sp))
             {
-                if (isSharedSpAlreadyUsed(rsc, sp))
-                {
-                    ret = true;
-                    break;
-                }
+                ret = true;
+                break;
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         return ret;
     }
@@ -1658,26 +1569,15 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     private int countDisksAndIsOnline(ResourceDefinition rscDfn)
     {
         int haveDiskCount = 0;
-        try
+        Iterator<Resource> rscIter = rscDfn.iterateResource();
+        while (rscIter.hasNext())
         {
-            Iterator<Resource> rscIter = rscDfn.iterateResource(peerAccCtx.get());
-            while (rscIter.hasNext())
+            Resource rsc = rscIter.next();
+            if (!ctrlVlmCrtApiHelper.isDiskless(rsc) &&
+                rsc.getNode().getPeer().getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
             {
-                Resource rsc = rscIter.next();
-                if (!ctrlVlmCrtApiHelper.isDiskless(rsc) &&
-                    rsc.getNode().getPeer(peerAccCtx.get()).getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
-                {
-                    haveDiskCount++;
-                }
+                haveDiskCount++;
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "count disks in " + getRscDfnDescription(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         return haveDiskCount;
     }
@@ -1685,36 +1585,14 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     private boolean hasDiskAddRequested(Resource rsc)
     {
         boolean set;
-        try
-        {
-            set = rsc.getStateFlags().isSet(peerAccCtx.get(), Resource.Flags.DISK_ADD_REQUESTED);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check whether addition of disk requested for " + getRscDescription(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        set = rsc.getStateFlags().isSet(Resource.Flags.DISK_ADD_REQUESTED);
         return set;
     }
 
     private boolean hasDiskRemoveRequested(Resource rsc)
     {
         boolean set;
-        try
-        {
-            set = rsc.getStateFlags().isSet(peerAccCtx.get(), Resource.Flags.DISK_REMOVE_REQUESTED);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check whether removal of disk requested for " + getRscDescription(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        set = rsc.getStateFlags().isSet(Resource.Flags.DISK_REMOVE_REQUESTED);
         return set;
     }
 
@@ -1722,15 +1600,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     {
         try
         {
-            rsc.getStateFlags().enableFlags(peerAccCtx.get(), Resource.Flags.DISK_ADD_REQUESTED);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getRscDescription(rsc) + " adding disk",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
+            rsc.getStateFlags().enableFlags(Resource.Flags.DISK_ADD_REQUESTED);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1740,37 +1610,18 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
     private void setMigrateFrom(Resource rsc, NodeName migrateFromNodeName)
     {
-        try
-        {
-            rsc.getProps(peerAccCtx.get()).map().put(ApiConsts.KEY_RSC_MIGRATE_FROM, migrateFromNodeName.value);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "set migration source for " + getRscDescription(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        rsc.getProps().map().put(ApiConsts.KEY_RSC_MIGRATE_FROM, migrateFromNodeName.value);
     }
 
     private void removeDiskfulByProp(Resource rscRef)
     {
         try
         {
-            rscRef.getProps(peerAccCtx.get()).removeProp(ApiConsts.KEY_RSC_DISKFUL_BY);
+            rscRef.getProps().removeProp(ApiConsts.KEY_RSC_DISKFUL_BY);
         }
         catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "removing property 'DiskfulBy'",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         catch (DatabaseException exc)
         {
@@ -1782,7 +1633,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     {
         try
         {
-            Props rscProp = rscRef.getProps(peerAccCtx.get());
+            Props rscProp = rscRef.getProps();
             if (diskfulByRef != null)
             {
                 rscProp.setProp(ApiConsts.KEY_RSC_DISKFUL_BY, diskfulByRef.getValue());
@@ -1796,14 +1647,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         {
             throw new ImplementationError(exc);
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "removing property 'DiskfulBy'",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
         catch (DatabaseException exc)
         {
             throw new ApiDatabaseException(exc);
@@ -1814,15 +1657,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     {
         try
         {
-            rsc.getStateFlags().enableFlags(peerAccCtx.get(), Resource.Flags.DISK_REMOVE_REQUESTED);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getRscDescription(rsc) + " adding disk",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
+            rsc.getStateFlags().enableFlags(Resource.Flags.DISK_REMOVE_REQUESTED);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1834,9 +1669,9 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     {
         try
         {
-            rsc.getStateFlags().enableFlags(apiCtx, Resource.Flags.DISK_ADDING);
+            rsc.getStateFlags().enableFlags(Resource.Flags.DISK_ADDING);
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -1847,7 +1682,6 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         try
         {
             rsc.getStateFlags().enableFlags(
-                apiCtx,
                 toggleOpRef == ToggleOp.INTO_DRBD_TIEBREAKER ?
                     Resource.Flags.TIE_BREAKER :
                     Resource.Flags.DRBD_DISKLESS,
@@ -1856,17 +1690,17 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
             if (toggleOpRef == ToggleOp.INTO_DRBD_CLIENT)
             {
                 Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-                    rsc.getLayerData(apiCtx),
+                    rsc.getLayerData(),
                     DeviceLayerKind.DRBD
                 );
                 for (AbsRscLayerObject<Resource> drbdRscObj : drbdRscDataSet)
                 {
                     DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) drbdRscObj;
-                    drbdRscData.getFlags().enableFlags(apiCtx, DrbdRscFlags.CLIENT);
+                    drbdRscData.getFlags().enableFlags(DrbdRscFlags.CLIENT);
                 }
             }
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -1876,9 +1710,9 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     {
         try
         {
-            rsc.getStateFlags().disableFlags(apiCtx, Resource.Flags.DISK_ADDING);
+            rsc.getStateFlags().disableFlags(Resource.Flags.DISK_ADDING);
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -1889,13 +1723,12 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         try
         {
             rscData.getStateFlags().disableFlags(
-                apiCtx,
                 Resource.Flags.DRBD_DISKLESS,
                 Resource.Flags.DISK_ADDING,
                 Resource.Flags.DISK_ADD_REQUESTED
             );
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -1906,12 +1739,11 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         try
         {
             rscData.getStateFlags().disableFlags(
-                apiCtx,
                 Resource.Flags.DISK_REMOVING,
                 Resource.Flags.DISK_REMOVE_REQUESTED
             );
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -1920,32 +1752,14 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     private Props getPropsPrivileged(Resource rsc)
     {
         Props props;
-        try
-        {
-            props = rsc.getProps(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        props = rsc.getProps();
         return props;
     }
 
-    static AbsRscLayerObject<Resource> getLayerData(AccessContext accCtx, Resource rsc)
+    static AbsRscLayerObject<Resource> getLayerData(Resource rsc)
     {
         AbsRscLayerObject<Resource> layerData;
-        try
-        {
-            layerData = rsc.getLayerData(accCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "access layer data",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        layerData = rsc.getLayerData();
         return layerData;
     }
 

@@ -7,7 +7,6 @@ import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.layer.storage.spdk.SpdkCommands;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.utils.StringUtils;
@@ -23,7 +22,7 @@ public class SpdkConfigReader
     }
 
     public static <T> void checkVolumeGroupEntry(SpdkCommands<T> spdkCommandsRef, ReadOnlyProps propsRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         String volumeGroup;
         try

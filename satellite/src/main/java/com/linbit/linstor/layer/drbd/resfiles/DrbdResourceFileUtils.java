@@ -3,19 +3,15 @@ package com.linbit.linstor.layer.drbd.resfiles;
 import com.linbit.ImplementationError;
 import com.linbit.PlatformStlt;
 import com.linbit.drbd.DrbdVersion;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.api.prop.WhitelistProps;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.StltConfigAccessor;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.layer.drbd.DrbdLayer;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.utils.layer.DrbdLayerUtils;
-import com.linbit.utils.AccessUtils;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -37,7 +33,6 @@ public class DrbdResourceFileUtils
     private static final String DRBD_CONFIG_SUFFIX = ".res";
     private static final String DRBD_CONFIG_TMP_SUFFIX = ".res_tmp";
 
-    private final AccessContext workerCtx;
     private final ErrorReporter errorReporter;
     private final WhitelistProps whitelistProps;
     private final StltConfigAccessor stltCfgAccessor;
@@ -46,7 +41,6 @@ public class DrbdResourceFileUtils
 
     @Inject
     public DrbdResourceFileUtils(
-        @DeviceManagerContext AccessContext workerCtxRef,
         ErrorReporter errorReporterRef,
         WhitelistProps whiltelistPropsRef,
         StltConfigAccessor stltCfgAccessorRef,
@@ -54,7 +48,6 @@ public class DrbdResourceFileUtils
         PlatformStlt platformStltRef
     )
     {
-        workerCtx = workerCtxRef;
         errorReporter = errorReporterRef;
         whitelistProps = whiltelistPropsRef;
         stltCfgAccessor = stltCfgAccessorRef;
@@ -68,7 +61,7 @@ public class DrbdResourceFileUtils
      * @return True if a new res file was written otherwise false.
      */
     public boolean regenerateResFile(DrbdRscData<Resource> drbdRscData)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         boolean fileWritten = false;
         Path resFile = asResourceFile(drbdRscData, false, false);

@@ -11,10 +11,6 @@ import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 import com.linbit.utils.TreePrinter;
 import com.linbit.utils.UuidUtils;
@@ -92,12 +88,11 @@ public class CmdDisplayResource extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
     {
-        lister.execute(debugOut, debugErr, accCtx, parameters);
+        lister.execute(debugOut, debugErr, parameters);
     }
 
     private class ResourceHandler implements FilteredObjectLister.ObjectHandler<ResourceDefinition>
@@ -114,12 +109,10 @@ public class CmdDisplayResource extends BaseDebugCmd
         }
 
         @Override
-        public void ensureSearchAccess(final AccessContext accCtx)
-            throws AccessDeniedException
+        public void ensureSearchAccess()
         {
             if (rscDfnMapProt != null)
             {
-                rscDfnMapProt.get().requireAccess(accCtx, AccessType.VIEW);
             }
         }
 
@@ -144,15 +137,14 @@ public class CmdDisplayResource extends BaseDebugCmd
 
         @Override
         public void displayObjects(
-            final PrintStream output, final ResourceDefinition rscDfn, final AccessContext accCtx
-        )
+            final PrintStream output, final ResourceDefinition rscDfn)
         {
             ResourceName rscName = rscDfn.getName();
             try
             {
                 if (rscDfn.getResourceCount() >= 1)
                 {
-                    Iterator<Resource> rscIter = rscDfn.iterateResource(accCtx);
+                    Iterator<Resource> rscIter = rscDfn.iterateResource();
 
                     TreePrinter.Builder treeBuilder = TreePrinter.builder(
                         "\u001b[1;37m%-48s\u001b[0m %s",
@@ -177,7 +169,7 @@ public class CmdDisplayResource extends BaseDebugCmd
 
                         try
                         {
-                            long flagsBits = rsc.getStateFlags().getFlagsBits(accCtx);
+                            long flagsBits = rsc.getStateFlags().getFlagsBits();
                             treeBuilder.leaf("Flags: %016X", flagsBits);
                         }
                         catch (AccessDeniedException ignored)
@@ -199,7 +191,7 @@ public class CmdDisplayResource extends BaseDebugCmd
                             VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
                             List<String> storPoolNames = new ArrayList<>();
                             {
-                                Set<StorPool> vlmStorPools = LayerVlmUtils.getStorPoolSet(vlm, accCtx, true);
+                                Set<StorPool> vlmStorPools = LayerVlmUtils.getStorPoolSet(vlm, true);
                                 for (StorPool storPool : vlmStorPools)
                                 {
                                     storPoolNames.add(storPool.getName().displayValue);
@@ -208,8 +200,8 @@ public class CmdDisplayResource extends BaseDebugCmd
                             treeBuilder.branch("Volume %d", vlmDfn.getVolumeNumber().value)
                                 .leaf("Volume UUID: %s", vlm.getUuid().toString().toUpperCase())
                                 .leaf("Volume definition UUID: %s", vlmDfn.getUuid().toString().toUpperCase())
-                                .leaf("Size:     %16d", vlmDfn.getVolumeSize(accCtx))
-                                .leaf("Flags:    %016x", vlm.getFlags().getFlagsBits(accCtx))
+                                .leaf("Size:     %16d", vlmDfn.getVolumeSize())
+                                .leaf("Flags:    %016x", vlm.getFlags().getFlagsBits())
                                 .leaf("Storage pool%s: %s",
                                     storPoolNames.size() == 1 ? "" : "s",
                                     storPoolNames.size() == 1 ? storPoolNames.get(0) : storPoolNames.toString()
@@ -230,7 +222,7 @@ public class CmdDisplayResource extends BaseDebugCmd
         }
 
         @Override
-        public int countObjects(final ResourceDefinition rscDfn, final AccessContext accCtx)
+        public int countObjects(final ResourceDefinition rscDfn)
         {
             return rscDfn.getResourceCount();
         }

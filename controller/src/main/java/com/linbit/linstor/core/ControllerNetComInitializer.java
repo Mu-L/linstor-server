@@ -8,8 +8,6 @@ import com.linbit.SystemServiceStartException;
 import com.linbit.SystemServiceStopException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PublicContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.api.interfaces.serializer.CommonSerializer;
@@ -28,8 +26,6 @@ import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.proto.CommonMessageProcessor;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.systemstarter.StartupInitializer;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -78,8 +74,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
 
     private final ErrorReporter errorReporter;
     private final CommonSerializer commonSerializer;
-    private final AccessContext sysCtx;
-    private final AccessContext publicCtx;
     private final Props ctrlConf;
     private final MessageProcessor msgProc;
     private final ConnectionObserver ctrlConnTracker;
@@ -96,8 +90,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
     public ControllerNetComInitializer(
         ErrorReporter errorReporterRef,
         CommonSerializer commonSerializerRef,
-        @SystemContext AccessContext sysCtxRef,
-        @PublicContext AccessContext publicCtxRef,
         @Named(LinStor.CONTROLLER_PROPS) Props ctrlConfRef,
         CommonMessageProcessor msgProcRef,
         CtrlConnTracker ctrlConnTrackerRef,
@@ -111,8 +103,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
     {
         errorReporter = errorReporterRef;
         commonSerializer = commonSerializerRef;
-        sysCtx = sysCtxRef;
-        publicCtx = publicCtxRef;
         ctrlConf = ctrlConfRef;
         msgProc = msgProcRef;
         ctrlConnTracker = ctrlConnTrackerRef;
@@ -230,8 +220,7 @@ public final class ControllerNetComInitializer implements StartupInitializer
                 initNetComService(
                     namespaceStr,
                     netComProps,
-                    errorReporter,
-                    sysCtx
+                    errorReporter
                 );
             }
             catch (SystemServiceStartException sysSvcStartExc)
@@ -273,8 +262,7 @@ public final class ControllerNetComInitializer implements StartupInitializer
     private void createNetComService(
         ServiceName serviceName,
         ReadOnlyProps configProp,
-        ErrorReporter errorLogRef,
-        AccessContext initCtx
+        ErrorReporter errorLogRef
     )
         throws SystemServiceStartException
     {
@@ -293,7 +281,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                 msgProc,
                 bindAddress,
                 publicCtx,
-                initCtx,
                 ctrlConnTracker
             );
             try
@@ -315,7 +302,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                     {
                         errorLogRef.reportError(
                             dbExc,
-                            sysCtx,
                             null,
                             "A database exception was thrown while trying to persist the default plain connector"
                         );
@@ -332,7 +318,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                             {
                                 errorLogRef.reportError(
                                     sqlExc2,
-                                    sysCtx,
                                     null,
                                     "A database exception was thrown while trying to rollback a transaction"
                                 );
@@ -342,7 +327,7 @@ public final class ControllerNetComInitializer implements StartupInitializer
                     }
                 }
             }
-            catch (AccessDeniedException | InvalidKeyException | InvalidValueException exc)
+            catch (InvalidKeyException | InvalidValueException exc)
             {
                 errorLogRef.reportError(
                     new ImplementationError(
@@ -423,7 +408,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                         msgProc,
                         bindAddress,
                         publicCtx,
-                        initCtx,
                         ctrlConnTracker,
                         cryptoProvider,
                         sslProtocol,
@@ -455,7 +439,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                             {
                                 errorLogRef.reportError(
                                     dbExc,
-                                    sysCtx,
                                     null,
                                     "A database exception was thrown while trying to persist the default ssl connector"
                                 );
@@ -472,7 +455,6 @@ public final class ControllerNetComInitializer implements StartupInitializer
                                     {
                                         errorLogRef.reportError(
                                             sqlExc2,
-                                            sysCtx,
                                             null,
                                             "A database exception was thrown while trying to rollback a transaction"
                                         );
@@ -482,7 +464,7 @@ public final class ControllerNetComInitializer implements StartupInitializer
                             }
                         }
                     }
-                    catch (AccessDeniedException | InvalidKeyException | InvalidValueException exc)
+                    catch (InvalidKeyException | InvalidValueException exc)
                     {
                         errorLogRef.reportError(
                             new ImplementationError(
@@ -553,8 +535,7 @@ public final class ControllerNetComInitializer implements StartupInitializer
     private void initNetComService(
         String serviceNameStr,
         ReadOnlyProps netComProps,
-        ErrorReporter errorLogRef,
-        AccessContext initCtx
+        ErrorReporter errorLogRef
     )
         throws SystemServiceStartException
     {
@@ -595,7 +576,7 @@ public final class ControllerNetComInitializer implements StartupInitializer
 
         if (loadProp(configProp, PROPSCON_KEY_NETCOM_ENABLED, "true").equalsIgnoreCase("true"))
         {
-            createNetComService(serviceName, configProp, errorLogRef, initCtx);
+            createNetComService(serviceName, configProp, errorLogRef);
         }
         else
         {

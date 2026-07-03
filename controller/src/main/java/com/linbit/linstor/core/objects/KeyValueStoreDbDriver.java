@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.KeyValueStoreName;
 import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
@@ -14,10 +13,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.KeyValueStoreCtrlDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.utils.Pair;
@@ -41,7 +36,6 @@ public class KeyValueStoreDbDriver
 
     @Inject
     public KeyValueStoreDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -51,7 +45,7 @@ public class KeyValueStoreDbDriver
 
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.KEY_VALUE_STORE, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.KEY_VALUE_STORE, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -85,7 +79,7 @@ public class KeyValueStoreDbDriver
     }
 
     @Override
-    protected String getId(KeyValueStore kvs) throws AccessDeniedException
+    protected String getId(KeyValueStore kvs)
     {
         return "(KvsName=" + kvs.getName().displayValue + ")";
     }

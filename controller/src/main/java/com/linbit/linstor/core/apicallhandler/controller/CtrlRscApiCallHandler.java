@@ -2,9 +2,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -18,7 +16,6 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoH
 import com.linbit.linstor.core.apicallhandler.controller.helpers.PropsChangedListenerBuilder;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.ResourceList;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.ApiSuccessUtils;
@@ -37,8 +34,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.utils.layer.DrbdLayerUtils;
 import com.linbit.locks.LockGuardFactory;
 
@@ -72,7 +67,6 @@ import static java.util.stream.Collectors.toList;
 public class CtrlRscApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -81,7 +75,6 @@ public class CtrlRscApiCallHandler
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final StltConfigAccessor stltCfgAccessor;
@@ -91,7 +84,6 @@ public class CtrlRscApiCallHandler
     @Inject
     public CtrlRscApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -100,7 +92,6 @@ public class CtrlRscApiCallHandler
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         StltConfigAccessor stltCfgAccessorRef,
@@ -109,7 +100,6 @@ public class CtrlRscApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -118,7 +108,6 @@ public class CtrlRscApiCallHandler
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         stltCfgAccessor = stltCfgAccessorRef;
@@ -195,26 +184,23 @@ public class CtrlRscApiCallHandler
             }
 
             Map<String, PropertyChangedListener> propsChangedListeners = propsChangeListenerBuilderProvider.get()
-                .buildPropsChangedListeners(peerAccCtx.get(), rsc, specialPropFluxes);
+                .buildPropsChangedListeners(rsc, specialPropFluxes);
 
             Props props = ctrlPropsHelper.getProps(rsc);
 
             // check if specified preferred network interface exists
             ctrlPropsHelper.checkPrefNic(
-                apiCtx,
                 rsc.getNode(),
                 overrideProps.get(ApiConsts.KEY_STOR_POOL_PREF_NIC),
                 ApiConsts.MASK_RSC
             );
             ctrlPropsHelper.checkPrefNic(
-                apiCtx,
                 rsc.getNode(),
                 overrideProps.get(ApiConsts.NAMESPC_NVME + "/" + ApiConsts.KEY_PREF_NIC),
                 ApiConsts.MASK_RSC
             );
             // check if specified "outside address" network interface exists
             ctrlPropsHelper.checkPrefOutsideAddress(
-                apiCtx,
                 rsc.getNode(),
                 overrideProps.get(
                     ApiConsts.NAMESPC_LINSTOR_DRBD + "/" + ApiConsts.KEY_DRBD_OUTSIDE_ADDRESS
@@ -253,11 +239,11 @@ public class CtrlRscApiCallHandler
             }
             if (tiebreakerFlagRef != null)
             {
-                flagsChanged |= DrbdLayerUtils.setTiebreaker(apiCtx, rsc, tiebreakerFlagRef);
+                flagsChanged |= DrbdLayerUtils.setTiebreaker(rsc, tiebreakerFlagRef);
             }
             if (drbdClientFlagRef != null)
             {
-                flagsChanged |= DrbdLayerUtils.setClientFlag(apiCtx, rsc, drbdClientFlagRef);
+                flagsChanged |= DrbdLayerUtils.setClientFlag(rsc, drbdClientFlagRef);
             }
 
             Flux<ApiCallRc> autoFlux;
@@ -321,24 +307,23 @@ public class CtrlRscApiCallHandler
             final List<String> upperFilterResources =
                 filterResources.stream().map(String::toUpperCase).collect(toList());
 
-            resourceDefinitionRepository.getMapForView(peerAccCtx.get()).values().stream()
+            resourceDefinitionRepository.getMapForView().values().stream()
                 .filter(rscDfn -> upperFilterResources.isEmpty() ||
                     upperFilterResources.contains(rscDfn.getName().value))
                 .forEach(rscDfn ->
                 {
                     try
                     {
-                        for (Resource rsc : rscDfn.streamResource(peerAccCtx.get())
+                        for (Resource rsc : rscDfn.streamResource()
                             .filter(rsc -> upperFilterNodes.isEmpty() ||
                                 upperFilterNodes.contains(rsc.getNode().getName().value))
                             .collect(toList()))
                         {
                             rscList.addResource(
                                 rsc.getApiData(
-                                    peerAccCtx.get(),
                                     null,
                                     null,
-                                    rsc.getEffectiveProps(apiCtx, stltCfgAccessor)
+                                    rsc.getEffectiveProps(stltCfgAccessor)
                                 )
                             );
                             // fullSyncId and updateId null, as they are not going to be serialized anyways
@@ -352,11 +337,11 @@ public class CtrlRscApiCallHandler
                 );
 
             // get resource states of all nodes
-            for (final Node node : nodeRepository.getMapForView(peerAccCtx.get()).values())
+            for (final Node node : nodeRepository.getMapForView().values())
             {
                 if (upperFilterNodes.isEmpty() || upperFilterNodes.contains(node.getName().value))
                 {
-                    final Peer curPeer = node.getPeer(peerAccCtx.get());
+                    final Peer curPeer = node.getPeer();
                     if (curPeer != null)
                     {
                         Lock readLock = curPeer.getSatelliteStateLock().readLock();
@@ -408,7 +393,7 @@ public class CtrlRscApiCallHandler
         try
         {
             rscName = new ResourceName(rscNameString);
-            ResourceDefinition rscDfn = resourceDefinitionRepository.get(apiCtx, rscName);
+            ResourceDefinition rscDfn = resourceDefinitionRepository.get(rscName);
 
             if (rscDfn  != null)
             {
@@ -417,7 +402,7 @@ public class CtrlRscApiCallHandler
                 // Build an array of all resources of the resource definition
                 Resource[] rscList = new Resource[rscDfn.getResourceCount()];
                 {
-                    Iterator<Resource> rscIter = rscDfn.iterateResource(apiCtx);
+                    Iterator<Resource> rscIter = rscDfn.iterateResource();
                     for (int idx = 0; rscIter.hasNext(); ++idx)
                     {
                         rscList[idx] = rscIter.next();
@@ -427,15 +412,15 @@ public class CtrlRscApiCallHandler
                 // Collect resource connection from all resources, avoiding duplicates
                 for (Resource rsc : rscList)
                 {
-                    List<ResourceConnection> rscConList = rsc.getAbsResourceConnections(apiCtx);
+                    List<ResourceConnection> rscConList = rsc.getAbsResourceConnections();
                     for (ResourceConnection rscCon : rscConList)
                     {
                         ResourceConnectionKey rscConKey = new ResourceConnectionKey(
-                            rscCon.getSourceResource(apiCtx), rscCon.getTargetResource(apiCtx)
+                            rscCon.getSourceResource(), rscCon.getTargetResource()
                         );
                         if (!rscConMap.containsKey(rscConKey))
                         {
-                            rscConMap.put(rscConKey, rscCon.getApiData(apiCtx));
+                            rscConMap.put(rscConKey, rscCon.getApiData());
                         }
                     }
                 }
@@ -488,14 +473,6 @@ public class CtrlRscApiCallHandler
                     "Invalid resource name used"
                 ),
             exc);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + getRscDfnDescriptionInline(rscName.displayValue),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
         }
 
         return rscConns;

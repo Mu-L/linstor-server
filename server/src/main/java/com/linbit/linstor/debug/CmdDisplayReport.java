@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
 
 public class CmdDisplayReport extends BaseDebugCmd
 {
@@ -51,7 +50,6 @@ public class CmdDisplayReport extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception

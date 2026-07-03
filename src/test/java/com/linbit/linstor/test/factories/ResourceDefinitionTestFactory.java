@@ -13,9 +13,6 @@ import com.linbit.linstor.core.objects.ResourceDefinition.Flags;
 import com.linbit.linstor.core.objects.ResourceDefinitionControllerFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.LayerPayload;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
@@ -60,7 +57,7 @@ public class ResourceDefinitionTestFactory
         ResourceGroupTestFactory rscGrpFactRef,
         ResourceDefinitionControllerFactory rscDfnFactRef
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
             LinStorException
     {
         rscGrpFact = rscGrpFactRef;
@@ -68,7 +65,7 @@ public class ResourceDefinitionTestFactory
     }
 
     public ResourceDefinition get(String rscNameRef, boolean createIfNotExists)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, LinStorException
     {
         ResourceDefinition rscDfn = rscDfnMap.get(rscNameRef.toUpperCase());
@@ -79,7 +76,7 @@ public class ResourceDefinitionTestFactory
         return rscDfn;
     }
 
-    public ResourceDefinitionTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public ResourceDefinitionTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -144,14 +141,14 @@ public class ResourceDefinitionTestFactory
     }
 
     public ResourceDefinition createNext()
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
         ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, LinStorException
     {
         return builder().build();
     }
 
     public ResourceDefinition create(String rscName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, LinStorException
     {
         return builder(rscName).build();
@@ -172,7 +169,6 @@ public class ResourceDefinitionTestFactory
     public class ResourceDefinitionBuilder
     {
         private String rscName;
-        private AccessContext accCtx;
         private byte[] extName;
         private Flags[] flags;
         private List<DeviceLayerKind> layerStack;
@@ -183,7 +179,6 @@ public class ResourceDefinitionTestFactory
             throws LinStorException
         {
             rscName = rscNameRef;
-            accCtx = dfltAccCtx;
             extName = dfltExtName;
             flags = dfltFlags;
             payload = TestFactoryUtils.createCopy(dfltPayload);
@@ -201,9 +196,8 @@ public class ResourceDefinitionTestFactory
             return this;
         }
 
-        public ResourceDefinitionBuilder setAccCtx(AccessContext accCtxRef)
+        public ResourceDefinitionBuilder setAccCtx()
         {
-            accCtx = accCtxRef;
             return this;
         }
 
@@ -250,12 +244,11 @@ public class ResourceDefinitionTestFactory
         }
 
         public ResourceDefinition build()
-            throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException,
+            throws DatabaseException, LinStorDataAlreadyExistsException,
             ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, InvalidNameException,
             LinStorException
         {
             ResourceDefinition rscDfn = rscDfnFact.create(
-                accCtx,
                 new ResourceName(rscName),
                 extName,
                 flags,

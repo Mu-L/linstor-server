@@ -9,10 +9,6 @@ import com.linbit.linstor.core.objects.StorPoolDefinitionControllerFactory;
 import com.linbit.linstor.core.objects.StorPoolDefinitionDbDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.StorPoolDefinitionDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.TestAccessContextProvider;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -48,7 +44,7 @@ public class StorPoolDefinitionTestFactory
      * This method has to be called as a workaround. We cannot create "dfltDisklessStorPool" as it already exists in DB
      * But we cannot load it in the constructor (during guice injection) as we are not in a scope at the at time.
      */
-    public void initDfltDisklessStorPool() throws AccessDeniedException, DatabaseException
+    public void initDfltDisklessStorPool() throws DatabaseException
     {
         StorPoolDefinition dfltDisklessStorPoolDfn = ((StorPoolDefinitionDbDriver) spdDbDriver).loadAll(null)
             .keySet()
@@ -66,7 +62,7 @@ public class StorPoolDefinitionTestFactory
         storPoolDfnMap.put(LinStor.DISKLESS_STOR_POOL_NAME.toUpperCase(), dfltDisklessStorPoolDfn);
     }
     public StorPoolDefinition get(String storPoolNameRef, boolean createIfNotExists)
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         StorPoolDefinition storPoolDfn = storPoolDfnMap.get(storPoolNameRef.toUpperCase());
         if (storPoolDfn == null && createIfNotExists)
@@ -76,7 +72,7 @@ public class StorPoolDefinitionTestFactory
         return storPoolDfn;
     }
 
-    public StorPoolDefinitionTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public StorPoolDefinitionTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -89,13 +85,13 @@ public class StorPoolDefinitionTestFactory
     }
 
     public StorPoolDefinition create()
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         return builder(dfltStorPoolNameSupplier.get()).build();
     }
 
     public StorPoolDefinition create(String storPoolName)
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         return builder(storPoolName).build();
     }
@@ -108,12 +104,10 @@ public class StorPoolDefinitionTestFactory
     public class StorPoolDefinitionBuilder
     {
         private String storPoolName;
-        private AccessContext accCtx;
 
         public StorPoolDefinitionBuilder(String storPoolNameRef)
         {
             storPoolName = storPoolNameRef;
-            accCtx = dfltAccCtx;
         }
 
         public StorPoolDefinitionBuilder setStorPoolName(String storPoolNameRef)
@@ -122,16 +116,15 @@ public class StorPoolDefinitionTestFactory
             return this;
         }
 
-        public StorPoolDefinitionBuilder setAccCtx(AccessContext accCtxRef)
+        public StorPoolDefinitionBuilder setAccCtx()
         {
-            accCtx = accCtxRef;
             return this;
         }
 
         public StorPoolDefinition build()
-            throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
+            throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
         {
-            StorPoolDefinition storPoolDfn = fact.create(accCtx, new StorPoolName(storPoolName));
+            StorPoolDefinition storPoolDfn = fact.create(new StorPoolName(storPoolName));
             storPoolDfnMap.put(storPoolName.toUpperCase(), storPoolDfn);
             return storPoolDfn;
         }

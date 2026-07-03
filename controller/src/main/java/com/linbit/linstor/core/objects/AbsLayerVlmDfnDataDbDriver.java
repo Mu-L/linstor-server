@@ -11,8 +11,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.DatabaseTable;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
 import com.linbit.utils.Pair;
@@ -43,17 +41,16 @@ public abstract class AbsLayerVlmDfnDataDbDriver<
     }
 
     AbsLayerVlmDfnDataDbDriver(
-        AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DatabaseTable tableRef,
         DbEngine dbEngineRef
     )
     {
-        super(dbCtxRef, errorReporterRef, tableRef, dbEngineRef);
+        super(errorReporterRef, tableRef, dbEngineRef);
     }
 
     @Override
-    protected String getId(VLM_DFN_DATA vlmDfnDataRef) throws AccessDeniedException
+    protected String getId(VLM_DFN_DATA vlmDfnDataRef)
     {
         return "(" + vlmDfnDataRef.getLayerKind().name() +
             ", ResName=" + vlmDfnDataRef.getResourceName() +
@@ -67,7 +64,7 @@ public abstract class AbsLayerVlmDfnDataDbDriver<
         Map<SuffixedResourceName, RSC_DFN_DATA> allRscDfnDataRef,
         Map<Pair<SuffixedResourceName, VolumeNumber>, VLM_DFN_DATA> allVlmDfnDataRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         Map<VLM_DFN_DATA, Void> loadedVlmDfnMap;
         loadedVlmDfnMap = loadAll(
@@ -95,8 +92,8 @@ public abstract class AbsLayerVlmDfnDataDbDriver<
             if (vlmDfnData.getSnapshotName() == null)
             {
                 ResourceDefinition rscDfn = parentObjectsRef.rscDfnMap.get(vlmDfnData.getResourceName());
-                VolumeDefinition vlmDfn = rscDfn.getVolumeDfn(dbCtx, vlmDfnData.getVolumeNumber());
-                vlmDfn.setLayerData(dbCtx, vlmDfnData);
+                VolumeDefinition vlmDfn = rscDfn.getVolumeDfn(vlmDfnData.getVolumeNumber());
+                vlmDfn.setLayerData(vlmDfnData);
             }
             else
             {
@@ -104,10 +101,9 @@ public abstract class AbsLayerVlmDfnDataDbDriver<
                     new Pair<>(vlmDfnData.getResourceName(), vlmDfnData.getSnapshotName())
                 );
                 SnapshotVolumeDefinition snapVlmDfn = snapDfn.getSnapshotVolumeDefinition(
-                    dbCtx,
                     vlmDfnData.getVolumeNumber()
                 );
-                snapVlmDfn.setLayerData(dbCtx, vlmDfnData);
+                snapVlmDfn.setLayerData(vlmDfnData);
             }
         }
     }

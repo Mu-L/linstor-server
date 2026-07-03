@@ -4,7 +4,6 @@ import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
 
 import java.nio.file.Path;
 
@@ -86,7 +85,6 @@ public class DefaultErrorStreamErrorReporter implements ErrorReporter
     public String reportError(
         Level logLevel,
         Throwable errorInfo,
-        @Nullable AccessContext accCtx,
         Peer client,
         String contextInfo
     )
@@ -110,7 +108,6 @@ public class DefaultErrorStreamErrorReporter implements ErrorReporter
     public String reportProblem(
         Level logLevel,
         LinStorException errorInfo,
-        @Nullable AccessContext accCtx,
         Peer client,
         String contextInfo
     )

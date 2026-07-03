@@ -6,7 +6,6 @@ import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -31,8 +30,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.cache.CacheRscData;
 import com.linbit.linstor.storage.data.adapter.cache.CacheVlmData;
@@ -64,7 +61,6 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
     @Inject
     RscCacheLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef,
         Provider<CtrlRscLayerDataFactory> rscLayerDataFactory,
@@ -73,7 +69,6 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             // CacheRscData.class cannot directly be casted to Class<CacheRscData<Resource>>. because java.
@@ -128,7 +123,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         AbsRscLayerObject<Resource> parentObjectRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException
     {
         return layerDataFactory.createCacheRscData(
@@ -147,7 +142,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
 
     @Override
     protected boolean needsChildVlm(AbsRscLayerObject<Resource> childRscDataRef, Volume vlmRef)
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         return true;
     }
@@ -160,7 +155,6 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException
     {
         Set<StorPool> storPools = new HashSet<>();
         if (genericNeedsCacheDevice(rscRef, layerListRef))
@@ -184,7 +178,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         LayerPayload payload,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException, LinStorException
     {
         StorPool cacheStorPool = null;
@@ -214,7 +208,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         // nothing to do
     }
@@ -224,7 +218,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         CacheRscData<Resource> rscDataRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         // always return data and cache child
         List<ChildResourceData> children = new ArrayList<>();
@@ -253,7 +247,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
 
     @Override
     public StorPool getStorPool(Volume vlmRef, AbsRscLayerObject<Resource> childRef)
-        throws AccessDeniedException, InvalidKeyException, InvalidNameException
+        throws InvalidKeyException, InvalidNameException
     {
         StorPool pool;
         CacheVlmData<Resource> cacheVlmData = (CacheVlmData<Resource>) childRef
@@ -278,7 +272,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
 
     @Override
     protected void resetStoragePools(AbsRscLayerObject<Resource> rscDataRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // no-op
     }
@@ -295,7 +289,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
 
 
     @Override
-    protected boolean isExpectedToProvideDevice(CacheRscData<Resource> cacheRscData) throws AccessDeniedException
+    protected boolean isExpectedToProvideDevice(CacheRscData<Resource> cacheRscData)
     {
         return !cacheRscData.hasAnyPreventExecutionIgnoreReason();
     }
@@ -305,7 +299,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         String propKey,
         String usage,
         boolean throwIfNull
-    ) throws InvalidKeyException, AccessDeniedException
+    ) throws InvalidKeyException
     {
         return getSpecialStorPool(
             getPrioProps(vlm),
@@ -324,7 +318,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         String usage,
         boolean throwIfNull
     )
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return getSpecialStorPool(
             getPrioProps(rsc, vlmDfn),
@@ -344,7 +338,6 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         boolean throwIfNull,
         String vlmDescription
     )
-        throws AccessDeniedException
     {
         String poolName = prioProps.getProp(
             propKey, ApiConsts.NAMESPC_CACHE
@@ -369,7 +362,6 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
             if (poolName != null)
             {
                 specStorPool = node.getStorPool(
-                    apiCtx,
                     new StorPoolName(poolName)
                 );
 
@@ -401,7 +393,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         return specStorPool;
     }
 
-    private @Nullable StorPool getCacheStorPool(Volume vlm) throws InvalidKeyException, AccessDeniedException
+    private @Nullable StorPool getCacheStorPool(Volume vlm) throws InvalidKeyException
     {
         return getSpecialStorPool(
             vlm,
@@ -412,7 +404,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
     }
 
     private @Nullable StorPool getMetaStorPool(Volume vlm)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return getSpecialStorPool(
             vlm,
@@ -423,7 +415,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
     }
 
     private @Nullable StorPool getCacheStorPool(Resource rsc, VolumeDefinition vlmDfn)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return getSpecialStorPool(
             rsc,
@@ -435,7 +427,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
     }
 
     private @Nullable StorPool getMetaStorPool(Resource rsc, VolumeDefinition vlmDfn)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return getSpecialStorPool(
             rsc,
@@ -446,36 +438,36 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         );
     }
 
-    private PriorityProps getPrioProps(Volume vlmRef) throws AccessDeniedException
+    private PriorityProps getPrioProps(Volume vlmRef)
     {
         VolumeDefinition vlmDfn = vlmRef.getVolumeDefinition();
         ResourceDefinition rscDfn = vlmRef.getResourceDefinition();
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         Resource rsc = vlmRef.getAbsResource();
         PriorityProps prioProps = new PriorityProps(
-            vlmDfn.getProps(apiCtx),
-            rscGrp.getVolumeGroupProps(apiCtx, vlmDfn.getVolumeNumber()),
-            rsc.getProps(apiCtx),
-            rscDfn.getProps(apiCtx),
-            rscGrp.getProps(apiCtx),
-            rsc.getNode().getProps(apiCtx),
-            systemConfRepository.getStltConfForView(apiCtx)
+            vlmDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rsc.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getProps(),
+            rsc.getNode().getProps(),
+            systemConfRepository.getStltConfForView()
         );
         return prioProps;
     }
 
-    private PriorityProps getPrioProps(Resource rsc, VolumeDefinition vlmDfn) throws AccessDeniedException
+    private PriorityProps getPrioProps(Resource rsc, VolumeDefinition vlmDfn)
     {
         ResourceDefinition rscDfn = rsc.getResourceDefinition();
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         PriorityProps prioProps = new PriorityProps(
-            vlmDfn.getProps(apiCtx),
-            rscGrp.getVolumeGroupProps(apiCtx, vlmDfn.getVolumeNumber()),
-            rsc.getProps(apiCtx),
-            rscDfn.getProps(apiCtx),
-            rscGrp.getProps(apiCtx),
-            rsc.getNode().getProps(apiCtx),
-            systemConfRepository.getStltConfForView(apiCtx)
+            vlmDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rsc.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getProps(),
+            rsc.getNode().getProps(),
+            systemConfRepository.getStltConfForView()
         );
         return prioProps;
     }
@@ -485,7 +477,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         ResourceDefinition rscDfnRef,
         AbsRscLayerObject<RSC> fromSnapDataRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // CacheLayer does not have resource-definition specific data
@@ -498,7 +490,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         AbsRscLayerObject<RSC> fromAbsRscDataRef,
         AbsRscLayerObject<Resource> rscParentRef
     )
-        throws DatabaseException, AccessDeniedException, ExhaustedPoolException
+        throws DatabaseException, ExhaustedPoolException
     {
         return layerDataFactory.createCacheRscData(
             layerRscIdPool.autoAllocate(),
@@ -512,7 +504,7 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
     protected <RSC extends AbsResource<RSC>> @Nullable VlmDfnLayerObject restoreVlmDfnData(
         VolumeDefinition vlmDfnRef,
         VlmProviderObject<RSC> fromSnapVlmDataRef
-    ) throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // CacheLayer does not have volume-definition specific data
@@ -527,11 +519,10 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
         Map<String, String> storpoolRenameMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws DatabaseException, AccessDeniedException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         CacheVlmData<RSC> cacheVlmData = (CacheVlmData<RSC>) vlmProviderObjectRef;
         StorPool cachePool = AbsLayerHelperUtils.getStorPool(
-            apiCtx,
             vlmRef,
             rscDataRef,
             cacheVlmData.getCacheStorPool(),
@@ -539,7 +530,6 @@ class RscCacheLayerHelper extends AbsCachedRscLayerHelper<
             apiCallRc
         );
         StorPool metaPool = AbsLayerHelperUtils.getStorPool(
-            apiCtx,
             vlmRef,
             rscDataRef,
             cacheVlmData.getMetaStorPool(),

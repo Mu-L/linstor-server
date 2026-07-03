@@ -1,7 +1,5 @@
 package com.linbit.linstor.api;
 
-import com.linbit.linstor.annotation.ErrorReporterContext;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.utils.AbsApiCallTester;
 import com.linbit.linstor.core.ApiTestBase;
 import com.linbit.linstor.core.DoNotSeedDefaultPeer;
@@ -16,11 +14,7 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.proto.requests.MsgReqDrbdReactorExecOuterClass.DrbdReactorCommand;
 import com.linbit.linstor.proto.responses.MsgRspDrbdReactorExecOuterClass.MsgRspDrbdReactorExec;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.DummySecurityInitializer;
 import com.linbit.linstor.security.GenericDbBase;
-import com.linbit.linstor.security.SecurityLevel;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -113,7 +107,7 @@ public class NodeApiTest extends ApiTestBase
         // This test will access node.getPeer().getAccessContext() in order to access some properties
         // this access will fail as the peer's accCtx is null.
         // that NPE can be avoided by entirely disabling security (for this test)
-        DummySecurityInitializer.setSecurityLevel(SYS_CTX, SecurityLevel.NO_SECURITY);
+        DummySecurityInitializer.setSecurityLevel(SecurityLevel.NO_SECURITY);
 
         // FIXME: this test only works because the first API call succeeds.
         // if it would fail, the transaction is currently NOT rolled back.
@@ -133,7 +127,7 @@ public class NodeApiTest extends ApiTestBase
     @DoNotSeedDefaultPeer
     public void crtFailNodesMapViewAccDenied() throws Exception
     {
-        DummySecurityInitializer.setSecurityLevel(SYS_CTX, SecurityLevel.MAC);
+        DummySecurityInitializer.setSecurityLevel(SecurityLevel.MAC);
 
         enterScope();
 
@@ -222,7 +216,7 @@ public class NodeApiTest extends ApiTestBase
         List<JsonGenTypes.ReactorExecResponse> responses = execNodeApiCallHandlerProvider.get()
             .nodeExecDrbdReactor(List.of(testNodeName.displayValue), DrbdReactorCommand.STATUS, null, false)
             .collectList()
-            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class, BOB_ACC_CTX))
+            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class))
             .block();
 
         assertThat(responses).hasSize(1);
@@ -241,7 +235,7 @@ public class NodeApiTest extends ApiTestBase
         List<JsonGenTypes.ReactorExecResponse> responses = execNodeApiCallHandlerProvider.get()
             .nodeExecDrbdReactor(List.of(testNodeName.displayValue), DrbdReactorCommand.STATUS, null, false)
             .collectList()
-            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class, BOB_ACC_CTX))
+            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class))
             .block();
 
         assertThat(responses).hasSize(1);
@@ -268,7 +262,7 @@ public class NodeApiTest extends ApiTestBase
         List<JsonGenTypes.ReactorExecResponse> responses = execNodeApiCallHandlerProvider.get()
             .nodeExecDrbdReactor(List.of(testNodeName.displayValue), DrbdReactorCommand.STATUS, null, false)
             .collectList()
-            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class, BOB_ACC_CTX))
+            .contextWrite(Context.of(ApiModule.API_CALL_NAME, "test", AccessContext.class))
             .block();
 
         assertThat(responses).hasSize(1);
@@ -285,7 +279,7 @@ public class NodeApiTest extends ApiTestBase
     @Test
     public void modSuccess() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext(BOB_ACC_CTX);
+        seedDefaultPeerRule.setDefaultPeerAccessContext();
         enterScope();
         evaluateTest(
             new ModifyNodeCall(ApiConsts.MODIFIED) // nothing to do
@@ -298,7 +292,7 @@ public class NodeApiTest extends ApiTestBase
     {
         enterScope();
 
-        DummySecurityInitializer.setSecurityLevel(SYS_CTX, SecurityLevel.MAC);
+        DummySecurityInitializer.setSecurityLevel(SecurityLevel.MAC);
 
         testScope.seed(Key.get(AccessContext.class, PeerContext.class), ApiTestBase.ALICE_ACC_CTX);
         testScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class), ApiTestBase.ALICE_ACC_CTX);

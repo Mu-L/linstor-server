@@ -3,7 +3,6 @@ package com.linbit.linstor.propscon;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.prop.LinStorObject;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
 import java.util.Collection;
@@ -76,7 +75,7 @@ public class ReadOnlyPropsImpl implements Props
 
     @Override
     public String setProp(String key, String value)
-        throws InvalidKeyException, InvalidValueException, AccessDeniedException
+        throws InvalidKeyException, InvalidValueException
     {
         // throws UnsupportedOperationException
         denyAccess();
@@ -87,7 +86,7 @@ public class ReadOnlyPropsImpl implements Props
 
     @Override
     public String setProp(String key, String value, @Nullable String namespace)
-        throws InvalidKeyException, InvalidValueException, AccessDeniedException
+        throws InvalidKeyException, InvalidValueException
     {
         // throws UnsupportedOperationException
         denyAccess();
@@ -97,7 +96,7 @@ public class ReadOnlyPropsImpl implements Props
     }
 
     @Override
-    public String removeProp(String key) throws InvalidKeyException, AccessDeniedException
+    public String removeProp(String key) throws InvalidKeyException
     {
         // throws UnsupportedOperationException
         denyAccess();
@@ -108,7 +107,7 @@ public class ReadOnlyPropsImpl implements Props
 
     @Override
     public String removeProp(String key, @Nullable String namespace)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         // throws UnsupportedOperationException
         denyAccess();
@@ -119,7 +118,6 @@ public class ReadOnlyPropsImpl implements Props
 
     @Override
     public boolean removeNamespace(String namespaceRef)
-        throws AccessDeniedException
     {
         // throws UnsupportedOperationException
         denyAccess();
@@ -130,19 +128,18 @@ public class ReadOnlyPropsImpl implements Props
 
     @Override
     public void loadAll()
-        throws AccessDeniedException
     {
         denyAccess();
     }
 
     @Override
-    public void delete() throws AccessDeniedException
+    public void delete()
     {
         denyAccess();
     }
 
     @Override
-    public void clear() throws AccessDeniedException
+    public void clear()
     {
         // throws UnsupportedOperationException
         denyAccess();
@@ -304,7 +301,6 @@ public class ReadOnlyPropsImpl implements Props
     }
 
     private void denyAccess()
-        throws AccessDeniedException
     {
         throw new AccessDeniedException(
             "Permission to modify a read-only properties container was denied",

@@ -6,10 +6,6 @@ import com.linbit.linstor.api.pojo.S3RemotePojo;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.TransactionSimpleObject;
@@ -43,7 +39,6 @@ public class S3Remote extends AbsRemote
     private boolean multiDeleteSupported = true;
 
     public S3Remote(
-        ObjectProtection objProtRef,
         UUID objIdRef,
         S3RemoteDatabaseDriver driverRef,
         RemoteName remoteNameRef,
@@ -79,13 +74,6 @@ public class S3Remote extends AbsRemote
             flags,
             deleted
         );
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
     }
 
     @Override
@@ -138,103 +126,87 @@ public class S3Remote extends AbsRemote
         return remoteName;
     }
 
-    public String getUrl(AccessContext accCtx) throws AccessDeniedException
+    public String getUrl()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return endpoint.get();
     }
 
-    public void setUrl(AccessContext accCtx, String url) throws AccessDeniedException, DatabaseException
+    public void setUrl(String url) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         endpoint.set(url);
     }
 
-    public String getBucket(AccessContext accCtx) throws AccessDeniedException
+    public String getBucket()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return bucket.get();
     }
 
-    public void setBucket(AccessContext accCtx, String bucketRef) throws AccessDeniedException, DatabaseException
+    public void setBucket(String bucketRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         bucket.set(bucketRef);
     }
 
-    public String getRegion(AccessContext accCtx) throws AccessDeniedException
+    public String getRegion()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return region.get();
     }
 
-    public void setRegion(AccessContext accCtx, String regionRef) throws AccessDeniedException, DatabaseException
+    public void setRegion(String regionRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         region.set(regionRef);
     }
 
-    public byte[] getAccessKey(AccessContext accCtx) throws AccessDeniedException
+    public byte[] getAccessKey()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return accessKey.get();
     }
 
-    public void setAccessKey(AccessContext accCtx, byte[] accessKeyRef) throws AccessDeniedException, DatabaseException
+    public void setAccessKey(byte[] accessKeyRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         accessKey.set(accessKeyRef);
     }
 
-    public byte[] getSecretKey(AccessContext accCtx) throws AccessDeniedException
+    public byte[] getSecretKey()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return secretKey.get();
     }
 
-    public void setSecretKey(AccessContext accCtx, byte[] secretKeyRef) throws AccessDeniedException, DatabaseException
+    public void setSecretKey(byte[] secretKeyRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         secretKey.set(secretKeyRef);
     }
 
-    public boolean isRequesterPaysSupported(AccessContext accCtx) throws AccessDeniedException
+    public boolean isRequesterPaysSupported()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return requesterPaysSupported;
     }
 
-    public void setRequesterPaysSupported(AccessContext accCtx, boolean requesterPaysSupportedRef)
-        throws AccessDeniedException
+    public void setRequesterPaysSupported(boolean requesterPaysSupportedRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         requesterPaysSupported = requesterPaysSupportedRef;
     }
 
-    public boolean isMultiDeleteSupported(AccessContext accCtx) throws AccessDeniedException
+    public boolean isMultiDeleteSupported()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return multiDeleteSupported;
     }
 
-    public void setMultiDeleteSupported(AccessContext accCtx, boolean multiDeleteSupportedRef)
-        throws AccessDeniedException
+    public void setMultiDeleteSupported(boolean multiDeleteSupportedRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         multiDeleteSupported = multiDeleteSupportedRef;
     }
 
@@ -251,15 +223,13 @@ public class S3Remote extends AbsRemote
         return RemoteType.S3;
     }
 
-    public S3RemotePojo getApiData(AccessContext accCtx, @Nullable Long fullSyncId, @Nullable Long updateId)
-        throws AccessDeniedException
+    public S3RemotePojo getApiData(@Nullable Long fullSyncId, @Nullable Long updateId)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return new S3RemotePojo(
             objId,
             remoteName.displayValue,
-            flags.getFlagsBits(accCtx),
+            flags.getFlagsBits(),
             endpoint.get(),
             bucket.get(),
             region.get(),
@@ -270,17 +240,16 @@ public class S3Remote extends AbsRemote
         );
     }
 
-    public void applyApiData(AccessContext accCtx, S3RemotePojo apiData) throws AccessDeniedException, DatabaseException
+    public void applyApiData(S3RemotePojo apiData) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         endpoint.set(apiData.getEndpoint());
         bucket.set(apiData.getBucket());
         region.set(apiData.getRegion());
         accessKey.set(apiData.getAccessKey());
         secretKey.set(apiData.getSecretKey());
 
-        flags.resetFlagsTo(accCtx, Flags.restoreFlags(apiData.getFlags()));
+        flags.resetFlagsTo(Flags.restoreFlags(apiData.getFlags()));
     }
 
     @Override
@@ -290,13 +259,12 @@ public class S3Remote extends AbsRemote
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
 

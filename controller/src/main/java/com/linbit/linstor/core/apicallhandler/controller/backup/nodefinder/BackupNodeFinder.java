@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcImpl.ApiCallRcEntry;
 import com.linbit.linstor.api.ApiConsts;
@@ -21,8 +20,6 @@ import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.AbsRemote.RemoteType;
 import com.linbit.linstor.core.repository.SystemConfProtectionRepository;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmData;
@@ -59,18 +56,15 @@ public class BackupNodeFinder
     private static final CategorySameNode CATEGORY_SAME_NODE = new CategorySameNode();
     private static final Version VERSION_THIN_SEND_RECV = new ExtToolsInfo.Version(0, 24);
 
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final SystemConfProtectionRepository sysCfgRepo;
 
     @Inject
     public BackupNodeFinder(
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         SystemConfProtectionRepository sysCfgRepoRef
     )
     {
-        peerAccCtx = peerAccCtxRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         sysCfgRepo = sysCfgRepoRef;
 
@@ -102,7 +96,6 @@ public class BackupNodeFinder
         @Nullable String targetRscName,
         boolean copySnapsForEvac
     )
-        throws AccessDeniedException
     {
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
         AccessContext accCtx = peerAccCtx.get();
@@ -113,12 +106,12 @@ public class BackupNodeFinder
         Map<Category, Set<Node>> usableGroups = new HashMap<>();
         Set<Node> ret = new HashSet<>();
 
-        Iterator<Resource> rscIt = rscDfn.iterateResource(accCtx);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
         RemoteType remoteType = remote.getType();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
-            if (canNodeShip(rsc, currentSnapDfnRef, accCtx, copySnapsForEvac))
+            if (canNodeShip(rsc, currentSnapDfnRef, copySnapsForEvac))
             {
                 ApiCallRcImpl backupShippingSupported = backupShippingSupported(rsc);
                 if (backupShippingSupported.isEmpty())
@@ -127,7 +120,7 @@ public class BackupNodeFinder
                     boolean canTakeSnapshot = true;
                     if (prevSnapDfnRef != null)
                     {
-                        canTakeSnapshot = prevSnapDfnRef.getAllSnapshots(accCtx)
+                        canTakeSnapshot = prevSnapDfnRef.getAllSnapshots()
                             .stream()
                             .anyMatch(snap -> snap.getNode().equals(node));
                     }
@@ -148,15 +141,14 @@ public class BackupNodeFinder
                             remoteType.getRequiredExtTools(),
                             apiCallRc,
                             "Cannot use node '" + node.getName().displayValue +
-                                "' as it does not support the tool(s): ",
-                            peerAccCtx.get()
+                                "' as it does not support the tool(s): "
                         );
                     }
 
                     if (canTakeSnapshot)
                     {
                         Set<AbsRscLayerObject<Resource>> drbdRscData = LayerRscUtils.getRscDataByLayer(
-                            rsc.getLayerData(accCtx),
+                            rsc.getLayerData(),
                             DeviceLayerKind.DRBD
                         );
                         if (drbdRscData.size() > 1)
@@ -166,7 +158,7 @@ public class BackupNodeFinder
                         }
                         if (drbdRscData.isEmpty())
                         {
-                            if (rscDfn.getNotDeletedDiskfulCount(accCtx) > 1)
+                            if (rscDfn.getNotDeletedDiskfulCount() > 1)
                             {
                                 throw new ImplementationError(
                                     "Shipping non-DRBD resources with more than one replica is not supported."
@@ -215,7 +207,7 @@ public class BackupNodeFinder
                 String remoteName = remote.getName().displayValue;
                 if (remoteType == RemoteType.S3)
                 {
-                    prevNodeStr = prevSnapDfnRef.getSnapDfnProps(accCtx)
+                    prevNodeStr = prevSnapDfnRef.getSnapDfnProps()
                         .getProp(
                             InternalApiConsts.KEY_BACKUP_SRC_NODE,
                             BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName
@@ -227,7 +219,7 @@ public class BackupNodeFinder
                     {
                         throw new ImplementationError("targetRscName must not be null when using a linstor-remote");
                     }
-                    prevNodeStr = prevSnapDfnRef.getSnapDfnProps(accCtx)
+                    prevNodeStr = prevSnapDfnRef.getSnapDfnProps()
                         .getProp(
                             InternalApiConsts.KEY_BACKUP_SRC_NODE,
                             BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName
@@ -281,14 +273,11 @@ public class BackupNodeFinder
     private boolean canNodeShip(
         Resource rsc,
         @Nullable SnapshotDefinition currentSnapDfnRef,
-        AccessContext accCtx,
         boolean copySnapsForEvac
     )
-        throws AccessDeniedException
     {
         boolean isSomeSortOfDiskless = rsc.getStateFlags()
             .isSomeSet(
-                accCtx,
                 Resource.Flags.DRBD_DISKLESS,
                 Resource.Flags.NVME_INITIATOR,
                 Resource.Flags.EBS_INITIATOR
@@ -314,12 +303,11 @@ public class BackupNodeFinder
         boolean isNodeAvailable = !rsc.getNode()
             .getFlags()
             .isSomeSet(
-                accCtx,
                 forbiddenFlags
-            ) && rsc.getNode().getPeer(accCtx).isOnline();
+            ) && rsc.getNode().getPeer().isOnline();
         PriorityProps prioProps = new PriorityProps(
-            rsc.getNode().getProps(accCtx),
-            sysCfgRepo.getCtrlConfForView(accCtx)
+            rsc.getNode().getProps(),
+            sysCfgRepo.getCtrlConfForView()
         );
         String maxBackups = prioProps.getProp(
             ApiConsts.KEY_MAX_CONCURRENT_BACKUPS_PER_NODE,
@@ -327,7 +315,7 @@ public class BackupNodeFinder
         );
 
         boolean hasSnapshot = currentSnapDfnRef == null ||
-            currentSnapDfnRef.getSnapshot(accCtx, rsc.getNode().getName()) != null;
+            currentSnapDfnRef.getSnapshot(rsc.getNode().getName()) != null;
         /*
          * This does NOT check for free shipping slots, that is not important here, since we only want to know if the
          * node is able to do a shipment, not if it is possible to start it right now
@@ -379,16 +367,16 @@ public class BackupNodeFinder
     /**
      * Checks if the given rsc has the correct device-provider and ext-tools to be shipped as a backup
      */
-    public ApiCallRcImpl backupShippingSupported(Resource rsc) throws AccessDeniedException
+    public ApiCallRcImpl backupShippingSupported(Resource rsc)
     {
-        Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, peerAccCtx.get());
+        Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc);
         ApiCallRcImpl errors = new ApiCallRcImpl();
         for (StorPool sp : storPools)
         {
             DeviceProviderKind deviceProviderKind = sp.getDeviceProviderKind();
             if (deviceProviderKind.isBackupShippingSupported())
             {
-                ExtToolsManager extToolsManager = rsc.getNode().getPeer(peerAccCtx.get()).getExtToolsManager();
+                ExtToolsManager extToolsManager = rsc.getNode().getPeer().getExtToolsManager();
                 errors.addEntry(
                     getErrorRcIfNotSupported(
                         deviceProviderKind,

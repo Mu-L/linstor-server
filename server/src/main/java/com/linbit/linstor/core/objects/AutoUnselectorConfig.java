@@ -2,8 +2,6 @@ package com.linbit.linstor.core.objects;
 
 
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.ExceptionThrowingBiFunction;
 
 import java.util.Collection;
@@ -19,12 +17,12 @@ public class AutoUnselectorConfig
     private final ResourceDefinition rscDfn;
     private final Map<Resource, AutoUnselectRscConfig> unplaceSettingMap;
     private final ExceptionThrowingBiFunction<
-        AccessContext, Resource, @Nullable String, AccessDeniedException> filter;
+        AccessContext, Resource, @Nullable String> filter;
 
     public AutoUnselectorConfig(
         ResourceDefinition rscDfnRef,
         Map<Resource, AutoUnselectRscConfig> unplaceSettingMapRef,
-        ExceptionThrowingBiFunction<AccessContext, Resource, @Nullable String, AccessDeniedException> filterRef
+        ExceptionThrowingBiFunction<AccessContext, Resource, @Nullable String> filterRef
     )
     {
         rscDfn = rscDfnRef;
@@ -37,7 +35,7 @@ public class AutoUnselectorConfig
         return rscDfn;
     }
 
-    public ExceptionThrowingBiFunction<AccessContext, Resource, String, AccessDeniedException> getFilter()
+    public ExceptionThrowingBiFunction<AccessContext, Resource, String> getFilter()
     {
         return filter;
     }
@@ -76,7 +74,7 @@ public class AutoUnselectorConfig
         private final ResourceDefinition rscDfn;
         private final Map<Resource, RscConfigBuilder> rscCfgMap = new HashMap<>();
 
-        private ExceptionThrowingBiFunction<AccessContext, Resource, @Nullable String, AccessDeniedException> filter;
+        private ExceptionThrowingBiFunction<AccessContext, Resource, @Nullable String> filter;
 
         public CfgBuilder(ResourceDefinition rscDfnRef)
         {
@@ -87,16 +85,16 @@ public class AutoUnselectorConfig
 
         public CfgBuilder setDiskfulFilter()
         {
-            return setFilter((accCtx, rsc) -> rsc.isDiskless(accCtx) ? FILTER_DISKLESS : null);
+            return setFilter((rsc) -> rsc.isDiskless() ? FILTER_DISKLESS : null);
         }
 
         public CfgBuilder setDisklessFilter()
         {
-            return setFilter((accCtx, rsc) -> rsc.isDiskless(accCtx) ? null : FILTER_DISKFUL);
+            return setFilter((rsc) -> rsc.isDiskless() ? null : FILTER_DISKFUL);
         }
 
         public CfgBuilder setFilter(
-            ExceptionThrowingBiFunction<AccessContext, Resource, String, AccessDeniedException> filterRef
+            ExceptionThrowingBiFunction<AccessContext, Resource, String> filterRef
         )
         {
             filter = filterRef;
@@ -108,9 +106,9 @@ public class AutoUnselectorConfig
             return rscCfgMap.computeIfAbsent(rscRef, ignore -> new RscConfigBuilder());
         }
 
-        public AutoUnselectorConfig build(AccessContext apiAccCtx) throws AccessDeniedException
+        public AutoUnselectorConfig build()
         {
-            applyFilter(apiAccCtx);
+            applyFilter();
 
             Map<Resource, AutoUnselectRscConfig> autoUnselectorRscCfgMap = new HashMap<>();
             for (Map.Entry<Resource, RscConfigBuilder> entry : rscCfgMap.entrySet())
@@ -120,9 +118,9 @@ public class AutoUnselectorConfig
             return new AutoUnselectorConfig(rscDfn, autoUnselectorRscCfgMap, filter);
         }
 
-        private void applyFilter(AccessContext apiAccCtx) throws AccessDeniedException
+        private void applyFilter()
         {
-            Iterator<Resource> rscIt = rscDfn.iterateResource(apiAccCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
@@ -131,7 +129,7 @@ public class AutoUnselectorConfig
                 @Nullable String alreadySetIgnoreReason = rscCfgBuilder.ignoreReason;
                 if (alreadySetIgnoreReason == null)
                 {
-                    rscCfgBuilder.setIgnoreReason(filter.accept(apiAccCtx, rsc));
+                    rscCfgBuilder.setIgnoreReason(filter.accept(rsc));
                 }
             }
         }

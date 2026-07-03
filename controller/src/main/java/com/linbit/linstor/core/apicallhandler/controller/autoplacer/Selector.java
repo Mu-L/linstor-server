@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.autoplacer;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer.StorPoolWithScore;
@@ -15,8 +14,6 @@ import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -44,18 +41,15 @@ import java.util.Set;
 @Singleton
 class Selector
 {
-    private final AccessContext apiCtx;
     private final ErrorReporter errorReporter;
     private final SystemConfRepository sysCfgRepo;
 
     @Inject
     Selector(
-        @SystemContext AccessContext apiCtxRef,
         ErrorReporter errorReporterRef,
         SystemConfRepository sysCfgRepoRef
     )
     {
-        apiCtx = apiCtxRef;
         errorReporter = errorReporterRef;
         sysCfgRepo = sysCfgRepoRef;
     }
@@ -67,7 +61,6 @@ class Selector
         final boolean canChangeMinIoSize,
         @Nullable final Long minIoSize
     )
-        throws AccessDeniedException
     {
         StorPoolWithScore[] sortedStorPoolByScoreArr = storPoolWithScores.toArray(new StorPoolWithScore[0]);
         Arrays.sort(sortedStorPoolByScoreArr);
@@ -92,14 +85,14 @@ class Selector
         boolean allowMixing = rscDfnRef == null || isStorPoolMixingEnabled(rscDfnRef);
         if (rscDfnRef != null)
         {
-            Iterator<Resource> rscIt = rscDfnRef.iterateResource(apiCtx);
+            Iterator<Resource> rscIt = rscDfnRef.iterateResource();
             List<String> nodeStrList = new ArrayList<>();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
                 StateFlags<Flags> rscFlags = rsc.getStateFlags();
-                boolean isRscDeleting = rscFlags.isSet(apiCtx, Resource.Flags.DELETE);
-                boolean isRscEvicted = rscFlags.isSet(apiCtx, Resource.Flags.EVICTED);
+                boolean isRscDeleting = rscFlags.isSet(Resource.Flags.DELETE);
+                boolean isRscEvicted = rscFlags.isSet(Resource.Flags.EVICTED);
                 if (!isRscDeleting && !isRscEvicted)
                 {
                     Node node = rsc.getNode();
@@ -113,13 +106,13 @@ class Selector
                     countResource &= (skipAlreadyPlacedOnNodeNamesCheck == null ||
                         !skipAlreadyPlacedOnNodeNamesCheck.contains(node.getName().displayValue));
 
-                    countResource &= !(rscFlags.isSet(apiCtx, Resource.Flags.EVACUATE) ||
-                        node.getFlags().isSet(apiCtx, Node.Flags.EVACUATE));
+                    countResource &= !(rscFlags.isSet(Resource.Flags.EVACUATE) ||
+                        node.getFlags().isSet(Node.Flags.EVACUATE));
 
                     if (countResource)
                     {
                         alreadyDeployedOnNodes.add(node);
-                        if (rscFlags.isSet(apiCtx, Resource.Flags.DISKLESS))
+                        if (rscFlags.isSet(Resource.Flags.DISKLESS))
                         {
                             alreadyDeployedDisklessCount++;
                         }
@@ -132,7 +125,7 @@ class Selector
 
                         // determine already selected provider kind
                         List<AbsRscLayerObject<Resource>> storageRscDataList = LayerUtils.getChildLayerDataByKind(
-                            rsc.getLayerData(apiCtx),
+                            rsc.getLayerData(),
                             DeviceLayerKind.STORAGE
                         );
                         // might be possible to skip this loop if rsc to be placed is diskless
@@ -150,7 +143,7 @@ class Selector
 
                                     DeviceProviderKind storageVlmProviderKind = sp.getDeviceProviderKind();
                                     ExtToolsInfo drbdInfo = sp.getNode()
-                                        .getPeer(apiCtx)
+                                        .getPeer()
                                         .getExtToolsManager()
                                         .getExtToolInfo(ExtTools.DRBD9_KERNEL);
                                     Version storageVlmDrbdVersion = drbdInfo == null ? null : drbdInfo.getVersion();
@@ -218,7 +211,6 @@ class Selector
         boolean keepSearchingForCandidates = true;
 
         SelectionManager selectionManager = new SelectionManager(
-            apiCtx,
             errorReporter,
             selectFilterRef,
             alreadyDeployedOnNodes,
@@ -332,18 +324,11 @@ class Selector
     private boolean isStorPoolMixingEnabled(ResourceDefinition rscDfnRef)
     {
         PriorityProps prioProps;
-        try
-        {
-            prioProps = new PriorityProps(
-                rscDfnRef.getProps(apiCtx),
-                rscDfnRef.getResourceGroup().getProps(apiCtx),
-                sysCfgRepo.getCtrlConfForView(apiCtx)
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        prioProps = new PriorityProps(
+            rscDfnRef.getProps(),
+            rscDfnRef.getResourceGroup().getProps(),
+            sysCfgRepo.getCtrlConfForView()
+        );
         return "true".equalsIgnoreCase(
             prioProps.getProp(ApiConsts.KEY_RSC_ALLOW_MIXING_DEVICE_KIND, null, "false")
         );

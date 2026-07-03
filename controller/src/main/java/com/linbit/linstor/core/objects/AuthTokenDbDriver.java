@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.objects;
 
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.objects.AuthToken.InitMaps;
 import com.linbit.linstor.dbdrivers.AbsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
@@ -11,8 +10,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.AuthTokenCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.utils.Pair;
@@ -50,13 +47,12 @@ public final class AuthTokenDbDriver
     @Inject
     public AuthTokenDbDriver(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext dbCtxRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.AUTH_TOKENS, dbEngine);
+        super(errorReporterRef, GeneratedDatabaseTables.AUTH_TOKENS, dbEngine);
         transMgrProvider = transMgrProviderRef;
         transObjFactory = transObjFactoryRef;
 
@@ -93,7 +89,7 @@ public final class AuthTokenDbDriver
     }
 
     @Override
-    protected String getId(AuthToken dataRef) throws AccessDeniedException
+    protected String getId(AuthToken dataRef)
     {
         return "AuthToken(" + dataRef.getId() + ")";
     }

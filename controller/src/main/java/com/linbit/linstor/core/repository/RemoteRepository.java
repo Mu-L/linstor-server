@@ -8,27 +8,23 @@ import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.S3Remote;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ProtectedObject;
 
 public interface RemoteRepository extends ProtectedObject
 {
-    void requireAccess(AccessContext accCtx, AccessType requested) throws AccessDeniedException;
+    void requireAccess(AccessType requested);
 
     @Nullable
-    AbsRemote get(AccessContext accCtx, RemoteName remoteName) throws AccessDeniedException;
+    AbsRemote get(RemoteName remoteName);
 
-    void put(AccessContext accCtx, AbsRemote remote) throws AccessDeniedException;
+    void put(AbsRemote remote);
 
-    void remove(AccessContext accCtx, RemoteName remoteName) throws AccessDeniedException;
+    void remove(RemoteName remoteName);
 
-    CoreModule.RemoteMap getMapForView(AccessContext accCtx) throws AccessDeniedException;
+    CoreModule.RemoteMap getMapForView();
 
-    default @Nullable S3Remote getS3(AccessContext accCtx, RemoteName remoteName) throws AccessDeniedException
+    default @Nullable S3Remote getS3(RemoteName remoteName)
     {
-        AbsRemote remote = get(accCtx, remoteName);
+        AbsRemote remote = get(remoteName);
         if (remote != null && !(remote instanceof S3Remote))
         {
             throw new ApiRcException(

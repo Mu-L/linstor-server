@@ -6,7 +6,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
@@ -21,9 +20,6 @@ import com.linbit.linstor.dbdrivers.interfaces.SnapshotCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -63,7 +59,6 @@ public final class SnapshotDbDriver extends
 
     @Inject
     public SnapshotDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -72,7 +67,7 @@ public final class SnapshotDbDriver extends
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.RESOURCES, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.RESOURCES, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -83,7 +78,7 @@ public final class SnapshotDbDriver extends
         setColumnSetter(NODE_NAME, snap -> snap.getNode().getName().value);
         setColumnSetter(RESOURCE_NAME, snap -> snap.getResourceDefinition().getName().value);
         setColumnSetter(SNAPSHOT_NAME, snap -> ((Snapshot) snap).getSnapshotName().value);
-        setColumnSetter(RESOURCE_FLAGS, snap -> ((Snapshot) snap).getFlags().getFlagsBits(dbCtxRef));
+        setColumnSetter(RESOURCE_FLAGS, snap -> ((Snapshot) snap).getFlags().getFlagsBits());
         switch (getDbType())
         {
             case SQL ->
@@ -174,7 +169,7 @@ public final class SnapshotDbDriver extends
     }
 
     @Override
-    protected String getId(AbsResource<Snapshot> absSnap) throws AccessDeniedException
+    protected String getId(AbsResource<Snapshot> absSnap)
     {
         Snapshot snap = (Snapshot) absSnap;
         return "(NodeName=" + snap.getNodeName().displayValue +

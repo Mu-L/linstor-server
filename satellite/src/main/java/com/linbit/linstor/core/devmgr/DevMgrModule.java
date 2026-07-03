@@ -1,15 +1,9 @@
 package com.linbit.linstor.core.devmgr;
 
-import com.linbit.linstor.annotation.DeviceManagerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.DeviceManager;
 import com.linbit.linstor.core.UpdateMonitor;
 import com.linbit.linstor.core.UpdateMonitorImpl;
 import com.linbit.linstor.layer.DeviceLayer.NotificationListener;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
-import com.linbit.linstor.security.PrivilegeSet;
 
 import javax.inject.Singleton;
 
@@ -37,9 +31,7 @@ public class DevMgrModule extends AbstractModule
 
     @Provides
     @Singleton
-    @DeviceManagerContext
-    public AccessContext deviceManagerContext(@SystemContext AccessContext systemCtx)
-        throws AccessDeniedException
+    public AccessContext deviceManagerContext(AccessContext systemCtx)
     {
         AccessContext devMgrCtx = systemCtx.clone();
         PrivilegeSet devMgrPriv = devMgrCtx.getEffectivePrivs();

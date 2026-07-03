@@ -7,9 +7,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Node.Type;
 import com.linbit.linstor.core.objects.NodeControllerFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -39,7 +36,7 @@ public class NodeTestFactory
     }
 
     public Node get(String nodeNameRef, boolean createIfNotExists)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         Node node = nodesMap.get(nodeNameRef.toUpperCase());
         if (node == null && createIfNotExists)
@@ -50,7 +47,7 @@ public class NodeTestFactory
         return node;
     }
 
-    public NodeTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public NodeTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -81,13 +78,13 @@ public class NodeTestFactory
     }
 
     public Node createNext()
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         return builder().build();
     }
 
     public Node create(String nodeName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         return builder(nodeName).build();
     }
@@ -104,22 +101,19 @@ public class NodeTestFactory
 
     public class NodeBuilder
     {
-        private AccessContext accCtx;
         private String nodeName;
         private Type nodeType;
         private Node.Flags[] flags;
 
         public NodeBuilder(String nodeNameRef)
         {
-            accCtx = dfltAccCtx;
             nodeName = nodeNameRef;
             nodeType = dfltNodeType;
             flags = dfltFlags;
         }
 
-        public NodeBuilder setAccCtx(AccessContext accCtxRef)
+        public NodeBuilder setAccCtx()
         {
-            accCtx = accCtxRef;
             return this;
         }
 
@@ -142,10 +136,9 @@ public class NodeTestFactory
         }
 
         public Node build()
-            throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+            throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
         {
             Node node = fact.create(
-                accCtx,
                 new NodeName(nodeName),
                 nodeType,
                 flags

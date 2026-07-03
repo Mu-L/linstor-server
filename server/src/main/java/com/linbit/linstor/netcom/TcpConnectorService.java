@@ -20,8 +20,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.TcpConnectorPeer.ReadState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -166,10 +164,8 @@ public class TcpConnectorService implements Runnable, TcpConnector
     private @Nullable ServerSocketChannel serverSocket;
 
     // Default access context for a newly connected peer
-    protected AccessContext defaultPeerAccCtx;
 
     // Privileged access context for e.g. setting peer to node
-    private final AccessContext privilegedAccCtx;
 
     // Selector for all connections
     @Nullable Selector serverSelector;
@@ -182,8 +178,6 @@ public class TcpConnectorService implements Runnable, TcpConnector
         CommonSerializer commonSerializerRef,
         MessageProcessor msgProcessorRef,
         @Nullable SocketAddress bindAddressRef,
-        AccessContext defaultPeerAccCtxRef,
-        AccessContext privilegedAccCtxRef,
         ConnectionObserver connObserverRef
     )
     {
@@ -203,8 +197,6 @@ public class TcpConnectorService implements Runnable, TcpConnector
         shutdownFlag    = new AtomicBoolean(true);
         connObserver    = new SafeConnectionObserver(errorReporterRef, connObserverRef);
 
-        defaultPeerAccCtx = defaultPeerAccCtxRef;
-        privilegedAccCtx = privilegedAccCtxRef;
         bindAddress = bindAddressRef;
     }
 
@@ -266,18 +258,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
                     {
                         connObserver.outboundConnectionEstablishing(peer);
                     }
-                    try
-                    {
-                        node.setPeer(privilegedAccCtx, peer);
-                    }
-                    catch (AccessDeniedException accDeniedExc)
-                    {
-                        throw new ImplementationError(
-                            "TcpConnectorService privileged access context not authorized for node.setPeer() " +
-                            "called from connect()",
-                            accDeniedExc
-                        );
-                    }
+                    node.setPeer(privilegedAccCtx, peer);
                 }
             }
             catch (IOException ioExc)
@@ -346,13 +327,6 @@ public class TcpConnectorService implements Runnable, TcpConnector
                     final int port = activeStltConn.getStltConnPort(privilegedAccCtx).value;
                     address = new InetSocketAddress(host, port);
                 }
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(
-                    "Privileged access context not authorized to access node's network interface",
-                    exc
-                );
             }
             catch (AccessToDeletedDataException ignored)
             {
@@ -710,7 +684,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
                                     peerAccCtx = connPeer.getAccessContext();
                                 }
                                 errorReporter.reportError(
-                                    Level.TRACE, ioExc, peerAccCtx, connPeer,
+                                    Level.TRACE, ioExc, connPeer,
                                     "I/O exception while attempting to connect to the peer"
                                 );
                             }

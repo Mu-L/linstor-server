@@ -5,7 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.backupshipping.BackupShippingUtils;
 import com.linbit.linstor.core.CoreModule.ResourceDefinitionMap;
@@ -23,8 +22,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.StltRemote;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.StltRemoteCleanupTask;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.utils.BidirectionalMultiMap;
@@ -77,19 +74,16 @@ public class BackupInfoManager
     private final Map<PairNonNull<SnapshotDefinition, String>, List<FluxSink<ApiCallRc>>> waitForSnapSentMap;
     private final Map<Snapshot, List<FluxSink<ApiCallRc>>> waitForSnapReceiveMap;
 
-    private final AccessContext sysCtx;
     private final ErrorReporter errorReporter;
     private final ResourceDefinitionMap rscDfnMap;
 
     @Inject
     public BackupInfoManager(
         TransactionObjectFactory transObjFactoryRef,
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef,
         ResourceDefinitionMap rscDfnMapRef
     )
     {
-        sysCtx = sysCtxRef;
         errorReporter = errorReporterRef;
         rscDfnMap = rscDfnMapRef;
         restoreMap = transObjFactoryRef.createTransactionPrimitiveMap(null, new HashMap<>(), null);
@@ -151,20 +145,18 @@ public class BackupInfoManager
     }
 
     public PairNonNull<Set<SnapshotDefinition>, Set<RemoteName>> removeAllRestoreEntries(
-        AccessContext accCtx,
         Node node
     )
-        throws AccessDeniedException
     {
         Set<SnapshotDefinition> snapDfnsToCleanup = new HashSet<>();
         synchronized (restoreSyncObj)
         {
-            Iterator<Snapshot> localSnapIter = node.iterateSnapshots(accCtx);
+            Iterator<Snapshot> localSnapIter = node.iterateSnapshots();
             while (localSnapIter.hasNext())
             {
                 Snapshot localSnap = localSnapIter.next();
                 @Nullable Props snapDfnTargetProps = localSnap.getSnapshotDefinition()
-                    .getSnapDfnProps(accCtx)
+                    .getSnapDfnProps()
                     .getNamespace(BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC);
                 if (snapDfnTargetProps != null)
                 {
@@ -327,18 +319,11 @@ public class BackupInfoManager
         // same synchronized block as the initial get
         synchronized (abortCreateMap)
         {
-            try
-            {
-                SnapshotDefinition snapDfn = rscDfnMap.get(rscName).getSnapshotDfn(sysCtx, snapName);
-                addSnapToInProgressBackups(remoteName, snapDfn);
-                getAbortCreateInfo(nodeName, snapDfn.getSnapDfnKey()).abortS3InfoList.add(
-                    new AbortS3Info(backupName, uploadId, remoteName.displayValue)
-                );
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            SnapshotDefinition snapDfn = rscDfnMap.get(rscName).getSnapshotDfn(snapName);
+            addSnapToInProgressBackups(remoteName, snapDfn);
+            getAbortCreateInfo(nodeName, snapDfn.getSnapDfnKey()).abortS3InfoList.add(
+                new AbortS3Info(backupName, uploadId, remoteName.displayValue)
+            );
         }
     }
 
@@ -353,16 +338,9 @@ public class BackupInfoManager
         synchronized (abortCreateMap)
         {
             SnapshotDefinition snapDfn;
-            try
-            {
-                snapDfn = rscDfnMap.get(key.getResourceName()).getSnapshotDfn(sysCtx, key.getSnapshotName());
-                addSnapToInProgressBackups(remoteName, snapDfn);
-                getAbortCreateInfo(nodeName, key).abortL2LInfoList.add(new AbortL2LInfo());
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            snapDfn = rscDfnMap.get(key.getResourceName()).getSnapshotDfn(key.getSnapshotName());
+            addSnapToInProgressBackups(remoteName, snapDfn);
+            getAbortCreateInfo(nodeName, key).abortL2LInfoList.add(new AbortL2LInfo());
         }
     }
 
@@ -403,18 +381,11 @@ public class BackupInfoManager
             {
                 map.remove(snapDfnKey);
             }
-            try
-            {
-                return removeInProgressBackups(
-                    Collections.singleton(
-                        rscDfnMap.get(snapDfnKey.getResourceName()).getSnapshotDfn(sysCtx, snapDfnKey.getSnapshotName())
-                    )
-                );
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            return removeInProgressBackups(
+                Collections.singleton(
+                    rscDfnMap.get(snapDfnKey.getResourceName()).getSnapshotDfn(snapDfnKey.getSnapshotName())
+                )
+            );
         }
     }
 
@@ -678,8 +649,7 @@ public class BackupInfoManager
      * Return the next snapDfn from the queue of the given node and remove it from all queues it was in (including the
      * given node's)
      */
-    public @Nullable QueueItem getNextFromQueue(AccessContext accCtx, Node node, boolean consume)
-        throws AccessDeniedException
+    public @Nullable QueueItem getNextFromQueue(Node node, boolean consume)
     {
         QueueItem ret = null;
         synchronized (uploadQueues)
@@ -696,8 +666,7 @@ public class BackupInfoManager
                         BackupShippingUtils.hasShippingStatus(
                             prevSnapDfn,
                             next.s3orLinRemote.getName().displayValue,
-                            InternalApiConsts.VALUE_SUCCESS,
-                            accCtx
+                            InternalApiConsts.VALUE_SUCCESS
                         );
                     if (isValid)
                     {
@@ -1124,70 +1093,63 @@ public class BackupInfoManager
         public int compareTo(QueueItem other)
         {
             int ret = 0;
-            try
+            String myDateStr = snapDfn.getSnapDfnProps()
+                .getProp(
+                    InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
+                    BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + s3orLinRemote.getName().displayValue
+                );
+            String otherDateStr = other.snapDfn.getSnapDfnProps()
+                .getProp(
+                    InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
+                    BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + other.s3orLinRemote.getName().displayValue
+                );
+            /*
+             * To prevent an ImplementationError from possibly completely stopping whatever thread is currently
+             * trying to sort these QueueItems, it is not thrown but instead creates an ErrorReport
+             */
+            if (myDateStr == null || myDateStr.isEmpty())
             {
-                String myDateStr = snapDfn.getSnapDfnProps(sysCtx)
-                    .getProp(
-                        InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
-                        BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + s3orLinRemote.getName().displayValue
-                    );
-                String otherDateStr = other.snapDfn.getSnapDfnProps(sysCtx)
-                    .getProp(
-                        InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
-                        BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + other.s3orLinRemote.getName().displayValue
-                    );
-                /*
-                 * To prevent an ImplementationError from possibly completely stopping whatever thread is currently
-                 * trying to sort these QueueItems, it is not thrown but instead creates an ErrorReport
-                 */
-                if (myDateStr == null || myDateStr.isEmpty())
+                if (otherDateStr == null || otherDateStr.isEmpty())
                 {
-                    if (otherDateStr == null || otherDateStr.isEmpty())
-                    {
-                        ret = 0;
-                        errorReporter.reportError(
-                            new ImplementationError(
-                                "The snapDfns '" + snapDfn + "' and '" + other.snapDfn +
-                                    "' do not have the property " +
-                                    "BackupShipping/Source/<remoteName>/BackupStartTimestamp set. Remotes: " +
-                                    s3orLinRemote.getName() + " and " + other.s3orLinRemote.getName()
-                            )
-                        );
-                    }
-                    else
-                    {
-                        ret = -1;
-                        errorReporter.reportError(
-                            new ImplementationError(
-                                "The snapDfns '" + snapDfn +
-                                    "' does not have the property BackupShipping/Source/" + s3orLinRemote.getName() +
-                                    "/BackupStartTimestamp set."
-                            )
-                        );
-                    }
+                    ret = 0;
+                    errorReporter.reportError(
+                        new ImplementationError(
+                            "The snapDfns '" + snapDfn + "' and '" + other.snapDfn +
+                                "' do not have the property " +
+                                "BackupShipping/Source/<remoteName>/BackupStartTimestamp set. Remotes: " +
+                                s3orLinRemote.getName() + " and " + other.s3orLinRemote.getName()
+                        )
+                    );
                 }
                 else
                 {
-                    if (otherDateStr == null || otherDateStr.isEmpty())
-                    {
-                        ret = 1;
-                        errorReporter.reportError(
-                            new ImplementationError(
-                                "The snapDfns '" + other.snapDfn +
-                                    "' does not have the property BackupShipping/Source/" + other.s3orLinRemote.getName() +
-                                    "/BackupStartTimestamp set."
-                            )
-                        );
-                    }
-                    else
-                    {
-                        ret = Long.compare(Long.parseLong(myDateStr), Long.parseLong(otherDateStr));
-                    }
+                    ret = -1;
+                    errorReporter.reportError(
+                        new ImplementationError(
+                            "The snapDfns '" + snapDfn +
+                                "' does not have the property BackupShipping/Source/" + s3orLinRemote.getName() +
+                                "/BackupStartTimestamp set."
+                        )
+                    );
                 }
             }
-            catch (AccessDeniedException exc)
+            else
             {
-                throw new ImplementationError(exc);
+                if (otherDateStr == null || otherDateStr.isEmpty())
+                {
+                    ret = 1;
+                    errorReporter.reportError(
+                        new ImplementationError(
+                            "The snapDfns '" + other.snapDfn +
+                                "' does not have the property BackupShipping/Source/" + other.s3orLinRemote.getName() +
+                                "/BackupStartTimestamp set."
+                        )
+                    );
+                }
+                else
+                {
+                    ret = Long.compare(Long.parseLong(myDateStr), Long.parseLong(otherDateStr));
+                }
             }
             return ret;
         }

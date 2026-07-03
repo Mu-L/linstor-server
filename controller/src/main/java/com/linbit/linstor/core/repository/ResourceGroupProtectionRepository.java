@@ -4,10 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.core.objects.ResourceGroup;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -22,7 +18,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class ResourceGroupProtectionRepository implements ResourceGroupRepository
 {
     private final CoreModule.ResourceGroupMap rscGrpMap;
-    private ObjectProtection rscGrpMapObjProt;
 
     // can't initialize objProt in constructor because of chicken-egg-problem
     @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
@@ -32,66 +27,47 @@ public class ResourceGroupProtectionRepository implements ResourceGroupRepositor
         rscGrpMap = rscGrpRef;
     }
 
-    public void setObjectProtection(ObjectProtection rscGrpObjProtRef)
+    public void setObjectProtection()
     {
         if (rscGrpMapObjProt != null)
         {
             throw new IllegalStateException("Object protection already set");
         }
-        rscGrpMapObjProt = rscGrpObjProtRef;
     }
 
     @Override
-    public ObjectProtection getObjProt()
+    public void requireAccess(AccessType requested)
     {
         checkProtSet();
-        return rscGrpMapObjProt;
-    }
-
-    @Override
-    public void requireAccess(AccessContext accCtx, AccessType requested)
-        throws AccessDeniedException
-    {
-        checkProtSet();
-        rscGrpMapObjProt.requireAccess(accCtx, requested);
     }
 
     @Override
     public @Nullable ResourceGroup get(
-        AccessContext accCtx,
         ResourceGroupName rscGrpName
     )
-        throws AccessDeniedException
     {
         checkProtSet();
-        rscGrpMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return rscGrpMap.get(rscGrpName);
     }
 
     @Override
-    public void put(AccessContext accCtx, ResourceGroup rscGrp)
-        throws AccessDeniedException
+    public void put(ResourceGroup rscGrp)
     {
         checkProtSet();
-        rscGrpMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         rscGrpMap.put(rscGrp.getName(), rscGrp);
     }
 
     @Override
-    public void remove(AccessContext accCtx, ResourceGroupName rscGrpName)
-        throws AccessDeniedException
+    public void remove(ResourceGroupName rscGrpName)
     {
         checkProtSet();
-        rscGrpMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         rscGrpMap.remove(rscGrpName);
     }
 
     @Override
-    public CoreModule.ResourceGroupMap getMapForView(AccessContext accCtx)
-        throws AccessDeniedException
+    public CoreModule.ResourceGroupMap getMapForView()
     {
         checkProtSet();
-        rscGrpMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return rscGrpMap;
     }
 

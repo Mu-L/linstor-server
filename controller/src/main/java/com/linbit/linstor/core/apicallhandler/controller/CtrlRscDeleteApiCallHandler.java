@@ -2,9 +2,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -15,7 +13,6 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoH
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperResult;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ZfsChecks;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -35,8 +32,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.storage.utils.LayerUtils;
@@ -71,7 +66,6 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ApiConsts.NAMESPC_STORAGE_DRIVER + "/" + InternalApiConsts.KEY_ZFS_RENAME_SUFFIX;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -79,7 +73,6 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
     private final ResponseConverter responseConverter;
     private final ReadWriteLock nodesMapLock;
     private final ReadWriteLock rscDfnMapLock;
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlRscAutoHelper autoHelper;
     private final SharedResourceManager sharedRscMgr;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
@@ -89,7 +82,6 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
 
     @Inject
     public CtrlRscDeleteApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -97,7 +89,6 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ResponseConverter responseConverterRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
         @Named(CoreModule.RSC_DFN_MAP_LOCK) ReadWriteLock rscDfnMapLockRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlRscAutoHelper autoHelperRef,
         SharedResourceManager sharedRscMgrRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
@@ -107,7 +98,6 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ZfsChecks zfsChecksRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -115,7 +105,6 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         responseConverter = responseConverterRef;
         nodesMapLock = nodesMapLockRef;
         rscDfnMapLock = rscDfnMapLockRef;
-        peerAccCtx = peerAccCtxRef;
         autoHelper = autoHelperRef;
         sharedRscMgr = sharedRscMgrRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
@@ -130,19 +119,18 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ResourceDefinition rscDfn,
         ResponseContext contextRef
     )
-        throws AccessDeniedException
     {
         List<Flux<ApiCallRc>> fluxes = new ArrayList<>();
         Set<NodeName> nodeNamesToDelete = new TreeSet<>();
 
-        Iterator<Resource> rscIter = rscDfn.iterateResource(apiCtx);
+        Iterator<Resource> rscIter = rscDfn.iterateResource();
         while (rscIter.hasNext())
         {
             Resource rsc = rscIter.next();
             if (
-                !rsc.getNode().getFlags().isSet(apiCtx, Node.Flags.DELETE) &&
-                !rscDfn.getFlags().isSet(apiCtx, ResourceDefinition.Flags.DELETE) &&
-                rsc.getStateFlags().isSet(apiCtx, Resource.Flags.DELETE)
+                !rsc.getNode().getFlags().isSet(Node.Flags.DELETE) &&
+                !rscDfn.getFlags().isSet(ResourceDefinition.Flags.DELETE) &&
+                rsc.getStateFlags().isSet(Resource.Flags.DELETE)
             )
             {
                 nodeNamesToDelete.add(rsc.getNode().getName());
@@ -252,99 +240,92 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         AccessContext accCtx = peerAccCtx.get();
 
         Flux<ApiCallRc> flux;
-        try
+        Set<SnapshotDefinition> snapDfnsToUpdate = CtrlRscDeleteApiCallHandler.handleZfsRenameIfNeeded(rsc);
+
+        if (LayerUtils.hasLayer(rsc.getLayerData(), DeviceLayerKind.DRBD))
         {
-            Set<SnapshotDefinition> snapDfnsToUpdate = CtrlRscDeleteApiCallHandler.handleZfsRenameIfNeeded(apiCtx, rsc);
+            ctrlRscDeleteApiHelper.markDrbdDeletedWithVolumes(rsc);
 
-            if (LayerUtils.hasLayer(rsc.getLayerData(accCtx), DeviceLayerKind.DRBD))
+            ApiCallRcImpl responses = new ApiCallRcImpl();
+            AutoHelperResult autoResult = autoHelper.manage(
+                new AutoHelperContext(
+                    responses,
+                    context,
+                    rsc.getResourceDefinition()
+                ).withKeepTiebreaker(keepTiebreakerRef)
+            );
+
+            ctrlTransactionHelper.commit();
+
+            flux = Flux.just(responses);
+            Flux<ApiCallRc> next = Flux.empty();
+            if (!autoResult.isPreventUpdateSatellitesForResourceDelete())
             {
-                ctrlRscDeleteApiHelper.markDrbdDeletedWithVolumes(rsc);
-
-                ApiCallRcImpl responses = new ApiCallRcImpl();
-                AutoHelperResult autoResult = autoHelper.manage(
-                    new AutoHelperContext(
-                        responses,
-                        context,
-                        rsc.getResourceDefinition()
-                    ).withKeepTiebreaker(keepTiebreakerRef)
+                // only mark resource as delete if automagic does not want to keep the resource
+                next = next.concatWith(deleteResourceOnPeers(nodeNameStr, rscNameStr, context));
+            }
+            next = next.concatWith(autoResult.getFlux());
+            if (!autoResult.isPreventUpdateSatellitesForResourceDelete())
+            {
+                String descriptionFirstLetterCaps = firstLetterCaps(getRscDescription(rsc));
+                responses.addEntries(
+                    ApiCallRcImpl.singletonApiCallRc(
+                        ApiCallRcImpl
+                            .entryBuilder(
+                                ApiConsts.DELETED,
+                                descriptionFirstLetterCaps + " preparing for deletion."
+                            )
+                            .setDetails(descriptionFirstLetterCaps + " UUID is: " + rsc.getUuid())
+                            .build()
+                    )
                 );
 
-                ctrlTransactionHelper.commit();
-
-                flux = Flux.just(responses);
-                Flux<ApiCallRc> next = Flux.empty();
-                if (!autoResult.isPreventUpdateSatellitesForResourceDelete())
-                {
-                    // only mark resource as delete if automagic does not want to keep the resource
-                    next = next.concatWith(deleteResourceOnPeers(nodeNameStr, rscNameStr, context));
-                }
-                next = next.concatWith(autoResult.getFlux());
-                if (!autoResult.isPreventUpdateSatellitesForResourceDelete())
-                {
-                    String descriptionFirstLetterCaps = firstLetterCaps(getRscDescription(rsc));
-                    responses.addEntries(
-                        ApiCallRcImpl.singletonApiCallRc(
-                            ApiCallRcImpl
-                                .entryBuilder(
-                                    ApiConsts.DELETED,
-                                    descriptionFirstLetterCaps + " preparing for deletion."
-                                )
-                                .setDetails(descriptionFirstLetterCaps + " UUID is: " + rsc.getUuid())
-                                .build()
+                ResourceName rscName = rsc.getResourceDefinition().getName();
+                flux = flux.concatWith(
+                    ctrlSatelliteUpdateCaller.updateSatellites(rsc, next).transform(
+                        updateResponses -> CtrlResponseUtils.combineResponses(
+                            errorReporter,
+                            updateResponses,
+                            rscName,
+                            Collections.singleton(rsc.getNode().getName()),
+                            "Preparing deletion of resource on {0}",
+                            "Preparing deletion of resource on {0}"
                         )
-                    );
-
-                    ResourceName rscName = rsc.getResourceDefinition().getName();
-                    flux = flux.concatWith(
-                        ctrlSatelliteUpdateCaller.updateSatellites(rsc, next).transform(
-                            updateResponses -> CtrlResponseUtils.combineResponses(
-                                errorReporter,
-                                updateResponses,
-                                rscName,
-                                Collections.singleton(rsc.getNode().getName()),
-                                "Preparing deletion of resource on {0}",
-                                "Preparing deletion of resource on {0}"
-                            )
-                        )
-                    );
-                }
-                flux = flux.concatWith(next);
+                    )
+                );
             }
-            else
-            {
-                // no DRBD, skip this step and continue with actual deletion. Since we already
-                // are in a transaction, we can just return that
-                flux = deleteResourceOnPeersInTransaction(nodeNameStr, rscNameStr, context);
-            }
-
-            flux = flux.concatWith(
-                CtrlSnapshotApiCallHandler.updateSnapDfns(ctrlSatelliteUpdateCaller, errorReporter, snapDfnsToUpdate)
-            );
+            flux = flux.concatWith(next);
         }
-        catch (AccessDeniedException exc)
+        else
         {
-            throw new ApiAccessDeniedException(exc, "Prepare resource delete", ApiConsts.FAIL_ACC_DENIED_RSC);
+            // no DRBD, skip this step and continue with actual deletion. Since we already
+            // are in a transaction, we can just return that
+            flux = deleteResourceOnPeersInTransaction(nodeNameStr, rscNameStr, context);
         }
+
+        flux = flux.concatWith(
+            CtrlSnapshotApiCallHandler.updateSnapDfns(ctrlSatelliteUpdateCaller, errorReporter, snapDfnsToUpdate)
+        );
 
         return flux;
     }
 
-    public static Set<SnapshotDefinition> handleZfsRenameIfNeeded(AccessContext accCtxRef, Resource rscRef)
+    public static Set<SnapshotDefinition> handleZfsRenameIfNeeded(Resource rscRef)
     {
         final Set<SnapshotDefinition> snapDfnsToUpdate = new HashSet<>();
         ResourceDefinition rscDfn = rscRef.getResourceDefinition();
         try
         {
-            if (hasZfsVlm(accCtxRef, rscRef))
+            if (hasZfsVlm(rscRef))
             {
                 NodeName nodeName = rscRef.getNode().getName();
                 final Set<Props> snapPropsToUpdate = new HashSet<>();
-                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(accCtxRef))
+                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
                 {
-                    @Nullable Snapshot snap = snapDfn.getSnapshot(accCtxRef, nodeName);
+                    @Nullable Snapshot snap = snapDfn.getSnapshot(nodeName);
                     if (snap != null)
                     {
-                        Props snapProps = snap.getSnapProps(accCtxRef);
+                        Props snapProps = snap.getSnapProps();
                         @Nullable String snapValue = snapProps.getProp(PROP_KEY_ZFS_RENAME_SUFFIX);
                         if (snapValue == null)
                         {
@@ -354,7 +335,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
                     }
                 }
 
-                Props rscProps = rscRef.getProps(accCtxRef);
+                Props rscProps = rscRef.getProps();
                 @Nullable String rscRenameSuffix = rscProps.getProp(PROP_KEY_ZFS_RENAME_SUFFIX);
 
                 // this "is already set" check prevents that a resource's ZFS_RENAME property is updated during
@@ -373,11 +354,11 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
                 {
                     // although this resource is going to be deleted soon, the controller still needs to tell the
                     // satellite's ZfsProvider the target-rename-suffix
-                    rscRef.getProps(accCtxRef).setProp(PROP_KEY_ZFS_RENAME_SUFFIX, nextRenameSufixStr);
+                    rscRef.getProps().setProp(PROP_KEY_ZFS_RENAME_SUFFIX, nextRenameSufixStr);
                 }
             }
         }
-        catch (InvalidKeyException | NumberFormatException | InvalidValueException | AccessDeniedException exc)
+        catch (InvalidKeyException | NumberFormatException | InvalidValueException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -388,10 +369,10 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         return snapDfnsToUpdate;
     }
 
-    private static boolean hasZfsVlm(AccessContext accCtxRef, Resource rscRef) throws AccessDeniedException
+    private static boolean hasZfsVlm(Resource rscRef)
     {
         boolean ret = false;
-        Set<StorPool> storPools = LayerVlmUtils.getStorPools(rscRef, accCtxRef);
+        Set<StorPool> storPools = LayerVlmUtils.getStorPools(rscRef);
         for (StorPool sp : storPools)
         {
             DeviceProviderKind spKind = sp.getDeviceProviderKind();
@@ -521,14 +502,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
     private boolean isFlagSet(Resource rsc, Resource.Flags... flags)
     {
         boolean isSet;
-        try
-        {
-            isSet = rsc.getStateFlags().isSet(apiCtx, flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        isSet = rsc.getStateFlags().isSet(flags);
 
         return isSet;
     }

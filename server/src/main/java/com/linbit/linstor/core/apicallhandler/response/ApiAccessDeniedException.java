@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.response;
 
-import com.linbit.linstor.security.AccessDeniedException;
 
 public class ApiAccessDeniedException extends ApiException
 {

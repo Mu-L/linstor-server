@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.CoreModule.ExternalFileMap;
 import com.linbit.linstor.core.CoreModule.ResourceDefinitionMap;
@@ -17,9 +16,7 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.api.pojo.ExtFileStatusPojo;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.utils.ByteUtils;
 import com.linbit.utils.StringUtils;
@@ -46,7 +43,6 @@ import java.util.Set;
 public class StltExternalFileHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext wrkCtx;
 
     private final Map<ExternalFileName, Set<ResourceName>> extFileRequestedByRscDfnsMap;
     private final Map<ResourceName, Set<ExternalFileName>> rscDfnToExtFilesMap;
@@ -57,14 +53,12 @@ public class StltExternalFileHandler
     @Inject
     public StltExternalFileHandler(
         ErrorReporter errorReporterRef,
-        @DeviceManagerContext AccessContext wrkCtxRef,
         CoreModule.ExternalFileMap extFileMapRef,
         CoreModule.ResourceDefinitionMap rscDfnMapRef,
         StltConfig stltCfgRef
     )
     {
         errorReporter = errorReporterRef;
-        wrkCtx = wrkCtxRef;
         extFileMap = extFileMapRef;
         rscDfnMap = rscDfnMapRef;
         stltCfg = stltCfgRef;
@@ -99,7 +93,7 @@ public class StltExternalFileHandler
         {
             for (ResourceDefinition rscDfn : rscDfnMap.values())
             {
-                Resource localRsc = rscDfn.getResource(wrkCtx, localNodeRef.getName());
+                Resource localRsc = rscDfn.getResource(localNodeRef.getName());
                 if (localRsc != null)
                 {
                     /*
@@ -109,7 +103,7 @@ public class StltExternalFileHandler
                 }
             }
         }
-        catch (AccessDeniedException | InvalidNameException | DatabaseException exc)
+        catch (InvalidNameException | DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -123,14 +117,14 @@ public class StltExternalFileHandler
             requestedExternalFiles = getRequestedExternalFiles(rscRef, true);
             rewriteIfNeeded(requestedExternalFiles);
         }
-        catch (AccessDeniedException | InvalidNameException | DatabaseException exc)
+        catch (InvalidNameException | DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
     }
 
     private Set<ExternalFileName> getRequestedExternalFiles(Resource rscRef, boolean deleteExtFileIfNotNeeded)
-        throws AccessDeniedException, InvalidNameException, StorageException, DatabaseException
+        throws InvalidNameException, StorageException, DatabaseException
     {
         Set<ExternalFileName> ret = new HashSet<>();
 
@@ -147,7 +141,7 @@ public class StltExternalFileHandler
             unrequestExtFileSet = new HashSet<>();
         }
 
-        if (!rscRef.getStateFlags().isSet(wrkCtx, Resource.Flags.DELETE))
+        if (!rscRef.getStateFlags().isSet(Resource.Flags.DELETE))
         {
             /*
              * only check currently requested extFiles if the resource should not be deleted.
@@ -159,7 +153,7 @@ public class StltExternalFileHandler
              */
 
             PriorityProps prioProps = new PriorityProps(
-                rscDfn.getProps(wrkCtx) // for now prop is only allowed in RD.
+                rscDfn.getProps() // for now prop is only allowed in RD.
             );
 
             Map<String, String> files = prioProps.renderRelativeMap(InternalApiConsts.NAMESPC_FILES);
@@ -219,7 +213,7 @@ public class StltExternalFileHandler
     }
 
     private void rewriteIfNeeded(Set<ExternalFileName> requestedExternalFilesRef)
-        throws InvalidNameException, StorageException, DatabaseException, AccessDeniedException
+        throws InvalidNameException, StorageException, DatabaseException
     {
         for (ExternalFileName extFileName : requestedExternalFilesRef)
         {
@@ -230,7 +224,7 @@ public class StltExternalFileHandler
             }
             if (
                 !externalFile.alreadyWritten() &&
-                externalFile.getContent(wrkCtx).length > 0 &&
+                externalFile.getContent().length > 0 &&
                 isWhitelisted(externalFile)
             )
             {
@@ -270,21 +264,14 @@ public class StltExternalFileHandler
         {
             existingPaths.add(canonicalPath);
         }
-        try
+        List<String> suffixes = externalFile.getAltSuffixes();
+        for (String suffix : suffixes)
         {
-            List<String> suffixes = externalFile.getAltSuffixes(wrkCtx);
-            for (String suffix : suffixes)
+            Path altPath = Paths.get(canonical + suffix);
+            if (Files.exists(altPath))
             {
-                Path altPath = Paths.get(canonical + suffix);
-                if (Files.exists(altPath))
-                {
-                    existingPaths.add(altPath);
-                }
+                existingPaths.add(altPath);
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         return switch (existingPaths.size())
         {
@@ -312,11 +299,7 @@ public class StltExternalFileHandler
         try
         {
             errorReporter.logDebug("Writing into temporary external file: %s", tmpFile.toString());
-            Files.write(tmpFile, externalFile.getContent(wrkCtx), StandardOpenOption.WRITE);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            Files.write(tmpFile, externalFile.getContent(), StandardOpenOption.WRITE);
         }
         catch (IOException exc)
         {
@@ -362,16 +345,12 @@ public class StltExternalFileHandler
             {
                 byte[] diskContent = Files.readAllBytes(actualPath);
                 byte[] diskChecksum = ByteUtils.checksumSha256(diskContent);
-                byte[] expectedChecksum = externalFile.getContentCheckSum(wrkCtx);
+                byte[] expectedChecksum = externalFile.getContentCheckSum();
                 contentMatch = Arrays.equals(diskChecksum, expectedChecksum);
             }
             catch (IOException exc)
             {
                 throw new StorageException("Failed to read external file: " + actualPath, exc);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
             }
         }
 
@@ -389,20 +368,13 @@ public class StltExternalFileHandler
             Files.deleteIfExists(Paths.get(canonical));
 
             // also delete all alternative-suffix variants
-            try
+            for (String suffix : extFile.getAltSuffixes())
             {
-                for (String suffix : extFile.getAltSuffixes(wrkCtx))
+                Path altPath = Paths.get(canonical + suffix);
+                if (Files.deleteIfExists(altPath))
                 {
-                    Path altPath = Paths.get(canonical + suffix);
-                    if (Files.deleteIfExists(altPath))
-                    {
-                        errorReporter.logTrace("Deleted alternative external file: %s", altPath);
-                    }
+                    errorReporter.logTrace("Deleted alternative external file: %s", altPath);
                 }
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
             }
 
             if (!extFile.isDeleted())

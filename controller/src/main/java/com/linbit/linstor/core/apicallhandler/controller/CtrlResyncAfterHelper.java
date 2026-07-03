@@ -1,12 +1,10 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiException;
 import com.linbit.linstor.core.identifier.StorPoolName;
@@ -23,8 +21,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmDfnData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -50,7 +46,6 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlResyncAfterHelper
 {
-    private final AccessContext sysCtx;
     private final ErrorReporter errorReporter;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
@@ -63,7 +58,6 @@ public class CtrlResyncAfterHelper
 
     @Inject
     public CtrlResyncAfterHelper(
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
@@ -72,7 +66,6 @@ public class CtrlResyncAfterHelper
         SystemConfRepository systemConfRepositoryRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef)
     {
-        sysCtx = sysCtxRef;
         errorReporter = errorReporterRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
@@ -105,15 +98,15 @@ public class CtrlResyncAfterHelper
         try
         {
             for (final Map.Entry<StorPoolName, StorPoolDefinition> entry : storPoolDfnRepo
-                .getMapForView(sysCtx).entrySet())
+                .getMapForView().entrySet())
             {
-                Iterator<StorPool> itStorPool = entry.getValue().iterateStorPools(sysCtx);
+                Iterator<StorPool> itStorPool = entry.getValue().iterateStorPools();
                 while (itStorPool.hasNext())
                 {
                     final StorPool sp = itStorPool.next();
-                    for (final VlmProviderObject<Resource> vol : sp.getVolumes(sysCtx))
+                    for (final VlmProviderObject<Resource> vol : sp.getVolumes())
                     {
-                        Props props = ((Volume) vol.getVolume()).getProps(sysCtx);
+                        Props props = ((Volume) vol.getVolume()).getProps();
                         if (props.contains(Collections.singletonList(DRBD_RESYNC_AFTER_KEY)))
                         {
                             changed.add(vol.getVolume().getAbsResource());
@@ -125,14 +118,6 @@ public class CtrlResyncAfterHelper
             final String infoMsg = "Removed all DRBD resync-after properties";
             rcs.addEntry(infoMsg, ApiConsts.MASK_INFO);
             errorReporter.logInfo(infoMsg);
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ApiAccessDeniedException(
-                accExc,
-                "setting resync-after drbd property",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         catch (DatabaseException dbExc)
         {
@@ -174,15 +159,15 @@ public class CtrlResyncAfterHelper
 
         try
         {
-            final ReadOnlyProps ctrlProps = sysCfgRepo.getCtrlConfForView(sysCtx);
+            final ReadOnlyProps ctrlProps = sysCfgRepo.getCtrlConfForView();
             final String disableAuto = ctrlProps.getProp(ApiConsts.KEY_DRBD_DISABLE_AUTO_RESYNC_AFTER,
                 ApiConsts.NAMESPC_DRBD_OPTIONS);
             if (!"true".equalsIgnoreCase(disableAuto))
             {
                 for (final Map.Entry<StorPoolName, StorPoolDefinition> entry : storPoolDfnRepo
-                    .getMapForView(sysCtx).entrySet())
+                    .getMapForView().entrySet())
                 {
-                    final Iterator<StorPool> itStorPool = entry.getValue().iterateStorPools(sysCtx);
+                    final Iterator<StorPool> itStorPool = entry.getValue().iterateStorPools();
                     while (itStorPool.hasNext())
                     {
                         final StorPool sp = itStorPool.next();
@@ -193,11 +178,11 @@ public class CtrlResyncAfterHelper
                         }
 
                         final TreeMap<MinorNumber, VlmProviderObject<Resource>> spVolsSorted = new TreeMap<>();
-                        for (final VlmProviderObject<Resource> vol : sp.getVolumes(sysCtx))
+                        for (final VlmProviderObject<Resource> vol : sp.getVolumes())
                         {
                             final Resource rsc = vol.getRscLayerObject().getAbsResource();
                             final Set<AbsRscLayerObject<Resource>> drbdRscSet = LayerRscUtils
-                                .getRscDataByLayer(rsc.getLayerData(sysCtx), DeviceLayerKind.DRBD);
+                                .getRscDataByLayer(rsc.getLayerData(), DeviceLayerKind.DRBD);
                             if (!drbdRscSet.isEmpty())
                             {
                                 final DrbdRscData<Resource> drbdRsc =
@@ -205,12 +190,11 @@ public class CtrlResyncAfterHelper
                                 final DrbdVlmDfnData<Resource> vlmDfnData = drbdRsc.getVlmLayerObjects()
                                     .get(vol.getVlmNr()).getVlmDfnLayerObject();
                                 if (vlmDfnData != null &&
-                                    !rsc.isDiskless(sysCtx) &&
+                                    !rsc.isDiskless() &&
                                     !rsc.isDeleted() &&
                                     !vlmDfnData.getVolumeDefinition().isDeleted() &&
-                                    vlmDfnData.getVolumeDefinition().getFlags().isUnset(
-                                        sysCtx, VolumeDefinition.Flags.DELETE) &&
-                                    rsc.getStateFlags().isUnset(sysCtx, Resource.Flags.DELETE))
+                                    vlmDfnData.getVolumeDefinition().getFlags().isUnset(VolumeDefinition.Flags.DELETE) &&
+                                    rsc.getStateFlags().isUnset(Resource.Flags.DELETE))
                                 {
                                     spVolsSorted.put(vlmDfnData.getMinorNr(), vol);
                                 }
@@ -220,7 +204,7 @@ public class CtrlResyncAfterHelper
                         String rscNameBefore = null;
                         for (VlmProviderObject<Resource> vol : spVolsSorted.values())
                         {
-                            final Props props = ((Volume) vol.getVolume()).getProps(sysCtx);
+                            final Props props = ((Volume) vol.getVolume()).getProps();
                             if (rscNameBefore == null)
                             {
                                 if (props.removeProp(DRBD_RESYNC_AFTER_KEY) != null)
@@ -248,14 +232,6 @@ public class CtrlResyncAfterHelper
                 apiCallRc.addEntry(infoMsg, ApiConsts.MASK_INFO);
                 errorReporter.logInfo(infoMsg);
             }
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ApiAccessDeniedException(
-                accExc,
-                "setting resync-after drbd property",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         catch (DatabaseException dbExc)
         {

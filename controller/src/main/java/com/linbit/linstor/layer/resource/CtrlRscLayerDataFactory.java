@@ -7,7 +7,6 @@ import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.CtrlStorPoolResolveHelper;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -27,8 +26,6 @@ import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.layer.LayerPayload.StorageVlmPayload;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscDfnData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -54,7 +51,6 @@ import java.util.Set;
 public class CtrlRscLayerDataFactory
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlStorPoolResolveHelper storPoolResolveHelper;
     private final RscDrbdLayerHelper drbdLayerHelper;
     private final RscLuksLayerHelper luksLayerHelper;
@@ -67,7 +63,6 @@ public class CtrlRscLayerDataFactory
     @Inject
     public CtrlRscLayerDataFactory(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         CtrlStorPoolResolveHelper storPoolResolveHelperRef,
         RscDrbdLayerHelper drbdLayerHelperRef,
         RscLuksLayerHelper luksLayerHelperRef,
@@ -79,7 +74,6 @@ public class CtrlRscLayerDataFactory
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         storPoolResolveHelper = storPoolResolveHelperRef;
         drbdLayerHelper = drbdLayerHelperRef;
         luksLayerHelper = luksLayerHelperRef;
@@ -93,14 +87,7 @@ public class CtrlRscLayerDataFactory
     public List<DeviceLayerKind> getLayerStack(Resource rscRef)
     {
         List<DeviceLayerKind> layerStack;
-        try
-        {
-            layerStack = LayerRscUtils.getLayerStack(rscRef, apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        layerStack = LayerRscUtils.getLayerStack(rscRef);
         return layerStack;
     }
 
@@ -111,31 +98,24 @@ public class CtrlRscLayerDataFactory
      * has the {@link VolumeDefinition.Flags#ENCRYPTED} flag set.
      *
      */
-    public List<DeviceLayerKind> createDefaultStack(AccessContext accCtxRef, Resource rscRef)
+    public List<DeviceLayerKind> createDefaultStack(Resource rscRef)
     {
         List<DeviceLayerKind> layerStack;
-        try
+        // drbd + (luks) + storage
+        if (needsLuksLayer(rscRef))
         {
-            // drbd + (luks) + storage
-            if (needsLuksLayer(accCtxRef, rscRef))
-            {
-                layerStack = Arrays.asList(
-                    DeviceLayerKind.DRBD,
-                    DeviceLayerKind.LUKS,
-                    DeviceLayerKind.STORAGE
-                );
-            }
-            else
-            {
-                layerStack = Arrays.asList(
-                    DeviceLayerKind.DRBD,
-                    DeviceLayerKind.STORAGE
-                );
-            }
+            layerStack = Arrays.asList(
+                DeviceLayerKind.DRBD,
+                DeviceLayerKind.LUKS,
+                DeviceLayerKind.STORAGE
+            );
         }
-        catch (AccessDeniedException exc)
+        else
         {
-            throw new ImplementationError(exc);
+            layerStack = Arrays.asList(
+                DeviceLayerKind.DRBD,
+                DeviceLayerKind.STORAGE
+            );
         }
         return layerStack;
     }
@@ -151,7 +131,7 @@ public class CtrlRscLayerDataFactory
             List<DeviceLayerKind> layerList = new ArrayList<>();
             if (layerListRef == null || layerListRef.isEmpty())
             {
-                layerList = LayerUtils.getLayerStack(rscRef, apiCtx);
+                layerList = LayerUtils.getLayerStack(rscRef);
             }
             else
             {
@@ -167,12 +147,8 @@ public class CtrlRscLayerDataFactory
                 rscRef, payload, layerList, new ChildResourceData(""), null
             );
 
-            rscRef.setLayerData(apiCtx, rootObj);
+            rscRef.setLayerData(rootObj);
             recalculateVolatileRscData(rscRef);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         catch (ExhaustedPoolException exc)
         {
@@ -273,7 +249,7 @@ public class CtrlRscLayerDataFactory
         try
         {
             Deque<AbsRscLayerObject<Resource>> rscDataToProcess = new ArrayDeque<>();
-            rscDataToProcess.add(rscRef.getLayerData(apiCtx));
+            rscDataToProcess.add(rscRef.getLayerData());
 
             while (!rscDataToProcess.isEmpty())
             {
@@ -287,10 +263,6 @@ public class CtrlRscLayerDataFactory
             {
                 ensureStackDataExists(rscRef, null, new LayerPayload());
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         catch (DatabaseException exc)
         {
@@ -323,43 +295,34 @@ public class CtrlRscLayerDataFactory
         throws DatabaseException, LinStorException, ValueOutOfRangeException
     {
         List<DeviceLayerKind> layerStack;
-        try
+        layerStack = rscDfn.getLayerStack();
+        DrbdRscDfnPayload drbdRscDfn = payload.drbdRscDfn;
+        if (layerStack.contains(DeviceLayerKind.DRBD) ||
+            drbdRscDfn.tcpPort != null ||
+            drbdRscDfn.transportType != null ||
+            drbdRscDfn.sharedSecret != null ||
+            drbdRscDfn.peerSlotsNewResource != null
+        )
         {
-            layerStack = rscDfn.getLayerStack(apiCtx);
-            DrbdRscDfnPayload drbdRscDfn = payload.drbdRscDfn;
-            if (layerStack.contains(DeviceLayerKind.DRBD) ||
-                drbdRscDfn.tcpPort != null ||
-                drbdRscDfn.transportType != null ||
-                drbdRscDfn.sharedSecret != null ||
-                drbdRscDfn.peerSlotsNewResource != null
-            )
+            drbdLayerHelper.ensureResourceDefinitionExists(
+                rscDfn,
+                rscNameSuffix,
+                payload
+            );
+        }
+        else
+        {
+            DrbdRscDfnData<Resource> drbdRscDfnData = rscDfn.getLayerData(
+                DeviceLayerKind.DRBD,
+                rscNameSuffix
+            );
+            if (drbdRscDfnData != null)
             {
-                drbdLayerHelper.ensureResourceDefinitionExists(
-                    rscDfn,
-                    rscNameSuffix,
-                    payload
-                );
-            }
-            else
-            {
-                DrbdRscDfnData<Resource> drbdRscDfnData = rscDfn.getLayerData(
-                    apiCtx,
+                rscDfn.removeLayerData(
                     DeviceLayerKind.DRBD,
                     rscNameSuffix
                 );
-                if (drbdRscDfnData != null)
-                {
-                    rscDfn.removeLayerData(
-                        apiCtx,
-                        DeviceLayerKind.DRBD,
-                        rscNameSuffix
-                    );
-                }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
     }
 
@@ -371,21 +334,14 @@ public class CtrlRscLayerDataFactory
         throws DatabaseException, ValueOutOfRangeException,
             ExhaustedPoolException, ValueInUseException, LinStorException
     {
-        try
+        List<DeviceLayerKind> layerStack = vlmDfn.getResourceDefinition().getLayerStack();
+        if (layerStack.contains(DeviceLayerKind.DRBD) || payload.drbdVlmDfn.minorNr != null)
         {
-            List<DeviceLayerKind> layerStack = vlmDfn.getResourceDefinition().getLayerStack(apiCtx);
-            if (layerStack.contains(DeviceLayerKind.DRBD) || payload.drbdVlmDfn.minorNr != null)
-            {
-                drbdLayerHelper.ensureVolumeDefinitionExists(
-                    vlmDfn,
-                    rscNameSuffix,
-                    payload
-                );
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            drbdLayerHelper.ensureVolumeDefinitionExists(
+                vlmDfn,
+                rscNameSuffix,
+                payload
+            );
         }
     }
 
@@ -394,7 +350,7 @@ public class CtrlRscLayerDataFactory
         AbsRscLayerObject<Resource> rscDataRef,
         LayerPayload payloadRef
     )
-        throws AccessDeniedException, InvalidKeyException, InvalidNameException
+        throws InvalidKeyException, InvalidNameException
     {
         StorPool storPool = null;
 
@@ -446,7 +402,7 @@ public class CtrlRscLayerDataFactory
         LayerPayload payload,
         List<DeviceLayerKind> layerList
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         HashSet<StorPool> storPools = new HashSet<>();
         for (DeviceLayerKind kind : layerList)
@@ -468,13 +424,9 @@ public class CtrlRscLayerDataFactory
         try
         {
             AbsRscLayerObject<Resource> rscData = copyRec(toResource, fromAbsRsc, null, storpoolRenameMap, apiCallRc);
-            toResource.setLayerData(apiCtx, rscData);
+            toResource.setLayerData(rscData);
             clearIgnoreReasonsRec(rscData);
             recalculateVolatileRscData(toResource);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         catch (DatabaseException exc)
         {
@@ -535,7 +487,7 @@ public class CtrlRscLayerDataFactory
         Map<String, String> storpoolRenameMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, LinStorException, InvalidNameException
     {
         AbsRscLayerHelper<?, ?, ?, ?> layerHelper = getLayerHelperByKind(fromRscData.getLayerKind());
@@ -564,9 +516,9 @@ public class CtrlRscLayerDataFactory
         }
     }
 
-    public boolean recalculateVolatileRscData(Resource rscRef) throws AccessDeniedException, DatabaseException
+    public boolean recalculateVolatileRscData(Resource rscRef) throws DatabaseException
     {
-        AbsRscLayerObject<Resource> rscData = rscRef.getLayerData(apiCtx);
+        AbsRscLayerObject<Resource> rscData = rscRef.getLayerData();
         List<DeviceLayerKind> layerStack = getLayerStack(rscRef);
         clearIgnoreReasonsRec(rscData);
         return recalculateVolatileRscDataRec(rscData, layerStack, new LayerPayload());
@@ -578,7 +530,7 @@ public class CtrlRscLayerDataFactory
         List<DeviceLayerKind> layerStackRef,
         LayerPayload layerPayloadRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         AbsRscLayerHelper<RSC_LO, ?, ?, ?> layerHelper = getLayerHelperByKind(rscDataRef.getLayerKind());
         layerHelper.recalculateVolatilePropertiesImpl((RSC_LO) rscDataRef, layerStackRef, layerPayloadRef);
@@ -609,16 +561,15 @@ public class CtrlRscLayerDataFactory
         return layerHelper;
     }
 
-    protected boolean needsLuksLayer(AccessContext accCtxRef, Resource rscRef)
-        throws AccessDeniedException
+    protected boolean needsLuksLayer(Resource rscRef)
     {
         boolean needsLuksLayer = false;
-        Iterator<VolumeDefinition> iterateVolumeDefinitions = rscRef.getResourceDefinition().iterateVolumeDfn(apiCtx);
+        Iterator<VolumeDefinition> iterateVolumeDefinitions = rscRef.getResourceDefinition().iterateVolumeDfn();
         while (iterateVolumeDefinitions.hasNext())
         {
             VolumeDefinition vlmDfn = iterateVolumeDefinitions.next();
 
-            if (vlmDfn.getFlags().isSet(accCtxRef, VolumeDefinition.Flags.ENCRYPTED))
+            if (vlmDfn.getFlags().isSet(VolumeDefinition.Flags.ENCRYPTED))
             {
                 needsLuksLayer = true;
                 break;
@@ -630,48 +581,26 @@ public class CtrlRscLayerDataFactory
     boolean isDiskAddRequested(Resource rsc)
     {
         boolean isDiskAddRequested;
-        try
-        {
-            isDiskAddRequested = rsc.getStateFlags().isSet(apiCtx, Resource.Flags.DISK_ADD_REQUESTED);
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
-        }
+        isDiskAddRequested = rsc.getStateFlags().isSet(Resource.Flags.DISK_ADD_REQUESTED);
         return isDiskAddRequested;
     }
 
     boolean isDiskless(Resource rsc)
     {
         boolean isDiskless;
-        try
-        {
-            StateFlags<Flags> stateFlags = rsc.getStateFlags();
-            isDiskless = stateFlags.isSomeSet(
-                apiCtx,
-                Resource.Flags.DRBD_DISKLESS,
-                Resource.Flags.NVME_INITIATOR,
-                Resource.Flags.EBS_INITIATOR
-            );
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
-        }
+        StateFlags<Flags> stateFlags = rsc.getStateFlags();
+        isDiskless = stateFlags.isSomeSet(
+            Resource.Flags.DRBD_DISKLESS,
+            Resource.Flags.NVME_INITIATOR,
+            Resource.Flags.EBS_INITIATOR
+        );
         return isDiskless;
     }
 
     boolean isDiskRemoving(Resource rsc)
     {
         boolean isDiskless;
-        try
-        {
-            isDiskless = rsc.getStateFlags().isSet(apiCtx, Resource.Flags.DISK_REMOVING);
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
-        }
+        isDiskless = rsc.getStateFlags().isSet(Resource.Flags.DISK_REMOVING);
         return isDiskless;
     }
 

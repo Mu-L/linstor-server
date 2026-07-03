@@ -5,9 +5,6 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeGroupDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -40,17 +37,15 @@ public class VolumeGroupControllerFactory
     }
 
     public VolumeGroup create(
-        AccessContext accCtx,
         ResourceGroup rscGrp,
         VolumeNumber vlmNr,
         long initFlags
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
 
-        rscGrp.getObjProt().requireAccess(accCtx, AccessType.USE);
 
-        VolumeGroup vlmGrpData = rscGrp.getVolumeGroup(accCtx, vlmNr);
+        VolumeGroup vlmGrpData = rscGrp.getVolumeGroup(vlmNr);
 
         if (vlmGrpData != null)
         {
@@ -69,7 +64,7 @@ public class VolumeGroupControllerFactory
         );
 
         driver.create(vlmGrpData);
-        rscGrp.putVolumeGroup(accCtx, vlmGrpData);
+        rscGrp.putVolumeGroup(vlmGrpData);
 
         return vlmGrpData;
     }

@@ -10,7 +10,6 @@ import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.NodeIdAlloc;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -50,8 +49,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
@@ -110,7 +107,6 @@ public class RscDrbdLayerHelper extends
     @Inject
     RscDrbdLayerHelper(
         ErrorReporter errorReporter,
-        @ApiContext AccessContext apiCtx,
         ResourceDefinitionRepository rscDfnMapRef,
         LayerDataFactory layerDataFactory,
         @Named(LinStor.SATELLITE_PROPS) ReadOnlyProps stltConfRef,
@@ -124,7 +120,6 @@ public class RscDrbdLayerHelper extends
     {
         super(
             errorReporter,
-            apiCtx,
             layerDataFactory,
             layerRscIdPool,
             // DrdbRscData.class cannot directly be casted to Class<DrbdRscData<Resource>>. because java.
@@ -148,7 +143,7 @@ public class RscDrbdLayerHelper extends
         String rscNameSuffix,
         LayerPayload payload
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException
+        throws DatabaseException, ValueOutOfRangeException
     {
         DrbdRscDfnPayload drbdRscDfnPayload = payload.drbdRscDfn;
 
@@ -198,7 +193,7 @@ public class RscDrbdLayerHelper extends
 
     @Override
     protected void mergeRscDfnData(DrbdRscDfnData<Resource> drbdRscDfnData, LayerPayload payload)
-        throws DatabaseException, AccessDeniedException, ValueOutOfRangeException
+        throws DatabaseException, ValueOutOfRangeException
     {
         DrbdRscDfnPayload drbdRscDfnPayload = payload.drbdRscDfn;
 
@@ -216,7 +211,7 @@ public class RscDrbdLayerHelper extends
         }
         if (drbdRscDfnPayload.peerSlotsNewResource != null)
         {
-            ResourceDefinition rscDfn = rscDfnMap.get(apiCtx, drbdRscDfnData.getResourceName());
+            ResourceDefinition rscDfn = rscDfnMap.get(drbdRscDfnData.getResourceName());
             checkPeerSlotCount(drbdRscDfnPayload.peerSlotsNewResource, drbdRscDfnPayload.reservedPeerSlotCount, rscDfn);
             drbdRscDfnData.setPeerSlots(drbdRscDfnPayload.peerSlotsNewResource);
         }
@@ -228,7 +223,7 @@ public class RscDrbdLayerHelper extends
         String rscNameSuffix,
         LayerPayload payload
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException, LinStorException
     {
         DrbdRscDfnData<Resource> drbdRscDfnData = ensureResourceDefinitionExists(
@@ -263,7 +258,7 @@ public class RscDrbdLayerHelper extends
         AbsRscLayerObject<Resource> parentObjectRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, ImplementationError, InvalidNameException, LinStorException
     {
         ResourceDefinition rscDfn = rscRef.getResourceDefinition();
@@ -318,10 +313,9 @@ public class RscDrbdLayerHelper extends
     }
 
 
-    private boolean isResourceDiskless(Resource rscRef) throws AccessDeniedException
+    private boolean isResourceDiskless(Resource rscRef)
     {
         return rscRef.getStateFlags().isSomeSet(
-            apiCtx,
             Resource.Flags.DISKLESS,
             Resource.Flags.DRBD_DISKLESS,
             Resource.Flags.TIE_BREAKER
@@ -336,14 +330,14 @@ public class RscDrbdLayerHelper extends
         DrbdRscDfnData<Resource> drbdRscDfnData,
         @Nullable NodeId oldNodeIdRef
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException, ImplementationError,
+        throws InvalidNameException, DatabaseException, ImplementationError,
         ExhaustedPoolException, ValueOutOfRangeException
     {
         NodeId nodeId = oldNodeIdRef;
 
         boolean isNvmeBelow = layerListRef.contains(DeviceLayerKind.NVME);
-        boolean isNvmeInitiator = rscRef.getStateFlags().isSet(apiCtx, Resource.Flags.NVME_INITIATOR);
-        boolean isEbsInitiator = rscRef.getStateFlags().isSet(apiCtx, Resource.Flags.EBS_INITIATOR);
+        boolean isNvmeInitiator = rscRef.getStateFlags().isSet(Resource.Flags.NVME_INITIATOR);
+        boolean isEbsInitiator = rscRef.getStateFlags().isSet(Resource.Flags.EBS_INITIATOR);
 
         Set<StorPool> allStorPools = layerDataHelperProvider.get()
             .getAllNeededStorPools(rscRef, payloadRef, layerListRef);
@@ -366,7 +360,7 @@ public class RscDrbdLayerHelper extends
                 Set<String> availabilityZones = new HashSet<>();
                 for (StorPool sp : allStorPools)
                 {
-                    availabilityZones.add(RscStorageLayerHelper.getAvailabilityZone(apiCtx, remoteMap, sp));
+                    availabilityZones.add(RscStorageLayerHelper.getAvailabilityZone(remoteMap, sp));
                 }
                 if (availabilityZones.size() != 1)
                 {
@@ -377,7 +371,6 @@ public class RscDrbdLayerHelper extends
                 }
 
                 targetRsc = RscStorageLayerHelper.findTargetEbsResource(
-                    apiCtx,
                     remoteMap,
                     rscRef.getResourceDefinition(),
                     availabilityZones.iterator().next(),
@@ -390,7 +383,7 @@ public class RscDrbdLayerHelper extends
             }
             if (targetRsc != null)
             {
-                AbsRscLayerObject<Resource> rootLayerData = targetRsc.getLayerData(apiCtx);
+                AbsRscLayerObject<Resource> rootLayerData = targetRsc.getLayerData();
                 List<AbsRscLayerObject<Resource>> targetDrbdChildren = LayerUtils
                     .getChildLayerDataByKind(rootLayerData, DeviceLayerKind.DRBD);
                 for (AbsRscLayerObject<Resource> targetRscData : targetDrbdChildren)
@@ -429,7 +422,7 @@ public class RscDrbdLayerHelper extends
         {
             for (DrbdRscData<Resource> peerData : drbdRscDfnData.getDrbdRscDataList())
             {
-                Set<StorPool> peerStorPools = LayerVlmUtils.getStorPools(peerData.getAbsResource(), apiCtx);
+                Set<StorPool> peerStorPools = LayerVlmUtils.getStorPools(peerData.getAbsResource());
                 Set<SharedStorPoolName> peerSharedStorPoolNames = peerStorPools.stream()
                     .map(StorPool::getSharedStorPoolName)
                     .collect(Collectors.toSet());
@@ -452,18 +445,18 @@ public class RscDrbdLayerHelper extends
 
     @Override
     protected void mergeRscData(DrbdRscData<Resource> drbdRscData, LayerPayload payloadRef)
-        throws AccessDeniedException, DatabaseException, InvalidNameException, ImplementationError,
+        throws DatabaseException, InvalidNameException, ImplementationError,
         ExhaustedPoolException, ValueOutOfRangeException, ValueInUseException
     {
         Resource rsc = drbdRscData.getAbsResource();
 
         if (isResourceDiskless(rsc))
         {
-            drbdRscData.getFlags().enableFlags(apiCtx, DrbdRscFlags.DISKLESS);
+            drbdRscData.getFlags().enableFlags(DrbdRscFlags.DISKLESS);
         }
         else
         {
-            drbdRscData.getFlags().disableFlags(apiCtx, DrbdRscFlags.DISKLESS);
+            drbdRscData.getFlags().disableFlags(DrbdRscFlags.DISKLESS);
         }
 
         NodeId oldNodeId = drbdRscData.getNodeId();
@@ -471,7 +464,7 @@ public class RscDrbdLayerHelper extends
             rsc,
             payloadRef,
             drbdRscData.getResourceNameSuffix(),
-            LayerRscUtils.getLayerStack(rsc, apiCtx),
+            LayerRscUtils.getLayerStack(rsc),
             drbdRscData.getRscDfnLayerObject(),
             payloadRef.drbdRsc.needsNewNodeId ? null : oldNodeId
         );
@@ -485,7 +478,7 @@ public class RscDrbdLayerHelper extends
 
     @Override
     protected boolean needsChildVlm(AbsRscLayerObject<Resource> childRscDataRef, Volume vlmRef)
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         boolean needsChild;
         AbsRscLayerObject<Resource> drbdRscData = childRscDataRef.getParent();
@@ -501,12 +494,11 @@ public class RscDrbdLayerHelper extends
         return needsChild;
     }
 
-    private boolean isDrbdDiskless(AbsRscLayerObject<Resource> childRscDataRef) throws AccessDeniedException
+    private boolean isDrbdDiskless(AbsRscLayerObject<Resource> childRscDataRef)
     {
         StateFlags<Flags> rscFlags = childRscDataRef.getAbsResource().getStateFlags();
-        return rscFlags.isSet(apiCtx, Resource.Flags.DRBD_DISKLESS) &&
+        return rscFlags.isSet(Resource.Flags.DRBD_DISKLESS) &&
             !rscFlags.isSomeSet(
-                apiCtx,
                 Resource.Flags.DISK_ADD_REQUESTED,
                 Resource.Flags.DISK_ADDING,
                 Resource.Flags.DISK_REMOVING,
@@ -521,18 +513,18 @@ public class RscDrbdLayerHelper extends
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         Set<StorPool> storPools = new HashSet<>();
         Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-            rsc.getLayerData(apiCtx),
+            rsc.getLayerData(),
             DeviceLayerKind.DRBD
         );
         for (AbsRscLayerObject<Resource> drbdRscData : drbdRscDataSet)
         {
             if (needsMetaData((DrbdRscData<Resource>) drbdRscData, layerListRef))
             {
-                StorPool metaStorPool = getMetaStorPool(rsc, vlmDfn, apiCtx);
+                StorPool metaStorPool = getMetaStorPool(rsc, vlmDfn);
                 if (metaStorPool != null)
                 {
                     /*
@@ -553,7 +545,7 @@ public class RscDrbdLayerHelper extends
         LayerPayload payload,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException, LinStorException, InvalidKeyException
     {
         DrbdVlmDfnData<Resource> drbdVlmDfnData = ensureVolumeDefinitionExists(
@@ -573,14 +565,14 @@ public class RscDrbdLayerHelper extends
             drbdVlmDfnData
         );
 
-        if (!vlm.getAbsResource().isDrbdDiskless(apiCtx))
+        if (!vlm.getAbsResource().isDrbdDiskless())
         {
             VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
-            Props vlmDfnProps = vlmDfn.getProps(apiCtx);
+            Props vlmDfnProps = vlmDfn.getProps();
             @Nullable String winner = vlmDfnProps.getProp(InternalApiConsts.KEY_LINSTOR_DRBD_INITIAL_UPTODATE_ON);
             if (winner == null)
             {
-                Optional<Resource> primaryRsc = vlm.getAbsResource().getResourceDefinition().anyResourceInUse(apiCtx);
+                Optional<Resource> primaryRsc = vlm.getAbsResource().getResourceDefinition().anyResourceInUse();
                 if (primaryRsc.isPresent())
                 {
                     winner = primaryRsc.get().getNode().getName().value;
@@ -608,7 +600,7 @@ public class RscDrbdLayerHelper extends
     }
 
     private @Nullable StorPool getExternalMetaDiskStorPool(Volume vlm)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         String extMetaStorPoolNameStr = getExtMetaDataStorPoolName(vlm);
         StorPool extMetaStorPool = null;
@@ -617,7 +609,6 @@ public class RscDrbdLayerHelper extends
             try
             {
                 extMetaStorPool = vlm.getAbsResource().getNode().getStorPool(
-                    apiCtx,
                     new StorPoolName(extMetaStorPoolNameStr)
                 );
 
@@ -661,24 +652,24 @@ public class RscDrbdLayerHelper extends
     }
 
     private boolean isUsingExternalMetaData(Volume vlmRef)
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         return isExternalMetaDataPool(getExtMetaDataStorPoolName(vlmRef));
     }
 
-    private String getExtMetaDataStorPoolName(Volume vlmRef) throws InvalidKeyException, AccessDeniedException
+    private String getExtMetaDataStorPoolName(Volume vlmRef) throws InvalidKeyException
     {
         VolumeDefinition vlmDfn = vlmRef.getVolumeDefinition();
         ResourceDefinition rscDfn = vlmRef.getResourceDefinition();
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         Resource rsc = vlmRef.getAbsResource();
         return new PriorityProps(
-            vlmDfn.getProps(apiCtx),
-            rscGrp.getVolumeGroupProps(apiCtx, vlmDfn.getVolumeNumber()),
-            rsc.getProps(apiCtx),
-            rscDfn.getProps(apiCtx),
-            rscGrp.getProps(apiCtx),
-            rsc.getNode().getProps(apiCtx)
+            vlmDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rsc.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getProps(),
+            rsc.getNode().getProps()
         ).getProp(
             ApiConsts.KEY_STOR_POOL_DRBD_META_NAME
         );
@@ -696,7 +687,7 @@ public class RscDrbdLayerHelper extends
         DrbdRscData<Resource> rscDataRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         List<ChildResourceData> ret = new ArrayList<>();
 
@@ -732,7 +723,7 @@ public class RscDrbdLayerHelper extends
     private boolean needsMetaData(
         DrbdRscData<Resource> drbdRscDataRef,
         List<DeviceLayerKind> layerListRef
-    ) throws AccessDeniedException
+    )
     {
         boolean ret;
 
@@ -751,16 +742,16 @@ public class RscDrbdLayerHelper extends
             Resource rsc = drbdRscDataRef.getAbsResource();
             ResourceDefinition rscDfn = rsc.getResourceDefinition();
 
-            Iterator<VolumeDefinition> iterateVolumeDfn = rscDfn.iterateVolumeDfn(apiCtx);
-            ReadOnlyProps rscProps = rsc.getProps(apiCtx);
-            ReadOnlyProps rscDfnProps = rscDfn.getProps(apiCtx);
-            ReadOnlyProps rscGrpProps = rscDfn.getResourceGroup().getProps(apiCtx);
-            ReadOnlyProps nodeProps = rsc.getNode().getProps(apiCtx);
+            Iterator<VolumeDefinition> iterateVolumeDfn = rscDfn.iterateVolumeDfn();
+            ReadOnlyProps rscProps = rsc.getProps();
+            ReadOnlyProps rscDfnProps = rscDfn.getProps();
+            ReadOnlyProps rscGrpProps = rscDfn.getResourceGroup().getProps();
+            ReadOnlyProps nodeProps = rsc.getNode().getProps();
 
             while (iterateVolumeDfn.hasNext())
             {
                 String metaPool = new PriorityProps(
-                    iterateVolumeDfn.next().getProps(apiCtx),
+                    iterateVolumeDfn.next().getProps(),
                     rscProps,
                     rscDfnProps,
                     rscGrpProps,
@@ -781,7 +772,6 @@ public class RscDrbdLayerHelper extends
             StateFlags<Flags> rscFlags = rsc.getStateFlags();
             // skip ignoreReasonCheck
             boolean needsMetaDisk = !rscFlags.isSomeSet(
-                apiCtx,
                 Resource.Flags.DELETE,
                 Resource.Flags.INACTIVATING,
                 Resource.Flags.INACTIVE,
@@ -789,7 +779,7 @@ public class RscDrbdLayerHelper extends
                 Resource.Flags.DRBD_DISKLESS
             );
             boolean isNvmeBelow = layerListRef.contains(DeviceLayerKind.NVME);
-            boolean isNvmeInitiator = rscFlags.isSet(apiCtx, Resource.Flags.NVME_INITIATOR);
+            boolean isNvmeInitiator = rscFlags.isSet(Resource.Flags.NVME_INITIATOR);
 
             needsMetaDisk &= (!isNvmeBelow || isNvmeInitiator);
             ret = !allVlmsUseInternalMetaData && needsMetaDisk;
@@ -799,7 +789,7 @@ public class RscDrbdLayerHelper extends
 
     @Override
     public StorPool getStorPool(Volume vlmRef, AbsRscLayerObject<Resource> childRef)
-        throws AccessDeniedException, InvalidKeyException, InvalidNameException
+        throws InvalidKeyException, InvalidNameException
     {
         StorPool metaStorPool = null;
         if (childRef.getSuffixedResourceName().contains(RscLayerSuffixes.SUFFIX_DRBD_META))
@@ -813,7 +803,7 @@ public class RscDrbdLayerHelper extends
 
     @Override
     protected void resetStoragePools(AbsRscLayerObject<Resource> rscDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidKeyException
+        throws DatabaseException, InvalidKeyException
     {
         DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) rscDataRef;
         for (DrbdVlmData<Resource> drbdVlmData : drbdRscData.getVlmLayerObjects().values())
@@ -830,47 +820,46 @@ public class RscDrbdLayerHelper extends
         List<DeviceLayerKind> layerListRef,
         LayerPayload payloadRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         boolean changed = false;
         if (isDrbdDiskless(rscDataRef))
         {
             changed = addIgnoreReason(rscDataRef, LayerIgnoreReason.DRBD_DISKLESS, false, true, true);
         }
-        if (rscDataRef.isSkipDiskEnabled(apiCtx, stltConf))
+        if (rscDataRef.isSkipDiskEnabled(stltConf))
         {
             changed |= addIgnoreReason(rscDataRef, LayerIgnoreReason.DRBD_SKIP_DISK, false, true, true);
         }
         return changed;
     }
 
-    public @Nullable StorPool getMetaStorPool(Volume vlmRef, AccessContext accCtx)
-        throws AccessDeniedException, InvalidNameException
+    public @Nullable StorPool getMetaStorPool(Volume vlmRef)
+        throws InvalidNameException
     {
-        return getMetaStorPool(vlmRef.getAbsResource(), vlmRef.getVolumeDefinition(), accCtx);
+        return getMetaStorPool(vlmRef.getAbsResource(), vlmRef.getVolumeDefinition());
     }
 
-    public @Nullable StorPool getMetaStorPool(Resource rsc, VolumeDefinition vlmDfn, AccessContext accCtx)
-        throws AccessDeniedException, InvalidNameException
+    public @Nullable StorPool getMetaStorPool(Resource rsc, VolumeDefinition vlmDfn)
+        throws InvalidNameException
     {
-        return getMetaStorPool(rsc, getPrioProps(rsc, vlmDfn, accCtx), accCtx);
+        return getMetaStorPool(rsc, getPrioProps(rsc, vlmDfn));
     }
 
     private @Nullable StorPool getMetaStorPool(
         Resource rsc,
-        PriorityProps prioProps,
-        AccessContext accCtx
+        PriorityProps prioProps
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         StorPool metaStorPool = null;
         String metaStorPoolStr = prioProps.getProp(ApiConsts.KEY_STOR_POOL_DRBD_META_NAME);
         if (
             isExternalMetaDataPool(metaStorPoolStr) &&
-                !rsc.getStateFlags().isSet(accCtx, Resource.Flags.DRBD_DISKLESS)
+                !rsc.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS)
         )
         {
-            metaStorPool = rsc.getNode().getStorPool(accCtx, new StorPoolName(metaStorPoolStr));
+            metaStorPool = rsc.getNode().getStorPool(new StorPoolName(metaStorPoolStr));
             if (metaStorPool == null)
             {
                 throw new ApiRcException(
@@ -885,18 +874,17 @@ public class RscDrbdLayerHelper extends
         return metaStorPool;
     }
 
-    private PriorityProps getPrioProps(Resource rsc, VolumeDefinition vlmDfn, AccessContext accCtx)
-        throws AccessDeniedException
+    private PriorityProps getPrioProps(Resource rsc, VolumeDefinition vlmDfn)
     {
         ResourceGroup rscGrp = vlmDfn.getResourceDefinition().getResourceGroup();
         Node node = rsc.getNode();
         return new PriorityProps(
-            vlmDfn.getProps(accCtx),
-            rscGrp.getVolumeGroupProps(accCtx, vlmDfn.getVolumeNumber()),
-            rsc.getProps(accCtx),
-            vlmDfn.getResourceDefinition().getProps(accCtx),
-            rscGrp.getProps(accCtx),
-            node.getProps(accCtx)
+            vlmDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rsc.getProps(),
+            vlmDfn.getResourceDefinition().getProps(),
+            rscGrp.getProps(),
+            node.getProps()
         );
     }
 
@@ -910,7 +898,7 @@ public class RscDrbdLayerHelper extends
     protected <RSC extends AbsResource<RSC>> DrbdRscDfnData<Resource> restoreRscDfnData(
         ResourceDefinition rscDfnRef,
         AbsRscLayerObject<RSC> fromSnapDataRef
-    ) throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         String resourceNameSuffix = fromSnapDataRef.getResourceNameSuffix();
@@ -919,7 +907,6 @@ public class RscDrbdLayerHelper extends
         if (absRsc instanceof Snapshot snap)
         {
             dfnData = snap.getSnapshotDefinition().getLayerData(
-                apiCtx,
                 DeviceLayerKind.DRBD,
                 resourceNameSuffix
             );
@@ -927,7 +914,6 @@ public class RscDrbdLayerHelper extends
         else if (absRsc instanceof Resource)
         {
             dfnData = absRsc.getResourceDefinition().getLayerData(
-                apiCtx,
                 DeviceLayerKind.DRBD,
                 resourceNameSuffix
             );
@@ -957,13 +943,12 @@ public class RscDrbdLayerHelper extends
         AbsRscLayerObject<RSC> fromAbsRscDataRef,
         AbsRscLayerObject<Resource> rscParentRef
     )
-        throws DatabaseException, AccessDeniedException, ExhaustedPoolException, ValueOutOfRangeException,
+        throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException,
         ValueInUseException
     {
         DrbdRscData<Snapshot> drbdSnapData = (DrbdRscData<Snapshot>) fromAbsRscDataRef;
         String resourceNameSuffix = drbdSnapData.getResourceNameSuffix();
         DrbdRscDfnData<Resource> drbdRscDfnData = rscRef.getResourceDefinition().getLayerData(
-            apiCtx,
             DeviceLayerKind.DRBD,
             resourceNameSuffix
         );
@@ -980,7 +965,7 @@ public class RscDrbdLayerHelper extends
             drbdSnapData.getPeerSlots(),
             drbdSnapData.getAlStripes(),
             drbdSnapData.getAlStripeSize(),
-            drbdSnapData.getFlags().getFlagsBits(apiCtx)
+            drbdSnapData.getFlags().getFlagsBits()
         );
     }
 
@@ -988,7 +973,7 @@ public class RscDrbdLayerHelper extends
     protected <RSC extends AbsResource<RSC>> DrbdVlmDfnData<Resource> restoreVlmDfnData(
         VolumeDefinition vlmDfnRef,
         VlmProviderObject<RSC> fromAbsRscVlmDataRef
-    ) throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         String resourceNameSuffix = fromAbsRscVlmDataRef.getRscLayerObject().getResourceNameSuffix();
@@ -1000,7 +985,6 @@ public class RscDrbdLayerHelper extends
             vlmDfnRef.getVolumeNumber(),
             null, // auto assign minor nr
             vlmDfnRef.getResourceDefinition().getLayerData(
-                apiCtx,
                 DeviceLayerKind.DRBD,
                 resourceNameSuffix
             )
@@ -1015,13 +999,12 @@ public class RscDrbdLayerHelper extends
         Map<String, String> storpoolRenameMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws DatabaseException, AccessDeniedException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         DrbdVlmData<RSC> drbdSnapVlmData = (DrbdVlmData<RSC>) vlmProviderObjectRef;
         return layerDataFactory.createDrbdVlmData(
             vlmRef,
             AbsLayerHelperUtils.getStorPool(
-                apiCtx,
                 vlmRef,
                 rscDataRef,
                 drbdSnapVlmData.getExternalMetaDataStorPool(),
@@ -1030,7 +1013,6 @@ public class RscDrbdLayerHelper extends
             ),
             rscDataRef,
             vlmRef.getVolumeDefinition().getLayerData(
-                apiCtx,
                 DeviceLayerKind.DRBD,
                 drbdSnapVlmData.getRscLayerObject().getResourceNameSuffix()
             )
@@ -1064,7 +1046,6 @@ public class RscDrbdLayerHelper extends
         ResourceDefinition rscDfn,
         LayerPayload payload
     )
-        throws AccessDeniedException
     {
         short peerSlots;
 
@@ -1074,8 +1055,8 @@ public class RscDrbdLayerHelper extends
             if (payloadPeerSlots == null)
             {
                 String peerSlotsNewResourceProp = new PriorityProps(
-                    rscDfn.getProps(apiCtx),
-                    rscDfn.getResourceGroup().getProps(apiCtx),
+                    rscDfn.getProps(),
+                    rscDfn.getResourceGroup().getProps(),
                     stltConf
                 ).getProp(ApiConsts.KEY_PEER_SLOTS_NEW_RESOURCE);
                 peerSlots = peerSlotsNewResourceProp == null ?
@@ -1114,39 +1095,32 @@ public class RscDrbdLayerHelper extends
         ResourceDefinition rscDfn
     )
     {
-        try
+        short reservedPeerSlotCount = reservedPeerSlotCountRef == null ?
+            DFLT_RESERVERD_PEER_SLOT_COUNT :
+            reservedPeerSlotCountRef;
+        if (peerSlots + reservedPeerSlotCount < rscDfn.getDiskfulCount() - 1)
         {
-            short reservedPeerSlotCount = reservedPeerSlotCountRef == null ?
-                DFLT_RESERVERD_PEER_SLOT_COUNT :
-                reservedPeerSlotCountRef;
-            if (peerSlots + reservedPeerSlotCount < rscDfn.getDiskfulCount(apiCtx) - 1)
+            StringBuilder details = new StringBuilder("Peerslot count '")
+                .append(peerSlots)
+                .append("' is too low since we already have '")
+                .append(rscDfn.getDiskfulCount())
+                .append("' diskful resources");
+            if (reservedPeerSlotCount > 0)
             {
-                StringBuilder details = new StringBuilder("Peerslot count '")
-                    .append(peerSlots)
-                    .append("' is too low since we already have '")
-                    .append(rscDfn.getDiskfulCount(apiCtx))
-                    .append("' diskful resources");
-                if (reservedPeerSlotCount > 0)
-                {
-                    details = details.append(" and we still need '")
-                        .append(reservedPeerSlotCount)
-                        .append("' for new resources");
-                }
-                throw new ApiRcException(
-                    ApiCallRcImpl
-                        .entryBuilder(
-                            ApiConsts.FAIL_INSUFFICIENT_PEER_SLOTS,
-                            "Insufficient peer slots to create resource"
-                        )
-                        .setDetails(details.toString())
-                        .setCorrection("Configure a higher peer slot count on the resource definition or controller")
-                        .build()
-                );
+                details = details.append(" and we still need '")
+                    .append(reservedPeerSlotCount)
+                    .append("' for new resources");
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            throw new ApiRcException(
+                ApiCallRcImpl
+                    .entryBuilder(
+                        ApiConsts.FAIL_INSUFFICIENT_PEER_SLOTS,
+                        "Insufficient peer slots to create resource"
+                    )
+                    .setDetails(details.toString())
+                    .setCorrection("Configure a higher peer slot count on the resource definition or controller")
+                    .build()
+            );
         }
     }
 
@@ -1160,50 +1134,43 @@ public class RscDrbdLayerHelper extends
         // we have not yet created the new DrbdRscData, so all currently existing diskful resources count
         // as peers. not -1 !
         short diskfulCount = 0;
-        try
+        for (DrbdRscData<Resource> drbdRscData : drbdRscDfnDataRef.getDrbdRscDataList())
         {
-            for (DrbdRscData<Resource> drbdRscData : drbdRscDfnDataRef.getDrbdRscDataList())
+            peerSlots.computeIfAbsent(drbdRscData.getPeerSlots(), ignore -> new TreeSet<>())
+                .add(drbdRscData.getNodeName());
+            if (drbdRscData.isDiskless())
             {
-                peerSlots.computeIfAbsent(drbdRscData.getPeerSlots(), ignore -> new TreeSet<>())
-                    .add(drbdRscData.getNodeName());
-                if (drbdRscData.isDiskless(apiCtx))
-                {
-                    diskfulCount++;
-                }
-            }
-
-            // drop all entries with a key larger than diskfulCount
-            peerSlots.tailMap(diskfulCount).clear();
-            if (!peerSlots.isEmpty())
-            {
-                StringBuilder sb = new StringBuilder(
-                    "The resources on the following nodes have not enough peer slots:\n"
-                );
-                for (Entry<Short, Set<NodeName>> entry : peerSlots.entrySet())
-                {
-                    short slots = entry.getKey();
-                    for (NodeName nodeName : entry.getValue())
-                    {
-                        sb.append("   * ").append(nodeName.displayValue).append(" (").append(slots).append(")\n");
-                    }
-                }
-                sb.append(diskfulCount).append(" needed.");
-
-                throw new ApiRcException(
-                    ApiCallRcImpl
-                        .entryBuilder(
-                            ApiConsts.FAIL_INSUFFICIENT_PEER_SLOTS,
-                            "Peers have insufficient peer slots to create new resource"
-                        )
-                        .setDetails(sb.toString())
-                        .setCorrection("Recreate mentioned resources with higher peer slot")
-                        .build()
-                );
+                diskfulCount++;
             }
         }
-        catch (AccessDeniedException exc)
+
+        // drop all entries with a key larger than diskfulCount
+        peerSlots.tailMap(diskfulCount).clear();
+        if (!peerSlots.isEmpty())
         {
-            throw new ImplementationError(exc);
+            StringBuilder sb = new StringBuilder(
+                "The resources on the following nodes have not enough peer slots:\n"
+            );
+            for (Entry<Short, Set<NodeName>> entry : peerSlots.entrySet())
+            {
+                short slots = entry.getKey();
+                for (NodeName nodeName : entry.getValue())
+                {
+                    sb.append("   * ").append(nodeName.displayValue).append(" (").append(slots).append(")\n");
+                }
+            }
+            sb.append(diskfulCount).append(" needed.");
+
+            throw new ApiRcException(
+                ApiCallRcImpl
+                    .entryBuilder(
+                        ApiConsts.FAIL_INSUFFICIENT_PEER_SLOTS,
+                        "Peers have insufficient peer slots to create new resource"
+                    )
+                    .setDetails(sb.toString())
+                    .setCorrection("Recreate mentioned resources with higher peer slot")
+                    .build()
+            );
         }
     }
 }

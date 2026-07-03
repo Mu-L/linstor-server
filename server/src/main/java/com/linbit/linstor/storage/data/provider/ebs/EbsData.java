@@ -8,8 +8,6 @@ import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.LayerStorageVlmDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
 import com.linbit.linstor.storage.data.provider.StorageRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
@@ -53,7 +51,7 @@ public class EbsData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public VlmLayerDataApi asPojo(AccessContext accCtxRef) throws AccessDeniedException
+    public VlmLayerDataApi asPojo()
     {
         return new EbsVlmPojo(
             getVlmNr().value,
@@ -64,7 +62,7 @@ public class EbsData<RSC extends AbsResource<RSC>>
             getSnapshotUsableSize(),
             new ArrayList<>(getStates()).toString(), // avoid "TransactionList " in the toString()
             discGran.get(),
-            storPool.get().getApiData(null, null, accCtxRef, null, null, null, null),
+            storPool.get().getApiData(null, null, null, null, null, null),
             exists.get()
         );
     }

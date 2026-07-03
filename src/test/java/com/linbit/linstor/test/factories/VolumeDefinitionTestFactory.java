@@ -15,9 +15,6 @@ import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.objects.VolumeDefinition.Flags;
 import com.linbit.linstor.core.objects.VolumeDefinitionControllerFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.utils.Pair;
 
 import javax.inject.Inject;
@@ -55,7 +52,7 @@ public class VolumeDefinitionTestFactory
     }
 
     public VolumeDefinition get(String rscName, int vlmNr, Long vlmSize, boolean createIfNotExists)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, MdException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, MdException,
         ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, InvalidNameException,
         LinStorException
     {
@@ -72,7 +69,7 @@ public class VolumeDefinitionTestFactory
         return vlmDfn;
     }
 
-    public VolumeDefinitionTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public VolumeDefinitionTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -97,7 +94,7 @@ public class VolumeDefinitionTestFactory
     }
 
     public VolumeDefinition create(ResourceDefinition rscDfn)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, MdException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, MdException,
         ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, InvalidNameException,
         LinStorException
     {
@@ -105,7 +102,7 @@ public class VolumeDefinitionTestFactory
     }
 
     public VolumeDefinition create(String rscName, int vlmNr)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, MdException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, MdException,
         ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, InvalidNameException,
         LinStorException
     {
@@ -113,26 +110,26 @@ public class VolumeDefinitionTestFactory
     }
 
     public VolumeDefinitionBuilder builder(ResourceDefinition rscDfn)
-        throws AccessDeniedException, DatabaseException, InvalidNameException, LinStorException
+        throws DatabaseException, InvalidNameException, LinStorException
     {
         return new VolumeDefinitionBuilder(rscDfn.getName().displayValue, getNextVlmNr(rscDfn));
     }
 
     public VolumeDefinitionBuilder builder(ResourceDefinition rscDfn, int vlmNr)
-        throws AccessDeniedException, DatabaseException, InvalidNameException, LinStorException
+        throws DatabaseException, InvalidNameException, LinStorException
     {
         return new VolumeDefinitionBuilder(rscDfn.getName().displayValue, vlmNr);
     }
 
     public VolumeDefinitionBuilder builder(String rscName)
-        throws AccessDeniedException, DatabaseException, InvalidNameException, LinStorDataAlreadyExistsException,
+        throws DatabaseException, InvalidNameException, LinStorDataAlreadyExistsException,
         ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, LinStorException
     {
         return new VolumeDefinitionBuilder(rscName, getNextVlmNr(rscDfnFact.get(rscName, true)));
     }
 
     public VolumeDefinitionBuilder builder(String rscName, int vlmNr)
-        throws AccessDeniedException, DatabaseException, InvalidNameException, LinStorException
+        throws DatabaseException, InvalidNameException, LinStorException
     {
         return new VolumeDefinitionBuilder(rscName, vlmNr);
     }
@@ -153,7 +150,7 @@ public class VolumeDefinitionTestFactory
             Arrays.sort(occupied);
             nextId = NumberAlloc.getFreeNumber(occupied, VolumeNumber.VOLUME_NR_MIN, VolumeNumber.VOLUME_NR_MAX);
         }
-        catch (AccessDeniedException | ExhaustedPoolException exc)
+        catch (ExhaustedPoolException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -162,7 +159,6 @@ public class VolumeDefinitionTestFactory
 
     public class VolumeDefinitionBuilder
     {
-        private AccessContext accCtx;
         private String rscName;
         private int vlmNr;
         private Integer minorNr;
@@ -175,15 +171,13 @@ public class VolumeDefinitionTestFactory
             rscName = rscNameRef;
             vlmNr = vlmNrRef;
 
-            accCtx = dfltAccCtx;
             minorNr = dfltMinorNrSupplier.get();
             size = dfltSize;
             flags = dfltFlags;
         }
 
-        public VolumeDefinitionBuilder setAccCtx(AccessContext accCtxRef)
+        public VolumeDefinitionBuilder setAccCtx()
         {
-            accCtx = accCtxRef;
             return this;
         }
 
@@ -200,7 +194,7 @@ public class VolumeDefinitionTestFactory
         }
 
         public VolumeDefinitionBuilder setVlmNrToNext()
-            throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException,
+            throws DatabaseException, LinStorDataAlreadyExistsException,
             ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, InvalidNameException,
             LinStorException
         {
@@ -227,12 +221,11 @@ public class VolumeDefinitionTestFactory
         }
 
         public VolumeDefinition build()
-            throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, MdException,
+            throws DatabaseException, LinStorDataAlreadyExistsException, MdException,
             ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, InvalidNameException,
             LinStorException
         {
             VolumeDefinition vlmDfn = vlmDfnFact.create(
-                accCtx,
                 rscDfnFact.get(rscName, true),
                 new VolumeNumber(vlmNr),
                 minorNr,

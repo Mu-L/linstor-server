@@ -5,8 +5,6 @@ import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Resource.Flags;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -20,17 +18,15 @@ import java.util.Set;
 public class SharedStorageUtils
 {
     public static <RSC extends AbsResource<RSC>> boolean isNeededBySharedResource(
-        AccessContext accCtx,
         VlmProviderObject<RSC> localVlmData
     )
-        throws AccessDeniedException
     {
         boolean neededBySharedResource = false;
 
         AbsRscLayerObject<RSC> localRscStorData = localVlmData.getRscLayerObject();
         SharedStorPoolName localSharedStorPoolName = localVlmData.getStorPool().getSharedStorPoolName();
         RSC localRsc = localVlmData.getVolume().getAbsResource();
-        Iterator<Resource> rscIt = localRsc.getResourceDefinition().iterateResource(accCtx);
+        Iterator<Resource> rscIt = localRsc.getResourceDefinition().iterateResource();
 
         while (rscIt.hasNext() && !neededBySharedResource)
         {
@@ -38,12 +34,12 @@ public class SharedStorageUtils
             StateFlags<Flags> otherRscFlags = otherRsc.getStateFlags();
             if (
                 !otherRsc.equals(localRsc) &&
-                    (!otherRscFlags.isSet(accCtx, Resource.Flags.DELETE) ||
-                        !otherRscFlags.isSet(accCtx, Resource.Flags.INACTIVE))
+                    (!otherRscFlags.isSet(Resource.Flags.DELETE) ||
+                        !otherRscFlags.isSet(Resource.Flags.INACTIVE))
             )
             {
                 Set<AbsRscLayerObject<Resource>> otherRscStorDataSet = LayerRscUtils.getRscDataByLayer(
-                    otherRsc.getLayerData(accCtx),
+                    otherRsc.getLayerData(),
                     DeviceLayerKind.STORAGE
                 );
                 for (AbsRscLayerObject<Resource> otherRscStorData : otherRscStorDataSet)

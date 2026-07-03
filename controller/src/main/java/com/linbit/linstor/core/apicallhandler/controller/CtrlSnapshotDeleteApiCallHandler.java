@@ -4,9 +4,7 @@ import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -14,7 +12,6 @@ import com.linbit.linstor.backupshipping.BackupShippingUtils;
 import com.linbit.linstor.core.BackupInfoManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -30,8 +27,6 @@ import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
@@ -60,41 +55,35 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnectionListener
 {
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlPropsHelper propsHelper;
     private final ErrorReporter errorReporter;
     private final BackupInfoManager backupInfoMgr;
 
     @Inject
     public CtrlSnapshotDeleteApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         LockGuardFactory lockguardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlPropsHelper propsHelperRef,
         ErrorReporter errorReporterRef,
         BackupInfoManager backupInfoMgrRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         lockGuardFactory = lockguardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         propsHelper = propsHelperRef;
         errorReporter = errorReporterRef;
         backupInfoMgr = backupInfoMgrRef;
@@ -102,13 +91,12 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
 
     @Override
     public Collection<Flux<ApiCallRc>> resourceDefinitionConnected(ResourceDefinition rscDfn, ResponseContext context)
-        throws AccessDeniedException
     {
         List<Flux<ApiCallRc>> fluxes = new ArrayList<>();
 
-        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns(apiCtx))
+        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
         {
-            if (snapshotDfn.getFlags().isSet(apiCtx, SnapshotDefinition.Flags.DELETE))
+            if (snapshotDfn.getFlags().isSet(SnapshotDefinition.Flags.DELETE))
             {
                 fluxes.add(deleteSnapshotsOnNodes(rscDfn.getName(), snapshotDfn.getName()));
             }
@@ -310,18 +298,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     private boolean isBackupShippingInProgress(SnapshotDefinition snapshotDfnRef)
     {
         boolean shipping = false;
-        try
-        {
-            shipping = BackupShippingUtils.isAnyShippingInProgress(snapshotDfnRef, peerAccCtx.get());
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "checking if SnapshotDefinition is in progress",
-                ApiConsts.FAIL_ACC_DENIED_SNAP_DFN
-            );
-        }
+        shipping = BackupShippingUtils.isAnyShippingInProgress(snapshotDfnRef);
         return shipping;
     }
 
@@ -471,93 +448,85 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     )
     {
         Flux<ApiCallRc> flux = Flux.empty();
+        PriorityProps prioProps = new PriorityProps(
+            propsHelper.getProps(rscDfnRef),
+            propsHelper.getProps(rscDfnRef.getResourceGroup()),
+            propsHelper.getStltPropsForView()
+        );
+        String keepStr = prioProps.getProp(
+            rscDfnPropKeepKey,
+            rscDfnPropNameSpc,
+            rscDfnPropKeepDfltValue
+        );
+        long keep;
         try
         {
-            PriorityProps prioProps = new PriorityProps(
-                propsHelper.getProps(rscDfnRef),
-                propsHelper.getProps(rscDfnRef.getResourceGroup()),
-                propsHelper.getStltPropsForView()
-            );
-            String keepStr = prioProps.getProp(
-                rscDfnPropKeepKey,
-                rscDfnPropNameSpc,
-                rscDfnPropKeepDfltValue
-            );
-            long keep;
-            try
+            keep = Long.parseLong(keepStr);
+
+            if (keep > 0)
             {
-                keep = Long.parseLong(keepStr);
-
-                if (keep > 0)
-                {
-                    String snapPrefix = prioProps.getProp(
-                        rscDfnPropPrefixKey,
-                        rscDfnPropNameSpc,
-                        rscDfnPropPrefixDfltValue
-                    );
-
-                    Pattern autoPattern = Pattern.compile("^" + snapPrefix + "[0-9]+$");
-                    /*
-                     * automatically sorts snapDfns by name, which should make the snapshot with the lowest
-                     * ID first
-                     */
-                    TreeSet<SnapshotDefinition> sortedSnapDfnSet = new TreeSet<>();
-                    for (SnapshotDefinition snapDfn : rscDfnRef.getSnapshotDfns(apiCtx))
-                    {
-                        if (
-                            snapDfn.getFlags().isSet(apiCtx, snapDfnFilterFlag) &&
-                                autoPattern.matcher(snapDfn.getName().displayValue).matches()
-                        )
-                        {
-                            sortedSnapDfnSet.add(snapDfn);
-                        }
-                    }
-
-                    ApiCallRcImpl responses = new ApiCallRcImpl();
-                    while (keep < sortedSnapDfnSet.size())
-                    {
-                        SnapshotDefinition autoSnapToDelete = sortedSnapDfnSet.first();
-                        sortedSnapDfnSet.remove(autoSnapToDelete);
-
-                        flux = flux.concatWith(
-                            deleteSnapshot(
-                                autoSnapToDelete.getResourceName(),
-                                autoSnapToDelete.getName(),
-                                null
-                            )
-                        );
-                        responses.addEntries(
-                            ApiCallRcImpl.singleApiCallRc(
-                                ApiConsts.DELETED,
-                                "AutoSnapshot cleanup: deleting snapshot " + autoSnapToDelete.getName().displayValue
-                            )
-                        );
-                        errorReporter.logDebug(
-                            "AutoSnapshot.cleanup: deleting %s",
-                            autoSnapToDelete.getName().displayValue
-                        );
-                    }
-                    flux = Flux.<ApiCallRc>just(responses)
-                        .concatWith(flux);
-                }
-                else
-                {
-                    errorReporter.logDebug("AutoSnapshot/Keep is configured to %d. Keeping all snapshots", keep);
-                }
-            }
-            catch (NumberFormatException nfe)
-            {
-                errorReporter.reportError(
-                    nfe,
-                    apiCtx,
-                    null,
-                    "Invalid value for property " + rscDfnPropNameSpc + "/" + rscDfnPropKeepKey
+                String snapPrefix = prioProps.getProp(
+                    rscDfnPropPrefixKey,
+                    rscDfnPropNameSpc,
+                    rscDfnPropPrefixDfltValue
                 );
+
+                Pattern autoPattern = Pattern.compile("^" + snapPrefix + "[0-9]+$");
+                /*
+                 * automatically sorts snapDfns by name, which should make the snapshot with the lowest
+                 * ID first
+                 */
+                TreeSet<SnapshotDefinition> sortedSnapDfnSet = new TreeSet<>();
+                for (SnapshotDefinition snapDfn : rscDfnRef.getSnapshotDfns())
+                {
+                    if (
+                        snapDfn.getFlags().isSet(snapDfnFilterFlag) &&
+                            autoPattern.matcher(snapDfn.getName().displayValue).matches()
+                    )
+                    {
+                        sortedSnapDfnSet.add(snapDfn);
+                    }
+                }
+
+                ApiCallRcImpl responses = new ApiCallRcImpl();
+                while (keep < sortedSnapDfnSet.size())
+                {
+                    SnapshotDefinition autoSnapToDelete = sortedSnapDfnSet.first();
+                    sortedSnapDfnSet.remove(autoSnapToDelete);
+
+                    flux = flux.concatWith(
+                        deleteSnapshot(
+                            autoSnapToDelete.getResourceName(),
+                            autoSnapToDelete.getName(),
+                            null
+                        )
+                    );
+                    responses.addEntries(
+                        ApiCallRcImpl.singleApiCallRc(
+                            ApiConsts.DELETED,
+                            "AutoSnapshot cleanup: deleting snapshot " + autoSnapToDelete.getName().displayValue
+                        )
+                    );
+                    errorReporter.logDebug(
+                        "AutoSnapshot.cleanup: deleting %s",
+                        autoSnapToDelete.getName().displayValue
+                    );
+                }
+                flux = Flux.<ApiCallRc>just(responses)
+                    .concatWith(flux);
+            }
+            else
+            {
+                errorReporter.logDebug("AutoSnapshot/Keep is configured to %d. Keeping all snapshots", keep);
             }
         }
-        catch (AccessDeniedException exc)
+        catch (NumberFormatException nfe)
         {
-            throw new ImplementationError(exc);
+            errorReporter.reportError(
+                nfe,
+                null,
+                "Invalid value for property " + rscDfnPropNameSpc + "/" + rscDfnPropKeepKey
+            );
         }
         ctrlTransactionHelper.commit();
 
@@ -567,36 +536,14 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     private boolean isFlagSet(Snapshot snapshotRef, Snapshot.Flags... flags)
     {
         boolean ret;
-        try
-        {
-            ret = snapshotRef.getFlags().isSet(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "access snapshot " + getSnapshotDescriptionInline(snapshotRef),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
-            );
-        }
+        ret = snapshotRef.getFlags().isSet(flags);
         return ret;
     }
 
     private boolean isFlagSet(SnapshotDefinition snapDfnRef, SnapshotDefinition.Flags... flags)
     {
         boolean ret;
-        try
-        {
-            ret = snapDfnRef.getFlags().isSet(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "access snapshot " + getSnapshotDfnDescriptionInline(snapDfnRef),
-                ApiConsts.FAIL_ACC_DENIED_SNAP_DFN
-            );
-        }
+        ret = snapDfnRef.getFlags().isSet(flags);
         return ret;
     }
 
@@ -606,15 +553,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
         {
             // first remove snapDfn from backupQueueItems where it is a prevSnap
             backupInfoMgr.deletePrevSnapFromQueueItems(snapshotDfn);
-            snapshotDfn.markDeleted(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getSnapshotDfnDescriptionInline(snapshotDfn) + " as deleted",
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_DFN
-            );
+            snapshotDfn.markDeleted();
         }
         catch (DatabaseException sqlExc)
         {
@@ -626,15 +565,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     {
         try
         {
-            snapshot.markDeleted(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getSnapshotDescriptionInline(snapshot) + " as deleted",
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
-            );
+            snapshot.markDeleted();
         }
         catch (DatabaseException sqlExc)
         {
@@ -645,32 +576,14 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     private Collection<Snapshot> getAllSnapshots(SnapshotDefinition snapshotDfn)
     {
         Collection<Snapshot> allSnapshots;
-        try
-        {
-            allSnapshots = snapshotDfn.getAllSnapshots(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "get snapshots of " + getSnapshotDfnDescriptionInline(snapshotDfn),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_DFN
-            );
-        }
+        allSnapshots = snapshotDfn.getAllSnapshots();
         return allSnapshots;
     }
 
     private Collection<Snapshot> getAllSnapshotsPrivileged(SnapshotDefinition snapshotDfn)
     {
         Collection<Snapshot> allSnapshots;
-        try
-        {
-            allSnapshots = snapshotDfn.getAllSnapshots(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        allSnapshots = snapshotDfn.getAllSnapshots();
         return allSnapshots;
     }
 
@@ -678,11 +591,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     {
         try
         {
-            snapshotDfn.delete(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            snapshotDfn.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -694,11 +603,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     {
         try
         {
-            snapshot.delete(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            snapshot.delete();
         }
         catch (DatabaseException sqlExc)
         {

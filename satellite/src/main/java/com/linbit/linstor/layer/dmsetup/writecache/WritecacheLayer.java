@@ -3,7 +3,6 @@ package com.linbit.linstor.layer.dmsetup.writecache;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.extproc.ExtCmdFailedException;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -26,8 +25,6 @@ import com.linbit.linstor.layer.DeviceLayer;
 import com.linbit.linstor.layer.dmsetup.DmSetupUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
@@ -58,7 +55,6 @@ public class WritecacheLayer implements DeviceLayer
     private static final Map<String, String> OPTS_LUT;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext storDriverAccCtx;
     private final ExtCmdFactory extCmdFactory;
     private final Provider<DeviceHandler> resourceProcessorProvider;
 
@@ -80,14 +76,12 @@ public class WritecacheLayer implements DeviceLayer
     @Inject
     public WritecacheLayer(
         ErrorReporter errorReporterRef,
-        @DeviceManagerContext AccessContext storDriverAccCtxRef,
         ExtCmdFactory extCmdFactoryRef,
         Provider<DeviceHandler> resourceProcessorProviderRef,
         StltConfigAccessor stltConfAccessorRef
     )
     {
         errorReporter = errorReporterRef;
-        storDriverAccCtx = storDriverAccCtxRef;
         extCmdFactory = extCmdFactoryRef;
         resourceProcessorProvider = resourceProcessorProviderRef;
         stltConfAccessor = stltConfAccessorRef;
@@ -105,7 +99,7 @@ public class WritecacheLayer implements DeviceLayer
         Set<AbsRscLayerObject<Resource>> rscObjListRef,
         Set<AbsRscLayerObject<Snapshot>> snapObjListRef
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         errorReporter.logTrace("Writecache: listing all 'writecache' devices");
         Set<String> dmDeviceNames = DmSetupUtils.list(extCmdFactory.create(), "writecache");
@@ -210,12 +204,11 @@ public class WritecacheLayer implements DeviceLayer
         AbsRscLayerObject<Resource> rscLayerDataRef,
         ApiCallRcImpl apiCallRcRef
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException
+        throws StorageException, ResourceException, VolumeException, DatabaseException
     {
         WritecacheRscData<Resource> rscData = (WritecacheRscData<Resource>) rscLayerDataRef;
         StateFlags<Flags> rscFlags = rscData.getAbsResource().getStateFlags();
         boolean shouldRscExist = rscFlags.isUnset(
-            storDriverAccCtx,
             Resource.Flags.DELETE,
             Resource.Flags.INACTIVE,
             Resource.Flags.DISK_REMOVING
@@ -223,11 +216,9 @@ public class WritecacheLayer implements DeviceLayer
         for (WritecacheVlmData<Resource> vlmData : rscData.getVlmLayerObjects().values())
         {
             boolean shouldVlmExist = ((Volume) vlmData.getVolume()).getFlags().isUnset(
-                storDriverAccCtx,
                 Volume.Flags.DELETE,
                 Volume.Flags.CLONING
             ) && vlmData.getVolume().getVolumeDefinition().getFlags().isUnset(
-                storDriverAccCtx,
                 VolumeDefinition.Flags.DELETE
             );
             if (!shouldRscExist || !shouldVlmExist)
@@ -274,11 +265,9 @@ public class WritecacheLayer implements DeviceLayer
             for (WritecacheVlmData<Resource> vlmData : rscData.getVlmLayerObjects().values())
             {
                 boolean shouldVlmExist = ((Volume) vlmData.getVolume()).getFlags().isUnset(
-                    storDriverAccCtx,
                     Volume.Flags.DELETE,
                     Volume.Flags.CLONING
                 ) && vlmData.getVolume().getVolumeDefinition().getFlags().isUnset(
-                    storDriverAccCtx,
                     VolumeDefinition.Flags.DELETE
                 );
                 if (shouldVlmExist)
@@ -289,11 +278,11 @@ public class WritecacheLayer implements DeviceLayer
                         ResourceDefinition rscDfn = vlm.getResourceDefinition();
                         ResourceGroup rscGrp = rscDfn.getResourceGroup();
                         prioProps = new PriorityProps(
-                            vlm.getProps(storDriverAccCtx),
-                            vlm.getVolumeDefinition().getProps(storDriverAccCtx),
-                            rscDfn.getProps(storDriverAccCtx),
-                            rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmData.getVlmNr()),
-                            rscGrp.getProps(storDriverAccCtx),
+                            vlm.getProps(),
+                            vlm.getVolumeDefinition().getProps(),
+                            rscDfn.getProps(),
+                            rscGrp.getVolumeGroupProps(vlmData.getVlmNr()),
+                            rscGrp.getProps(),
                             localNodeProps,
                             stltConfAccessor.getReadonlyProps()
                         );
@@ -308,7 +297,7 @@ public class WritecacheLayer implements DeviceLayer
                         {
                             boolean allStorPoolsPmem = true;
                             boolean onePmem = false;
-                            Set<StorPool> storPoolSet = LayerVlmUtils.getStorPoolSet(cacheChild, storDriverAccCtx);
+                            Set<StorPool> storPoolSet = LayerVlmUtils.getStorPoolSet(cacheChild);
                             for (StorPool storPool : storPoolSet)
                             {
                                 if (storPool.isPmem())
@@ -428,12 +417,12 @@ public class WritecacheLayer implements DeviceLayer
     }
 
     @Override
-    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef) throws AccessDeniedException
+    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef)
     {
         boolean resourceReadySent = true;
 
         StateFlags<Flags> rscFlags = layerDataRef.getAbsResource().getStateFlags();
-        if (rscFlags.isSet(storDriverAccCtx, Resource.Flags.DELETE))
+        if (rscFlags.isSet(Resource.Flags.DELETE))
         {
             resourceProcessorProvider.get().sendResourceDeletedEvent(layerDataRef);
         }
@@ -448,7 +437,7 @@ public class WritecacheLayer implements DeviceLayer
             }
             else
             {
-                boolean isActive = rscFlags.isUnset(storDriverAccCtx, Resource.Flags.INACTIVE);
+                boolean isActive = rscFlags.isUnset(Resource.Flags.INACTIVE);
                 resourceProcessorProvider.get().sendResourceCreatedEvent(
                     layerDataRef,
                     new ResourceState(

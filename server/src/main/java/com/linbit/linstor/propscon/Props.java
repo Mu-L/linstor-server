@@ -2,7 +2,6 @@ package com.linbit.linstor.propscon;
 
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.TransactionObject;
 
 /**
@@ -14,28 +13,28 @@ public interface Props extends TransactionObject, ReadOnlyProps
 {
     @Nullable
     String setProp(String key, String value)
-        throws InvalidKeyException, InvalidValueException, AccessDeniedException, DatabaseException;
+        throws InvalidKeyException, InvalidValueException, DatabaseException;
 
     @Nullable
     String setProp(String key, String value, @Nullable String namespace)
-        throws InvalidKeyException, InvalidValueException, AccessDeniedException, DatabaseException;
+        throws InvalidKeyException, InvalidValueException, DatabaseException;
 
     @Nullable
     String removeProp(String key)
-        throws InvalidKeyException, AccessDeniedException, DatabaseException;
+        throws InvalidKeyException, DatabaseException;
 
     @Nullable
     String removeProp(String key, @Nullable String namespace)
-        throws InvalidKeyException, AccessDeniedException, DatabaseException;
+        throws InvalidKeyException, DatabaseException;
     boolean removeNamespace(String namespaceRef)
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     @Override
     @Nullable Props getNamespace(@Nullable String namespace);
 
-    void loadAll() throws DatabaseException, AccessDeniedException;
+    void loadAll() throws DatabaseException;
 
-    void clear() throws AccessDeniedException, DatabaseException;
+    void clear() throws DatabaseException;
 
-    void delete() throws AccessDeniedException, DatabaseException;
+    void delete() throws DatabaseException;
 }

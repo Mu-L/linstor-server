@@ -1,15 +1,12 @@
 package com.linbit.linstor.event.handler;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -23,18 +20,15 @@ import java.util.function.Function;
 @Singleton
 public class SatelliteStateHelper
 {
-    private final AccessContext accCtx;
     private final CoreModule.NodesMap nodesMap;
     private final ReadWriteLock nodesMapLock;
 
     @Inject
     public SatelliteStateHelper(
-        @ApiContext AccessContext accCtxRef,
         CoreModule.NodesMap nodesMapRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef
     )
     {
-        accCtx = accCtxRef;
         nodesMap = nodesMapRef;
         nodesMapLock = nodesMapLockRef;
     }
@@ -54,7 +48,7 @@ public class SatelliteStateHelper
 
             if (node != null)
             {
-                Peer peer = node.getPeer(accCtx);
+                Peer peer = node.getPeer();
 
                 if (peer != null)
                 {
@@ -70,10 +64,6 @@ public class SatelliteStateHelper
                     }
                 }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError("Access denied using API context", exc);
         }
         finally
         {

@@ -1,9 +1,7 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -12,7 +10,6 @@ import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdater;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.ApiSuccessUtils;
@@ -28,8 +25,6 @@ import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.utils.PairNonNull;
 
@@ -65,7 +60,6 @@ public class CtrlNodeConnectionApiCallHandler
             PATTERN_PATH_NODE_NAME + ">[^/]+)$"
     );
 
-    private final AccessContext apiCtx;
     private final ErrorReporter errorReporter;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
@@ -74,7 +68,6 @@ public class CtrlNodeConnectionApiCallHandler
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlNodeConnectionHelper nodeConnectionHelper;
@@ -82,7 +75,6 @@ public class CtrlNodeConnectionApiCallHandler
 
     @Inject
     public CtrlNodeConnectionApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ErrorReporter errorReporterRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
@@ -91,7 +83,6 @@ public class CtrlNodeConnectionApiCallHandler
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlNodeConnectionHelper nodeConnectionHelperRef,
@@ -99,7 +90,6 @@ public class CtrlNodeConnectionApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -107,7 +97,6 @@ public class CtrlNodeConnectionApiCallHandler
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         nodeConnectionHelper = nodeConnectionHelperRef;
@@ -124,7 +113,7 @@ public class CtrlNodeConnectionApiCallHandler
             ret = new TreeSet<>();
             try
             {
-                for (Node node : nodeRepo.getMapForView(peerCtx).values())
+                for (Node node : nodeRepo.getMapForView().values())
                 {
                     ret.addAll(getNodeConnPojos(node, false));
                 }
@@ -151,7 +140,6 @@ public class CtrlNodeConnectionApiCallHandler
             try
             {
                 NodeConnection nodeConn = nodeA.getNodeConnection(
-                    peerCtx,
                     nodeB
                 );
                 if (nodeConn == null)
@@ -160,7 +148,7 @@ public class CtrlNodeConnectionApiCallHandler
                         new NodeConnPojo(
                             null,
                             nodeARef,
-                            nodeB.getApiData(peerCtx, null, null),
+                            nodeB.getApiData(null, null),
                             Collections.emptyMap()
                         )
                     );
@@ -168,7 +156,7 @@ public class CtrlNodeConnectionApiCallHandler
                 else
                 {
                     ret.add(
-                        nodeConn.getApiData(nodeA, peerCtx, null, null)
+                        nodeConn.getApiData(nodeA, null, null)
                     );
                 }
             }
@@ -186,14 +174,13 @@ public class CtrlNodeConnectionApiCallHandler
         try
         {
             AccessContext peerCtx = peerAccCtx.get();
-            for (NodeConnection nodeConn : node.getNodeConnections(peerCtx))
+            for (NodeConnection nodeConn : node.getNodeConnections())
             {
-                if (includeIfEmpty || !nodeConn.getProps(peerCtx).isEmpty())
+                if (includeIfEmpty || !nodeConn.getProps().isEmpty())
                 {
                     ret.add(
                         nodeConn.getApiData(
-                            nodeConn.getSourceNode(peerCtx),
-                            peerCtx,
+                            nodeConn.getSourceNode(),
                             null,
                             null
                         )
@@ -319,9 +306,8 @@ public class CtrlNodeConnectionApiCallHandler
                             );
                         }
                         // now check that the interface name are correct/existing
-                        Node node = nodeConn.getNode(peerAccCtx.get(), new NodeName(nodeName));
+                        Node node = nodeConn.getNode(new NodeName(nodeName));
                         NetInterface netInterface = node.getNetInterface(
-                            peerAccCtx.get(),
                             new NetInterfaceName(entry.getValue())
                         );
                         if (netInterface == null)
@@ -398,7 +384,7 @@ public class CtrlNodeConnectionApiCallHandler
                         ).flatMap(updateTuple -> updateTuple == null ? Flux.empty() : updateTuple.getT2())
                 );
 
-                if (nodeConn.getProps(apiCtx).isEmpty())
+                if (nodeConn.getProps().isEmpty())
                 {
                     flux = flux.concatWith(cleanupNodeConn(nodeConn));
                 }
@@ -416,35 +402,13 @@ public class CtrlNodeConnectionApiCallHandler
     private PairNonNull<Node, Node> getNodes(NodeConnection nodeConnRef)
     {
         AccessContext peerCtx = peerAccCtx.get();
-        try
-        {
-            return new PairNonNull<>(nodeConnRef.getSourceNode(peerCtx), nodeConnRef.getTargetNode(peerCtx));
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "accessing " + CtrlNodeConnectionHelper.getNodeConnectionDescriptionInline(nodeConnRef),
-                ApiConsts.FAIL_ACC_DENIED_NODE_CONN
-            );
-        }
+        return new PairNonNull<>(nodeConnRef.getSourceNode(), nodeConnRef.getTargetNode());
     }
 
     private Props getProps(NodeConnection nodeConn)
     {
         Props props;
-        try
-        {
-            props = nodeConn.getProps(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "accessing properties of node connection '" + nodeConn + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE_CONN
-            );
-        }
+        props = nodeConn.getProps();
         return props;
     }
 
@@ -452,15 +416,8 @@ public class CtrlNodeConnectionApiCallHandler
     {
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
-        try
-        {
-            responses.addEntries(ctrlSatelliteUpdater.updateSatellites(nodeConn.getSourceNode(apiCtx)));
-            responses.addEntries(ctrlSatelliteUpdater.updateSatellites(nodeConn.getTargetNode(apiCtx)));
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        responses.addEntries(ctrlSatelliteUpdater.updateSatellites(nodeConn.getSourceNode()));
+        responses.addEntries(ctrlSatelliteUpdater.updateSatellites(nodeConn.getTargetNode()));
 
         return responses;
     }

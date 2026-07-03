@@ -5,7 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.LinStorDBRuntimeException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NetInterfaceName;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.NetInterface.EncryptionType;
@@ -19,8 +18,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.NetInterfaceCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.utils.Pair;
@@ -53,7 +50,6 @@ public final class NetInterfaceDbDriver
 
     @Inject
     public NetInterfaceDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -61,7 +57,7 @@ public final class NetInterfaceDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.NODE_NET_INTERFACES, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.NODE_NET_INTERFACES, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         transObjFactory = transObjFactoryRef;
 
@@ -69,19 +65,19 @@ public final class NetInterfaceDbDriver
         setColumnSetter(NODE_NAME, netIf -> netIf.getNode().getName().value);
         setColumnSetter(NODE_NET_NAME, netIf -> netIf.getName().value);
         setColumnSetter(NODE_NET_DSP_NAME, netIf -> netIf.getName().displayValue);
-        setColumnSetter(INET_ADDRESS, netIf -> netIf.getAddress(dbCtxRef).getAddress());
+        setColumnSetter(INET_ADDRESS, netIf -> netIf.getAddress().getAddress());
         // TODO: change NetIf.STLT_CONN_PORT from SHORT to INTEGER with SQL migration
         setColumnSetter(
             STLT_CONN_PORT,
             netIf ->
             {
-                Integer nullable = TcpPortNumber.getValueNullable(netIf.getStltConnPort(dbCtxRef));
+                Integer nullable = TcpPortNumber.getValueNullable(netIf.getStltConnPort());
                 return nullable != null ? nullable.shortValue() : null;
             }
         );
         setColumnSetter(STLT_CONN_ENCR_TYPE, netIf ->
         {
-            EncryptionType type = netIf.getStltConnEncryptionType(dbCtxRef);
+            EncryptionType type = netIf.getStltConnEncryptionType();
             String ret = null;
             if (type != null)
             {
@@ -92,17 +88,17 @@ public final class NetInterfaceDbDriver
 
         addressDriver = generateSingleColumnDriver(
             INET_ADDRESS,
-            netIf -> netIf.getAddress(dbCtxRef).getAddress(),
+            netIf -> netIf.getAddress().getAddress(),
             LsIpAddress::getAddress
         );
         portDriver = generateSingleColumnDriver(
             STLT_CONN_PORT,
-            netIf -> Objects.toString(netIf.getStltConnPort(dbCtxRef)),
+            netIf -> Objects.toString(netIf.getStltConnPort()),
             TcpPortNumber::getValueNullable
         );
         encrTypeDriver = generateSingleColumnDriver(
             STLT_CONN_ENCR_TYPE,
-            netIf -> Objects.toString(netIf.getStltConnEncryptionType(dbCtxRef)),
+            netIf -> Objects.toString(netIf.getStltConnEncryptionType()),
             EncryptionType::nameOfNullable
         );
     }

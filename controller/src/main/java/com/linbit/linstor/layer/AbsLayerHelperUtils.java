@@ -11,8 +11,6 @@ import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.StorPool;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.AbsRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 
@@ -27,18 +25,16 @@ public class AbsLayerHelperUtils
     }
 
     public static <RSC extends AbsResource<RSC>> @Nullable StorPool getStorPool(
-        AccessContext apiCtx,
         AbsVolume<RSC> absVlmRef,
         AbsRscData<RSC, ? extends VlmProviderObject<RSC>> rscLayerData,
         @Nullable StorPool storPool,
         Map<String, String> renameStorPoolMap,
         @Nullable ApiCallRc apiCallRc
-    ) throws AccessDeniedException, InvalidNameException
+    ) throws InvalidNameException
     {
         return storPool == null ?
             null :
             getStorPool(
-                apiCtx,
                 absVlmRef,
                 rscLayerData,
                 storPool.getName().displayValue,
@@ -48,13 +44,12 @@ public class AbsLayerHelperUtils
     }
 
     public static <RSC extends AbsResource<RSC>> StorPool getStorPool(
-        AccessContext apiCtx,
         AbsVolume<RSC> absVlmRef,
         AbsRscData<RSC, ? extends VlmProviderObject<RSC>> rscLayerData,
         String storPoolName,
         Map<String, String> renameStorPoolMap,
         @Nullable ApiCallRc apiCallRc
-    ) throws AccessDeniedException, InvalidNameException
+    ) throws InvalidNameException
     {
         StorPool storPool;
         String renamedStorPool;
@@ -91,12 +86,12 @@ public class AbsLayerHelperUtils
         }
 
         Node node = absVlmRef.getAbsResource().getNode();
-        storPool = node.getStorPool(apiCtx, new StorPoolName(renamedStorPool));
+        storPool = node.getStorPool(new StorPoolName(renamedStorPool));
         if (storPool == null)
         {
             if (!storPoolName.equals(renamedStorPool))
             {
-                storPool = node.getStorPool(apiCtx, new StorPoolName(storPoolName));
+                storPool = node.getStorPool(new StorPoolName(storPoolName));
             }
             if (storPool == null)
             {

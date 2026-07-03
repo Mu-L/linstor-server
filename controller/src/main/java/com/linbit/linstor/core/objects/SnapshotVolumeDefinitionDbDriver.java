@@ -5,7 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
@@ -20,9 +19,6 @@ import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeDefinitionCtrlDatab
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -63,7 +59,6 @@ public final class SnapshotVolumeDefinitionDbDriver
 
     @Inject
     public SnapshotVolumeDefinitionDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -72,7 +67,7 @@ public final class SnapshotVolumeDefinitionDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.VOLUME_DEFINITIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.VOLUME_DEFINITIONS, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -81,13 +76,13 @@ public final class SnapshotVolumeDefinitionDbDriver
         setColumnSetter(RESOURCE_NAME, snapVlmDfn -> snapVlmDfn.getResourceName().value);
         setColumnSetter(SNAPSHOT_NAME, snapVlmDfn -> snapVlmDfn.getSnapshotName().value);
         setColumnSetter(VLM_NR, snapVlmDfn -> snapVlmDfn.getVolumeNumber().value);
-        setColumnSetter(VLM_SIZE, snapVlmDfn -> snapVlmDfn.getVolumeSize(dbCtxRef));
-        setColumnSetter(VLM_FLAGS, snapVlmDfn -> snapVlmDfn.getFlags().getFlagsBits(dbCtxRef));
+        setColumnSetter(VLM_SIZE, snapVlmDfn -> snapVlmDfn.getVolumeSize());
+        setColumnSetter(VLM_FLAGS, snapVlmDfn -> snapVlmDfn.getFlags().getFlagsBits());
 
         flagsDriver = generateFlagDriver(VLM_FLAGS, SnapshotVolumeDefinition.Flags.class);
         sizeDriver = generateSingleColumnDriver(
             VLM_SIZE,
-            snapVlmDfn -> Long.toString(snapVlmDfn.getVolumeSize(dbCtxRef)),
+            snapVlmDfn -> Long.toString(snapVlmDfn.getVolumeSize()),
             Function.identity()
         );
     }
@@ -159,7 +154,7 @@ public final class SnapshotVolumeDefinitionDbDriver
     }
 
     @Override
-    protected String getId(SnapshotVolumeDefinition snapVlmDfn) throws AccessDeniedException
+    protected String getId(SnapshotVolumeDefinition snapVlmDfn)
     {
         return "(ResName=" + snapVlmDfn.getResourceName().displayValue +
             " SnapshotName=" + snapVlmDfn.getSnapshotName().displayValue +

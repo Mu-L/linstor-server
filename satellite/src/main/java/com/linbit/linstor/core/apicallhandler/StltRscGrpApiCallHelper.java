@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.apis.ResourceGroupApi;
@@ -17,8 +16,6 @@ import com.linbit.linstor.core.objects.VolumeGroup;
 import com.linbit.linstor.core.objects.VolumeGroupSatelliteFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -29,27 +26,24 @@ import java.util.TreeMap;
 @Singleton
 class StltRscGrpApiCallHelper
 {
-    private final AccessContext apiCtx;
     private final CoreModule.ResourceGroupMap rscGrpMap;
     private final ResourceGroupSatelliteFactory resourceGroupFactory;
     private final VolumeGroupSatelliteFactory volumeGroupFactory;
 
     @Inject
      StltRscGrpApiCallHelper(
-        @SystemContext AccessContext apiCtxRef,
         CoreModule.ResourceGroupMap rscGrpMapRef,
         ResourceGroupSatelliteFactory resourceGroupFactoryRef,
         VolumeGroupSatelliteFactory volumeGroupFactoryRef
     )
     {
-        apiCtx = apiCtxRef;
         rscGrpMap = rscGrpMapRef;
         resourceGroupFactory = resourceGroupFactoryRef;
         volumeGroupFactory = volumeGroupFactoryRef;
     }
 
     public ResourceGroup mergeResourceGroup(ResourceGroupApi rscGrpApiRef)
-        throws InvalidNameException, AccessDeniedException, DatabaseException
+        throws InvalidNameException, DatabaseException
     {
         ResourceGroupName rscGrpName = new ResourceGroupName(rscGrpApiRef.getName());
         AutoSelectFilterApi autoPlaceConfigPojo = rscGrpApiRef.getAutoSelectFilter();
@@ -75,16 +69,16 @@ class StltRscGrpApiCallHelper
                 autoPlaceConfigPojo.getDisklessOnRemaining(),
                 rscGrpApiRef.getPeerSlots()
             );
-            rscGrp.getProps(apiCtx).map().putAll(rscGrpApiRef.getProps());
+            rscGrp.getProps().map().putAll(rscGrpApiRef.getProps());
             rscGrpMap.put(rscGrpName, rscGrp);
         }
         else
         {
-            Map<String, String> targetProps = rscGrp.getProps(apiCtx).map();
+            Map<String, String> targetProps = rscGrp.getProps().map();
             targetProps.clear();
             targetProps.putAll(rscGrpApiRef.getProps());
 
-            rscGrp.setDescription(apiCtx, rscGrpApiRef.getDescription());
+            rscGrp.setDescription(rscGrpApiRef.getDescription());
 
             AutoSelectorConfig autoPlaceConfig = rscGrp.getAutoPlaceConfig();
 
@@ -93,7 +87,7 @@ class StltRscGrpApiCallHelper
 
         Map<VolumeNumber, VolumeGroup> vlmGrpsToDelete = new TreeMap<>();
         // add all current volume group and delete them again if they are still in the vlmGrpApiList
-        for (VolumeGroup vlmGrp : rscGrp.getVolumeGroups(apiCtx))
+        for (VolumeGroup vlmGrp : rscGrp.getVolumeGroups())
         {
             vlmGrpsToDelete.put(vlmGrp.getVolumeNumber(), vlmGrp);
         }
@@ -113,15 +107,14 @@ class StltRscGrpApiCallHelper
                         vlmNr,
                         vlmGrpApi.getFlags()
                     );
-                    vlmGrpProps = vlmGrp.getProps(apiCtx);
+                    vlmGrpProps = vlmGrp.getProps();
                 }
                 else
                 {
                     vlmGrp.getFlags().resetFlagsTo(
-                        apiCtx,
                         VolumeGroup.Flags.restoreFlags(vlmGrpApi.getFlags())
                     );
-                    vlmGrpProps = vlmGrp.getProps(apiCtx);
+                    vlmGrpProps = vlmGrp.getProps();
                     vlmGrpProps.clear();
                 }
                 vlmGrpProps.map().putAll(vlmGrpApi.getProps());
@@ -129,7 +122,7 @@ class StltRscGrpApiCallHelper
 
             for (VolumeNumber vlmNr : vlmGrpsToDelete.keySet())
             {
-                rscGrp.deleteVolumeGroup(apiCtx, vlmNr);
+                rscGrp.deleteVolumeGroup(vlmNr);
             }
         }
         catch (ValueOutOfRangeException exc)

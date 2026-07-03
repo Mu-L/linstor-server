@@ -12,7 +12,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.layer.storage.DeviceProvider;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -76,13 +75,13 @@ public class DisklessProvider implements DeviceProvider
 
     @Override
     public void processSnapshotVolumes(List<VlmProviderObject<Snapshot>> snapVlmDataListRef, ApiCallRcImpl apiCallRcRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         // no-op
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPoolRef) throws AccessDeniedException, StorageException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPoolRef) throws StorageException
     {
         return DEFAULT_DISKLESS_SPACE_INFO;
     }

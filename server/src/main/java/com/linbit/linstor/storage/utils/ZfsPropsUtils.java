@@ -13,8 +13,6 @@ import com.linbit.linstor.core.objects.SnapshotVolume;
 import com.linbit.linstor.core.objects.SnapshotVolumeDefinition;
 import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.zfs.ZfsData;
 import com.linbit.utils.ShellUtils;
@@ -35,14 +33,13 @@ public class ZfsPropsUtils
 
     public static long extractZfsVolBlockSizePrivileged(
         ZfsData<?> vlmDataRef,
-        AccessContext sysCtx,
         ReadOnlyProps stltProps
     )
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         long extentSize = DEFAULT_ZFS_EXTENT_SIZE;
 
-        PriorityProps prioProp = getPrioProps(vlmDataRef, sysCtx, stltProps);
+        PriorityProps prioProp = getPrioProps(vlmDataRef, stltProps);
 
         String zfsCreateProp = prioProp.getProp(
             ApiConsts.KEY_STOR_POOL_ZFS_CREATE_OPTIONS,
@@ -123,10 +120,8 @@ public class ZfsPropsUtils
 
     private static PriorityProps getPrioProps(
         ZfsData<?> vlmDataRef,
-        AccessContext sysCtxRef,
         ReadOnlyProps stltPropsRef
     )
-        throws AccessDeniedException
     {
         AbsVolume<?> absVlm = vlmDataRef.getVolume();
 
@@ -138,14 +133,14 @@ public class ZfsPropsUtils
             Resource rsc = vlm.getAbsResource();
 
             prioProp = new PriorityProps(
-                vlm.getProps(sysCtxRef),
-                rsc.getProps(sysCtxRef),
-                vlmDataRef.getStorPool().getProps(sysCtxRef),
-                absVlm.getAbsResource().getNode().getProps(sysCtxRef),
-                vlm.getVolumeDefinition().getProps(sysCtxRef),
-                rsc.getResourceDefinition().getProps(sysCtxRef),
-                rscGrp.getVolumeGroupProps(sysCtxRef, absVlm.getVolumeNumber()),
-                rscGrp.getProps(sysCtxRef),
+                vlm.getProps(),
+                rsc.getProps(),
+                vlmDataRef.getStorPool().getProps(),
+                absVlm.getAbsResource().getNode().getProps(),
+                vlm.getVolumeDefinition().getProps(),
+                rsc.getResourceDefinition().getProps(),
+                rscGrp.getVolumeGroupProps(absVlm.getVolumeNumber()),
+                rscGrp.getProps(),
                 stltPropsRef
             );
         }
@@ -157,18 +152,18 @@ public class ZfsPropsUtils
             SnapshotDefinition snapDfn = snap.getSnapshotDefinition();
 
             prioProp = new PriorityProps(
-                snapVlm.getSnapVlmProps(sysCtxRef),
-                snapVlm.getVlmProps(sysCtxRef),
-                snap.getSnapProps(sysCtxRef),
-                snap.getRscProps(sysCtxRef),
-                vlmDataRef.getStorPool().getProps(sysCtxRef),
-                absVlm.getAbsResource().getNode().getProps(sysCtxRef),
-                snapVlmDfn.getSnapVlmDfnProps(sysCtxRef),
-                snapVlmDfn.getVlmDfnProps(sysCtxRef),
-                snapDfn.getSnapDfnProps(sysCtxRef),
-                snapDfn.getRscDfnProps(sysCtxRef),
-                rscGrp.getVolumeGroupProps(sysCtxRef, absVlm.getVolumeNumber()),
-                rscGrp.getProps(sysCtxRef),
+                snapVlm.getSnapVlmProps(),
+                snapVlm.getVlmProps(),
+                snap.getSnapProps(),
+                snap.getRscProps(),
+                vlmDataRef.getStorPool().getProps(),
+                absVlm.getAbsResource().getNode().getProps(),
+                snapVlmDfn.getSnapVlmDfnProps(),
+                snapVlmDfn.getVlmDfnProps(),
+                snapDfn.getSnapDfnProps(),
+                snapDfn.getRscDfnProps(),
+                rscGrp.getVolumeGroupProps(absVlm.getVolumeNumber()),
+                rscGrp.getProps(),
                 stltPropsRef
             );
         }

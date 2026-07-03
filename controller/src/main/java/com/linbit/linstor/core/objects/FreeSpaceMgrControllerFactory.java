@@ -3,8 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.linstor.core.ControllerCoreModule;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -31,8 +29,8 @@ public class FreeSpaceMgrControllerFactory
         transObjFactory = trasnObjFactoryRef;
     }
 
-    public FreeSpaceMgr getInstance(AccessContext accCtx, SharedStorPoolName sharedStorPoolName)
-        throws AccessDeniedException, DatabaseException
+    public FreeSpaceMgr getInstance(SharedStorPoolName sharedStorPoolName)
+        throws DatabaseException
     {
         FreeSpaceMgr ret = freeSpaceMgrMap.get(sharedStorPoolName);
         if (ret == null)

@@ -18,8 +18,6 @@ import com.linbit.linstor.interfaces.NodeInfo;
 import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -69,19 +67,17 @@ public class StltReadOnlyInfo
 
         public static ReadOnlyStorPool copyFrom(
             @Nullable ReadOnlyNode roNodeRef,
-            StorPool storPoolRef,
-            AccessContext accCtxRef
+            StorPool storPoolRef
         )
-            throws AccessDeniedException
         {
             return new ReadOnlyStorPool(
                 storPoolRef.getUuid(),
                 storPoolRef.getName(),
                 storPoolRef.getSharedStorPoolName(),
                 storPoolRef.getDeviceProviderKind(),
-                roNodeRef == null ? ReadOnlyNode.copyFrom(storPoolRef.getNode(), accCtxRef) : roNodeRef,
-                storPoolRef.getReadOnlyProps(accCtxRef),
-                storPoolRef.getVolumes(accCtxRef)
+                roNodeRef == null ? ReadOnlyNode.copyFrom(storPoolRef.getNode()) : roNodeRef,
+                storPoolRef.getReadOnlyProps(),
+                storPoolRef.getVolumes()
             );
         }
 
@@ -142,7 +138,7 @@ public class StltReadOnlyInfo
         }
 
         @Override
-        public ReadOnlyProps getReadOnlyProps(AccessContext accCtxRef)
+        public ReadOnlyProps getReadOnlyProps()
         {
             return roProps;
         }
@@ -190,12 +186,12 @@ public class StltReadOnlyInfo
         private final NodeName name;
         private final ReadOnlyProps props;
 
-        public static ReadOnlyNode copyFrom(Node nodeRef, AccessContext accCtxRef) throws AccessDeniedException
+        public static ReadOnlyNode copyFrom(Node nodeRef)
         {
             return new ReadOnlyNode(
                 nodeRef.getUuid(),
                 nodeRef.getName(),
-                new ReadOnlyPropsImpl(nodeRef.getProps(accCtxRef))
+                new ReadOnlyPropsImpl(nodeRef.getProps())
             );
         }
 
@@ -219,7 +215,7 @@ public class StltReadOnlyInfo
         }
 
         @Override
-        public ReadOnlyProps getReadOnlyProps(AccessContext accCtxRef)
+        public ReadOnlyProps getReadOnlyProps()
         {
             return props;
         }

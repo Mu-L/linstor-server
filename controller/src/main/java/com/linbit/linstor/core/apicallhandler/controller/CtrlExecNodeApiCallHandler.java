@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.api.protobuf.ProtoDeserializationUtils;
 import com.linbit.linstor.api.rest.v1.serializer.JsonGenTypes;
@@ -13,7 +12,6 @@ import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.proto.requests.MsgReqDrbdReactorExecOuterClass.DrbdReactorCommand;
 import com.linbit.linstor.proto.responses.MsgRspDrbdReactorExecOuterClass.MsgRspDrbdReactorExec;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
@@ -40,7 +38,6 @@ public class CtrlExecNodeApiCallHandler
 
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlStltSerializer stltComSerializer;
     private final NodeRepository nodeRepository;
 
@@ -48,14 +45,12 @@ public class CtrlExecNodeApiCallHandler
     public CtrlExecNodeApiCallHandler(
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlStltSerializer stltComSerializerRef,
         NodeRepository nodeRepositoryRef
     )
     {
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         stltComSerializer = stltComSerializerRef;
         nodeRepository = nodeRepositoryRef;
     }
@@ -94,7 +89,7 @@ public class CtrlExecNodeApiCallHandler
             resp.node = nodeName;
             try
             {
-                Node node = nodeRepository.get(peerCtx, LinstorParsingUtils.asNodeName(nodeName));
+                Node node = nodeRepository.get(LinstorParsingUtils.asNodeName(nodeName));
                 if (node == null || node.isDeleted())
                 {
                     resp.exit_code = -1;
@@ -103,7 +98,7 @@ public class CtrlExecNodeApiCallHandler
                     continue;
                 }
 
-                Peer p = node.getPeer(peerCtx);
+                Peer p = node.getPeer();
                 if (p == null || !p.isOnline())
                 {
                     resp.exit_code = -1;

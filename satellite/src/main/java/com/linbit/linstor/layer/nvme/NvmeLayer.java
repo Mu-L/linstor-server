@@ -3,7 +3,6 @@ package com.linbit.linstor.layer.nvme;
 import com.linbit.ChildProcessTimeoutException;
 import com.linbit.ImplementationError;
 import com.linbit.extproc.ExtCmdFailedException;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.core.devmgr.DeviceHandler;
@@ -21,8 +20,6 @@ import com.linbit.linstor.event.common.ResourceState;
 import com.linbit.linstor.layer.DeviceLayer;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.adapter.nvme.NvmeRscData;
@@ -56,20 +53,17 @@ public class NvmeLayer implements DeviceLayer
     private static final String SUSPEND_IO_NOT_SUPPORTED_ERR_MSG =
         "Suspending / Resuming IO for NVMe resources is not supported";
     private final ErrorReporter errorReporter;
-    private final AccessContext sysCtx;
     private final Provider<DeviceHandler> resourceProcessorProvider;
     private final NvmeUtils nvmeUtils;
 
     @Inject
     public NvmeLayer(
         ErrorReporter errorReporterRef,
-        @DeviceManagerContext AccessContext workerCtxRef,
         NvmeUtils nvmeUtilsRef,
         Provider<DeviceHandler> resourceProcessorRef
     )
     {
         errorReporter = errorReporterRef;
-        sysCtx = workerCtxRef;
         nvmeUtils = nvmeUtilsRef;
         resourceProcessorProvider = resourceProcessorRef;
     }
@@ -85,7 +79,7 @@ public class NvmeLayer implements DeviceLayer
         Set<AbsRscLayerObject<Resource>> rscDataList,
         Set<AbsRscLayerObject<Snapshot>> affectedSnapshots
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // no-op
     }
@@ -133,22 +127,22 @@ public class NvmeLayer implements DeviceLayer
         AbsRscLayerObject<Resource> rscData,
         ApiCallRcImpl apiCallRc
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException
+        throws StorageException, ResourceException, VolumeException, DatabaseException
     {
         NvmeRscData<Resource> nvmeRscData = (NvmeRscData<Resource>) rscData;
 
         StateFlags<Flags> rscFlags = nvmeRscData.getAbsResource().getStateFlags();
-        if (nvmeRscData.isInitiator(sysCtx))
+        if (nvmeRscData.isInitiator())
         {
             // reading a NVMe Target resource associated with a NVMe Initiator to determine if they belong to SPDK
-            final Resource targetRsc = nvmeUtils.getTargetResource(nvmeRscData, sysCtx);
-            nvmeRscData.setSpdk(nvmeUtils.isSpdkResource(targetRsc.getLayerData(sysCtx)));
+            final Resource targetRsc = nvmeUtils.getTargetResource(nvmeRscData);
+            nvmeRscData.setSpdk(nvmeUtils.isSpdkResource(targetRsc.getLayerData()));
 
             nvmeUtils.setDevicePaths(nvmeRscData, nvmeRscData.exists());
 
             // disconnect
             if (
-                nvmeRscData.exists() && rscFlags.isSomeSet(sysCtx, Resource.Flags.DELETE,
+                nvmeRscData.exists() && rscFlags.isSomeSet(Resource.Flags.DELETE,
                     Resource.Flags.DISK_REMOVING,
                     Resource.Flags.INACTIVE
                 )
@@ -160,7 +154,6 @@ public class NvmeLayer implements DeviceLayer
             // connect
             else if (!nvmeRscData.exists() &&
                 !rscFlags.isSomeSet(
-                    sysCtx,
                     Resource.Flags.DELETE,
                     Resource.Flags.DISK_REMOVING,
                     Resource.Flags.INACTIVE
@@ -168,7 +161,7 @@ public class NvmeLayer implements DeviceLayer
             )
             {
                 // connect
-                nvmeUtils.connect(nvmeRscData, sysCtx);
+                nvmeUtils.connect(nvmeRscData);
                 if (!nvmeUtils.setDevicePaths(nvmeRscData, true))
                 {
                     throw new StorageException("Failed to set NVMe device path!");
@@ -187,10 +180,9 @@ public class NvmeLayer implements DeviceLayer
                     VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
                     if (((Volume) vlm).getFlags()
                         .isSomeSet(
-                            sysCtx,
                             Volume.Flags.DELETE,
                             Volume.Flags.CLONING
-                        ) || vlmDfn.getFlags().isSet(sysCtx, VolumeDefinition.Flags.DELETE))
+                        ) || vlmDfn.getFlags().isSet(VolumeDefinition.Flags.DELETE))
                     {
                         nvmeVlmData.setExists(false);
                         errorReporter.logTrace(
@@ -220,7 +212,6 @@ public class NvmeLayer implements DeviceLayer
             nvmeRscData.setExists(nvmeUtils.isTargetConfigured(nvmeRscData));
 
             if (rscFlags.isSomeSet(
-                sysCtx,
                 Resource.Flags.DELETE,
                 Resource.Flags.DISK_REMOVING,
                 Resource.Flags.INACTIVE
@@ -229,7 +220,7 @@ public class NvmeLayer implements DeviceLayer
                 if (nvmeRscData.exists())
                 {
                     // delete target resource
-                    nvmeUtils.deleteTargetRsc(nvmeRscData, sysCtx);
+                    nvmeUtils.deleteTargetRsc(nvmeRscData);
                     resourceProcessorProvider.get().processResource(nvmeRscData.getSingleChild(), apiCallRc);
                 }
                 else
@@ -261,7 +252,6 @@ public class NvmeLayer implements DeviceLayer
                         {
                             if (((Volume) nvmeVlmData.getVolume()).getFlags()
                                 .isSomeSet(
-                                    sysCtx,
                                     Volume.Flags.DELETE,
                                     Volume.Flags.CLONING
                                 ))
@@ -299,16 +289,12 @@ public class NvmeLayer implements DeviceLayer
                     {
                         throw new StorageException("Failed to update NVMe target!", exc);
                     }
-                    catch (AccessDeniedException exc)
-                    {
-                        throw new ImplementationError(exc);
-                    }
                 }
                 else
                 {
                     // Create volumes
                     resourceProcessorProvider.get().processResource(nvmeRscData.getSingleChild(), apiCallRc);
-                    nvmeUtils.createTargetRsc(nvmeRscData, sysCtx);
+                    nvmeUtils.createTargetRsc(nvmeRscData);
                 }
             }
         }
@@ -330,13 +316,11 @@ public class NvmeLayer implements DeviceLayer
 
     @Override
     public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef)
-        throws AccessDeniedException
     {
         NvmeRscData<Resource> nvmeRscData = (NvmeRscData<Resource>) layerDataRef;
         if (nvmeRscData.getAbsResource()
             .getStateFlags()
             .isSomeSet(
-                sysCtx,
                 Resource.Flags.DELETE,
                 Resource.Flags.DISK_REMOVING
             ))

@@ -15,12 +15,8 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceConnectionDatabaseDriver;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -150,15 +146,12 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
         PropsContainerFactory propsContainerFactory,
         TransactionObjectFactory transObjFactory,
         Provider<? extends TransactionMgr> transMgrProviderRef,
-        long initFlags,
-        AccessContext accCtx
-    ) throws AccessDeniedException, LinStorDataAlreadyExistsException, DatabaseException
+        long initFlags
+    ) throws LinStorDataAlreadyExistsException, DatabaseException
     {
-        rsc1.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-        rsc2.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
-        ResourceConnection rsc1ConData = rsc1.getAbsResourceConnection(accCtx, rsc2);
-        ResourceConnection rsc2ConData = rsc2.getAbsResourceConnection(accCtx, rsc1);
+        ResourceConnection rsc1ConData = rsc1.getAbsResourceConnection(rsc2);
+        ResourceConnection rsc2ConData = rsc2.getAbsResourceConnection(rsc1);
 
         if (rsc1ConData != null || rsc2ConData != null)
         {
@@ -257,25 +250,22 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
         return node;
     }
 
-    public Resource getSourceResource(AccessContext accCtx) throws AccessDeniedException
+    public Resource getSourceResource()
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         return source;
     }
 
-    public Resource getTargetResource(AccessContext accCtx) throws AccessDeniedException
+    public Resource getTargetResource()
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         return target;
     }
 
-    public Props getProps(AccessContext accCtx) throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
         return PropsAccess.secureGetProps(
-            accCtx,
             source.getObjProt(),
             target.getObjProt(),
             props
@@ -288,39 +278,35 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
         return flags;
     }
 
-    public @Nullable TcpPortNumber getDrbdProxyPortSource(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable TcpPortNumber getDrbdProxyPortSource()
     {
-        requireAccess(accCtx, AccessType.VIEW);
         return drbdProxyPortSource.get();
     }
 
-    public @Nullable TcpPortNumber getDrbdProxyPortTarget(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable TcpPortNumber getDrbdProxyPortTarget()
     {
-        requireAccess(accCtx, AccessType.VIEW);
         return drbdProxyPortTarget.get();
     }
 
-    public @Nullable TcpPortNumber setDrbdProxyPortSource(AccessContext accCtx, @Nullable TcpPortNumber portNr)
-        throws DatabaseException, AccessDeniedException, ValueInUseException
+    public @Nullable TcpPortNumber setDrbdProxyPortSource(@Nullable TcpPortNumber portNr)
+        throws DatabaseException, ValueInUseException
     {
-        return setDrbdProxyPortImpl(accCtx, portNr, source);
+        return setDrbdProxyPortImpl(portNr, source);
     }
 
-    public @Nullable TcpPortNumber setDrbdProxyPortTarget(AccessContext accCtx, @Nullable TcpPortNumber portNr)
-        throws DatabaseException, AccessDeniedException, ValueInUseException
+    public @Nullable TcpPortNumber setDrbdProxyPortTarget(@Nullable TcpPortNumber portNr)
+        throws DatabaseException, ValueInUseException
     {
-        return setDrbdProxyPortImpl(accCtx, portNr, target);
+        return setDrbdProxyPortImpl(portNr, target);
     }
 
     private @Nullable TcpPortNumber setDrbdProxyPortImpl(
-        AccessContext accCtx,
         @Nullable TcpPortNumber portNr,
         Resource rsc
     )
-        throws DatabaseException, ValueInUseException, AccessDeniedException
+        throws DatabaseException, ValueInUseException
     {
-        requireAccess(accCtx, AccessType.USE);
-        DynamicNumberPool pool = rsc.getNode().getTcpPortPool(accCtx);
+        DynamicNumberPool pool = rsc.getNode().getTcpPortPool();
         @Nullable TcpPortNumber tcpPortNumber = drbdProxyPortSource.get();
         if (tcpPortNumber != null)
         {
@@ -333,28 +319,26 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
         return drbdProxyPortSource.set(portNr);
     }
 
-    public void autoAllocateDrbdProxyPortSource(AccessContext accCtx)
-        throws DatabaseException, AccessDeniedException, ExhaustedPoolException
+    public void autoAllocateDrbdProxyPortSource()
+        throws DatabaseException, ExhaustedPoolException
     {
-        autoAllocateDrbdProxyPortImpl(accCtx, drbdProxyPortSource, source);
+        autoAllocateDrbdProxyPortImpl(drbdProxyPortSource, source);
     }
 
-    public void autoAllocateDrbdProxyPortTarget(AccessContext accCtx)
-        throws DatabaseException, AccessDeniedException, ExhaustedPoolException
+    public void autoAllocateDrbdProxyPortTarget()
+        throws DatabaseException, ExhaustedPoolException
     {
-        autoAllocateDrbdProxyPortImpl(accCtx, drbdProxyPortTarget, target);
+        autoAllocateDrbdProxyPortImpl(drbdProxyPortTarget, target);
     }
 
     private void autoAllocateDrbdProxyPortImpl(
-        AccessContext accCtxRef,
         TransactionSimpleObject<ResourceConnection, TcpPortNumber> drbdProxyPortFieldRef,
         Resource rscRef
     )
-        throws AccessDeniedException, ExhaustedPoolException, DatabaseException
+        throws ExhaustedPoolException, DatabaseException
     {
         checkDeleted();
-        requireAccess(accCtxRef, AccessType.USE);
-        DynamicNumberPool tcpPortPool = rscRef.getNode().getTcpPortPool(accCtxRef);
+        DynamicNumberPool tcpPortPool = rscRef.getNode().getTcpPortPool();
         @Nullable TcpPortNumber tcpPortNumber = drbdProxyPortFieldRef.get();
         if (tcpPortNumber != null)
         {
@@ -372,33 +356,30 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
         drbdProxyPortFieldRef.set(portNr);
     }
 
-    private void requireAccess(AccessContext accCtxRef, AccessType accType) throws AccessDeniedException
+    private void requireAccess(AccessType accType)
     {
-        source.getObjProt().requireAccess(accCtxRef, accType);
-        target.getObjProt().requireAccess(accCtxRef, accType);
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            requireAccess(accCtx, AccessType.CHANGE);
 
-            source.removeResourceConnection(accCtx, this);
-            target.removeResourceConnection(accCtx, this);
+            source.removeResourceConnection(this);
+            target.removeResourceConnection(this);
 
             props.delete();
 
             @Nullable TcpPortNumber srcPort = drbdProxyPortSource.get();
             if (srcPort != null)
             {
-                source.getNode().getTcpPortPool(accCtx).deallocate(srcPort.value);
+                source.getNode().getTcpPortPool().deallocate(srcPort.value);
             }
             @Nullable TcpPortNumber dstPort = drbdProxyPortTarget.get();
             if (dstPort != null)
             {
-                target.getNode().getTcpPortPool(accCtx).deallocate(dstPort.value);
+                target.getNode().getTcpPortPool().deallocate(dstPort.value);
             }
 
             activateTransMgr();
@@ -452,8 +433,7 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
             "Rsc: '" + connectionKey.getResourceName() + "'";
     }
 
-    public ResourceConnectionApi getApiData(AccessContext accCtx)
-        throws AccessDeniedException
+    public ResourceConnectionApi getApiData()
     {
         checkDeleted();
         return new RscConnPojo(
@@ -461,10 +441,10 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
             connectionKey.getSourceNodeName().getDisplayName(),
             connectionKey.getTargetNodeName().getDisplayName(),
             connectionKey.getResourceName().getDisplayName(),
-            getProps(accCtx).cloneMap(),
-            getStateFlags().getFlagsBits(accCtx),
-            TcpPortNumber.getValueNullable(getDrbdProxyPortSource(accCtx)),
-            TcpPortNumber.getValueNullable(getDrbdProxyPortTarget(accCtx))
+            getProps().cloneMap(),
+            getStateFlags().getFlagsBits(),
+            TcpPortNumber.getValueNullable(getDrbdProxyPortSource()),
+            TcpPortNumber.getValueNullable(getDrbdProxyPortTarget())
         );
     }
 

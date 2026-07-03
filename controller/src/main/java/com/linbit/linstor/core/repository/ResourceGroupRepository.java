@@ -4,10 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.core.objects.ResourceGroup;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 
 /**
  * Provides access to {@link KeyValueStore}s with automatic security checks.
@@ -16,19 +12,14 @@ public interface ResourceGroupRepository
 {
     ObjectProtection getObjProt();
 
-    void requireAccess(AccessContext accCtx, AccessType requested)
-        throws AccessDeniedException;
+    void requireAccess(AccessType requested);
 
     @Nullable
-    ResourceGroup get(AccessContext accCtx, ResourceGroupName nameRef)
-        throws AccessDeniedException;
+    ResourceGroup get(ResourceGroupName nameRef);
 
-    void put(AccessContext accCtx, ResourceGroup rscGrpData)
-        throws AccessDeniedException;
+    void put(ResourceGroup rscGrpData);
 
-    void remove(AccessContext accCtx, ResourceGroupName rscGrpName)
-        throws AccessDeniedException;
+    void remove(ResourceGroupName rscGrpName);
 
-    CoreModule.ResourceGroupMap getMapForView(AccessContext accCtx)
-        throws AccessDeniedException;
+    CoreModule.ResourceGroupMap getMapForView();
 }

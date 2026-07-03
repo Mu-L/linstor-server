@@ -6,10 +6,6 @@ import com.linbit.linstor.core.identifier.ExternalFileName;
 import com.linbit.linstor.core.repository.ExternalFileRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ExternalFileDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.utils.ByteUtils;
@@ -48,14 +44,13 @@ public class ExternalFileControllerFactory
     }
 
     public ExternalFile create(
-        AccessContext accCtxRef,
         ExternalFileName nameRef,
         byte[] contentRef,
         @Nullable List<String> altSuffixesRef
     )
-        throws AccessDeniedException, LinStorDataAlreadyExistsException, DatabaseException
+        throws LinStorDataAlreadyExistsException, DatabaseException
     {
-        ExternalFile extFile = extFileRepo.get(accCtxRef, nameRef);
+        ExternalFile extFile = extFileRepo.get(nameRef);
         if (extFile != null)
         {
             throw new LinStorDataAlreadyExistsException("This external file name is already registered");
@@ -64,7 +59,6 @@ public class ExternalFileControllerFactory
         extFile = new ExternalFile(
             UUID.randomUUID(),
             objProtFactory.getInstance(
-                accCtxRef,
                 ObjectProtection.buildPath(nameRef),
                 true
             ),

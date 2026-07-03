@@ -5,7 +5,6 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCall;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.protobuf.ApiCallAnswerer;
@@ -16,8 +15,6 @@ import com.linbit.linstor.netcom.IllegalMessageStateException;
 import com.linbit.linstor.netcom.Message;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.proto.javainternal.MsgDebugReplyOuterClass.MsgDebugReply;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -40,22 +37,19 @@ public class DestroyDebugConsole implements ApiCall
     private final ApiCallAnswerer apiCallAnswerer;
     private final DebugConsoleCreator debugConsoleCreator;
     private final Provider<Peer> clientProvider;
-    private final Provider<AccessContext> accCtxProvider;
 
     @Inject
     public DestroyDebugConsole(
         ErrorReporter errorReporterRef,
         ApiCallAnswerer apiCallAnswererRef,
         DebugConsoleCreator debugConsoleCreatorRef,
-        Provider<Peer> clientProviderRef,
-        @PeerContext Provider<AccessContext> accCtxProviderRef
+        Provider<Peer> clientProviderRef
     )
     {
         errorReporter = errorReporterRef;
         apiCallAnswerer = apiCallAnswererRef;
         debugConsoleCreator = debugConsoleCreatorRef;
         clientProvider = clientProviderRef;
-        accCtxProvider = accCtxProviderRef;
     }
 
     @Override
@@ -72,7 +66,7 @@ public class DestroyDebugConsole implements ApiCall
             MsgDebugReply.Builder msgDbgReplyBld = MsgDebugReply.newBuilder();
             try
             {
-                debugConsoleCreator.destroyDebugConsole(accCtxProvider.get(), client);
+                debugConsoleCreator.destroyDebugConsole(client);
 
                 msgDbgReplyBld.addDebugOut("Debug console destroyed");
             }

@@ -7,10 +7,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.VolumeDefinition;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.utils.TreePrinter;
 import com.linbit.utils.UuidUtils;
 
@@ -81,12 +77,11 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
     {
-        lister.execute(debugOut, debugErr, accCtx, parameters);
+        lister.execute(debugOut, debugErr, parameters);
     }
 
     private class ResourceDefinitionHandler implements FilteredObjectLister.ObjectHandler<ResourceDefinition>
@@ -98,12 +93,10 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
         }
 
         @Override
-        public void ensureSearchAccess(final AccessContext accCtx)
-            throws AccessDeniedException
+        public void ensureSearchAccess()
         {
             if (rscDfnMapProt != null)
             {
-                rscDfnMapProt.get().requireAccess(accCtx, AccessType.VIEW);
             }
         }
 
@@ -128,13 +121,11 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
 
         @Override
         public void displayObjects(
-            final PrintStream output, final ResourceDefinition rscDfnRef, final AccessContext accCtx
-        )
+            final PrintStream output, final ResourceDefinition rscDfnRef)
         {
             try
             {
                 ObjectProtection objProt = rscDfnRef.getObjProt();
-                objProt.requireAccess(accCtx, AccessType.VIEW);
 
                 TreePrinter.Builder treeBuilder = TreePrinter
                     .builder(
@@ -143,7 +134,7 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
                         rscDfnRef.getUuid().toString().toUpperCase()
                     )
                     .leaf("Volatile UUID: %s", UuidUtils.dbgInstanceIdString(rscDfnRef))
-                    .leaf("Flags: %016x", rscDfnRef.getFlags().getFlagsBits(accCtx))
+                    .leaf("Flags: %016x", rscDfnRef.getFlags().getFlagsBits())
                     .leaf(
                         "Creator: %-24s Owner: %-24s",
                         objProt.getCreator().name.displayValue,
@@ -161,7 +152,7 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
                     treeBuilder.leaf("External name:\n%s", extNameDump);
                 }
 
-                Iterator<VolumeDefinition> vlmDfnIter = rscDfnRef.iterateVolumeDfn(accCtx);
+                Iterator<VolumeDefinition> vlmDfnIter = rscDfnRef.iterateVolumeDfn();
 
                 treeBuilder.branchHideEmpty("Volume definitions");
                 while (vlmDfnIter.hasNext())
@@ -174,8 +165,8 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
                             vlmDfnRef.getVolumeNumber().value,
                             vlmDfnRef.getUuid().toString().toUpperCase()
                         )
-                        .leaf("Size:     %16d", vlmDfnRef.getVolumeSize(accCtx))
-                        .leaf("Flags:    %016x", vlmDfnRef.getFlags().getFlagsBits(accCtx))
+                        .leaf("Size:     %16d", vlmDfnRef.getVolumeSize())
+                        .leaf("Flags:    %016x", vlmDfnRef.getFlags().getFlagsBits())
                         .endBranch();
                 }
                 treeBuilder.endBranch();
@@ -189,7 +180,7 @@ public class CmdDisplayResourceDfn extends BaseDebugCmd
         }
 
         @Override
-        public int countObjects(final ResourceDefinition rscDfnRef, final AccessContext accCtx)
+        public int countObjects(final ResourceDefinition rscDfnRef)
         {
             return 1;
         }

@@ -6,7 +6,6 @@ import com.linbit.linstor.dbdrivers.DatabaseTable;
 import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine.DataToString;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
@@ -21,7 +20,7 @@ class SQLFlagsDriver<DATA, FLAG extends Enum<FLAG> & Flags> implements StateFlag
 {
     private final ErrorReporter errorReporter;
     private final SQLEngine sqlEngine;
-    private final Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters;
+    private final Map<Column, ExceptionThrowingFunction<DATA, Object>> setters;
     private final DataToString<DATA> dataToString;
 
     private final DatabaseTable table;
@@ -31,7 +30,7 @@ class SQLFlagsDriver<DATA, FLAG extends Enum<FLAG> & Flags> implements StateFlag
     SQLFlagsDriver(
         SQLEngine sqlEngineRef,
         ErrorReporter errorReporterRef,
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         Column flagColumnRef,
         Class<FLAG> flagsClassRef,
         DataToString<DATA> dataToStringRef

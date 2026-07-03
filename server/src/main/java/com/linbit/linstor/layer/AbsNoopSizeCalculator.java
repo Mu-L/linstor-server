@@ -2,7 +2,6 @@ package com.linbit.linstor.layer;
 
 import com.linbit.exceptions.InvalidSizeException;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -17,7 +16,7 @@ public abstract class AbsNoopSizeCalculator extends AbsLayerSizeCalculator<VlmPr
 
     @Override
     protected void updateAllocatedSizeFromUsableSizeImpl(VlmProviderObject<?> vlmDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         // basically no-op. gross == net
         long size = vlmDataRef.getUsableSize();
@@ -36,7 +35,7 @@ public abstract class AbsNoopSizeCalculator extends AbsLayerSizeCalculator<VlmPr
 
     @Override
     protected void updateUsableSizeFromAllocatedSizeImpl(VlmProviderObject<?> vlmDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         // basically no-op. gross == net for NVMe
         long size = vlmDataRef.getAllocatedSize();

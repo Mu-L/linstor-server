@@ -1,6 +1,5 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -8,7 +7,6 @@ import com.linbit.linstor.core.SharedResourceManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -22,8 +20,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.utils.layer.LayerRscUtils;
@@ -54,7 +50,6 @@ public class CtrlRscActivateApiCallHandler
     private final LockGuardFactory lockGuardFactory;
     private final ResponseConverter responseConverter;
     private final CtrlApiDataLoader ctrlApiDataLoader;
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final SharedResourceManager sharedRscMgr;
@@ -65,7 +60,6 @@ public class CtrlRscActivateApiCallHandler
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         ResponseConverter responseConverterRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -78,7 +72,6 @@ public class CtrlRscActivateApiCallHandler
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         responseConverter = responseConverterRef;
-        peerAccCtx = peerAccCtxRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -304,18 +297,7 @@ public class CtrlRscActivateApiCallHandler
     private boolean isFlagSet(Resource rsc, Resource.Flags... flags)
     {
         boolean ret;
-        try
-        {
-            ret = rsc.getStateFlags().isSet(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access flags of " + getRscDescription(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        ret = rsc.getStateFlags().isSet(flags);
         return ret;
     }
 
@@ -323,15 +305,7 @@ public class CtrlRscActivateApiCallHandler
     {
         try
         {
-            rscRef.getStateFlags().disableFlags(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "disable flags of " + getRscDescription(rscRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
+            rscRef.getStateFlags().disableFlags(flags);
         }
         catch (DatabaseException sqlExc)
         {
@@ -343,15 +317,7 @@ public class CtrlRscActivateApiCallHandler
     {
         try
         {
-            rscRef.getStateFlags().enableFlags(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "enable flags of " + getRscDescription(rscRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
+            rscRef.getStateFlags().enableFlags(flags);
         }
         catch (DatabaseException sqlExc)
         {
@@ -362,62 +328,50 @@ public class CtrlRscActivateApiCallHandler
     private boolean isResourceInUse(Resource rscRef)
     {
         boolean ret = false;
-        try
+        // check if rscRef is an nvme- or ebs-target. if so, check if there is already an initiator -> inUse = true
+        AccessContext peerCtx = peerAccCtx.get();
+        boolean isNvmeTarget = false;
+        boolean isEbsTarget = false;
         {
-            // check if rscRef is an nvme- or ebs-target. if so, check if there is already an initiator -> inUse = true
-            AccessContext peerCtx = peerAccCtx.get();
-            boolean isNvmeTarget = false;
-            boolean isEbsTarget = false;
-            {
-                List<DeviceLayerKind> layerStack = LayerRscUtils.getLayerStack(rscRef, peerCtx);
-                isNvmeTarget = layerStack.contains(DeviceLayerKind.NVME);
+            List<DeviceLayerKind> layerStack = LayerRscUtils.getLayerStack(rscRef);
+            isNvmeTarget = layerStack.contains(DeviceLayerKind.NVME);
 
-                for (StorPool storPool : LayerVlmUtils.getStorPools(rscRef, peerCtx))
-                {
-                    if (storPool.getDeviceProviderKind().equals(DeviceProviderKind.EBS_TARGET))
-                    {
-                        isEbsTarget = true;
-                    }
-                }
-            }
-            if (isNvmeTarget || isEbsTarget)
+            for (StorPool storPool : LayerVlmUtils.getStorPools(rscRef))
             {
-                Iterator<Resource> rscIt = rscRef.getResourceDefinition().iterateResource(peerCtx);
-                while (rscIt.hasNext())
+                if (storPool.getDeviceProviderKind().equals(DeviceProviderKind.EBS_TARGET))
                 {
-                    Resource otherRsc = rscIt.next();
-                    if (otherRsc.getStateFlags().isSomeSet(
-                        peerCtx,
-                        Resource.Flags.NVME_INITIATOR,
-                        Resource.Flags.EBS_INITIATOR
-                    ))
-                    {
-                        ret = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!ret)
-            {
-                // this is much more complicated than it should be ....
-                SatelliteResourceState stltRscState = rscRef.getNode().getPeer(peerCtx)
-                    .getSatelliteState()
-                    .getResourceStates()
-                    .get(rscRef.getResourceDefinition().getName());
-                if (stltRscState != null && stltRscState.isInUse() != null)
-                {
-                    ret = stltRscState.isInUse();
+                    isEbsTarget = true;
                 }
             }
         }
-        catch (AccessDeniedException accDeniedExc)
+        if (isNvmeTarget || isEbsTarget)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check if resource is in use. " + getRscDescription(rscRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
+            Iterator<Resource> rscIt = rscRef.getResourceDefinition().iterateResource();
+            while (rscIt.hasNext())
+            {
+                Resource otherRsc = rscIt.next();
+                if (otherRsc.getStateFlags().isSomeSet(
+                    Resource.Flags.NVME_INITIATOR,
+                    Resource.Flags.EBS_INITIATOR
+                ))
+                {
+                    ret = true;
+                    break;
+                }
+            }
+        }
+
+        if (!ret)
+        {
+            // this is much more complicated than it should be ....
+            SatelliteResourceState stltRscState = rscRef.getNode().getPeer()
+                .getSatelliteState()
+                .getResourceStates()
+                .get(rscRef.getResourceDefinition().getName());
+            if (stltRscState != null && stltRscState.isInUse() != null)
+            {
+                ret = stltRscState.isInUse();
+            }
         }
         return ret;
     }
@@ -425,18 +379,7 @@ public class CtrlRscActivateApiCallHandler
     private boolean hasDrbdInStack(Resource rsc)
     {
         boolean hasDrbdInStack;
-        try
-        {
-            hasDrbdInStack = LayerRscUtils.getLayerStack(rsc, peerAccCtx.get()).contains(DeviceLayerKind.DRBD);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check if resource has DRBD in layer-list. " + getRscDescription(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        hasDrbdInStack = LayerRscUtils.getLayerStack(rsc).contains(DeviceLayerKind.DRBD);
         return hasDrbdInStack;
     }
 

@@ -13,15 +13,10 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.transaction.TransactionMap;
@@ -165,26 +160,21 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
         return snapKey;
     }
 
-    public Props getSnapProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getSnapProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, getObjProt(), snapProps);
+        return snapProps;
     }
 
-    public ReadOnlyProps getRscProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public ReadOnlyProps getRscProps()
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return rscRoProps;
     }
 
-    public Props getRscPropsForChange(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getRscPropsForChange()
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         return rscProps;
     }
 
@@ -201,24 +191,21 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
         return snapVlmMap.size();
     }
 
-    public synchronized SnapshotVolume putVolume(AccessContext accCtx, SnapshotVolume vol)
-        throws AccessDeniedException
+    public synchronized SnapshotVolume putVolume(SnapshotVolume vol)
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         return snapVlmMap.put(vol.getVolumeNumber(), vol);
     }
 
-    public synchronized void removeVolume(AccessContext accCtx, SnapshotVolume vol)
-        throws AccessDeniedException, DatabaseException
+    public synchronized void removeVolume(SnapshotVolume vol)
+        throws DatabaseException
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         VolumeNumber vlmNr = vol.getVolumeNumber();
         snapVlmMap.remove(vlmNr);
-        rootLayerData.get().remove(accCtx, vlmNr);
+        rootLayerData.get().remove(vlmNr);
     }
 
     @Override
@@ -242,34 +229,32 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
     }
 
     @Override
-    public void markDeleted(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void markDeleted()
+        throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.USE);
-        getFlags().enableFlags(accCtx, Flags.DELETE);
+        getFlags().enableFlags(Flags.DELETE);
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            requireAccess(accCtx, AccessType.CONTROL);
 
-            snapshotDfn.removeSnapshot(accCtx, this);
+            snapshotDfn.removeSnapshot(this);
             node.removeSnapshot(this);
 
             // Shallow copy the volume collection because calling delete results in elements being removed from it
             Collection<SnapshotVolume> snapshotVolumes = new ArrayList<>(snapVlmMap.values());
             for (SnapshotVolume snapshotVolume : snapshotVolumes)
             {
-                snapshotVolume.delete(accCtx);
+                snapshotVolume.delete();
             }
 
             if (rootLayerData.get() != null)
             {
-                rootLayerData.get().delete(accCtx);
+                rootLayerData.get().delete();
             }
 
             snapProps.delete();
@@ -282,17 +267,13 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
         }
     }
 
-    public boolean getSuspendResource(AccessContext accCtx)
-        throws AccessDeniedException
+    public boolean getSuspendResource()
     {
-        requireAccess(accCtx, AccessType.VIEW);
         return suspendResource.get();
     }
 
-    public void setSuspendResource(AccessContext accCtx, boolean suspendResourceRef)
-        throws AccessDeniedException
+    public void setSuspendResource(boolean suspendResourceRef)
     {
-        requireAccess(accCtx, AccessType.CONTROL);
         try
         {
             suspendResource.set(suspendResourceRef);
@@ -303,17 +284,13 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
         }
     }
 
-    public boolean getTakeSnapshot(AccessContext accCtx)
-        throws AccessDeniedException
+    public boolean getTakeSnapshot()
     {
-        requireAccess(accCtx, AccessType.VIEW);
         return takeSnapshot.get();
     }
 
-    public void setTakeSnapshot(AccessContext accCtx, boolean takeSnapshotRef)
-        throws AccessDeniedException
+    public void setTakeSnapshot(boolean takeSnapshotRef)
     {
-        requireAccess(accCtx, AccessType.CONTROL);
         try
         {
             takeSnapshot.set(takeSnapshotRef);
@@ -324,17 +301,13 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
         }
     }
 
-    public boolean getShipBackup(AccessContext accCtx)
-        throws AccessDeniedException
+    public boolean getShipBackup()
     {
-        requireAccess(accCtx, AccessType.VIEW);
         return shipBackup.get();
     }
 
-    public void setShipBackup(AccessContext accCtx, boolean shipBackupRef)
-        throws AccessDeniedException
+    public void setShipBackup(boolean shipBackupRef)
     {
-        requireAccess(accCtx, AccessType.CONTROL);
         try
         {
             shipBackup.set(shipBackupRef);
@@ -390,32 +363,30 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
         return ret;
     }
 
-    private void requireAccess(AccessContext accCtx, AccessType accessType) throws AccessDeniedException
+    private void requireAccess(AccessType accessType)
     {
-        snapshotDfn.getResourceDefinition().getObjProt().requireAccess(accCtx, accessType);
     }
 
-    public SnapshotApi getApiData(AccessContext accCtx, @Nullable Long fullSyncId, @Nullable Long updateId)
-        throws AccessDeniedException
+    public SnapshotApi getApiData(@Nullable Long fullSyncId, @Nullable Long updateId)
     {
         checkDeleted();
         List<SnapshotVolumeApi> snapshotVlms = new ArrayList<>();
 
         for (SnapshotVolume snapshotVolume : snapVlmMap.values())
         {
-            snapshotVlms.add(snapshotVolume.getApiData(accCtx));
+            snapshotVlms.add(snapshotVolume.getApiData());
         }
 
         return new SnapshotPojo(
-            snapshotDfn.getApiData(accCtx, false),
+            snapshotDfn.getApiData(false),
             objId,
-            flags.getFlagsBits(accCtx),
+            flags.getFlagsBits(),
             suspendResource.get(),
             takeSnapshot.get(),
             fullSyncId,
             updateId,
             snapshotVlms,
-            getLayerData(accCtx).asPojo(accCtx),
+            getLayerData().asPojo(),
             getNodeName().displayValue,
             getCreateTimestamp().orElse(null),
             snapProps.cloneMap(),
@@ -506,25 +477,17 @@ public class Snapshot extends AbsResource<Snapshot> // TODO: add SnapshotConnect
         }
     }
 
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return snapshotDfn.getResourceDefinition().getObjProt();
-    }
-
-    public void setSnapshotConnection(AccessContext accCtxRef, TransactionObject rscConRef) throws AccessDeniedException
+    public void setSnapshotConnection(TransactionObject rscConRef)
     {
         throw new ImplementationError("Not implemented yet");
     }
 
-    public Stream<TransactionObject> streamSnapshotConnections(AccessContext accCtxRef) throws AccessDeniedException
+    public Stream<TransactionObject> streamSnapshotConnections()
     {
         throw new ImplementationError("Not implemented yet");
     }
 
-    public TransactionObject getSnapshotConnection(AccessContext accCtxRef, Snapshot otherRef)
-        throws AccessDeniedException
+    public TransactionObject getSnapshotConnection(Snapshot otherRef)
     {
         throw new ImplementationError("Not implemented yet");
     }

@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.pojo.ExternalFilePojo;
 import com.linbit.linstor.core.ControllerPeerConnectorImpl;
@@ -15,8 +14,6 @@ import com.linbit.linstor.core.objects.ExternalFile;
 import com.linbit.linstor.core.objects.ExternalFileSatelliteFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
 import javax.inject.Inject;
@@ -31,7 +28,6 @@ import java.util.Set;
 class StltExternalFilesApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ExternalFileSatelliteFactory extFileFactory;
     private final ControllerPeerConnectorImpl ctrlPeerConnector;
     private final DeviceManager deviceManager;
@@ -42,7 +38,6 @@ class StltExternalFilesApiCallHandler
     @Inject
     StltExternalFilesApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         DeviceManager deviceManagerRef,
         CoreModule.ExternalFileMap extFileMapRef,
         ExternalFileSatelliteFactory extFileFactoryRef,
@@ -52,7 +47,6 @@ class StltExternalFilesApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         deviceManager = deviceManagerRef;
         extFileFactory = extFileFactoryRef;
         ctrlPeerConnector = ctrlPeerConnectorRef;
@@ -68,7 +62,6 @@ class StltExternalFilesApiCallHandler
         {
             @Nullable byte[] newContent = extFilePojo.getContent();
             ExternalFile localExtFile = extFileFactory.getInstanceSatellite(
-                apiCtx,
                 extFilePojo.getUuid(),
                 LinstorParsingUtils.asExtFileName(extFilePojo.getFileName()),
                 extFilePojo.getFlags(),
@@ -76,15 +69,15 @@ class StltExternalFilesApiCallHandler
                 extFilePojo.getAltSuffixes()
             );
 
-            localExtFile.getFlags().resetFlagsTo(apiCtx, ExternalFile.Flags.restoreFlags(extFilePojo.getFlags()));
+            localExtFile.getFlags().resetFlagsTo(ExternalFile.Flags.restoreFlags(extFilePojo.getFlags()));
             if (newContent != null && newContent.length > 0)
             {
-                localExtFile.setContent(apiCtx, newContent);
+                localExtFile.setContent(newContent);
                 localExtFile.setAlreadyWritten(false);
             }
-            localExtFile.setAltSuffixes(apiCtx, extFilePojo.getAltSuffixes());
+            localExtFile.setAltSuffixes(extFilePojo.getAltSuffixes());
 
-            if (!Arrays.equals(localExtFile.getContentCheckSum(apiCtx), extFilePojo.getContentChecksum()))
+            if (!Arrays.equals(localExtFile.getContentCheckSum(), extFilePojo.getContentChecksum()))
             {
                 deviceManager.getUpdateTracker().updateExternalFile(localExtFile.getUuid(), localExtFile.getName());
             }
@@ -113,12 +106,12 @@ class StltExternalFilesApiCallHandler
             ExternalFile extFile = extFileMap.get(extFileName);
             if (extFile != null)
             {
-                extFile.delete(apiCtx);
+                extFile.delete();
                 extFileMap.remove(extFileName);
                 transMgrProvider.get().commit();
             }
         }
-        catch (InvalidNameException | AccessDeniedException | DatabaseException exc)
+        catch (InvalidNameException | DatabaseException exc)
         {
             errorReporter.reportError(new ImplementationError(exc));
         }

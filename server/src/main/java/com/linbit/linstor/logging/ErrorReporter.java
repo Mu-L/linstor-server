@@ -5,8 +5,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.nio.file.Path;
 import java.time.Instant;
@@ -52,11 +50,8 @@ public interface ErrorReporter
      * @param linstorLevel
      *     The log-level that the logger for linstor should use.
      *
-     * @throws AccessDeniedException
-     *     if the access context is not authorized to perform the change.
      */
-    void setLogLevel(AccessContext accCtx, @Nullable Level level, @Nullable Level linstorLevel)
-        throws AccessDeniedException;
+    void setLogLevel(@Nullable Level level, @Nullable Level linstorLevel);
 
     void logTrace(String format, Object... args);
 
@@ -131,7 +126,6 @@ public interface ErrorReporter
      */
     @Nullable String reportError(
         Throwable errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         // Information about the context in which the problem occurred, e.g., the API call being performed
         String contextInfo
@@ -147,7 +141,6 @@ public interface ErrorReporter
     @Nullable String reportError(
         Level logLevel,
         Throwable errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         // Information about the context in which the problem occurred, e.g., the API call being performed
         @Nullable String contextInfo
@@ -165,7 +158,6 @@ public interface ErrorReporter
     @Nullable String reportProblem(
         Level logLevel,
         LinStorException errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         // Information about the context in which the problem occurred, e.g., the API call being performed
         String contextInfo

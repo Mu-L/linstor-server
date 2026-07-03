@@ -1,9 +1,5 @@
 package com.linbit.linstor.propscon;
 
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 
 /**
  * Manages access to properties containers
@@ -12,17 +8,15 @@ import com.linbit.linstor.security.ObjectProtection;
  */
 public final class PropsAccess
 {
-    public static Props secureGetProps(AccessContext accCtx, ObjectProtection objProt, Props propsRef)
-        throws AccessDeniedException
+    public static Props secureGetProps(Props propsRef)
     {
         // Always require at least VIEW access
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         // If CHANGE or CONTROL access is permitted, return a modifiable instance of the
         // properties container, otherwise wrap the properties container in a read-only
         // container and return this read-only container instead
         Props securedProps;
-        AccessType allowedAccess = objProt.queryAccess(accCtx);
+        AccessType allowedAccess = objProt.queryAccess();
         if (allowedAccess.hasAccess(AccessType.CHANGE))
         {
             securedProps = propsRef;
@@ -39,16 +33,10 @@ public final class PropsAccess
     }
 
     public static Props secureGetProps(
-        AccessContext accCtx,
-        ObjectProtection objProt1,
-        ObjectProtection objProt2,
         Props propsRef
     )
-        throws AccessDeniedException
     {
         // Always require at least VIEW access
-        objProt1.requireAccess(accCtx, AccessType.VIEW);
-        objProt2.requireAccess(accCtx, AccessType.VIEW);
 
         Props securedProps;
         if (propsRef instanceof ReadOnlyPropsImpl)
@@ -60,8 +48,8 @@ public final class PropsAccess
             // If CHANGE or CONTROL access is permitted, return a modifiable instance of the
             // properties container, otherwise wrap the properties container in a read-only
             // container and return this read-only container instead
-            AccessType allowedAccess1 = objProt1.queryAccess(accCtx);
-            AccessType allowedAccess2 = objProt2.queryAccess(accCtx);
+            AccessType allowedAccess1 = objProt1.queryAccess();
+            AccessType allowedAccess2 = objProt2.queryAccess();
             if (allowedAccess1.hasAccess(AccessType.CHANGE) &&
                 allowedAccess2.hasAccess(AccessType.CHANGE))
             {

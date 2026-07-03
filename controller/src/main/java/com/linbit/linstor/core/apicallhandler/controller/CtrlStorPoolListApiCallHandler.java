@@ -1,8 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -10,7 +8,6 @@ import com.linbit.linstor.api.DecryptionHelper;
 import com.linbit.linstor.api.SpaceInfo;
 import com.linbit.linstor.core.CtrlSecurityObjects;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ResponseUtils;
 import com.linbit.linstor.core.apis.StorPoolApi;
 import com.linbit.linstor.core.objects.StorPool;
@@ -18,8 +15,6 @@ import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -54,11 +49,9 @@ public class CtrlStorPoolListApiCallHandler
     private final LockGuardFactory lockGuardFactory;
     private final FreeCapacityFetcher freeCapacityFetcher;
     private final StorPoolDefinitionRepository storPoolDefinitionRepository;
-    private final Provider<AccessContext> peerAccCtx;
     private final DecryptionHelper decryptionHelper;
     private final CtrlSecurityObjects secObjs;
     private final SystemConfRepository sysCfgRepo;
-    private final AccessContext sysCtx;
 
     @Inject
     public CtrlStorPoolListApiCallHandler(
@@ -66,8 +59,6 @@ public class CtrlStorPoolListApiCallHandler
         LockGuardFactory lockGuardFactoryRef,
         FreeCapacityFetcher freeCapacityFetcherRef,
         StorPoolDefinitionRepository storPoolDefinitionRepositoryRef,
-        @SystemContext AccessContext sysCtxRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         DecryptionHelper decryptionHelperRef,
         CtrlSecurityObjects secObjsRef,
         SystemConfRepository sysCfgRepoRef
@@ -77,8 +68,6 @@ public class CtrlStorPoolListApiCallHandler
         lockGuardFactory = lockGuardFactoryRef;
         freeCapacityFetcher = freeCapacityFetcherRef;
         storPoolDefinitionRepository = storPoolDefinitionRepositoryRef;
-        sysCtx = sysCtxRef;
-        peerAccCtx = peerAccCtxRef;
         decryptionHelper = decryptionHelperRef;
         secObjs = secObjsRef;
         sysCfgRepo = sysCfgRepoRef;
@@ -175,104 +164,90 @@ public class CtrlStorPoolListApiCallHandler
     )
     {
         ArrayList<StorPoolApi> storPools = new ArrayList<>();
-        try
-        {
-            ReadOnlyProps ctrlProps = sysCfgRepo.getCtrlConfForView(peerAccCtx.get());
-            storPoolDefinitionRepository.getMapForView(peerAccCtx.get()).values().stream()
-                .filter(
-                    storPoolDfn -> RegexMatcher.matchesAny(storPoolsFilter, storPoolDfn.getName().displayValue)
-                )
-                .forEach(
-                    storPoolDfn ->
+        ReadOnlyProps ctrlProps = sysCfgRepo.getCtrlConfForView();
+        storPoolDefinitionRepository.getMapForView().values().stream()
+            .filter(
+                storPoolDfn -> RegexMatcher.matchesAny(storPoolsFilter, storPoolDfn.getName().displayValue)
+            )
+            .forEach(
+                storPoolDfn ->
+                {
+                    try
                     {
-                        try
+                        for (StorPool storPool : storPoolDfn.streamStorPools()
+                            .filter(storPool -> RegexMatcher.matchesAny(
+                                nodesFilter, storPool.getNode().getName().displayValue))
+                            .collect(toList()))
                         {
-                            for (StorPool storPool : storPoolDfn.streamStorPools(peerAccCtx.get())
-                                .filter(storPool -> RegexMatcher.matchesAny(
-                                    nodesFilter, storPool.getNode().getName().displayValue))
-                                .collect(toList()))
+                            ReadOnlyProps props = storPool.getProps();
+                            if (props.contains(propFilters))
                             {
-                                ReadOnlyProps props = storPool.getProps(peerAccCtx.get());
-                                if (props.contains(propFilters))
+                                Long freeCapacity;
+                                Long totalCapacity;
+
+                                final Tuple2<SpaceInfo, List<ApiCallRc>> storageInfo = freeCapacityAnswers != null ?
+                                    freeCapacityAnswers.get(new StorPool.Key(storPool)) : null;
+
+                                storPool.clearReports();
+                                Peer peer = storPool.getNode().getPeer();
+                                if (peer == null || !peer.isOnline())
                                 {
-                                    Long freeCapacity;
-                                    Long totalCapacity;
-
-                                    final Tuple2<SpaceInfo, List<ApiCallRc>> storageInfo = freeCapacityAnswers != null ?
-                                        freeCapacityAnswers.get(new StorPool.Key(storPool)) : null;
-
-                                    storPool.clearReports();
-                                    Peer peer = storPool.getNode().getPeer(peerAccCtx.get());
-                                    if (peer == null || !peer.isOnline())
-                                    {
-                                        freeCapacity = null;
-                                        totalCapacity = null;
-                                        storPool.addReports(
-                                            new ApiCallRcImpl(
-                                                ResponseUtils.makeNotConnectedWarning(storPool.getNode().getName())
-                                            )
-                                        );
-                                    }
-                                    else
-                                    if (storageInfo == null)
-                                    {
-                                        freeCapacity = storPool.getFreeSpaceTracker()
-                                            .getFreeCapacityLastUpdated(peerAccCtx.get()).orElse(null);
-                                        totalCapacity = storPool.getFreeSpaceTracker()
-                                            .getTotalCapacity(peerAccCtx.get()).orElse(null);
-                                    }
-                                    else
-                                    {
-                                        SpaceInfo spaceInfo = storageInfo.getT1();
-                                        for (ApiCallRc apiCallRc : storageInfo.getT2())
-                                        {
-                                            storPool.addReports(apiCallRc);
-                                        }
-
-                                        freeCapacity = spaceInfo.freeCapacity;
-                                        totalCapacity = spaceInfo.totalCapacity;
-                                    }
-
-                                    // fullSyncId and updateId null, as they are not going to be serialized anyway
-                                    StorPoolApi apiData = storPool.getApiData(
-                                        totalCapacity,
-                                        freeCapacity,
-                                        peerAccCtx.get(),
-                                        null,
-                                        null,
-                                        FreeCapacityAutoPoolSelectorUtils
-                                            .getFreeCapacityOversubscriptionRatioPrivileged(
-                                                sysCtx,
-                                                storPool,
-                                                ctrlProps
-                                            ),
-                                        FreeCapacityAutoPoolSelectorUtils
-                                            .getTotalCapacityOversubscriptionRatioPrivileged(
-                                                sysCtx,
-                                                storPool,
-                                                ctrlProps
-                                            )
+                                    freeCapacity = null;
+                                    totalCapacity = null;
+                                    storPool.addReports(
+                                        new ApiCallRcImpl(
+                                            ResponseUtils.makeNotConnectedWarning(storPool.getNode().getName())
+                                        )
                                     );
-                                    patchStorPoolProps(apiData.getStorPoolProps());
-                                    storPools.add(apiData);
                                 }
+                                else
+                                if (storageInfo == null)
+                                {
+                                    freeCapacity = storPool.getFreeSpaceTracker()
+                                        .getFreeCapacityLastUpdated().orElse(null);
+                                    totalCapacity = storPool.getFreeSpaceTracker()
+                                        .getTotalCapacity().orElse(null);
+                                }
+                                else
+                                {
+                                    SpaceInfo spaceInfo = storageInfo.getT1();
+                                    for (ApiCallRc apiCallRc : storageInfo.getT2())
+                                    {
+                                        storPool.addReports(apiCallRc);
+                                    }
+
+                                    freeCapacity = spaceInfo.freeCapacity;
+                                    totalCapacity = spaceInfo.totalCapacity;
+                                }
+
+                                // fullSyncId and updateId null, as they are not going to be serialized anyway
+                                StorPoolApi apiData = storPool.getApiData(
+                                    totalCapacity,
+                                    freeCapacity,
+                                    null,
+                                    null,
+                                    FreeCapacityAutoPoolSelectorUtils
+                                        .getFreeCapacityOversubscriptionRatioPrivileged(
+                                            storPool,
+                                            ctrlProps
+                                        ),
+                                    FreeCapacityAutoPoolSelectorUtils
+                                        .getTotalCapacityOversubscriptionRatioPrivileged(
+                                            storPool,
+                                            ctrlProps
+                                        )
+                                );
+                                patchStorPoolProps(apiData.getStorPoolProps());
+                                storPools.add(apiData);
                             }
                         }
-                        catch (AccessDeniedException accDeniedExc)
-                        {
-                            // don't add storpooldfn without access
-                        }
                     }
-                );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "view storage pool definitions",
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
+                    catch (AccessDeniedException accDeniedExc)
+                    {
+                        // don't add storpooldfn without access
+                    }
+                }
             );
-        }
 
         return storPools;
     }

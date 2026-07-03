@@ -4,10 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -26,7 +22,6 @@ public class NodeProtectionRepository implements NodeRepository
 {
     private final CoreModule.NodesMap nodesMap;
     private final CoreModule.UnameMap uNameMap;
-    private ObjectProtection nodesMapObjProt;
 
     // can't initialize objProt in constructor because of chicken-egg-problem
     @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
@@ -37,57 +32,40 @@ public class NodeProtectionRepository implements NodeRepository
         uNameMap = uNameMapRef;
     }
 
-    public void setObjectProtection(ObjectProtection nodesMapObjProtRef)
+    public void setObjectProtection()
     {
         if (nodesMapObjProt != null)
         {
             throw new IllegalStateException("Object protection already set");
         }
-        nodesMapObjProt = nodesMapObjProtRef;
     }
 
     @Override
-    public ObjectProtection getObjProt()
+    public void requireAccess(AccessType requested)
     {
         checkProtSet();
-        return nodesMapObjProt;
-    }
-
-    @Override
-    public void requireAccess(AccessContext accCtx, AccessType requested)
-        throws AccessDeniedException
-    {
-        checkProtSet();
-        nodesMapObjProt.requireAccess(accCtx, requested);
     }
 
     @Override
     public @Nullable Node get(
-        AccessContext accCtx,
         NodeName nodeName
     )
-        throws AccessDeniedException
     {
         checkProtSet();
-        nodesMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return nodesMap.get(nodeName);
     }
 
     @Override
-    public void put(AccessContext accCtx, NodeName nodeName, Node node)
-        throws AccessDeniedException
+    public void put(NodeName nodeName, Node node)
     {
         checkProtSet();
-        nodesMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         nodesMap.put(nodeName, node);
     }
 
     @Override
-    public void remove(AccessContext accCtx, NodeName nodeName)
-        throws AccessDeniedException
+    public void remove(NodeName nodeName)
     {
         checkProtSet();
-        nodesMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         nodesMap.remove(nodeName);
 
         ArrayList<String> uNamesToRemove = new ArrayList<>();
@@ -102,11 +80,9 @@ public class NodeProtectionRepository implements NodeRepository
     }
 
     @Override
-    public CoreModule.NodesMap getMapForView(AccessContext accCtx)
-        throws AccessDeniedException
+    public CoreModule.NodesMap getMapForView()
     {
         checkProtSet();
-        nodesMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return nodesMap;
     }
 
@@ -127,26 +103,23 @@ public class NodeProtectionRepository implements NodeRepository
     }
 
     @Override
-    public void putUname(AccessContext accCtx, String uName, NodeName nodeName) throws AccessDeniedException
+    public void putUname(String uName, NodeName nodeName)
     {
         checkProtSet();
-        nodesMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         uNameMap.put(uName, nodeName);
     }
 
     @Override
-    public @Nullable NodeName getUname(AccessContext accCtx, String uName) throws AccessDeniedException
+    public @Nullable NodeName getUname(String uName)
     {
         checkProtSet();
-        nodesMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return uNameMap.get(uName);
     }
 
     @Override
-    public void removeUname(AccessContext accCtx, String uName) throws AccessDeniedException
+    public void removeUname(String uName)
     {
         checkProtSet();
-        nodesMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         uNameMap.remove(uName);
     }
 }

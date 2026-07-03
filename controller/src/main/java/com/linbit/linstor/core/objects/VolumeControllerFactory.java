@@ -16,9 +16,6 @@ import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.LayerSizeHelper;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -63,7 +60,6 @@ public class VolumeControllerFactory
     }
 
     public <RSC extends AbsResource<RSC>> Volume create(
-        AccessContext accCtx,
         Resource rsc,
         VolumeDefinition vlmDfn,
         @Nullable Volume.Flags[] flags,
@@ -72,10 +68,9 @@ public class VolumeControllerFactory
         Map<String, String> storpoolRenameMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, MinSizeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, MinSizeException,
         MaxSizeException, StorageException
     {
-        rsc.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         Volume volData = rsc.getVolume(vlmDfn.getVolumeNumber());
 
@@ -97,8 +92,8 @@ public class VolumeControllerFactory
         );
 
         driver.create(volData);
-        rsc.putVolume(accCtx, volData);
-        vlmDfn.putVolume(accCtx, volData);
+        rsc.putVolume(volData);
+        vlmDfn.putVolume(volData);
 
         if (absLayerData == null)
         {
@@ -114,8 +109,7 @@ public class VolumeControllerFactory
         {
             // calculate the sizes also include some maximum size checks (like 1 PiB for DRBD)
             layerSizeHelper.calculateSize(
-                accCtx,
-                rsc.getLayerData(accCtx).getVlmProviderObject(vlmDfn.getVolumeNumber())
+                rsc.getLayerData().getVlmProviderObject(vlmDfn.getVolumeNumber())
             );
         }
         catch (InvalidSizeException exc)
@@ -123,7 +117,7 @@ public class VolumeControllerFactory
             throw new ApiRcException(
                 ApiCallRcImpl.entryBuilder(
                     ApiConsts.FAIL_INVLD_VLM_SIZE,
-                    "The size " + vlmDfn.getVolumeSize(accCtx) + " is invalid. See cause for more details"
+                    "The size " + vlmDfn.getVolumeSize() + " is invalid. See cause for more details"
                 )
                     .setSkipErrorReport(true)
                     .build(),
@@ -133,7 +127,7 @@ public class VolumeControllerFactory
 
         mixedStorPoolHelper.handleMixedStoragePools(volData);
 
-        vlmDfn.recheckVolumeSize(accCtx);
+        vlmDfn.recheckVolumeSize();
 
         return volData;
     }

@@ -6,10 +6,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ProtectedObject;
 
 /**
  * Provides access to system-wide props with automatic security checks.
@@ -18,31 +14,27 @@ import com.linbit.linstor.security.ProtectedObject;
  */
 public interface SystemConfRepository extends ProtectedObject
 {
-    void requireAccess(AccessContext accCtx, AccessType requested)
-        throws AccessDeniedException;
+    void requireAccess(AccessType requested);
 
     @Nullable
-    String setCtrlProp(AccessContext accCtx, String key, String value, @Nullable String namespace)
-        throws InvalidValueException, AccessDeniedException, DatabaseException, InvalidKeyException;
+    String setCtrlProp(String key, String value, @Nullable String namespace)
+        throws InvalidValueException, DatabaseException, InvalidKeyException;
 
     @Nullable
-    String setStltProp(AccessContext accCtx, String key, String value)
-        throws AccessDeniedException, InvalidValueException, InvalidKeyException, DatabaseException;
+    String setStltProp(String key, String value)
+        throws InvalidValueException, InvalidKeyException, DatabaseException;
 
     @Nullable
-    String removeCtrlProp(AccessContext accCtx, String key, @Nullable String namespace)
-        throws AccessDeniedException, InvalidKeyException, DatabaseException;
+    String removeCtrlProp(String key, @Nullable String namespace)
+        throws InvalidKeyException, DatabaseException;
 
     @Nullable
-    String removeStltProp(AccessContext accCtx, String key, @Nullable String namespace)
-        throws AccessDeniedException, InvalidKeyException, DatabaseException;
+    String removeStltProp(String key, @Nullable String namespace)
+        throws InvalidKeyException, DatabaseException;
 
-    ReadOnlyProps getCtrlConfForView(AccessContext accCtx)
-        throws AccessDeniedException;
+    ReadOnlyProps getCtrlConfForView();
 
-    Props getCtrlConfForChange(AccessContext accCtx)
-        throws AccessDeniedException;
+    Props getCtrlConfForChange();
 
-    ReadOnlyProps getStltConfForView(AccessContext accCtx)
-        throws AccessDeniedException;
+    ReadOnlyProps getStltConfForView();
 }

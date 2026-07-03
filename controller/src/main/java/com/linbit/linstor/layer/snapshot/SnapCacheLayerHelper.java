@@ -4,7 +4,6 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
@@ -21,8 +20,6 @@ import com.linbit.linstor.layer.AbsLayerHelperUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.cache.CacheRscData;
 import com.linbit.linstor.storage.data.adapter.cache.CacheVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -46,14 +43,12 @@ class SnapCacheLayerHelper extends AbsSnapLayerHelper<
     @Inject
     SnapCacheLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef
     )
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             DeviceLayerKind.CACHE
@@ -85,7 +80,7 @@ class SnapCacheLayerHelper extends AbsSnapLayerHelper<
         Snapshot snapRef,
         AbsRscLayerObject<Resource> rscDataRef,
         AbsRscLayerObject<Snapshot> parentRef
-    ) throws AccessDeniedException, DatabaseException, ExhaustedPoolException
+    ) throws DatabaseException, ExhaustedPoolException
     {
         return layerDataFactory.createCacheRscData(
             layerRscIdPool.autoAllocate(),
@@ -100,7 +95,7 @@ class SnapCacheLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolume snapVlmRef,
         CacheRscData<Snapshot> snapDataRef,
         VlmProviderObject<Resource> vlmProviderObjectRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         return layerDataFactory.createCacheVlmData(
             snapVlmRef,
@@ -127,7 +122,7 @@ class SnapCacheLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapshotVolumeDefinitionRef,
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // CacheLayer does not have volume-definition specific data
@@ -140,7 +135,7 @@ class SnapCacheLayerHelper extends AbsSnapLayerHelper<
         RscLayerDataApi rscLayerDataApiRef,
         @Nullable AbsRscLayerObject<Snapshot> parentRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException, AccessDeniedException
+    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException
     {
         return layerDataFactory.createCacheRscData(
             layerRscIdPool.autoAllocate(),
@@ -157,11 +152,10 @@ class SnapCacheLayerHelper extends AbsSnapLayerHelper<
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef,
         @Nullable ApiCallRc apiCallRc
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         CacheVlmPojo cacheVlmPojo = (CacheVlmPojo) vlmLayerDataApiRef;
         StorPool cacheStorPool = AbsLayerHelperUtils.getStorPool(
-            apiCtx,
             snapVlmRef,
             snapDataRef,
             cacheVlmPojo.getCacheStorPoolName(),
@@ -169,7 +163,6 @@ class SnapCacheLayerHelper extends AbsSnapLayerHelper<
             apiCallRc
         );
         StorPool metaStorPool = AbsLayerHelperUtils.getStorPool(
-            apiCtx,
             snapVlmRef,
             snapDataRef,
             cacheVlmPojo.getMetaStorPoolName(),

@@ -11,9 +11,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.prometheus.LinstorServerMetrics;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
 import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 import com.linbit.utils.OrderingFlux;
 
@@ -116,7 +113,6 @@ public class TcpConnectorPeer implements Peer
 
     protected SelectionKey selKey;
 
-    private AccessContext peerAccCtx;
 
     private @Nullable Object attachment;
 
@@ -177,7 +173,6 @@ public class TcpConnectorPeer implements Peer
         String peerIdRef,
         TcpConnector connectorRef,
         SelectionKey key,
-        AccessContext accCtx,
         @Nullable Node nodeRef,
         boolean clientModeRef
     )
@@ -199,7 +194,6 @@ public class TcpConnectorPeer implements Peer
         msgIn = new MessageData(false);
 
         selKey = key;
-        peerAccCtx = accCtx;
         attachment = null;
 
         internalPingMsg = new TcpHeaderOnlyMessage(MessageTypes.PING);
@@ -777,11 +771,8 @@ public class TcpConnectorPeer implements Peer
     }
 
     @Override
-    public void setAccessContext(AccessContext privilegedCtx, AccessContext newAccCtx)
-        throws AccessDeniedException
+    public void setAccessContext(AccessContext newAccCtx)
     {
-        privilegedCtx.getEffectivePrivs().requirePrivileges(Privilege.PRIV_SYS_ALL);
-        peerAccCtx = newAccCtx;
     }
 
     @Override

@@ -22,7 +22,6 @@ import com.linbit.linstor.layer.storage.lvm.utils.LvmUtils.LvsInfo;
 import com.linbit.linstor.layer.storage.utils.StorageConfigReader;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.lvm.LvmData;
@@ -64,7 +63,7 @@ public class LvmThinProvider extends LvmProvider
     @SuppressWarnings("unchecked")
     @Override
     protected void updateInfo(LvmData<?> vlmDataRef, LvsInfo infoRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         super.updateInfo(vlmDataRef, infoRef);
         LvmThinData<?> lvmThinData = (LvmThinData<?>) vlmDataRef;
@@ -168,7 +167,7 @@ public class LvmThinProvider extends LvmProvider
 
     @Override
     protected boolean snapshotExists(LvmData<Snapshot> snapVlmRef, boolean ignoredForTakeSnapshorRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         String identifier = getFullQualifiedIdentifier(snapVlmRef);
 
@@ -224,7 +223,7 @@ public class LvmThinProvider extends LvmProvider
             }
             LvmUtils.recacheNextLvs();
         }
-        catch (InvalidKeyException | AccessDeniedException | InvalidNameException exc)
+        catch (InvalidKeyException | InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -232,7 +231,7 @@ public class LvmThinProvider extends LvmProvider
 
     @Override
     protected void createSnapshot(LvmData<Resource> vlmDataRef, LvmData<Snapshot> snapVlmRef, boolean readOnly)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         List<String> additionalOptions = ShellUtils.shellSplit(getLvcreateSnapshotOptions(vlmDataRef));
         String[] additionalOptionsArr = new String[additionalOptions.size()];
@@ -258,7 +257,7 @@ public class LvmThinProvider extends LvmProvider
 
     @Override
     protected void deleteSnapshotImpl(LvmData<Snapshot> snapVlm)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         LvmUtils.execWithRetry(
             extCmdFactory,
@@ -277,7 +276,7 @@ public class LvmThinProvider extends LvmProvider
 
     @Override
     protected void restoreSnapshot(LvmData<Snapshot> sourceSnapVlmDataRef, LvmData<Resource> vlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         String storageName = vlmDataRef.getVolumeGroup();
         String targetId = asLvIdentifier(vlmDataRef);
@@ -307,7 +306,7 @@ public class LvmThinProvider extends LvmProvider
 
     @Override
     protected void rollbackImpl(LvmData<Resource> lvmVlmDataRef, LvmData<Snapshot> rollbackToSnapVlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         LvmThinData<Resource> vlmData = (LvmThinData<Resource>) lvmVlmDataRef;
 
@@ -371,7 +370,7 @@ public class LvmThinProvider extends LvmProvider
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException, AccessDeniedException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException
     {
         String vgName = getVolumeGroup(storPool);
         String thinPool = getThinPool(storPool);
@@ -433,12 +432,12 @@ public class LvmThinProvider extends LvmProvider
         return sb.toString();
     }
 
-    private String getThinPool(StorPoolInfo storPool) throws AccessDeniedException
+    private String getThinPool(StorPoolInfo storPool)
     {
         String thinPool;
         try
         {
-            thinPool = storPool.getReadOnlyProps(storDriverAccCtx)
+            thinPool = storPool.getReadOnlyProps()
                 .getProp(StorageConstants.CONFIG_LVM_THIN_POOL_KEY, StorageConstants.NAMESPACE_STOR_DRIVER);
             if (!thinPool.contains("/"))
             {
@@ -512,12 +511,12 @@ public class LvmThinProvider extends LvmProvider
     }
 
     @Override
-    public LocalPropsChangePojo checkConfig(StorPoolInfo storPool) throws StorageException, AccessDeniedException
+    public LocalPropsChangePojo checkConfig(StorPoolInfo storPool) throws StorageException
     {
         LocalPropsChangePojo ret = new LocalPropsChangePojo();
 
         ReadOnlyProps props = DeviceLayerUtils.getNamespaceStorDriver(
-            storPool.getReadOnlyProps(storDriverAccCtx)
+            storPool.getReadOnlyProps()
         );
         StorageConfigReader.checkThinPoolEntry(extCmdFactory, props);
         StorageConfigReader.checkToleranceFactor(props);
@@ -576,7 +575,7 @@ public class LvmThinProvider extends LvmProvider
 
     @Override
     public Map<ReadOnlyVlmProviderInfo, Long> fetchAllocatedSizes(List<ReadOnlyVlmProviderInfo> vlmDataListRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         Map<ReadOnlyVlmProviderInfo, Long> ret = new HashMap<>();
         Set<String> lvmVolumeGroups = new HashSet<>();
@@ -647,18 +646,7 @@ public class LvmThinProvider extends LvmProvider
         final String volumeName = PROBE_VLM_NAME_THIN;
         final String volumeGroup = getStorageName(storPoolRef);
         String thinPool;
-        try
-        {
-            thinPool = getThinPool(storPoolRef);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(
-                AccessDeniedException.class.getName() + " generated while attempting to determine the name " +
-                "of the thin pool",
-                exc
-            );
-        }
+        thinPool = getThinPool(storPoolRef);
 
         LvmUtils.execWithRetry(
             extCmdFactory,

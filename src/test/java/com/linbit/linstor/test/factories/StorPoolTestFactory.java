@@ -13,9 +13,6 @@ import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.StorPoolControllerFactory;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.utils.Pair;
 
@@ -52,7 +49,7 @@ public class StorPoolTestFactory
     }
 
     public StorPool get(String nodeName, String storPoolName, boolean createIfNotExists)
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException,
+        throws DatabaseException, LinStorDataAlreadyExistsException,
         IllegalStorageDriverException, InvalidNameException
     {
         StorPool sp = storPoolMap.get(new Pair<>(nodeName.toUpperCase(), storPoolName.toUpperCase()));
@@ -63,7 +60,7 @@ public class StorPoolTestFactory
         return sp;
     }
 
-    public StorPoolTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public StorPoolTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -76,47 +73,46 @@ public class StorPoolTestFactory
     }
 
     public StorPool create(Node node, StorPoolDefinition storPoolDfn)
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
         IllegalStorageDriverException
     {
         return builder(node, storPoolDfn).build();
     }
 
     public StorPool create(Node node, String storPoolName)
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException,
+        throws DatabaseException, LinStorDataAlreadyExistsException,
         IllegalStorageDriverException, InvalidNameException
     {
         return builder(node.getName().displayValue, storPoolName).build();
     }
 
     public StorPool create(String nodeName, String storPoolName)
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
         IllegalStorageDriverException
     {
         return builder(nodeName, storPoolName).build();
     }
 
     public StorPoolBuilder builder(Node node, StorPoolDefinition storPoolDfn)
-        throws AccessDeniedException, DatabaseException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         return new StorPoolBuilder(node.getName().displayValue, storPoolDfn.getName().displayValue);
     }
 
     public StorPoolBuilder builder(Node node, String storPoolName)
-        throws AccessDeniedException, DatabaseException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         return new StorPoolBuilder(node.getName().displayValue, storPoolName);
     }
 
     public StorPoolBuilder builder(String nodeName, String storPoolName)
-        throws AccessDeniedException, DatabaseException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         return new StorPoolBuilder(nodeName, storPoolName);
     }
 
     public class StorPoolBuilder
     {
-        private AccessContext accCtx;
         private String nodeName;
         private String storPoolName;
         private DeviceProviderKind driverKind;
@@ -124,15 +120,13 @@ public class StorPoolTestFactory
         private boolean externalLocking;
 
         public StorPoolBuilder(String nodeNameRef, String storPoolNameRef)
-            throws AccessDeniedException, DatabaseException, InvalidNameException
+            throws DatabaseException, InvalidNameException
         {
             nodeName = nodeNameRef;
             storPoolName = storPoolNameRef;
 
-            accCtx = dfltAccCtx;
             driverKind = dfltDriverKind;
             freeSpaceTracker = fsmFact.getInstance(
-                accCtx,
                 new SharedStorPoolName(new NodeName(nodeNameRef), new StorPoolName(storPoolNameRef))
             );
         }
@@ -155,16 +149,15 @@ public class StorPoolTestFactory
             return this;
         }
 
-        public StorPoolBuilder setAccCtx(AccessContext accCtxRef)
+        public StorPoolBuilder setAccCtx()
         {
-            accCtx = accCtxRef;
             return this;
         }
 
         public StorPoolBuilder setFreeSpaceMgrName(String fsmName)
-            throws AccessDeniedException, DatabaseException, InvalidNameException
+            throws DatabaseException, InvalidNameException
         {
-            freeSpaceTracker = fsmFact.getInstance(accCtx, new SharedStorPoolName(fsmName));
+            freeSpaceTracker = fsmFact.getInstance(new SharedStorPoolName(fsmName));
             return this;
         }
 
@@ -175,11 +168,10 @@ public class StorPoolTestFactory
         }
 
         public StorPool build()
-            throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
+            throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException,
             IllegalStorageDriverException
         {
             StorPool storPool = fact.create(
-                accCtx,
                 nodeFact.get(nodeName, true),
                 storPoolDfnFact.get(storPoolName, true),
                 driverKind,

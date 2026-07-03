@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.BackgroundRunner;
@@ -17,8 +16,6 @@ import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -54,7 +51,6 @@ public class AutoSnapshotTask implements TaskScheduleService.Task
      */
     private final ResourceDefinitionRepository rscDfnRepo;
     private final SystemConfRepository sysConfRepo;
-    private final AccessContext sysCtx;
 
     private final SortedSet<AutoSnapshotConfig> configSet = new TreeSet<>();
 
@@ -63,7 +59,6 @@ public class AutoSnapshotTask implements TaskScheduleService.Task
         CtrlSnapshotCrtApiCallHandler ctrlSnapshotCrtApiCallHandlerRef,
         ResourceDefinitionRepository rscDfnRepoRef,
         SystemConfRepository sysConfRepoRef,
-        @SystemContext AccessContext sysCtxRef,
         BackgroundRunner backgroundRunnerRef,
         LockGuardFactory lockGuardFactoryRef
     )
@@ -71,7 +66,6 @@ public class AutoSnapshotTask implements TaskScheduleService.Task
         ctrlSnapshotCrtApiCallHandler = ctrlSnapshotCrtApiCallHandlerRef;
         rscDfnRepo = rscDfnRepoRef;
         sysConfRepo = sysConfRepoRef;
-        sysCtx = sysCtxRef;
         backgroundRunner = backgroundRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
 
@@ -83,12 +77,12 @@ public class AutoSnapshotTask implements TaskScheduleService.Task
         try
         {
             final long now = System.currentTimeMillis();
-            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(sysCtx).values())
+            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
             {
                 PriorityProps prioProps = new PriorityProps(
-                    rscDfn.getProps(sysCtx),
-                    rscDfn.getResourceGroup().getProps(sysCtx),
-                    sysConfRepo.getStltConfForView(sysCtx)
+                    rscDfn.getProps(),
+                    rscDfn.getResourceGroup().getProps(),
+                    sysConfRepo.getStltConfForView()
                 );
 
                 String autoSnapshot = prioProps.getProp(
@@ -107,7 +101,7 @@ public class AutoSnapshotTask implements TaskScheduleService.Task
                 }
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -217,7 +211,6 @@ public class AutoSnapshotTask implements TaskScheduleService.Task
             new RunConfig<>(
                 AUTO_SNAPSHOT_API_NAME + " of resource " + cfgRef.rscName,
                 getFlux(cfgRef),
-                sysCtx,
                 getNodeNamessByRscName(cfgRef.rscName),
                 true
             )
@@ -238,8 +231,8 @@ public class AutoSnapshotTask implements TaskScheduleService.Task
         List<NodeName> ret = new ArrayList<>();
         try (LockGuard lg = lockGuardFactory.build(LockType.READ, LockObj.NODES_MAP, LockObj.RSC_DFN_MAP))
         {
-            ResourceDefinition rscDfn = rscDfnRepo.get(sysCtx, new ResourceName(rscNameRef));
-            Iterator<Resource> rscIt = rscDfn.iterateResource(sysCtx);
+            ResourceDefinition rscDfn = rscDfnRepo.get(new ResourceName(rscNameRef));
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
@@ -249,7 +242,7 @@ public class AutoSnapshotTask implements TaskScheduleService.Task
                 }
             }
         }
-        catch (AccessDeniedException | InvalidNameException exc)
+        catch (InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }

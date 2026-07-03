@@ -12,7 +12,6 @@ import com.linbit.linstor.core.objects.TestFactory;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscPayload;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -95,17 +94,16 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
         drbdRscDfn.sharedSecret = "secret";
         drbdRscDfn.transportType = TransportType.IP;
         resDfn = resourceDefinitionFactory.create(
-            SYS_CTX,
             resName,
             null,
             null,
             Arrays.asList(DeviceLayerKind.DRBD, DeviceLayerKind.STORAGE),
             payload,
-            createDefaultResourceGroup(SYS_CTX)
+            createDefaultResourceGroup()
         );
         rscDfnMap.put(resDfn.getName(), resDfn);
-        nodeSrc = nodeFactory.create(SYS_CTX, sourceName, null, null);
-        nodeDst = nodeFactory.create(SYS_CTX, targetName, null, null);
+        nodeSrc = nodeFactory.create(sourceName, null, null);
+        nodeDst = nodeFactory.create(targetName, null, null);
 
         nodeIdSrc = 13;
         nodeIdDst = 14;
@@ -119,8 +117,8 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
         drbdRsc2.nodeId = nodeIdDst;
         drbdRsc2.tcpPorts = drbdPorts;
 
-        resSrc = resourceFactory.create(SYS_CTX, resDfn, nodeSrc, payLoadSrc, null, Collections.emptyList());
-        resDst = resourceFactory.create(SYS_CTX, resDfn, nodeDst, payLoadDst, null, Collections.emptyList());
+        resSrc = resourceFactory.create(resDfn, nodeSrc, payLoadSrc, null, Collections.emptyList());
+        resDst = resourceFactory.create(resDfn, nodeDst, payLoadDst, null, Collections.emptyList());
 
         resCon = TestFactory.createResourceConnection(
             uuid,
@@ -132,8 +130,7 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
             propsContainerFactory,
             transObjFactory,
             transMgrProvider,
-            0,
-            SYS_CTX
+            0
         );
     }
 
@@ -149,7 +146,7 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
     @Test
     public void testPersistGetInstance() throws Exception
     {
-        resourceConnectionFactory.create(SYS_CTX, resSrc, resDst, null);
+        resourceConnectionFactory.create(resSrc, resDst, null);
         commit();
 
         checkDbPersist(false);
@@ -179,11 +176,11 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
     public void testLoadGetInstance() throws Exception
     {
         driver.create(resCon);
-        resSrc.setAbsResourceConnection(SYS_CTX, resCon);
-        resDst.setAbsResourceConnection(SYS_CTX, resCon);
+        resSrc.setAbsResourceConnection(resCon);
+        resDst.setAbsResourceConnection(resCon);
 
-        ResourceConnection loadedSrcConDfn = resSrc.getAbsResourceConnection(SYS_CTX, resDst);
-        ResourceConnection loadedDstConDfn = resDst.getAbsResourceConnection(SYS_CTX, resSrc);
+        ResourceConnection loadedSrcConDfn = resSrc.getAbsResourceConnection(resDst);
+        ResourceConnection loadedDstConDfn = resDst.getAbsResourceConnection(resSrc);
 
         checkLoadedConDfn(loadedSrcConDfn, true);
         checkLoadedConDfn(loadedDstConDfn, true);
@@ -194,7 +191,6 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
     public void testCache() throws Exception
     {
         ResourceConnection storedInstance = resourceConnectionFactory.create(
-            SYS_CTX,
             resSrc,
             resDst,
             null
@@ -202,8 +198,8 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
 
         // no clear-cache
 
-        assertEquals(storedInstance, resSrc.getAbsResourceConnection(SYS_CTX, resDst));
-        assertEquals(storedInstance, resDst.getAbsResourceConnection(SYS_CTX, resSrc));
+        assertEquals(storedInstance, resSrc.getAbsResourceConnection(resDst));
+        assertEquals(storedInstance, resDst.getAbsResourceConnection(resSrc));
     }
 
     @Test
@@ -249,15 +245,15 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
         stmt.close();
     }
 
-    private void checkLoadedConDfn(ResourceConnection loadedConDfn, boolean checkUuid) throws AccessDeniedException
+    private void checkLoadedConDfn(ResourceConnection loadedConDfn, boolean checkUuid)
     {
         assertNotNull(loadedConDfn);
         if (checkUuid)
         {
             assertEquals(uuid, loadedConDfn.getUuid());
         }
-        Resource sourceResource = loadedConDfn.getSourceResource(SYS_CTX);
-        Resource targetResource = loadedConDfn.getTargetResource(SYS_CTX);
+        Resource sourceResource = loadedConDfn.getSourceResource();
+        Resource targetResource = loadedConDfn.getTargetResource();
 
         assertEquals(resName, sourceResource.getResourceDefinition().getName());
         assertEquals(sourceName, sourceResource.getNode().getName());
@@ -269,9 +265,9 @@ public class ResourceConnectionDbDriverTest extends GenericDbBase
     public void testAlreadyExists() throws Exception
     {
         driver.create(resCon);
-        resSrc.setAbsResourceConnection(SYS_CTX, resCon);
-        resDst.setAbsResourceConnection(SYS_CTX, resCon);
+        resSrc.setAbsResourceConnection(resCon);
+        resDst.setAbsResourceConnection(resCon);
 
-        resourceConnectionFactory.create(SYS_CTX, resSrc, resDst, null);
+        resourceConnectionFactory.create(resSrc, resDst, null);
     }
 }

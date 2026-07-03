@@ -11,8 +11,6 @@ import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.LayerIgnoreReason;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.LayerObject;
 
 import java.util.Iterator;
@@ -45,11 +43,11 @@ public interface AbsRscLayerObject<RSC extends AbsResource<RSC>>
 
     Map<VolumeNumber, ? extends VlmProviderObject<RSC>> getVlmLayerObjects();
 
-    RscLayerDataApi asPojo(AccessContext accCtx) throws AccessDeniedException;
+    RscLayerDataApi asPojo();
 
-    void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException;
+    void delete() throws DatabaseException;
 
-    void remove(AccessContext accCtx, VolumeNumber vlmNrRef) throws AccessDeniedException, DatabaseException;
+    void remove(VolumeNumber vlmNrRef) throws DatabaseException;
 
     boolean exists();
 

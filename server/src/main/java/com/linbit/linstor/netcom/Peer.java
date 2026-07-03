@@ -9,8 +9,6 @@ import com.linbit.linstor.api.protobuf.common.Ping;
 import com.linbit.linstor.core.cfg.StltConfig;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 
 import javax.net.ssl.SSLException;
@@ -72,8 +70,7 @@ public interface Peer
      * @param privilegedCtx The access context of the subject changing the peer's access context
      * @param newAccCtx The new access context to associate with the peer
      */
-    void setAccessContext(AccessContext privilegedCtx, AccessContext newAccCtx)
-        throws AccessDeniedException;
+    void setAccessContext(AccessContext newAccCtx);
 
     /**
      * Attaches the object to the peer

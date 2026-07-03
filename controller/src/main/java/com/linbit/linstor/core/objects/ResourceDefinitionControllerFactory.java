@@ -11,10 +11,6 @@ import com.linbit.linstor.dbdrivers.interfaces.ResourceDefinitionDatabaseDriver;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -60,7 +56,6 @@ public class ResourceDefinitionControllerFactory
     }
 
     public ResourceDefinition create(
-        AccessContext accCtx,
         ResourceName rscName,
         @Nullable byte[] extName,
         @Nullable ResourceDefinition.Flags[] flags,
@@ -68,10 +63,10 @@ public class ResourceDefinitionControllerFactory
         LayerPayload payload,
         ResourceGroup rscGroup
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException,
+        throws DatabaseException, LinStorDataAlreadyExistsException,
         LinStorException, ValueOutOfRangeException
     {
-        ResourceDefinition rscDfn = resourceDefinitionRepository.get(accCtx, rscName);
+        ResourceDefinition rscDfn = resourceDefinitionRepository.get(rscName);
 
         if (rscDfn != null)
         {
@@ -81,7 +76,6 @@ public class ResourceDefinitionControllerFactory
         rscDfn = new ResourceDefinition(
             UUID.randomUUID(),
             objectProtectionFactory.getInstance(
-                accCtx,
                 ObjectProtection.buildPath(rscName),
                 true
             ),
@@ -100,7 +94,7 @@ public class ResourceDefinitionControllerFactory
             rscGroup
         );
 
-        rscGroup.addResourceDefinition(accCtx, rscDfn);
+        rscGroup.addResourceDefinition(rscDfn);
 
         driver.create(rscDfn);
 

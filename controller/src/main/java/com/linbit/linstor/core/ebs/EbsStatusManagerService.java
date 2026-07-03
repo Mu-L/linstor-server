@@ -6,7 +6,6 @@ import com.linbit.ServiceName;
 import com.linbit.SystemService;
 import com.linbit.SystemServiceStartException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.CoreModule.RemoteMap;
 import com.linbit.linstor.core.CoreModule.ResourceDefinitionMap;
 import com.linbit.linstor.core.CtrlSecurityObjects;
@@ -26,8 +25,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
 import com.linbit.linstor.satellitestate.SatelliteState;
 import com.linbit.linstor.satellitestate.SatelliteVolumeState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.provider.ebs.EbsData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -105,7 +102,6 @@ public class EbsStatusManagerService implements SystemService
     private final Map<EbsRemote, EbsRemoteIds> idsByRemote = new HashMap<>();
 
     private final ErrorReporter errorReporter;
-    private final AccessContext sysCtx;
     private final CtrlSecurityObjects secObjs;
     private final ResourceDefinitionMap rscDfnMap;
     private final RemoteMap remoteMap;
@@ -119,7 +115,6 @@ public class EbsStatusManagerService implements SystemService
     @Inject
     public EbsStatusManagerService(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext sysCtxRef,
         CtrlSecurityObjects secObjsRef,
         ResourceDefinitionMap rscDfnMapRef,
         RemoteMap remoteMapRef,
@@ -129,7 +124,6 @@ public class EbsStatusManagerService implements SystemService
     )
     {
         errorReporter = errorReporterRef;
-        sysCtx = sysCtxRef;
         secObjs = secObjsRef;
         rscDfnMap = rscDfnMapRef;
         remoteMap = remoteMapRef;
@@ -191,39 +185,32 @@ public class EbsStatusManagerService implements SystemService
 
     public void initialize()
     {
-        try
+        for (ResourceDefinition rscDfn : rscDfnMap.values())
         {
-            for (ResourceDefinition rscDfn : rscDfnMap.values())
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
+            while (rscIt.hasNext())
             {
-                Iterator<Resource> rscIt = rscDfn.iterateResource(sysCtx);
-                while (rscIt.hasNext())
-                {
-                    addIfEbs(rscIt.next());
-                }
-
-                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(sysCtx))
-                {
-                    for (Snapshot snap : snapDfn.getAllSnapshots(sysCtx))
-                    {
-                        addIfEbs(snap);
-                    }
-                }
+                addIfEbs(rscIt.next());
             }
 
-            taskScheduleService.addTask(new EbsStatusPollTask(this, DFLT_POLL_TIMEOUT_MS));
+            for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
+            {
+                for (Snapshot snap : snapDfn.getAllSnapshots())
+                {
+                    addIfEbs(snap);
+                }
+            }
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+
+        taskScheduleService.addTask(new EbsStatusPollTask(this, DFLT_POLL_TIMEOUT_MS));
     }
 
-    public void addIfEbs(Resource rscRef) throws AccessDeniedException
+    public void addIfEbs(Resource rscRef)
     {
         genericAddIfEbs(rscRef, knownRscs, this::addVolume);
     }
 
-    public void addIfEbs(Snapshot snapRef) throws AccessDeniedException
+    public void addIfEbs(Snapshot snapRef)
     {
         genericAddIfEbs(snapRef, knownSnaps, this::addSnap);
     }
@@ -233,9 +220,8 @@ public class EbsStatusManagerService implements SystemService
         Set<RSC> knownRscOrSnapRef,
         Consumer<EbsData<RSC>> consumerRef
     )
-        throws AccessDeniedException
     {
-        if (EbsUtils.isEbs(sysCtx, rscOrSnapRef))
+        if (EbsUtils.isEbs(rscOrSnapRef))
         {
             synchronized (knownRscOrSnapRef)
             {
@@ -249,10 +235,9 @@ public class EbsStatusManagerService implements SystemService
     }
 
     private <RSC extends AbsResource<RSC>> void addAllEbsData(RSC absRscRef, Consumer<EbsData<RSC>> addFunctionRef)
-        throws AccessDeniedException
     {
         Set<AbsRscLayerObject<RSC>> storRscDataSet = LayerRscUtils.getRscDataByLayer(
-            absRscRef.getLayerData(sysCtx),
+            absRscRef.getLayerData(),
             DeviceLayerKind.STORAGE
         );
         for (AbsRscLayerObject<RSC> storRscData : storRscDataSet)
@@ -363,46 +348,24 @@ public class EbsStatusManagerService implements SystemService
     {
         synchronized (idsByRemote)
         {
-            try
-            {
-                lazyGet(getEbsRemote(vlmData)).allVlmIds.put(EbsUtils.getEbsVlmId(sysCtx, vlmData), vlmData);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            lazyGet(getEbsRemote(vlmData)).allVlmIds.put(EbsUtils.getEbsVlmId(vlmData), vlmData);
         }
     }
 
     private EbsRemote getEbsRemote(EbsData<?> vlmDataRef)
     {
-        try
-        {
-            return EbsUtils.getEbsRemote(
-                sysCtx,
-                remoteMap,
-                vlmDataRef.getStorPool(),
-                sysCfgRepo.getStltConfForView(sysCtx)
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return EbsUtils.getEbsRemote(
+            remoteMap,
+            vlmDataRef.getStorPool(),
+            sysCfgRepo.getStltConfForView()
+        );
     }
 
     public void addSnap(EbsData<Snapshot> snapData)
     {
         synchronized (idsByRemote)
         {
-            try
-            {
-                lazyGet(getEbsRemote(snapData)).allSnapIds.put(EbsUtils.getEbsSnapId(sysCtx, snapData), snapData);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            lazyGet(getEbsRemote(snapData)).allSnapIds.put(EbsUtils.getEbsSnapId(snapData), snapData);
         }
     }
 
@@ -432,7 +395,7 @@ public class EbsStatusManagerService implements SystemService
                         updateSnapshots(client, ids.allSnapIds);
                     }
                 }
-                catch (AccessDeniedException | DatabaseException exc)
+                catch (DatabaseException exc)
                 {
                     errorReporter.reportError(new ImplementationError(exc));
                     errorReporter.logError("EbsStatusManager shutting down.");
@@ -442,7 +405,7 @@ public class EbsStatusManagerService implements SystemService
         }
     }
 
-    private void updateVolumes(AmazonEC2 client, Map<String, EbsData<Resource>> vlmsMapRef) throws AccessDeniedException
+    private void updateVolumes(AmazonEC2 client, Map<String, EbsData<Resource>> vlmsMapRef)
     {
         Map<String, EbsData<Resource>> vlmsMapCopy = new HashMap<>(vlmsMapRef);
 
@@ -493,7 +456,7 @@ public class EbsStatusManagerService implements SystemService
                     Resource rsc = vlmData.getVolume().getAbsResource();
                     if (!rsc.isDeleted())
                     {
-                        Peer peer = rsc.getNode().getPeer(sysCtx);
+                        Peer peer = rsc.getNode().getPeer();
                         if (peer != null)
                         {
                             ReadWriteLock satelliteStateLock = peer.getSatelliteStateLock();
@@ -556,7 +519,7 @@ public class EbsStatusManagerService implements SystemService
     }
 
     private void updateSnapshots(AmazonEC2 client, Map<String, EbsData<Snapshot>> snapMapRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         Map<String, EbsData<Snapshot>> snapMapCopy = new HashMap<>(snapMapRef);
         /*
@@ -599,7 +562,7 @@ public class EbsStatusManagerService implements SystemService
                             // "%" is already included from .getProgress()
                             diskState += ": " + amaSnap.getProgress();
                         }
-                        snapVlm.setState(sysCtx, diskState);
+                        snapVlm.setState(diskState);
                     }
                 }
             }
@@ -619,7 +582,7 @@ public class EbsStatusManagerService implements SystemService
         }
     }
 
-    private @Nullable AmazonEC2 getClient(EbsRemote remoteRef) throws AccessDeniedException
+    private @Nullable AmazonEC2 getClient(EbsRemote remoteRef)
     {
         AmazonEC2 client;
         try (LockGuard lg = lockGuardFactory.build(LockType.READ, LockObj.REMOTE_MAP))
@@ -627,15 +590,15 @@ public class EbsStatusManagerService implements SystemService
             client = AmazonEC2ClientBuilder.standard()
                 .withEndpointConfiguration(
                     new EndpointConfiguration(
-                        remoteRef.getUrl(sysCtx).toString(),
-                        remoteRef.getRegion(sysCtx)
+                        remoteRef.getUrl().toString(),
+                        remoteRef.getRegion()
                     )
                 )
                 .withCredentials(
                     new AWSStaticCredentialsProvider(
                         new BasicAWSCredentials(
-                            remoteRef.getDecryptedAccessKey(sysCtx),
-                            remoteRef.getDecryptedSecretKey(sysCtx)
+                            remoteRef.getDecryptedAccessKey(),
+                            remoteRef.getDecryptedSecretKey()
                         )
                     )
                 )

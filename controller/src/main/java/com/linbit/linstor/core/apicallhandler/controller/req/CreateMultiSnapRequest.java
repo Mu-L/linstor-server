@@ -8,8 +8,6 @@ import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.core.objects.SnapshotDefinition;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiCallHandler.getSnapshotDescription;
 
@@ -57,32 +55,24 @@ public class CreateMultiSnapRequest
     public CreateMultiSnapRequest(Collection<SnapReq> snapshotsRef)
     {
         snapshots = snapshotsRef;
-        try
-        {
-            updateDescriptionAndJoinedRscNames(null);
-        }
-        catch (AccessDeniedException exc)
-        {
-            // should never happen since createSnapDfns is not yet initialized
-            throw new ImplementationError(exc);
-        }
+        updateDescriptionAndJoinedRscNames(null);
     }
 
-    public CreateMultiSnapRequest(AccessContext accCtx, SnapshotDefinition snapDfnRef) throws AccessDeniedException
+    public CreateMultiSnapRequest(SnapshotDefinition snapDfnRef)
     {
-        snapshots = Collections.singleton(new SnapReq(accCtx, snapDfnRef));
+        snapshots = Collections.singleton(new SnapReq(snapDfnRef));
         setCreatedSnapDfns(Collections.singletonList(snapDfnRef));
-        updateDescriptionAndJoinedRscNames(accCtx);
+        updateDescriptionAndJoinedRscNames();
     }
 
     /**
      * Updates the collection of createdSnapshotDefinitions (filters away deleted entries) as well as regenerates the
      * description and the joinedRscNames
      */
-    public void update(AccessContext accCtx) throws AccessDeniedException
+    public void update()
     {
         updateCreatedSnapDfns();
-        updateDescriptionAndJoinedRscNames(accCtx);
+        updateDescriptionAndJoinedRscNames();
     }
 
     /**
@@ -90,7 +80,7 @@ public class CreateMultiSnapRequest
      *
      *
      */
-    public void updateDescriptionAndJoinedRscNames(@Nullable AccessContext accCtx) throws AccessDeniedException
+    public void updateDescriptionAndJoinedRscNames(@Nullable AccessContext accCtx)
     {
         StringBuilder descrBuilder = new StringBuilder("MultiSnapshot ").append(id).append(" [");
         StringBuilder joinedRscNamesBuilder = new StringBuilder("[");
@@ -112,7 +102,7 @@ public class CreateMultiSnapRequest
                 if (!snapDfn.isDeleted())
                 {
                     Set<String> nodeNames = new TreeSet<>();
-                    for (Snapshot snap : snapDfn.getAllSnapshots(accCtx))
+                    for (Snapshot snap : snapDfn.getAllSnapshots())
                     {
                         nodeNames.add(snap.getNodeName().displayValue);
                     }
@@ -248,13 +238,13 @@ public class CreateMultiSnapRequest
             props = propsRef;
         }
 
-        public SnapReq(AccessContext accCtx, SnapshotDefinition snapDfnRef) throws AccessDeniedException
+        public SnapReq(SnapshotDefinition snapDfnRef)
         {
             nodeNames = new ArrayList<>();
             props = Collections.emptyMap();
             if (!snapDfnRef.isDeleted())
             {
-                for (Snapshot snap : snapDfnRef.getAllSnapshots(accCtx))
+                for (Snapshot snap : snapDfnRef.getAllSnapshots())
                 {
                     if (!snap.isDeleted())
                     {

@@ -2,14 +2,11 @@ package com.linbit.linstor.layer;
 
 import com.linbit.ImplementationError;
 import com.linbit.exceptions.InvalidSizeException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -24,16 +21,13 @@ import java.util.Set;
 @Singleton
 public class LayerSizeHelper
 {
-    private final AccessContext sysCtx;
     private final Map<DeviceLayerKind, AbsLayerSizeCalculator<?>> kindToCalculatorMap;
 
     @Inject
     public LayerSizeHelper(
-        @SystemContext AccessContext sysCtxRef,
         Map<DeviceLayerKind, AbsLayerSizeCalculator<?>> kindToCalculatorMapRef
     )
     {
-        sysCtx = sysCtxRef;
         kindToCalculatorMap = kindToCalculatorMapRef;
     }
 
@@ -42,10 +36,9 @@ public class LayerSizeHelper
      *
      */
     public <RSC extends AbsResource<RSC>, VLM_TYPE extends VlmProviderObject<RSC>> void calculateSize(
-        AccessContext accCtxRef,
         VLM_TYPE vlmDataRef
     )
-        throws AccessDeniedException, InvalidSizeException
+        throws InvalidSizeException
     {
         AbsLayerSizeCalculator<VLM_TYPE> sizeCalc = getLayerSizeCalculator(vlmDataRef.getLayerKind());
         if (sizeCalc == null)
@@ -54,8 +47,8 @@ public class LayerSizeHelper
         }
 
         VolumeDefinition vlmDfn = vlmDataRef.getVolume().getVolumeDefinition();
-        long vlmDfnSize = vlmDfn.getVolumeSize(accCtxRef);
-        boolean calculateNetSizes = vlmDfn.getFlags().isSet(sysCtx, VolumeDefinition.Flags.GROSS_SIZE);
+        long vlmDfnSize = vlmDfn.getVolumeSize();
+        boolean calculateNetSizes = vlmDfn.getFlags().isSet(VolumeDefinition.Flags.GROSS_SIZE);
 
         try
         {
@@ -86,15 +79,14 @@ public class LayerSizeHelper
      *
      */
     public <RSC extends AbsResource<RSC>> long calculateSize(
-        AccessContext accCtxRef,
         VlmProviderObject<RSC> vlmDataRef,
         String rscSuffixRef
     )
-        throws AccessDeniedException, InvalidSizeException
+        throws InvalidSizeException
     {
         long ret;
 
-        calculateSize(accCtxRef, vlmDataRef);
+        calculateSize(vlmDataRef);
 
         Set<AbsRscLayerObject<RSC>> storRscDataSet = LayerRscUtils.getRscDataByLayer(
             vlmDataRef.getRscLayerObject(),
@@ -120,7 +112,7 @@ public class LayerSizeHelper
         if (storRscDataSet.isEmpty())
         {
             // might happen in NVMe setups where one tree ends with the NVMe target (i.e. no STORAGE layer)
-            ret = vlmDataRef.getVolume().getVolumeSize(accCtxRef);
+            ret = vlmDataRef.getVolume().getVolumeSize();
         }
         else
         {
@@ -133,23 +125,22 @@ public class LayerSizeHelper
     }
 
     public <RSC extends AbsResource<RSC>> long calculateSize(
-        AccessContext accCtxRef,
         AbsVolume<RSC> vlmRef,
         String rscSuffixRef
     )
-        throws AccessDeniedException, InvalidSizeException
+        throws InvalidSizeException
     {
         long ret;
 
-        AbsRscLayerObject<RSC> layerData = vlmRef.getAbsResource().getLayerData(accCtxRef);
+        AbsRscLayerObject<RSC> layerData = vlmRef.getAbsResource().getLayerData();
         VolumeDefinition vlmDfn = vlmRef.getVolumeDefinition();
         if (layerData == null)
         {
-            ret = vlmDfn.getVolumeSize(accCtxRef);
+            ret = vlmDfn.getVolumeSize();
         }
         else
         {
-            ret = calcSize(accCtxRef, layerData, vlmDfn, rscSuffixRef);
+            ret = calcSize(layerData, vlmDfn, rscSuffixRef);
         }
         return ret;
     }
@@ -160,17 +151,16 @@ public class LayerSizeHelper
      *
      */
     private <RSC extends AbsResource<RSC>> long calcSize(
-        AccessContext accCtxRef,
         AbsRscLayerObject<RSC> layerDataRef,
         VolumeDefinition vlmDfnRef,
         String rscLayerSuffixRef
     )
-        throws AccessDeniedException, InvalidSizeException
+        throws InvalidSizeException
     {
         long ret;
 
         VolumeNumber vlmNr = vlmDfnRef.getVolumeNumber();
-        calculateSize(accCtxRef, layerDataRef.getVlmProviderObject(vlmNr));
+        calculateSize(layerDataRef.getVlmProviderObject(vlmNr));
 
         Set<AbsRscLayerObject<RSC>> storRscDataSet = LayerRscUtils.getRscDataByLayer(
             layerDataRef,
@@ -196,7 +186,7 @@ public class LayerSizeHelper
         if (storRscDataSet.isEmpty())
         {
             // might happen in NVMe setups where one tree ends with the NVMe target (i.e. no STORAGE layer)
-            ret = vlmDfnRef.getVolumeSize(accCtxRef);
+            ret = vlmDfnRef.getVolumeSize();
         }
         else
         {

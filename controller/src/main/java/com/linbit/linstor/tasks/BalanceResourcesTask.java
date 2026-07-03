@@ -1,13 +1,10 @@
 package com.linbit.linstor.tasks;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.BalanceResources;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -18,20 +15,17 @@ public class BalanceResourcesTask implements TaskScheduleService.Task
     public static final long DEFAULT_TASK_INTERVAL_SEC = 3600;
     public static final long DEFAULT_BALANCE_TIMEOUT_SEC = 6000;
 
-    private final AccessContext sysCtx;
     private final ErrorReporter log;
     private final SystemConfRepository systemConfRepository;
     private final BalanceResources balanceResources;
 
     @Inject
     public BalanceResourcesTask(
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef,
         SystemConfRepository systemConfRepositoryRef,
         BalanceResources balanceResourcesRef
     )
     {
-        sysCtx = sysCtxRef;
         log = errorReporterRef;
         systemConfRepository = systemConfRepositoryRef;
         balanceResources = balanceResourcesRef;
@@ -46,7 +40,7 @@ public class BalanceResourcesTask implements TaskScheduleService.Task
         long nextExecInterval = DEFAULT_TASK_INTERVAL_SEC;
         try
         {
-            String taskIntervalProp = systemConfRepository.getCtrlConfForView(sysCtx)
+            String taskIntervalProp = systemConfRepository.getCtrlConfForView()
                 .getProp(ApiConsts.KEY_BALANCE_RESOURCES_INTERVAL);
             if (taskIntervalProp != null)
             {

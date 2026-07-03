@@ -32,8 +32,6 @@ import com.linbit.linstor.layer.drbd.resfiles.ConfFileBuilderAutoRules.AutoRule;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscDfnData;
@@ -73,7 +71,6 @@ public class ConfFileBuilder
     public static final ExtToolsInfo.Version VERSION_9_23_1 = new ExtToolsInfo.Version(9, 23, 1);
 
     private final ErrorReporter errorReporter;
-    private final AccessContext accCtx;
     private final DrbdRscData<Resource> localRscData;
     private final Collection<DrbdRscData<Resource>> remoteResourceData;
     private final WhitelistProps whitelistProps;
@@ -85,7 +82,6 @@ public class ConfFileBuilder
 
     public ConfFileBuilder(
         final ErrorReporter errorReporterRef,
-        final AccessContext accCtxRef,
         final DrbdRscData<Resource> localRscRef,
         final Collection<DrbdRscData<Resource>> remoteResourcesRef,
         final WhitelistProps whitelistPropsRef,
@@ -94,7 +90,6 @@ public class ConfFileBuilder
     )
     {
         errorReporter = errorReporterRef;
-        accCtx = accCtxRef;
         localRscData = localRscRef;
         remoteResourceData = remoteResourcesRef;
         whitelistProps = whitelistPropsRef;
@@ -105,7 +100,7 @@ public class ConfFileBuilder
         indentDepth = 0;
     }
 
-    private String header() throws InvalidKeyException, AccessDeniedException
+    private String header() throws InvalidKeyException
     {
         StringBuilder sb = new StringBuilder();
         sb.append(
@@ -118,7 +113,7 @@ public class ConfFileBuilder
         sb.append("\n# Name\n#   LINSTOR nodename: ")
             .append(localRscData.getAbsResource().getNode().getName().displayValue)
             .append("\n#   Local hostname  : ")
-            .append(localRscData.getAbsResource().getNode().getProps(accCtx).getProp(InternalApiConsts.NODE_UNAME));
+            .append(localRscData.getAbsResource().getNode().getProps().getProp(InternalApiConsts.NODE_UNAME));
 
         sb.append("\n# File generated at: \n#   Local time      : ")
             .append(TimeUtils.JOURNALCTL_DF.format(LocalDateTime.now(ZoneId.systemDefault())))
@@ -129,7 +124,7 @@ public class ConfFileBuilder
     }
 
     public String build()
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         Set<DrbdRscData<Resource>> peerRscSet = new TreeSet<>(RESOURCE_NAME_COMPARATOR);
         DrbdRscDfnData<Resource> rscDfnData = localRscData.getRscDfnLayerObject();
@@ -141,10 +136,10 @@ public class ConfFileBuilder
         {
             throw new ImplementationError("No resource definition found for " + localRsc + "!");
         }
-        final ReadOnlyProps localRscProps = localRsc.getProps(accCtx);
-        final ReadOnlyProps rscDfnProps = rscDfn.getProps(accCtx);
+        final ReadOnlyProps localRscProps = localRsc.getProps();
+        final ReadOnlyProps rscDfnProps = rscDfn.getProps();
         final ResourceGroup rscGrp = rscDfn.getResourceGroup();
-        final ReadOnlyProps rscGrpProps = rscGrp.getProps(accCtx);
+        final ReadOnlyProps rscGrpProps = rscGrp.getProps();
         final Node localNode = localRscData.getAbsResource().getNode();
         final String localNodeName = localNode.getName().displayValue;
 
@@ -157,7 +152,7 @@ public class ConfFileBuilder
                 .addProps(localRscProps, "R (" + rscDfn.getName() + ")")
                 .addProps(rscDfnProps, "RD (" + rscDfn.getName() + ")")
                 .addProps(rscGrpProps, "RG (" + rscGrp.getName() + ")")
-                .addProps(localRsc.getNode().getProps(accCtx), "N (" + localNodeName + ")")
+                .addProps(localRsc.getNode().getProps(), "N (" + localNodeName + ")")
                 .addProps(stltProps, "C");
 
             // set auto verify algorithm if none is set yet by the user
@@ -182,7 +177,7 @@ public class ConfFileBuilder
                     ApiConsts.NAMESPC_DRBD_NET_OPTIONS);
             }
 
-            final ConfFileBuilderAutoRules localRscAutoRules = new ConfFileBuilderAutoRules(accCtx, localRscData);
+            final ConfFileBuilderAutoRules localRscAutoRules = new ConfFileBuilderAutoRules(localRscData);
             if (localRscPrioProps.anyPropsHasNamespace(ApiConsts.NAMESPC_DRBD_HANDLER_OPTIONS))
             {
                 appendLine("");
@@ -255,7 +250,7 @@ public class ConfFileBuilder
             // Create local network configuration
             {
                 appendLine("");
-                appendLine("on \"%s\"", localRsc.getNode().getProps(accCtx).getPropWithDefault(
+                appendLine("on \"%s\"", localRsc.getNode().getProps().getPropWithDefault(
                     InternalApiConsts.NODE_UNAME,
                     localRsc.getNode().getName().displayValue)
                 );
@@ -264,7 +259,7 @@ public class ConfFileBuilder
                     Collection<DrbdVlmData<Resource>> vlmDataList = localRscData.getVlmLayerObjects().values();
                     for (DrbdVlmData<Resource> vlmData : vlmDataList)
                     {
-                        appendVlmIfPresent(vlmData, accCtx, false);
+                        appendVlmIfPresent(vlmData, false);
                     }
                     appendLine("node-id    %d;", localRscData.getNodeId().value);
                 }
@@ -273,10 +268,10 @@ public class ConfFileBuilder
             for (final DrbdRscData<Resource> peerRscData : peerRscSet)
             {
                 Resource peerRsc = peerRscData.getAbsResource();
-                if (peerRsc.getStateFlags().isUnset(accCtx, Resource.Flags.DELETE))
+                if (peerRsc.getStateFlags().isUnset(Resource.Flags.DELETE))
                 {
                     appendLine("");
-                    appendLine("on \"%s\"", peerRsc.getNode().getProps(accCtx)
+                    appendLine("on \"%s\"", peerRsc.getNode().getProps()
                         .getPropWithDefault(
                             InternalApiConsts.NODE_UNAME,
                             peerRsc.getNode().getName().displayValue)
@@ -287,7 +282,7 @@ public class ConfFileBuilder
                             .getVlmLayerObjects().values();
                         for (DrbdVlmData<Resource> peerVlmData : peerVlmDataList)
                         {
-                            appendVlmIfPresent(peerVlmData, accCtx, true);
+                            appendVlmIfPresent(peerVlmData, true);
                         }
 
                         appendLine("node-id    %d;", peerRscData.getNodeId().value);
@@ -304,15 +299,15 @@ public class ConfFileBuilder
                 // currently we only consider one port...
                 final int peerPort = peerRscData.getTcpPortList().iterator().next().value;
 
-                final ConfFileBuilderAutoRules peerRscAutoRules = new ConfFileBuilderAutoRules(accCtx, peerRscData);
+                final ConfFileBuilderAutoRules peerRscAutoRules = new ConfFileBuilderAutoRules(peerRscData);
 
                 Resource peerRsc = peerRscData.getAbsResource();
                 // don't create a connection entry if the resource has the deleted flag
                 // or if it is a connection between two diskless nodes
                 if (
-                    peerRsc.getStateFlags().isUnset(accCtx, Resource.Flags.DELETE) &&
-                        !(peerRsc.disklessForDrbdPeers(accCtx) &&
-                            localRsc.getStateFlags().isSet(accCtx, Resource.Flags.DRBD_DISKLESS))
+                    peerRsc.getStateFlags().isUnset(Resource.Flags.DELETE) &&
+                        !(peerRsc.disklessForDrbdPeers() &&
+                            localRsc.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS))
                 )
                 {
                     appendLine("");
@@ -320,19 +315,19 @@ public class ConfFileBuilder
                     try (Section connectionSection = new Section())
                     {
                         List<PairNonNull<NetInterface, NetInterface>> pathsList = new ArrayList<>();
-                        NodeConnection nodeConn = localRsc.getNode().getNodeConnection(accCtx, peerRsc.getNode());
-                        @Nullable ResourceConnection rscConn = localRsc.getAbsResourceConnection(accCtx, peerRsc);
+                        NodeConnection nodeConn = localRsc.getNode().getNodeConnection(peerRsc.getNode());
+                        @Nullable ResourceConnection rscConn = localRsc.getAbsResourceConnection(peerRsc);
                         @Nullable ReadOnlyProps paths = null;
 
                         PriorityProps prioPropsConn = new PriorityProps();
                         if (rscConn != null)
                         {
                             prioPropsConn.addProps(
-                                rscConn.getProps(accCtx),
+                                rscConn.getProps(),
                                 String.format(
                                     "Resource connection(%s <-> %s)",
-                                    rscConn.getSourceResource(accCtx),
-                                    rscConn.getTargetResource(accCtx)
+                                    rscConn.getSourceResource(),
+                                    rscConn.getTargetResource()
                                 )
                             );
                         }
@@ -341,11 +336,11 @@ public class ConfFileBuilder
                         if (nodeConn != null)
                         {
                             prioPropsConn = prioPropsConn.addProps(
-                                nodeConn.getProps(accCtx),
+                                nodeConn.getProps(),
                                 String.format(
                                     "Node connection(%s <-> %s)",
-                                    nodeConn.getSourceNode(accCtx),
-                                    nodeConn.getTargetNode(accCtx)
+                                    nodeConn.getSourceNode(),
+                                    nodeConn.getTargetNode()
                                 )
                             );
                         }
@@ -372,7 +367,7 @@ public class ConfFileBuilder
                         if (rscConn != null)
                         {
                             // get paths from resource connection...
-                            ReadOnlyProps rscConnProps = rscConn.getProps(accCtx);
+                            ReadOnlyProps rscConnProps = rscConn.getProps();
                             paths = rscConnProps.getNamespace(ApiConsts.NAMESPC_CONNECTION_PATHS);
 
                             PriorityProps prioRscConnProps = new PriorityProps()
@@ -380,8 +375,8 @@ public class ConfFileBuilder
                                     rscConnProps,
                                     String.format(
                                         "Resource connection(%s <-> %s)",
-                                        rscConn.getSourceResource(accCtx),
-                                        rscConn.getTargetResource(accCtx)
+                                        rscConn.getSourceResource(),
+                                        rscConn.getTargetResource()
                                     )
                                 )
                                 .addProps(
@@ -439,7 +434,7 @@ public class ConfFileBuilder
                         // ...or fall back to node connection
                         if (paths == null && nodeConn != null)
                         {
-                            paths = nodeConn.getProps(accCtx).getNamespace(ApiConsts.NAMESPC_CONNECTION_PATHS);
+                            paths = nodeConn.getProps().getNamespace(ApiConsts.NAMESPC_CONNECTION_PATHS);
                         }
 
 
@@ -483,8 +478,7 @@ public class ConfFileBuilder
 
                                         // get corresponding network interfaces
                                         String nicName = ncEntryNamespace.getProp(firstNodeName);
-                                        NetInterface firstNic = firstNode.getNetInterface(
-                                                accCtx, new NetInterfaceName(nicName));
+                                        NetInterface firstNic = firstNode.getNetInterface(new NetInterfaceName(nicName));
 
                                         if (firstNic == null)
                                         {
@@ -493,8 +487,7 @@ public class ConfFileBuilder
                                         }
 
                                         nicName = ncEntryNamespace.getProp(secondNodeName);
-                                        NetInterface secondNic = secondNode.getNetInterface(
-                                            accCtx, new NetInterfaceName(nicName));
+                                        NetInterface secondNic = secondNode.getNetInterface(new NetInterfaceName(nicName));
 
                                         if (secondNic == null)
                                         {
@@ -623,19 +616,18 @@ public class ConfFileBuilder
         NetInterface netIf,
         @Nullable NetInterface outsideNetIf
     )
-        throws AccessDeniedException
     {
-        TcpPortNumber rscConnPort = rscConn == null ? null : rscConn.getDrbdProxyPortSource(accCtx);
+        TcpPortNumber rscConnPort = rscConn == null ? null : rscConn.getDrbdProxyPortSource();
         int port = rscConnPort == null ? portRef : rscConnPort.value;
 
         String localAddress = formatAddress(netIf, port);
 
-        String hostName = netIf.getNode().getProps(accCtx).getPropWithDefault(
+        String hostName = netIf.getNode().getProps().getPropWithDefault(
             InternalApiConsts.NODE_UNAME,
             netIf.getNode().getName().displayValue
         );
 
-        if (rscConn != null && rscConn.getStateFlags().isSet(accCtx, ResourceConnection.Flags.LOCAL_DRBD_PROXY))
+        if (rscConn != null && rscConn.getStateFlags().isSet(ResourceConnection.Flags.LOCAL_DRBD_PROXY))
         {
             appendLine("host \"%s\" address 127.0.0.1:%d via proxy on %s", hostName, port, hostName);
             try (Section ignore = new Section())
@@ -659,10 +651,10 @@ public class ConfFileBuilder
         }
     }
 
-    private String formatAddress(NetInterface netIfRef, int port) throws AccessDeniedException
+    private String formatAddress(NetInterface netIfRef, int port)
     {
         String ret;
-        LsIpAddress addr = netIfRef.getAddress(accCtx);
+        LsIpAddress addr = netIfRef.getAddress();
         String addrText = addr.getAddress();
 
         if (addr.getAddressType() == LsIpAddress.AddrType.IPv6)
@@ -678,7 +670,6 @@ public class ConfFileBuilder
     }
 
     private void appendCompressionPlugin(ResourceDefinition rscDfn, String compressionType)
-        throws AccessDeniedException
     {
         appendLine("plugin");
         try (Section pluginSection = new Section())
@@ -689,8 +680,8 @@ public class ConfFileBuilder
             compressionPluginTerms.add(compressionType);
 
             Map<String, String> drbdProps = new PriorityProps(
-                rscDfn.getProps(accCtx),
-                rscDfn.getResourceGroup().getProps(accCtx),
+                rscDfn.getProps(),
+                rscDfn.getResourceGroup().getProps(),
                 stltProps
             )
                 .renderRelativeMap(namespace);
@@ -858,13 +849,13 @@ public class ConfFileBuilder
             Collection<StorPool> storPools = getStorPools(peerRscDataRef);
             for (StorPool sp : storPools)
             {
-                prioProps.addProps(sp.getProps(accCtx));
+                prioProps.addProps(sp.getProps());
             }
 
-            prioProps.addProps(rsc.getProps(accCtx));
-            prioProps.addProps(rsc.getResourceDefinition().getProps(accCtx));
-            prioProps.addProps(rsc.getResourceDefinition().getResourceGroup().getProps(accCtx));
-            prioProps.addProps(node.getProps(accCtx));
+            prioProps.addProps(rsc.getProps());
+            prioProps.addProps(rsc.getResourceDefinition().getProps());
+            prioProps.addProps(rsc.getResourceDefinition().getResourceGroup().getProps());
+            prioProps.addProps(node.getProps());
             prioProps.addProps(stltProps);
 
             String prefNic = prioProps.getProp(ApiConsts.KEY_STOR_POOL_PREF_NIC);
@@ -872,7 +863,6 @@ public class ConfFileBuilder
             if (prefNic != null)
             {
                 preferredNetIf = node.getNetInterface(
-                    accCtx,
                     new NetInterfaceName(prefNic)
                 );
 
@@ -888,16 +878,16 @@ public class ConfFileBuilder
             if (preferredNetIf == null)
             {
                 // Try to find the 'default' network interface
-                preferredNetIf = node.getNetInterface(accCtx, NetInterfaceName.DEFAULT_NET_INTERFACE_NAME);
+                preferredNetIf = node.getNetInterface(NetInterfaceName.DEFAULT_NET_INTERFACE_NAME);
                 // If there is not even a 'default', use the first one that is found in the node's
                 // list of network interfaces
                 if (preferredNetIf == null)
                 {
-                    preferredNetIf = node.streamNetInterfaces(accCtx).findFirst().orElse(null);
+                    preferredNetIf = node.streamNetInterfaces().findFirst().orElse(null);
                 }
             }
         }
-        catch (AccessDeniedException | InvalidKeyException | InvalidNameException implError)
+        catch (InvalidKeyException | InvalidNameException implError)
         {
             throw new ImplementationError(implError);
         }
@@ -922,17 +912,17 @@ public class ConfFileBuilder
             Resource rsc = peerRscDataRef.getAbsResource();
             Node node = rsc.getNode();
 
-            prioProps.addProps(rsc.getProps(accCtx));
-            prioProps.addProps(rsc.getResourceDefinition().getProps(accCtx));
-            prioProps.addProps(rsc.getResourceDefinition().getResourceGroup().getProps(accCtx));
+            prioProps.addProps(rsc.getProps());
+            prioProps.addProps(rsc.getResourceDefinition().getProps());
+            prioProps.addProps(rsc.getResourceDefinition().getResourceGroup().getProps());
 
             Collection<StorPool> storPools = getStorPools(peerRscDataRef);
             for (StorPool sp : storPools)
             {
-                prioProps.addProps(sp.getProps(accCtx));
+                prioProps.addProps(sp.getProps());
             }
 
-            prioProps.addProps(node.getProps(accCtx));
+            prioProps.addProps(node.getProps());
             prioProps.addProps(stltProps);
 
             String outsideAddress = prioProps.getProp(
@@ -942,12 +932,11 @@ public class ConfFileBuilder
             if (outsideAddress != null)
             {
                 ret = node.getNetInterface(
-                    accCtx,
                     new NetInterfaceName(outsideAddress)
                 );
             }
         }
-        catch (AccessDeniedException | InvalidKeyException | InvalidNameException implError)
+        catch (InvalidKeyException | InvalidNameException implError)
         {
             throw new ImplementationError(implError);
         }
@@ -955,7 +944,6 @@ public class ConfFileBuilder
     }
 
     private LinkedHashSet<StorPool> getStorPools(DrbdRscData<Resource> peerRscDataRef)
-        throws AccessDeniedException
     {
         LinkedHashSet<StorPool> ret = new LinkedHashSet<>();
 
@@ -983,8 +971,7 @@ public class ConfFileBuilder
         return ret;
     }
 
-    private void appendVlmIfPresent(DrbdVlmData<Resource> vlmData, AccessContext localAccCtx, boolean isPeerRsc)
-        throws AccessDeniedException
+    private void appendVlmIfPresent(DrbdVlmData<Resource> vlmData, boolean isPeerRsc)
     {
         if (((Volume) vlmData.getVolume()).getFlags().isUnset(localAccCtx, Volume.Flags.DELETE))
         {
@@ -992,11 +979,11 @@ public class ConfFileBuilder
             if ((!isPeerRsc && vlmData.getDataDevice() == null) ||
                 (isPeerRsc &&
                 // FIXME: vlmData.getRscLayerObject().getFlags should be used here
-                     vlmData.getVolume().getAbsResource().disklessForDrbdPeers(accCtx)
+                     vlmData.getVolume().getAbsResource().disklessForDrbdPeers()
                 ) ||
                 (!isPeerRsc &&
                 // FIXME: vlmData.getRscLayerObject().getFlags should be used here
-                     vlmData.getVolume().getAbsResource().isDrbdDiskless(accCtx)
+                     vlmData.getVolume().getAbsResource().isDrbdDiskless()
                 )
             )
             {
@@ -1071,25 +1058,25 @@ public class ConfFileBuilder
 
                 ResourceDefinition rscDfn = vlmDfn.getResourceDefinition();
                 ResourceGroup rscGrp = rscDfn.getResourceGroup();
-                ReadOnlyProps rscDfnProps = rscDfn.getProps(accCtx);
+                ReadOnlyProps rscDfnProps = rscDfn.getProps();
                 PriorityProps vlmPrioProps = new PriorityProps()
                     .addProps(
-                        ((Volume) vlmData.getVolume()).getProps(accCtx),
+                        ((Volume) vlmData.getVolume()).getProps(),
                         "V (" + rscDfn.getName() + "/" + vlmNr.value + ")"
                     )
-                    .addProps(vlmData.getVolume().getAbsResource().getProps(accCtx), "R (" + rscDfn.getName() + ")")
+                    .addProps(vlmData.getVolume().getAbsResource().getProps(), "R (" + rscDfn.getName() + ")")
                     .addProps(
-                        vlmDfn.getProps(accCtx),
+                        vlmDfn.getProps(),
                         "VD (" + rscDfn.getName() + "/" + vlmNr.value + ")"
                     )
                     .addProps(
-                        rscGrp.getVolumeGroupProps(accCtx, vlmNr),
+                        rscGrp.getVolumeGroupProps(vlmNr),
                         "VG (" + rscGrp.getName() + "/" + vlmNr.value + ")"
                     )
                     .addProps(rscDfnProps, "RD (" + rscDfn.getName() + ")")
-                    .addProps(rscGrp.getProps(accCtx), "RG (" + rscGrp.getName() + ")")
+                    .addProps(rscGrp.getProps(), "RG (" + rscGrp.getName() + ")")
                     .addProps(
-                        vlmData.getVolume().getAbsResource().getNode().getProps(accCtx),
+                        vlmData.getVolume().getAbsResource().getNode().getProps(),
                         "N (" + rscDfn.getName() + ")"
                     )
                     .addProps(stltProps, "C");
@@ -1102,7 +1089,7 @@ public class ConfFileBuilder
                             LinStorObject.CTRL,
                             ApiConsts.NAMESPC_DRBD_DISK_OPTIONS,
                             vlmPrioProps,
-                            new ConfFileBuilderAutoRules(accCtx, vlmData),
+                            new ConfFileBuilderAutoRules(vlmData),
                             isPeerRsc
                         );
 

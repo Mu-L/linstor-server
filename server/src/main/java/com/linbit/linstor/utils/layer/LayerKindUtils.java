@@ -1,8 +1,6 @@
 package com.linbit.linstor.utils.layer;
 
 import com.linbit.linstor.core.objects.ResourceDefinition;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
 import java.util.Iterator;
@@ -13,10 +11,9 @@ public class LayerKindUtils
     /**
      * See hasSpecialLayers(List&lt;DeviceLayerKind&gt;).
      */
-    public static boolean hasSpecialLayers(final ResourceDefinition rscDfn, final AccessContext accCtx)
-        throws AccessDeniedException
+    public static boolean hasSpecialLayers(final ResourceDefinition rscDfn)
     {
-        final List<DeviceLayerKind> layerStack = rscDfn.getLayerStack(accCtx);
+        final List<DeviceLayerKind> layerStack = rscDfn.getLayerStack();
         return hasSpecialLayers(layerStack);
     }
 

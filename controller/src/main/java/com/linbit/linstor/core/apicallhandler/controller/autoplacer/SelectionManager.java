@@ -11,8 +11,6 @@ import com.linbit.linstor.layer.storage.BlockSizeConsts;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo.Version;
@@ -54,7 +52,6 @@ public class SelectionManager
     private static final String REPL_ON_SAME_UNDECIDED = null;
 
 
-    private final AccessContext accessContext;
     private final ErrorReporter errorReporter;
 
     private final Autoplacer.StorPoolWithScore[] sortedStorPoolByScoreArr;
@@ -67,7 +64,6 @@ public class SelectionManager
     private @Nullable final Long minIoSize;
 
     public SelectionManager(
-        AccessContext accessContextRef,
         ErrorReporter errorReporterRef,
         AutoSelectFilterApi selectFilterRef,
         List<Node> alreadyDeployedOnNodesRef,
@@ -80,9 +76,7 @@ public class SelectionManager
         boolean canChangeMinIoSizePrm,
         @Nullable Long minIoSizePrm
     )
-        throws AccessDeniedException
     {
-        accessContext = accessContextRef;
         errorReporter = errorReporterRef;
         sortedStorPoolByScoreArr = sortedStorPoolByScoreArrRef;
 
@@ -151,7 +145,6 @@ public class SelectionManager
         AutoSelectFilterApi selectFilterRef,
         List<Node> alreadyDeployedOnNodesRef
     )
-        throws AccessDeniedException
     {
         final HashMap<String, String> initSameProps = new HashMap<>();
         final List<SelectionException.Conflict> conflicts = new ArrayList<>();
@@ -197,7 +190,6 @@ public class SelectionManager
         @Nullable String dfltIfNotUsed,
         List<SelectionException.Conflict> conflictsRef
     )
-        throws AccessDeniedException
     {
         HashMap<String, List<String>> valToNodeListMap = getValuesToNodesListMap(keyRef, alreadyDeployedOnNodesRef);
 
@@ -224,13 +216,12 @@ public class SelectionManager
     }
 
     private HashMap<String, List<String>> getValuesToNodesListMap(String keyRef, List<Node> alreadyDeployedOnNodesRef)
-        throws AccessDeniedException
     {
         HashMap<String, List<String>> valToNodeList = new HashMap<>();
 
         for (Node node : alreadyDeployedOnNodesRef)
         {
-            ReadOnlyProps prop = node.getProps(accessContext);
+            ReadOnlyProps prop = node.getProps();
             @Nullable String val = prop.getProp(keyRef);
             if (val != null)
             {
@@ -245,10 +236,9 @@ public class SelectionManager
         AutoSelectFilterApi selectFilterRef,
         List<Node> alreadyDeployedNode
     )
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return calcCurrentXReplicasOnDiffMap(
-            accessContext,
             selectFilterRef.getXReplicasOnDifferentMap(),
             selectFilterRef.getReplicasOnDifferentList(),
             alreadyDeployedNode,
@@ -261,13 +251,12 @@ public class SelectionManager
      * Method is also used by AutoUnplacer
      */
     public static HashMap<String, Map<String, Integer>> calcCurrentXReplicasOnDiffMap(
-        AccessContext accCtxRef,
         Map<String, Integer> xReplicasOnDifferentInputMapRef,
         List<String> replicasOnDifferentListRef,
         List<Node> alreadyDeployedNodeRef,
         @Nullable Map<String, Integer> xReplicasOnDiffCountOutputRef,
         boolean allowNegativePlacementCountsRef
-    ) throws InvalidKeyException, AccessDeniedException
+    ) throws InvalidKeyException
     {
         final HashMap<String, Map<String, Integer>> initDiffProps = new HashMap<>();
         final Map</* PropKey */ String, /* maxCount */Integer> xReplicasOnDifferentMap;
@@ -312,7 +301,7 @@ public class SelectionManager
             maxCount = xReplicasOnDifferentMap.computeIfAbsent(key, ignored -> X_REPLICAS_DFLT_COUNT);
             for (Node node : alreadyDeployedNodeRef)
             {
-                @Nullable String nodeVal = node.getProps(accCtxRef).getProp(key);
+                @Nullable String nodeVal = node.getProps().getProp(key);
                 if (nodeVal != null)
                 {
                     final int oldRemainingCount = valueToRemainingCount.getOrDefault(nodeVal, maxCount);
@@ -384,18 +373,18 @@ public class SelectionManager
         return ret;
     }
 
-    public HashSet<Autoplacer.StorPoolWithScore> findSelection() throws AccessDeniedException
+    public HashSet<Autoplacer.StorPoolWithScore> findSelection()
     {
         return findSelection(0);
     }
 
-    HashSet<Autoplacer.StorPoolWithScore> findSelection(int startIdxRef) throws AccessDeniedException
+    HashSet<Autoplacer.StorPoolWithScore> findSelection(int startIdxRef)
     {
         findSelectionImpl(startIdxRef);
         return new HashSet<>(getCurrentState().selectedStorPoolWithScoreSet);
     }
 
-    private void findSelectionImpl(int startIdxRef) throws AccessDeniedException
+    private void findSelectionImpl(int startIdxRef)
     {
         for (int idx = startIdxRef; idx < sortedStorPoolByScoreArr.length && !isComplete(); idx++)
         {
@@ -475,7 +464,7 @@ public class SelectionManager
 
         if (!canChangeMinIoSize && isValid && minIoSize != null)
         {
-            final long stateMinIoSize = state.getMinIoSize(accessContext);
+            final long stateMinIoSize = state.getMinIoSize();
             if (stateMinIoSize > minIoSize)
             {
                 isValid = false;
@@ -496,7 +485,7 @@ public class SelectionManager
         );
     }
 
-    public boolean isAllowed(StorPool sp) throws AccessDeniedException
+    public boolean isAllowed(StorPool sp)
     {
         final State curState = getCurrentState();
 
@@ -528,7 +517,7 @@ public class SelectionManager
         return isAllowed;
     }
 
-    private boolean checkDevProviderKind(final StorPool spRef, final State curStateRef) throws AccessDeniedException
+    private boolean checkDevProviderKind(final StorPool spRef, final State curStateRef)
     {
         boolean isAllowed = true;
         DeviceProviderKind candidateDevProvKind = spRef.getDeviceProviderKind();
@@ -564,10 +553,10 @@ public class SelectionManager
     }
 
 
-    private boolean checkSameProps(final StorPool spRef, final State curStateRef) throws AccessDeniedException
+    private boolean checkSameProps(final StorPool spRef, final State curStateRef)
     {
         boolean isAllowed = true;
-        final ReadOnlyProps nodePropsRef = spRef.getNode().getProps(accessContext);
+        final ReadOnlyProps nodePropsRef = spRef.getNode().getProps();
 
         Iterator<Map.Entry<String, String>> samePropEntrySetIterator = curStateRef.sameProps.entrySet().iterator();
         while (isAllowed && samePropEntrySetIterator.hasNext())
@@ -598,11 +587,11 @@ public class SelectionManager
     }
 
 
-    private boolean checkDiffProps(final StorPool spRef, final State curStateRef) throws AccessDeniedException
+    private boolean checkDiffProps(final StorPool spRef, final State curStateRef)
     {
         boolean isAllowed = true;
 
-        final ReadOnlyProps nodeProps = spRef.getNode().getProps(accessContext);
+        final ReadOnlyProps nodeProps = spRef.getNode().getProps();
         Iterator<Entry<String, Map<String, Integer>>> diffPropEntrySetIt = curStateRef.diffProps.entrySet().iterator();
         while (isAllowed && diffPropEntrySetIt.hasNext())
         {
@@ -643,11 +632,11 @@ public class SelectionManager
         return isAllowed;
     }
 
-    private void select(Autoplacer.StorPoolWithScore currentSpWithScoreRef) throws AccessDeniedException
+    private void select(Autoplacer.StorPoolWithScore currentSpWithScoreRef)
     {
         final State curState = getCurrentState();
         final StorPool curSp = currentSpWithScoreRef.storPool;
-        final ReadOnlyProps nodeProps = curSp.getNode().getProps(accessContext);
+        final ReadOnlyProps nodeProps = curSp.getNode().getProps();
 
         errorReporter.logTrace(
             "Autoplacer.Selector: Adding StorPool '%s' on Node '%s' to current selection",
@@ -707,14 +696,14 @@ public class SelectionManager
         selectionStack.pop();
     }
 
-    private Version getDrbdVersion(StorPool sp) throws AccessDeniedException
+    private Version getDrbdVersion(StorPool sp)
     {
         return getDrbdVersion(sp.getNode());
     }
 
-    private Version getDrbdVersion(Node node) throws AccessDeniedException
+    private Version getDrbdVersion(Node node)
     {
-        return node.getPeer(accessContext).getExtToolsManager().getVersion(ExtTools.DRBD9_KERNEL);
+        return node.getPeer().getExtToolsManager().getVersion(ExtTools.DRBD9_KERNEL);
     }
 
     private <T> HashSet<T> add(Set<T> unmodifiableSetRef, T additionalElementRef)
@@ -805,27 +794,17 @@ public class SelectionManager
          * @param accCtx Access context for accessing the properties of storage pools
          * @return Greatest minimum-io-size of any of the storage pools listed in this state object
          */
-        long getMinIoSize(AccessContext accCtx)
+        long getMinIoSize()
         {
             long minIoSize = BlockSizeConsts.DFLT_PHY_IO_SIZE;
-            try
+            for (StorPoolWithScore spEntry : selectedStorPoolWithScoreSet)
             {
-                for (StorPoolWithScore spEntry : selectedStorPoolWithScoreSet)
+                final StorPool pool = spEntry.storPool;
+                final long poolBlockSize = pool.getMinIoSize();
+                if (poolBlockSize > minIoSize)
                 {
-                    final StorPool pool = spEntry.storPool;
-                    final long poolBlockSize = pool.getMinIoSize(accCtx);
-                    if (poolBlockSize > minIoSize)
-                    {
-                        minIoSize = poolBlockSize;
-                    }
+                    minIoSize = poolBlockSize;
                 }
-            }
-            catch (AccessDeniedException accExc)
-            {
-                throw new ImplementationError(
-                    "Failed to access storage pool properties in " + SelectionManager.class.getSimpleName(),
-                    accExc
-                );
             }
             return minIoSize;
         }

@@ -10,10 +10,6 @@ import com.linbit.linstor.core.objects.ResourceGroupControllerFactory;
 import com.linbit.linstor.core.objects.ResourceGroupDbDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceGroupDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 
@@ -64,7 +60,7 @@ public class ResourceGroupTestFactory
         ResourceGroupControllerFactory rscGrpFactRef,
         ResourceGroupDatabaseDriver rscGrpDbDriverRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         rscGrpFact = rscGrpFactRef;
         rscGrpDbDriver = rscGrpDbDriverRef;
@@ -74,7 +70,7 @@ public class ResourceGroupTestFactory
      * This method has to be called as a workaround. We cannot create "dfltRscGrp" as it already exists in DB
      * But we cannot load it in the constructor (during guice injection) as we are not in a scope at the at time.
      */
-    public void initDfltRscGrp() throws AccessDeniedException, DatabaseException
+    public void initDfltRscGrp() throws DatabaseException
     {
         ResourceGroup rscGrp = ((ResourceGroupDbDriver) rscGrpDbDriver).loadAll(null).keySet().stream()
             .filter(grp -> grp.getName().displayValue.equals(InternalApiConsts.DEFAULT_RSC_GRP_NAME))
@@ -90,7 +86,7 @@ public class ResourceGroupTestFactory
     }
 
     public ResourceGroup get(String rscGroupNameRef, boolean createIfNotExists)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         ResourceGroup rscGrp = rscGrpMap.get(rscGroupNameRef.toUpperCase());
         if (rscGrp == null && createIfNotExists)
@@ -100,7 +96,7 @@ public class ResourceGroupTestFactory
         return rscGrp;
     }
 
-    public ResourceGroupTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public ResourceGroupTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -209,13 +205,13 @@ public class ResourceGroupTestFactory
     }
 
     public ResourceGroup create()
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         return builder().build();
     }
 
     public ResourceGroup create(String rscGrpName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         return builder(rscGrpName).build();
     }
@@ -233,7 +229,6 @@ public class ResourceGroupTestFactory
     public class ResourceGroupBuilder
     {
         private String rscGrpName;
-        private AccessContext accCtx;
         private String description;
         private List<DeviceLayerKind> layerStack;
         private Integer autoPlaceReplicaCount;
@@ -253,7 +248,6 @@ public class ResourceGroupTestFactory
         {
             rscGrpName = rscGrpNameRef;
 
-            accCtx = dfltAccCtx;
             description = dfltDescription;
             layerStack = copyOrNull(dfltLayerStack);
             autoPlaceReplicaCount = dfltAutoPlaceReplicaCount;
@@ -276,9 +270,8 @@ public class ResourceGroupTestFactory
             return this;
         }
 
-        public ResourceGroupBuilder setAccCtx(AccessContext accCtxRef)
+        public ResourceGroupBuilder setAccCtx()
         {
-            accCtx = accCtxRef;
             return this;
         }
 
@@ -359,10 +352,9 @@ public class ResourceGroupTestFactory
         }
 
         public ResourceGroup build()
-            throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+            throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
         {
             ResourceGroup rscGrp = rscGrpFact.create(
-                accCtx,
                 new ResourceGroupName(rscGrpName),
                 description,
                 layerStack,

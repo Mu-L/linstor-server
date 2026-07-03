@@ -12,16 +12,10 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
@@ -43,7 +37,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
 
-public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinition> implements ProtectedObject
+public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinition>
 {
     public interface InitMaps
     {
@@ -173,61 +167,48 @@ public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinitio
         return snapVlmDfnKey;
     }
 
-    public void addSnapshotVolume(AccessContext accCtx, SnapshotVolume snapshotVolume)
-        throws AccessDeniedException
+    public void addSnapshotVolume(SnapshotVolume snapshotVolume)
     {
         checkDeleted();
-        getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.USE);
         snapshotVlmMap.put(snapshotVolume.getNodeName(), snapshotVolume);
     }
 
     public void removeSnapshotVolume(
-        AccessContext accCtx,
         SnapshotVolume snapshotVolume
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.USE);
         snapshotVlmMap.remove(snapshotVolume.getNodeName());
     }
 
-    public long getVolumeSize(AccessContext accCtx)
-        throws AccessDeniedException
+    public long getVolumeSize()
     {
         checkDeleted();
-        getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return volumeSize.get();
     }
 
-    public Long setVolumeSize(AccessContext accCtx, long newVolumeSize)
-        throws AccessDeniedException, DatabaseException
+    public Long setVolumeSize(long newVolumeSize)
+        throws DatabaseException
     {
         checkDeleted();
-        getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         return volumeSize.set(newVolumeSize);
     }
 
-    public Props getSnapVlmDfnProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getSnapVlmDfnProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, getResourceDefinition().getObjProt(), snapVlmDfnProps);
+        return snapVlmDfnProps;
     }
 
-    public ReadOnlyProps getVlmDfnProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public ReadOnlyProps getVlmDfnProps()
     {
         checkDeleted();
-        getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return vlmDfnRoProps;
     }
 
-    public Props getVlmDfnPropsForChange(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getVlmDfnPropsForChange()
     {
         checkDeleted();
-        getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         return vlmDfnProps;
     }
 
@@ -238,11 +219,9 @@ public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinitio
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends VlmDfnLayerObject> T setLayerData(AccessContext accCtx, T vlmDfnLayerData)
-        throws AccessDeniedException
+    public <T extends VlmDfnLayerObject> T setLayerData(T vlmDfnLayerData)
     {
         checkDeleted();
-        snapshotDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
         return (T) layerStorage.put(
             new PairNonNull<>(
                 vlmDfnLayerData.getLayerKind(),
@@ -253,13 +232,10 @@ public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinitio
 
     @SuppressWarnings("unchecked")
     public <T extends VlmDfnLayerObject> Map<String, T> getLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        snapshotDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         Map<String, T> ret = new TreeMap<>();
         for (Entry<PairNonNull<DeviceLayerKind, String>, VlmDfnLayerObject> entry : layerStorage.entrySet())
@@ -275,23 +251,19 @@ public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinitio
 
     @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     public <T extends VlmDfnLayerObject> @Nullable T getLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind,
         String rscNameSuffix
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        snapshotDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         return (T) layerStorage.get(new PairNonNull<>(kind, rscNameSuffix));
     }
 
-    public void removeLayerData(AccessContext accCtx, DeviceLayerKind kind, String rscNameSuffix)
-        throws AccessDeniedException, DatabaseException
+    public void removeLayerData(DeviceLayerKind kind, String rscNameSuffix)
+        throws DatabaseException
     {
         checkDeleted();
-        snapshotDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
         layerStorage.remove(new PairNonNull<>(kind, rscNameSuffix)).delete();
     }
 
@@ -333,14 +305,13 @@ public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinitio
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws DatabaseException, AccessDeniedException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.CONTROL);
 
-            snapshotDfn.removeSnapshotVolumeDefinition(accCtx, vlmNr);
+            snapshotDfn.removeSnapshotVolumeDefinition(vlmNr);
 
             snapVlmDfnProps.delete();
             vlmDfnProps.delete();
@@ -364,14 +335,13 @@ public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinitio
             ", VlmNr: '" + vlmNr + "'";
     }
 
-    public SnapshotVolumeDefinitionApi getApiData(AccessContext accCtx)
-        throws AccessDeniedException
+    public SnapshotVolumeDefinitionApi getApiData()
     {
         return new SnapshotVlmDfnPojo(
             getUuid(),
             getVolumeNumber().value,
-            getVolumeSize(accCtx),
-            flags.getFlagsBits(accCtx),
+            getVolumeSize(),
+            flags.getFlagsBits(),
             snapVlmDfnProps.cloneMap(),
             vlmDfnProps.cloneMap()
         );
@@ -432,13 +402,6 @@ public class SnapshotVolumeDefinition extends AbsCoreObj<SnapshotVolumeDefinitio
         {
             return FlagsHelper.fromStringList(Flags.class, listFlags);
         }
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return getResourceDefinition().getObjProt();
     }
 
     /**

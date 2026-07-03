@@ -9,11 +9,6 @@ import com.linbit.linstor.dbdrivers.interfaces.SnapshotDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -49,16 +44,14 @@ public class SnapshotDefinitionControllerFactory
     }
 
     public SnapshotDefinition create(
-        AccessContext accCtx,
         ResourceDefinition rscDfn,
         SnapshotName snapshotName,
         SnapshotDefinition.Flags[] initFlags
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        rscDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
 
-        SnapshotDefinition snapshotDfnData = rscDfn.getSnapshotDfn(accCtx, snapshotName);
+        SnapshotDefinition snapshotDfnData = rscDfn.getSnapshotDfn(snapshotName);
 
         if (snapshotDfnData != null)
         {
@@ -68,7 +61,6 @@ public class SnapshotDefinitionControllerFactory
         snapshotDfnData = new SnapshotDefinition(
             UUID.randomUUID(),
             objectProtectionFactory.getInstance(
-                accCtx,
                 ObjectProtection.buildPath(rscDfn.getName(), snapshotName),
                 true
             ),
@@ -86,8 +78,8 @@ public class SnapshotDefinitionControllerFactory
 
         try
         {
-            long sequenceNumber = maxSequenceNumber(accCtx, rscDfn) + 1L;
-            snapshotDfnData.getSnapDfnProps(accCtx)
+            long sequenceNumber = maxSequenceNumber(rscDfn) + 1L;
+            snapshotDfnData.getSnapDfnProps()
                 .setProp(ApiConsts.KEY_SNAPSHOT_DFN_SEQUENCE_NUMBER, Long.toString(sequenceNumber));
         }
         catch (InvalidKeyException | InvalidValueException exc)
@@ -96,20 +88,19 @@ public class SnapshotDefinitionControllerFactory
         }
 
         driver.create(snapshotDfnData);
-        rscDfn.addSnapshotDfn(accCtx, snapshotDfnData);
+        rscDfn.addSnapshotDfn(snapshotDfnData);
 
         return snapshotDfnData;
     }
 
-    public static long maxSequenceNumber(AccessContext accCtx, ResourceDefinition rscDfn)
-        throws AccessDeniedException
+    public static long maxSequenceNumber(ResourceDefinition rscDfn)
     {
         long maxSequenceNumber = 0L;
-        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns(accCtx))
+        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
         {
             try
             {
-                String sequenceNumberProp = snapshotDfn.getSnapDfnProps(accCtx)
+                String sequenceNumberProp = snapshotDfn.getSnapDfnProps()
                     .getProp(ApiConsts.KEY_SNAPSHOT_DFN_SEQUENCE_NUMBER);
 
                 long sequenceNumber = Long.valueOf(sequenceNumberProp);

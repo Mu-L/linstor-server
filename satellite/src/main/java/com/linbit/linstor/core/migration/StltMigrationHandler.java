@@ -3,15 +3,12 @@ package com.linbit.linstor.core.migration;
 import com.linbit.ChildProcessTimeoutException;
 import com.linbit.ImplementationError;
 import com.linbit.extproc.ExtCmdFactory;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.protobuf.FullSync;
 import com.linbit.linstor.api.protobuf.FullSync.FullSyncStatus;
 import com.linbit.linstor.core.ControllerPeerConnector;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -28,21 +25,18 @@ import java.util.Set;
 public class StltMigrationHandler
 {
     private final ControllerPeerConnector ctrlPeerConnector;
-    private final AccessContext accCtx;
     private final ErrorReporter errorReporter;
     private final ExtCmdFactory extCmdFactory;
     private final Map<SatelliteMigrations, BaseStltMigration> stltMigrationsMap;
 
     @Inject
     public StltMigrationHandler(
-        @ApiContext AccessContext accCtxRef,
         ErrorReporter errorReporterRef,
         ControllerPeerConnector controllerPeerConnectorRef,
         ExtCmdFactory extCmdFactoryRef,
         Map<SatelliteMigrations, BaseStltMigration> stltMigrationsMapRef
     )
     {
-        accCtx = accCtxRef;
         errorReporter = errorReporterRef;
         ctrlPeerConnector = controllerPeerConnectorRef;
         extCmdFactory = extCmdFactoryRef;
@@ -56,27 +50,20 @@ public class StltMigrationHandler
     public StltMigrationResult migrate()
     {
         StltMigrationResult ret;
-        try
+        Node localNode = ctrlPeerConnector.getLocalNode();
+        Props localNodeProps = localNode.getProps();
+        List<SatelliteMigrations> stltMigsToApply = SatelliteMigrations.getMigrationsToApply(localNodeProps);
+        errorReporter.logTrace(
+            "Checking for satellite migrations... found %d migrations to apply",
+            stltMigsToApply.size()
+        );
+        if (!stltMigsToApply.isEmpty())
         {
-            Node localNode = ctrlPeerConnector.getLocalNode();
-            Props localNodeProps = localNode.getProps(accCtx);
-            List<SatelliteMigrations> stltMigsToApply = SatelliteMigrations.getMigrationsToApply(localNodeProps);
-            errorReporter.logTrace(
-                "Checking for satellite migrations... found %d migrations to apply",
-                stltMigsToApply.size()
-            );
-            if (!stltMigsToApply.isEmpty())
-            {
-                ret = applyMigrations(localNode, stltMigsToApply);
-            }
-            else
-            {
-                ret = StltMigrationResult.createEmpty(FullSync.FullSyncStatus.SUCCESS);
-            }
+            ret = applyMigrations(localNode, stltMigsToApply);
         }
-        catch (AccessDeniedException accDeniedExc)
+        else
         {
-            throw new ImplementationError(accDeniedExc);
+            ret = StltMigrationResult.createEmpty(FullSync.FullSyncStatus.SUCCESS);
         }
         return ret;
     }

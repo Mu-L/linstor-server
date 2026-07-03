@@ -3,8 +3,6 @@ package com.linbit.linstor.storage.utils;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.objects.AbsResource;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.nvme.NvmeRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -201,9 +199,8 @@ public class LayerUtils
     }
 
     public static List<DeviceLayerKind> getUsedDeviceLayerKinds(
-        AbsRscLayerObject<?> rscLayerObject,
-        AccessContext accCtx
-    ) throws AccessDeniedException
+        AbsRscLayerObject<?> rscLayerObject
+    )
     {
         List<DeviceLayerKind> usedLayers = new ArrayList<>();
 
@@ -216,7 +213,7 @@ public class LayerUtils
 
             if (DeviceLayerKind.NVME.equals(kind))
             {
-                if (((NvmeRscData<?>) curLayerObject).isInitiator(accCtx))
+                if (((NvmeRscData<?>) curLayerObject).isInitiator())
                 {
                     // we do not care about layers below us
                     break;
@@ -233,21 +230,14 @@ public class LayerUtils
         return usedLayers;
     }
 
-    public static List<DeviceLayerKind> getLayerStack(AbsResource<?> rscRef, AccessContext accCtx)
+    public static List<DeviceLayerKind> getLayerStack(AbsResource<?> rscRef)
     {
         List<DeviceLayerKind> ret = new ArrayList<>();
-        try
+        AbsRscLayerObject<?> layerData = rscRef.getLayerData();
+        while (layerData != null)
         {
-            AbsRscLayerObject<?> layerData = rscRef.getLayerData(accCtx);
-            while (layerData != null)
-            {
-                ret.add(layerData.getLayerKind());
-                layerData = layerData.getChildBySuffix("");
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            ret.add(layerData.getLayerKind());
+            layerData = layerData.getChildBySuffix("");
         }
         return ret;
     }

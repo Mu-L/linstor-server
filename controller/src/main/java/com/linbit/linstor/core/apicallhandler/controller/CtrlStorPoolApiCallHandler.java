@@ -6,8 +6,6 @@ import com.linbit.SizeSpecParser;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -21,7 +19,6 @@ import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelpe
 import com.linbit.linstor.core.apicallhandler.controller.helpers.PropsChangedListenerBuilder;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.StorPoolHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -41,8 +38,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.locks.LockGuardFactory;
@@ -81,8 +76,6 @@ public class CtrlStorPoolApiCallHandler
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
-    private final AccessContext sysCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlSecurityObjects securityObjects;
@@ -99,8 +92,6 @@ public class CtrlStorPoolApiCallHandler
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
-        @SystemContext AccessContext sysCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlSecurityObjects ctrlSecurityObjects,
@@ -116,8 +107,6 @@ public class CtrlStorPoolApiCallHandler
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
-        sysCtx = sysCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         securityObjects = ctrlSecurityObjects;
@@ -185,7 +174,7 @@ public class CtrlStorPoolApiCallHandler
                 ));
             }
             Map<String, PropertyChangedListener> propsChangedListeners = propsChangeListenerBuilderProvider.get()
-                .buildPropsChangedListeners(peerAccCtx.get(), storPool, specialPropFluxes);
+                .buildPropsChangedListeners(storPool, specialPropFluxes);
 
             Props props = ctrlPropsHelper.getProps(storPool);
 
@@ -212,7 +201,6 @@ public class CtrlStorPoolApiCallHandler
 
             // check if specified preferred network interface exists
             ctrlPropsHelper.checkPrefNic(
-                    peerAccCtx.get(),
                     storPool.getNode(),
                     overrideProps.get(ApiConsts.KEY_STOR_POOL_PREF_NIC),
                     ApiConsts.MASK_STOR_POOL
@@ -253,13 +241,11 @@ public class CtrlStorPoolApiCallHandler
     {
         // check if specified preferred network interface exists
         ctrlPropsHelper.checkPrefNic(
-            peerAccCtx.get(),
             storPool.getNode(),
             overrideProps.get(ApiConsts.KEY_STOR_POOL_PREF_NIC),
             ApiConsts.MASK_STOR_POOL
         );
         ctrlPropsHelper.checkPrefNic(
-            peerAccCtx.get(),
             storPool.getNode(),
             overrideProps.get(ApiConsts.NAMESPC_NVME + "/" + ApiConsts.KEY_PREF_NIC),
             ApiConsts.MASK_STOR_POOL
@@ -267,7 +253,6 @@ public class CtrlStorPoolApiCallHandler
 
         // check if specified "outside address" network interface exists
         ctrlPropsHelper.checkPrefOutsideAddress(
-            peerAccCtx.get(),
             storPool.getNode(),
             overrideProps.get(
                 ApiConsts.NAMESPC_LINSTOR_DRBD + "/" + ApiConsts.KEY_DRBD_OUTSIDE_ADDRESS
@@ -279,7 +264,7 @@ public class CtrlStorPoolApiCallHandler
         {
             if (entry.getKey().startsWith(ApiConsts.NAMESPC_SED + ReadOnlyProps.PATH_SEPARATOR))
             {
-                if (!storPool.getNode().getPeer(peerAccCtx.get()).isConnected(true))
+                if (!storPool.getNode().getPeer().isConnected(true))
                 {
                     throw new ApiRcException(ApiCallRcImpl.simpleEntry(
                         ApiConsts.MASK_ERROR | ApiConsts.MASK_STOR_POOL | ApiConsts.FAIL_INVLD_PROP,
@@ -442,7 +427,7 @@ public class CtrlStorPoolApiCallHandler
                 final Node storPoolNode = storPool.getNode();
                 StorPoolDefinition spd = getStorPoolDefinition(storPool);
                 delete(storPool);
-                Iterator<StorPool> spIt = spd.iterateStorPools(sysCtx);
+                Iterator<StorPool> spIt = spd.iterateStorPools();
                 StorPoolName storPoolName = spd.getName();
                 String spdDspName = storPoolName.displayValue;
                 if (!spIt.hasNext() && // only delete SPD if we just its deleted last SP
@@ -481,55 +466,21 @@ public class CtrlStorPoolApiCallHandler
     private Collection<VlmProviderObject<Resource>> getVolumes(StorPool storPool)
     {
         Collection<VlmProviderObject<Resource>> volumes;
-        try
-        {
-            volumes = storPool.getVolumes(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access the volumes of " + getStorPoolDescriptionInline(storPool),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL
-            );
-        }
+        volumes = storPool.getVolumes();
         return volumes;
     }
 
     private Collection<VlmProviderObject<Snapshot>> getSnapshotVolumes(StorPool storPool)
     {
         Collection<VlmProviderObject<Snapshot>> snapVlms;
-        try
-        {
-            snapVlms = storPool.getSnapVolumes(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access the snapshot-volumes of " + getStorPoolDescriptionInline(storPool),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL
-            );
-        }
+        snapVlms = storPool.getSnapVolumes();
         return snapVlms;
     }
 
     private StorPoolDefinition getStorPoolDefinition(StorPool storPoolRef)
     {
         StorPoolDefinition spd;
-        try
-        {
-            spd = storPoolRef.getDefinition(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "accessinng definition of " + StorPoolHelper.getStorPoolDescriptionInline(storPoolRef),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
-            );
-
-        }
+        spd = storPoolRef.getDefinition();
         return spd;
     }
 
@@ -538,16 +489,8 @@ public class CtrlStorPoolApiCallHandler
         try
         {
             StorPoolName spName = storPoolDfn.getName();
-            storPoolDfn.delete(peerAccCtx.get());
-            storPoolDfnRepo.remove(peerAccCtx.get(), spName);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete " + CtrlStorPoolDfnApiCallHandler.getStorPoolDfnDescriptionInline(storPoolDfn),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
-            );
+            storPoolDfn.delete();
+            storPoolDfnRepo.remove(spName);
         }
         catch (DatabaseException sqlExc)
         {
@@ -559,15 +502,7 @@ public class CtrlStorPoolApiCallHandler
     {
         try
         {
-            storPool.delete(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete " + StorPoolHelper.getStorPoolDescriptionInline(storPool),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL
-            );
+            storPool.delete();
         }
         catch (DatabaseException sqlExc)
         {

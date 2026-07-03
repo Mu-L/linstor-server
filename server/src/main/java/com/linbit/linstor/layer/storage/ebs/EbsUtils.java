@@ -20,8 +20,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.EbsRemote;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.provider.ebs.EbsData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -51,23 +49,23 @@ public class EbsUtils
         // utils class
     }
 
-    public static boolean isEbs(AccessContext accCtx, AbsResource<?> rscOrSnapRef) throws AccessDeniedException
+    public static boolean isEbs(AbsResource<?> rscOrSnapRef)
     {
         // for now, we only monitor target resources, and snapshots only exist on target anyways
-        return rscOrSnapRef.getNode().getNodeType(accCtx).equals(Node.Type.EBS_TARGET);
+        return rscOrSnapRef.getNode().getNodeType().equals(Node.Type.EBS_TARGET);
     }
 
-    public static @Nullable String getEbsVlmId(AccessContext accCtx, EbsData<?> vlmDataRef) throws AccessDeniedException
+    public static @Nullable String getEbsVlmId(EbsData<?> vlmDataRef)
     {
         ReadOnlyProps props;
         AbsVolume<?> absVlm = vlmDataRef.getVolume();
         if (absVlm instanceof Volume volume)
         {
-            props = volume.getProps(accCtx);
+            props = volume.getProps();
         }
         else
         {
-            props = ((SnapshotVolume) absVlm).getVlmProps(accCtx);
+            props = ((SnapshotVolume) absVlm).getVlmProps();
         }
         return props.getProp(getEbsVlmIdKey(vlmDataRef));
     }
@@ -82,11 +80,10 @@ public class EbsUtils
         return EBS_VLM_ID_BASE_KEY + rscSuffixRef;
     }
 
-    public static @Nullable String getEbsSnapId(AccessContext accCtx, EbsData<Snapshot> snapVlmDataRef)
-        throws AccessDeniedException
+    public static @Nullable String getEbsSnapId(EbsData<Snapshot> snapVlmDataRef)
     {
         return ((SnapshotVolume) snapVlmDataRef.getVolume())
-            .getSnapVlmProps(accCtx)
+            .getSnapVlmProps()
             .getProp(getEbsSnapIdKey(snapVlmDataRef));
     }
 
@@ -111,7 +108,6 @@ public class EbsUtils
     }
 
     public static EbsRemote getEbsRemote(
-        AccessContext accCtxRef,
         RemoteMap remoteMap,
         StorPool storPoolRef,
         ReadOnlyProps stltPropsRef
@@ -122,14 +118,14 @@ public class EbsUtils
         {
             remote = remoteMap.get(
                 new RemoteName(
-                    getPrioProps(accCtxRef, storPoolRef, stltPropsRef).getProp(
+                    getPrioProps(storPoolRef, stltPropsRef).getProp(
                         ApiConsts.NAMESPC_STORAGE_DRIVER + "/" + ApiConsts.NAMESPC_EBS + "/" + ApiConsts.KEY_REMOTE
                     ),
                     true
                 )
             );
         }
-        catch (InvalidKeyException | InvalidNameException | AccessDeniedException exc)
+        catch (InvalidKeyException | InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -143,15 +139,13 @@ public class EbsUtils
     }
 
     public static PriorityProps getPrioProps(
-        AccessContext accCtx,
         StorPool spRef,
         ReadOnlyProps stltProps
     )
-        throws AccessDeniedException
     {
         return new PriorityProps(
-            spRef.getProps(accCtx),
-            spRef.getNode().getProps(accCtx),
+            spRef.getProps(),
+            spRef.getNode().getProps(),
             stltProps
         );
     }
@@ -176,11 +170,11 @@ public class EbsUtils
         return ret;
     }
 
-    public static boolean hasEbsVlms(Resource rscRef, AccessContext accCtxRef) throws AccessDeniedException
+    public static boolean hasEbsVlms(Resource rscRef)
     {
         boolean hasEbsVlm = false;
         Set<AbsRscLayerObject<Resource>> storRscDataSet = LayerRscUtils.getRscDataByLayer(
-            rscRef.getLayerData(accCtxRef),
+            rscRef.getLayerData(),
             DeviceLayerKind.STORAGE
         );
         for (AbsRscLayerObject<Resource> storRscData : storRscDataSet)
@@ -200,15 +194,14 @@ public class EbsUtils
         return hasEbsVlm;
     }
 
-    public static boolean isSnapshotCompleted(AccessContext accessContextRef, Snapshot snapshotRef)
-        throws AccessDeniedException
+    public static boolean isSnapshotCompleted(Snapshot snapshotRef)
     {
         boolean allCompleted = true;
         Iterator<SnapshotVolume> snapVlmIt = snapshotRef.iterateVolumes();
         while (snapVlmIt.hasNext())
         {
             SnapshotVolume snapVlm = snapVlmIt.next();
-            allCompleted &= snapVlm.getState(accessContextRef).equals(EBS_SNAP_STATE_COMPLETED);
+            allCompleted &= snapVlm.getState().equals(EBS_SNAP_STATE_COMPLETED);
         }
         return allCompleted;
     }

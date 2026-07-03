@@ -8,7 +8,6 @@ import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine.DataToString;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.ExceptionThrowingFunction;
 
 import java.sql.PreparedStatement;
@@ -21,10 +20,10 @@ class SQLSingleColumnDriver<DATA, INPUT_TYPE, DB_TYPE> implements SingleColumnDa
 {
     private final SQLEngine sqlEngine;
     private final ErrorReporter errorReporter;
-    private final Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters;
+    private final Map<Column, ExceptionThrowingFunction<DATA, Object>> setters;
     private final Column colToUpdate;
     private final DataToString<DATA> dataToString;
-    private final ExceptionThrowingFunction<DATA, String, AccessDeniedException> dataValueToString;
+    private final ExceptionThrowingFunction<DATA, String> dataValueToString;
 
     private final DatabaseTable table;
     private final String updateStatement;
@@ -34,11 +33,11 @@ class SQLSingleColumnDriver<DATA, INPUT_TYPE, DB_TYPE> implements SingleColumnDa
     SQLSingleColumnDriver(
         SQLEngine sqlEngineRef,
         ErrorReporter errorReporterRef,
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         Column colToUpdateRef,
         Function<INPUT_TYPE, DB_TYPE> mapperRef,
         DataToString<DATA> dataToStringRef,
-        ExceptionThrowingFunction<DATA, String, AccessDeniedException> dataValueToStringRef,
+        ExceptionThrowingFunction<DATA, String> dataValueToStringRef,
         DataToString<INPUT_TYPE> inputToStringRef
     )
     {

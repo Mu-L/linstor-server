@@ -1,13 +1,11 @@
 package com.linbit.linstor.api.protobuf.serializer;
 
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.CtrlSecurityObjects;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -23,12 +21,11 @@ public class ProtoCtrlStltSerializer extends ProtoCommonSerializer
     @Inject
     public ProtoCtrlStltSerializer(
         ErrorReporter errReporter,
-        @ApiContext AccessContext serializerCtx,
         CtrlSecurityObjects secObjsRef,
         @Named(LinStor.SATELLITE_PROPS) ReadOnlyProps ctrlConfRef
     )
     {
-        super(errReporter, serializerCtx);
+        super(errReporter);
         secObjs = secObjsRef;
         ctrlConf = ctrlConfRef;
     }
@@ -69,6 +66,6 @@ public class ProtoCtrlStltSerializer extends ProtoCommonSerializer
     private CtrlStltSerializerBuilder builder(@Nullable String apiCall, @Nullable Long apiCallId, boolean isAnswer)
     {
         return new ProtoCtrlStltSerializerBuilder(
-            errorReporter, serializerCtx, secObjs, ctrlConf, apiCall, apiCallId, isAnswer);
+            errorReporter, secObjs, ctrlConf, apiCall, apiCallId, isAnswer);
     }
 }

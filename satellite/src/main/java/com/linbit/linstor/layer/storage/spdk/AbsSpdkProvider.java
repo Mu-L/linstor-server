@@ -30,7 +30,6 @@ import com.linbit.linstor.layer.storage.spdk.utils.SpdkUtils;
 import com.linbit.linstor.layer.storage.spdk.utils.SpdkUtils.LvsInfo;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
@@ -76,7 +75,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     protected void updateStates(List<SpdkData<Resource>> vlmDataList, List<SpdkData<Snapshot>> snapshots)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         final Map<String, Long> extentSizes = SpdkUtils.getExtentSize(
             spdkCommands,
@@ -146,7 +145,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
     }
 
     protected void updateInfo(SpdkData<?> vlmData, @Nullable LvsInfo info)
-        throws DatabaseException, AccessDeniedException, StorageException
+        throws DatabaseException, StorageException
     {
         vlmData.setIdentifier(asIdentifierRaw(vlmData));
         if (info == null)
@@ -180,14 +179,14 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @SuppressWarnings("unused")
     protected void updateSnapshotStates(Collection<SnapshotVolume> snapshots)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // no-op
     }
 
     @Override
     protected void createLvImpl(SpdkData<Resource> vlmData)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         spdkCommands.createFat(
             vlmData.getVolumeGroup(),
@@ -207,12 +206,12 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
             ResourceGroup rscGrp = rscDfn.getResourceGroup();
             VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
             PriorityProps prioProps = new PriorityProps(
-                vlm.getProps(storDriverAccCtx),
-                vlmDfn.getProps(storDriverAccCtx),
-                rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmDfn.getVolumeNumber()),
-                rscDfn.getProps(storDriverAccCtx),
-                rscGrp.getProps(storDriverAccCtx),
-                vlmDataRef.getStorPool().getProps(storDriverAccCtx)
+                vlm.getProps(),
+                vlmDfn.getProps(),
+                rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+                rscDfn.getProps(),
+                rscGrp.getProps(),
+                vlmDataRef.getStorPool().getProps()
             );
             type = prioProps.getProp(
                 ApiConsts.KEY_STOR_POOL_LVCREATE_TYPE,
@@ -220,7 +219,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
                 DFLT_LVCREATE_TYPE
             );
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -229,7 +228,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     protected void resizeLvImpl(SpdkData<Resource> vlmData)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         spdkCommands.resize(
             vlmData.getVolumeGroup(),
@@ -240,7 +239,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     protected void deleteLvImpl(SpdkData<Resource> vlmData, String oldSpdkId)
-        throws StorageException, DatabaseException, AccessDeniedException
+        throws StorageException, DatabaseException
     {
         vlmData.setExists(false);
 
@@ -260,7 +259,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     protected void deactivateLvImpl(SpdkData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // noop, not supported
     }
@@ -269,20 +268,13 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
     protected Map<String, Long> getFreeSpacesImpl() throws StorageException
     {
         Map<String, Long> freeSizes;
-        try
+        freeSizes = SpdkUtils.getVgFreeSize(spdkCommands, changedStoragePoolStrings);
+        for (String storPool : changedStoragePoolStrings)
         {
-            freeSizes = SpdkUtils.getVgFreeSize(spdkCommands, changedStoragePoolStrings);
-            for (String storPool : changedStoragePoolStrings)
+            if (!freeSizes.containsKey(storPool))
             {
-                if (!freeSizes.containsKey(storPool))
-                {
-                    freeSizes.put(storPool, SIZE_OF_NOT_FOUND_STOR_POOL);
-                }
+                freeSizes.put(storPool, SIZE_OF_NOT_FOUND_STOR_POOL);
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         return freeSizes;
     }
@@ -292,7 +284,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
         List<SpdkData<Resource>> vlmDataList,
         List<SpdkData<Snapshot>> snapVlms
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return SpdkUtils.getLvsInfo(
             spdkCommands,
@@ -362,11 +354,11 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
         try
         {
             volumeGroup = StringUtils.split(DeviceLayerUtils.getNamespaceStorDriver(
-                storPool.getReadOnlyProps(storDriverAccCtx)
+                storPool.getReadOnlyProps()
             )
                 .getProp(StorageConstants.CONFIG_LVM_VOLUME_GROUP_KEY), "/")[0];
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -380,7 +372,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException, AccessDeniedException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException
     {
         String vg = getVolumeGroup(storPool);
         if (vg == null)
@@ -407,7 +399,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     public @Nullable LocalPropsChangePojo update(StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         // TODO: we need to implement a check for pmem here. something like LvmProvider.update does
         return null;
@@ -415,12 +407,12 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     public @Nullable LocalPropsChangePojo checkConfig(StorPoolInfo storPool)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         LocalPropsChangePojo ret = new LocalPropsChangePojo();
 
         ReadOnlyProps props = DeviceLayerUtils.getNamespaceStorDriver(
-            storPool.getReadOnlyProps(storDriverAccCtx)
+            storPool.getReadOnlyProps()
         );
         SpdkConfigReader.checkVolumeGroupEntry(spdkCommands, props);
         SpdkConfigReader.checkToleranceFactor(props);
@@ -431,7 +423,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
     }
 
     protected void checkExtentSize(StorPoolInfo storPool, LocalPropsChangePojo ret)
-        throws StorageException, ImplementationError, AccessDeniedException
+        throws StorageException, ImplementationError
     {
         String vlmGrp = getVolumeGroup(storPool);
         final Map<String, Long> extentSizes = SpdkUtils.getExtentSize(
@@ -445,17 +437,10 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
     @Override
     protected long getAllocatedSize(SpdkData<Resource> vlmDataRef) throws StorageException
     {
-        try
-        {
-            return SpdkUtils.getBlockSizeByName(
-                spdkCommands,
-                StringUtils.split(vlmDataRef.getSpdkPath(), SPDK_PATH_PREFIX)[1]
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return SpdkUtils.getBlockSizeByName(
+            spdkCommands,
+            StringUtils.split(vlmDataRef.getSpdkPath(), SPDK_PATH_PREFIX)[1]
+        );
     }
 
     private Set<String> getAffectedVolumeGroups(
@@ -489,7 +474,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
      */
     @Override
     protected boolean snapshotExists(SpdkData<Snapshot> snapVlmRef, boolean ignoredForTakeSnapshorRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         String identifier = getFullQualifiedIdentifier(snapVlmRef);
 
@@ -498,7 +483,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     protected void createSnapshot(SpdkData<Resource> vlmData, SpdkData<Snapshot> snapVlm, boolean readOnly)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         spdkCommands.createSnapshot(
             getFullQualifiedIdentifier(vlmData),
@@ -508,7 +493,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     protected void restoreSnapshot(SpdkData<Snapshot> sourceSnapVlmDataRef, SpdkData<Resource> vlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         String fullQualifiedSnapName = vlmDataRef.getVolumeGroup() + "/" + asSnapLvIdentifier(sourceSnapVlmDataRef);
 
@@ -521,7 +506,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     protected void rollbackImpl(SpdkData<Resource> vlmDataRef, SpdkData<Snapshot> rollbackToSnapVlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         String vlmGrp = vlmDataRef.getVolumeGroup();
 
@@ -546,7 +531,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     protected void deleteSnapshotImpl(SpdkData<Snapshot> snapVlmRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // no difference between snapshot and volume on SPDK level
         spdkCommands.delete(snapVlmRef.getVolumeGroup(), asSnapLvIdentifier(snapVlmRef));
@@ -555,7 +540,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @SuppressWarnings("unchecked")
     @Override
-    protected long getExtentSize(AbsStorageVlmData<?> vlmDataRef) throws StorageException, AccessDeniedException
+    protected long getExtentSize(AbsStorageVlmData<?> vlmDataRef) throws StorageException
     {
         Collection<SpdkData<Resource>> vlmDataList;
         Collection<SpdkData<Snapshot>> snapVlms;
@@ -623,7 +608,7 @@ public abstract class AbsSpdkProvider<T> extends AbsStorageProvider<LvsInfo, Spd
 
     @Override
     public Map<ReadOnlyVlmProviderInfo, Long> fetchAllocatedSizes(List<ReadOnlyVlmProviderInfo> vlmDataListRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return fetchOrigAllocatedSizes(vlmDataListRef);
     }

@@ -14,8 +14,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.TcpConnector;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.ReconnectorTask;
 
 import javax.inject.Inject;
@@ -50,26 +48,26 @@ public class SatelliteConnectorImpl implements SatelliteConnector
     }
 
     @Override
-    public void startConnecting(Node node, AccessContext accCtx)
+    public void startConnecting(Node node)
     {
-        startConnecting(node, accCtx, true);
+        startConnecting(node, true);
     }
 
-    public void startConnecting(Node node, AccessContext accCtx, boolean async)
+    public void startConnecting(Node node, boolean async)
     {
         try
         {
-            Node.Type nodeType = node.getNodeType(accCtx);
+            Node.Type nodeType = node.getNodeType();
             if (
                 nodeType.equals(Node.Type.SATELLITE) ||
                     nodeType.equals(Node.Type.COMBINED) ||
                     nodeType.isSpecial()
             )
             {
-                NetInterface activeStltConn = node.getActiveStltConn(accCtx);
+                NetInterface activeStltConn = node.getActiveStltConn();
                 if (activeStltConn != null)
                 {
-                    EncryptionType type = activeStltConn.getStltConnEncryptionType(accCtx);
+                    EncryptionType type = activeStltConn.getStltConnEncryptionType();
                     String serviceType = switch (type)
                     {
                         case PLAIN -> ControllerNetComInitializer.PROPSCON_KEY_DEFAULT_PLAIN_CON_SVC;
@@ -101,8 +99,8 @@ public class SatelliteConnectorImpl implements SatelliteConnector
                         {
                             connectSatelliteAsync(
                                 new InetSocketAddress(
-                                    activeStltConn.getAddress(accCtx).getAddress(),
-                                    activeStltConn.getStltConnPort(accCtx).value
+                                    activeStltConn.getAddress().getAddress(),
+                                    activeStltConn.getStltConnPort().value
                                 ),
                                 tcpConnector,
                                 node
@@ -112,8 +110,8 @@ public class SatelliteConnectorImpl implements SatelliteConnector
                         {
                             connectSatellite(
                                 new InetSocketAddress(
-                                    activeStltConn.getAddress(accCtx).getAddress(),
-                                    activeStltConn.getStltConnPort(accCtx).value
+                                    activeStltConn.getAddress().getAddress(),
+                                    activeStltConn.getStltConnPort().value
                                 ),
                                 tcpConnector,
                                 node,
@@ -131,13 +129,13 @@ public class SatelliteConnectorImpl implements SatelliteConnector
             }
             else
             {
-                node.setOfflinePeer(errorReporter, accCtx);
+                node.setOfflinePeer(errorReporter);
                 errorReporter.logDebug(
                     "Not connecting to " + nodeType.name() + " node: '" + node.getName().getDisplayName() + "'"
                 );
             }
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new LinStorRuntimeException(
                 "Access to an object protected by access controls was revoked while a " +

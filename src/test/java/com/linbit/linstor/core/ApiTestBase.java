@@ -18,13 +18,7 @@ import com.linbit.linstor.netcom.NetComContainer;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.TcpConnector;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.security.GenericDbBase;
-import com.linbit.linstor.security.Identity;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.Role;
-import com.linbit.linstor.security.SecurityType;
 import com.linbit.linstor.transaction.manager.ControllerSQLTransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgrSQL;
@@ -79,8 +73,8 @@ public abstract class ApiTestBase extends GenericDbBase
             ctrlConf.setProp(ControllerNetComInitializer.PROPSCON_KEY_DEFAULT_PLAIN_CON_SVC, "ignore");
             ctrlConf.setProp(ControllerNetComInitializer.PROPSCON_KEY_DEFAULT_SSL_CON_SVC, "ignore");
 
-            create(transMgr, ALICE_ACC_CTX);
-            create(transMgr, BOB_ACC_CTX);
+            create(transMgr);
+            create(transMgr);
 
             transMgr.commit();
             transMgr.returnConnection();
@@ -93,11 +87,11 @@ public abstract class ApiTestBase extends GenericDbBase
         initAfterScopeWasEntered();
     }
 
-    private void create(TransactionMgrSQL transMgr, AccessContext accCtx) throws Exception
+    private void create(TransactionMgrSQL transMgr) throws Exception
     {
-        Identity.create(SYS_CTX, accCtx.subjectId.name);
-        SecurityType.create(SYS_CTX, accCtx.subjectDomain.name);
-        Role.create(SYS_CTX, accCtx.subjectRole.name);
+        Identity.create(accCtx.subjectId.name);
+        SecurityType.create(accCtx.subjectDomain.name);
+        Role.create(accCtx.subjectRole.name);
 
         {
             // TODO each line in this block should be called in the corresponding .create method from the lines above
@@ -109,23 +103,23 @@ public abstract class ApiTestBase extends GenericDbBase
         ObjectProtection nodesMapProt = nodeRepository.getObjProt();
         ObjectProtection rscDfnMapProt = resourceDefinitionRepository.getObjProt();
         ObjectProtection storPoolDfnMapProt = storPoolDefinitionRepository.getObjProt();
-        nodesMapProt.getSecurityType().addRule(SYS_CTX, accCtx.subjectDomain, AccessType.CHANGE);
-        rscDfnMapProt.getSecurityType().addRule(SYS_CTX, accCtx.subjectDomain, AccessType.CHANGE);
-        storPoolDfnMapProt.getSecurityType().addRule(SYS_CTX, accCtx.subjectDomain, AccessType.CHANGE);
+        nodesMapProt.getSecurityType().addRule(accCtx.subjectDomain, AccessType.CHANGE);
+        rscDfnMapProt.getSecurityType().addRule(accCtx.subjectDomain, AccessType.CHANGE);
+        storPoolDfnMapProt.getSecurityType().addRule(accCtx.subjectDomain, AccessType.CHANGE);
 
-        accCtx.subjectDomain.addRule(SYS_CTX, accCtx.subjectDomain, AccessType.CONTROL);
+        accCtx.subjectDomain.addRule(accCtx.subjectDomain, AccessType.CONTROL);
 
         nodesMapProt.setConnection(transMgr);
         rscDfnMapProt.setConnection(transMgr);
         storPoolDfnMapProt.setConnection(transMgr);
-        nodesMapProt.addAclEntry(SYS_CTX, accCtx.subjectRole, AccessType.CHANGE);
-        rscDfnMapProt.addAclEntry(SYS_CTX, accCtx.subjectRole, AccessType.CHANGE);
-        storPoolDfnMapProt.addAclEntry(SYS_CTX, accCtx.subjectRole, AccessType.CHANGE);
+        nodesMapProt.addAclEntry(accCtx.subjectRole, AccessType.CHANGE);
+        rscDfnMapProt.addAclEntry(accCtx.subjectRole, AccessType.CHANGE);
+        storPoolDfnMapProt.addAclEntry(accCtx.subjectRole, AccessType.CHANGE);
 
         ObjectProtection disklessStorPoolDfnProt =
-            storPoolDefinitionRepository.get(SYS_CTX, new StorPoolName(LinStor.DISKLESS_STOR_POOL_NAME)).getObjProt();
+            storPoolDefinitionRepository.get(new StorPoolName(LinStor.DISKLESS_STOR_POOL_NAME)).getObjProt();
         disklessStorPoolDfnProt.setConnection(transMgr);
-        disklessStorPoolDfnProt.addAclEntry(SYS_CTX, accCtx.subjectRole, AccessType.CHANGE);
+        disklessStorPoolDfnProt.addAclEntry(accCtx.subjectRole, AccessType.CHANGE);
     }
 
     protected Context contextWrite()

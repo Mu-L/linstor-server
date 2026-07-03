@@ -17,7 +17,6 @@ import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscPayload;
 import com.linbit.linstor.propscon.PropsContainer;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -80,7 +79,7 @@ public class VolumeDbDriverTest extends GenericDbBase
     @SuppressWarnings("checkstyle:magicnumber")
     public void setUp() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext(SYS_CTX);
+        seedDefaultPeerRule.setDefaultPeerAccessContext();
         super.setUpAndEnterScope();
         assertEquals(TBL_VOLUMES + " table's column count has changed. Update tests accordingly!",
             8,
@@ -89,7 +88,6 @@ public class VolumeDbDriverTest extends GenericDbBase
 
         nodeName = new NodeName("TestNodeName");
         node = nodeFactory.create(
-            SYS_CTX,
             nodeName,
             Node.Type.SATELLITE,
             null
@@ -102,13 +100,12 @@ public class VolumeDbDriverTest extends GenericDbBase
         drbdRscDfn.sharedSecret = "secret";
         drbdRscDfn.transportType = TransportType.IP;
         resDfn = resourceDefinitionFactory.create(
-            SYS_CTX,
             resName,
             null,
             null,
             Arrays.asList(DeviceLayerKind.DRBD, DeviceLayerKind.STORAGE),
             payload,
-            createDefaultResourceGroup(SYS_CTX)
+            createDefaultResourceGroup()
         );
 
         nodeId = 7;
@@ -116,7 +113,6 @@ public class VolumeDbDriverTest extends GenericDbBase
         drbdRsc.nodeId = nodeId;
         drbdRsc.tcpPorts = resPorts;
         res = resourceFactory.create(
-            SYS_CTX,
             resDfn,
             node,
             payload,
@@ -126,12 +122,10 @@ public class VolumeDbDriverTest extends GenericDbBase
 
         storPoolName = new StorPoolName("TestStorPoolName");
         storPoolDfn = storPoolDefinitionFactory.create(
-            SYS_CTX,
             storPoolName
         );
 
         storPool = storPoolFactory.create(
-            SYS_CTX,
             node,
             storPoolDfn,
             DeviceProviderKind.LVM,
@@ -143,7 +137,6 @@ public class VolumeDbDriverTest extends GenericDbBase
         minor = 42;
         volSize = 5_000_000;
         volDfn = volumeDefinitionFactory.create(
-            SYS_CTX,
             resDfn,
             volNr,
             minor,
@@ -193,7 +186,6 @@ public class VolumeDbDriverTest extends GenericDbBase
         LayerPayload payload = new LayerPayload();
         payload.putStorageVlmPayload("", volDfn.getVolumeNumber().value, storPool);
         Volume volData = volumeFactory.create(
-            SYS_CTX,
             res,
             volDfn,
             new Volume.Flags[] {Volume.Flags.DELETE},
@@ -207,8 +199,8 @@ public class VolumeDbDriverTest extends GenericDbBase
         assertNotNull(volData);
         assertNotNull(volData.getUuid());
         assertNotNull(volData.getFlags());
-        assertTrue(volData.getFlags().isSet(SYS_CTX, Volume.Flags.DELETE));
-        assertNotNull(volData.getProps(SYS_CTX));
+        assertTrue(volData.getFlags().isSet(Volume.Flags.DELETE));
+        assertNotNull(volData.getProps());
         assertEquals(res, volData.getAbsResource());
         assertEquals(resDfn, volData.getResourceDefinition());
         assertEquals(volDfn, volData.getVolumeDefinition());
@@ -273,8 +265,8 @@ public class VolumeDbDriverTest extends GenericDbBase
             new TreeMap<>()
         );
         driver.create(vol);
-        volDfn.putVolume(SYS_CTX, vol);
-        res.putVolume(SYS_CTX, vol);
+        volDfn.putVolume(vol);
+        res.putVolume(vol);
 
         Volume loadedVol = res.getVolume(volDfn.getVolumeNumber());
         checkLoaded(loadedVol, uuid);
@@ -286,7 +278,6 @@ public class VolumeDbDriverTest extends GenericDbBase
         LayerPayload payload = new LayerPayload();
         payload.putStorageVlmPayload("", volDfn.getVolumeNumber().value, storPool);
         Volume storedInstance = volumeFactory.create(
-            SYS_CTX,
             res,
             volDfn,
             null,
@@ -356,7 +347,7 @@ public class VolumeDbDriverTest extends GenericDbBase
 
         String testKey = "TestKey";
         String testValue = "TestValue";
-        vol.getProps(SYS_CTX).setProp(testKey, testValue);
+        vol.getProps().setProp(testKey, testValue);
 
         Map<String, String> map = new HashMap<>();
         map.put(testKey, testValue);
@@ -380,7 +371,7 @@ public class VolumeDbDriverTest extends GenericDbBase
         );
         driver.create(vol);
 
-        vol.getFlags().disableAllFlags(SYS_CTX);
+        vol.getFlags().disableAllFlags();
 
         commit();
 
@@ -396,7 +387,7 @@ public class VolumeDbDriverTest extends GenericDbBase
 
     }
 
-    private void checkLoaded(Volume loadedVol, java.util.UUID expectedUuid) throws AccessDeniedException
+    private void checkLoaded(Volume loadedVol, java.util.UUID expectedUuid)
     {
         assertNotNull(loadedVol);
         if (expectedUuid == null)
@@ -408,11 +399,11 @@ public class VolumeDbDriverTest extends GenericDbBase
             assertEquals(uuid, loadedVol.getUuid());
         }
         assertNotNull(loadedVol.getFlags());
-        assertTrue(loadedVol.getFlags().isSet(SYS_CTX, Volume.Flags.DELETE));
-        assertNotNull(loadedVol.getProps(SYS_CTX));
+        assertTrue(loadedVol.getFlags().isSet(Volume.Flags.DELETE));
+        assertNotNull(loadedVol.getProps());
         assertEquals(res.getResourceDefinition().getName(), loadedVol.getAbsResource().getResourceDefinition().getName());
         assertEquals(volDfn.getVolumeNumber(), loadedVol.getVolumeDefinition().getVolumeNumber());
-        assertEquals(volDfn.getVolumeSize(SYS_CTX), loadedVol.getVolumeDefinition().getVolumeSize(SYS_CTX));
+        assertEquals(volDfn.getVolumeSize(), loadedVol.getVolumeDefinition().getVolumeSize());
         assertEquals(volDfn.getUuid(), loadedVol.getVolumeDefinition().getUuid());
     }
 
@@ -431,11 +422,10 @@ public class VolumeDbDriverTest extends GenericDbBase
             new TreeMap<>()
         );
         driver.create(vol);
-        volDfn.putVolume(SYS_CTX, vol);
-        res.putVolume(SYS_CTX, vol);
+        volDfn.putVolume(vol);
+        res.putVolume(vol);
 
         volumeFactory.create(
-            SYS_CTX,
             res,
             volDfn,
             null,
@@ -493,7 +483,7 @@ public class VolumeDbDriverTest extends GenericDbBase
     public void testTransactionObjectsRollbackDirty() throws Exception
     {
         assertNotEquals(transMgrProvider.get().sizeObjects(), 0);
-        resDfn.getProps(SYS_CTX).setProp("test", "make this rscDfn dirty");
+        resDfn.getProps().setProp("test", "make this rscDfn dirty");
         transMgrProvider.get().rollback();
         assertEquals(0, transMgrProvider.get().sizeObjects());
         assertFalse(node.hasTransMgr());

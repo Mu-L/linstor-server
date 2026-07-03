@@ -1,8 +1,6 @@
 package com.linbit.linstor.tasks;
 
 import com.linbit.linstor.core.objects.Schedule;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.utils.PairNonNull;
 import com.linbit.utils.TimeUtils;
 
@@ -42,7 +40,7 @@ public class CronTests
 
     @Test
     @Parameters(method = "testData")
-    public void testConstruction(Input input) throws ParseException, AccessDeniedException
+    public void testConstruction(Input input) throws ParseException
     {
         Schedule schedule = Mockito.mock(Schedule.class);
         Mockito.when(schedule.getFullCron(Mockito.any())).thenReturn(CRON_PARSER.parse(input.fullExec));

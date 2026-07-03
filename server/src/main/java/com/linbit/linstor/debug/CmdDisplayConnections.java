@@ -8,12 +8,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.Identity;
-import com.linbit.linstor.security.Privilege;
-import com.linbit.linstor.security.PrivilegeSet;
-import com.linbit.linstor.security.Role;
-import com.linbit.linstor.security.SecurityType;
 
 import javax.inject.Inject;
 
@@ -121,7 +115,6 @@ public class CmdDisplayConnections extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     ) throws Exception
     {

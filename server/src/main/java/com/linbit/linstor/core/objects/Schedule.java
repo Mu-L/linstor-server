@@ -6,11 +6,6 @@ import com.linbit.linstor.core.identifier.ScheduleName;
 import com.linbit.linstor.core.objects.remotes.AbsRemote.RemoteType;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ScheduleDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -31,14 +26,13 @@ import com.cronutils.model.CronType;
 import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.parser.CronParser;
 
-public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
+public class Schedule extends AbsCoreObj<Schedule>
 {
     public interface InitMaps
     {
         // currently only a place holder for future maps
     }
 
-    private final ObjectProtection objProt;
     private final ScheduleDatabaseDriver driver;
     private final ScheduleName scheduleName;
     private final TransactionSimpleObject<Schedule, Cron> fullCron;
@@ -51,7 +45,6 @@ public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
     private final CronParser parser;
 
     public Schedule(
-        ObjectProtection objProtRef,
         UUID objIdRef,
         ScheduleDatabaseDriver driverRef,
         ScheduleName scheduleNameRef,
@@ -67,7 +60,6 @@ public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
     )
     {
         super(objIdRef, transObjFactory, transMgrProvider);
-        objProt = objProtRef;
         scheduleName = scheduleNameRef;
         driver = driverRef;
 
@@ -93,13 +85,6 @@ public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
         );
 
         parser = new CronParser(CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX));
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
     }
 
     @Override
@@ -138,32 +123,27 @@ public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
         return scheduleName;
     }
 
-    public Cron getFullCron(AccessContext accCtx) throws AccessDeniedException
+    public Cron getFullCron()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return fullCron.get();
     }
 
-    public void setFullCron(AccessContext accCtx, String fullCronRef) throws AccessDeniedException, DatabaseException
+    public void setFullCron(String fullCronRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         fullCron.set(parser.parse(fullCronRef));
     }
 
-    public @Nullable Cron getIncCron(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable Cron getIncCron()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return incCron.get();
     }
 
-    public void setIncCron(AccessContext accCtx, @Nullable String incCronRef) throws AccessDeniedException,
-        DatabaseException
+    public void setIncCron(@Nullable String incCronRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         if (incCronRef == null)
         {
             incCron.set(null);
@@ -174,63 +154,54 @@ public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
         }
     }
 
-    public @Nullable Integer getKeepLocal(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable Integer getKeepLocal()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return keepLocal.get();
     }
 
-    public void setKeepLocal(AccessContext accCtx, @Nullable Integer keepLocalRef) throws AccessDeniedException,
-        DatabaseException
+    public void setKeepLocal(@Nullable Integer keepLocalRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         keepLocal.set(keepLocalRef);
     }
 
-    public @Nullable Integer getKeepRemote(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable Integer getKeepRemote()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return keepRemote.get();
     }
 
-    public void setKeepRemote(AccessContext accCtx, @Nullable Integer keepRemoteRef)
-        throws AccessDeniedException, DatabaseException
+    public void setKeepRemote(@Nullable Integer keepRemoteRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         keepRemote.set(keepRemoteRef);
     }
 
-    public OnFailure getOnFailure(AccessContext accCtx) throws AccessDeniedException
+    public OnFailure getOnFailure()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return onFailure.get();
     }
 
-    public void setOnFailure(AccessContext accCtx, String onFailureRef)
-        throws AccessDeniedException, DatabaseException
+    public void setOnFailure(String onFailureRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         onFailure.set(OnFailure.valueOfIgnoreCase(onFailureRef));
     }
 
-    public @Nullable Integer getMaxRetries(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable Integer getMaxRetries()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return maxRetries.get();
     }
 
-    public void setMaxRetries(AccessContext accCtx, @Nullable Integer maxRetriesRef)
-        throws AccessDeniedException, DatabaseException
+    public void setMaxRetries(@Nullable Integer maxRetriesRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         maxRetries.set(maxRetriesRef);
     }
 
@@ -246,15 +217,13 @@ public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
         return RemoteType.S3;
     }
 
-    public SchedulePojo getApiData(AccessContext accCtx, @Nullable Long fullSyncId, @Nullable Long updateId)
-        throws AccessDeniedException
+    public SchedulePojo getApiData(@Nullable Long fullSyncId, @Nullable Long updateId)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return new SchedulePojo(
             objId,
             scheduleName.displayValue,
-            flags.getFlagsBits(accCtx),
+            flags.getFlagsBits(),
             fullCron.get().asString(),
             incCron.get() == null ? null : incCron.get().asString(),
             keepLocal.get(),
@@ -266,11 +235,9 @@ public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
         );
     }
 
-    public void applyApiData(AccessContext accCtx, SchedulePojo apiData) throws AccessDeniedException,
-        DatabaseException
+    public void applyApiData(SchedulePojo apiData) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         fullCron.set(parser.parse(apiData.getFullCron()));
         if (apiData.getIncCron() != null)
         {
@@ -285,17 +252,16 @@ public class Schedule extends AbsCoreObj<Schedule> implements ProtectedObject
         onFailure.set(OnFailure.valueOfIgnoreCase(apiData.getOnFailure()));
         maxRetries.set(apiData.getMaxRetries());
 
-        flags.resetFlagsTo(accCtx, Flags.restoreFlags(apiData.getFlags()));
+        flags.resetFlagsTo(Flags.restoreFlags(apiData.getFlags()));
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
 

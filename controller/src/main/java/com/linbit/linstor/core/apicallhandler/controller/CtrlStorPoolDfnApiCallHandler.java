@@ -4,9 +4,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -14,7 +12,6 @@ import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -32,9 +29,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.locks.LockGuardFactory;
 
 import static com.linbit.locks.LockGuardFactory.LockObj.NODES_MAP;
@@ -61,7 +55,6 @@ import reactor.core.publisher.Flux;
 class CtrlStorPoolDfnApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -70,13 +63,11 @@ class CtrlStorPoolDfnApiCallHandler
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
 
     @Inject
     CtrlStorPoolDfnApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -85,13 +76,11 @@ class CtrlStorPoolDfnApiCallHandler
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         ErrorReporter errorReporterRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -100,7 +89,6 @@ class CtrlStorPoolDfnApiCallHandler
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         errorReporter = errorReporterRef;
@@ -126,7 +114,7 @@ class CtrlStorPoolDfnApiCallHandler
                 responses, LinStorObject.STOR_POOL_DFN, storPoolDfnProps,
                 getProps(storPoolDfn), ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN);
 
-            storPoolDefinitionRepository.put(apiCtx, storPoolDfn.getName(), storPoolDfn);
+            storPoolDefinitionRepository.put(storPoolDfn.getName(), storPoolDfn);
             ctrlTransactionHelper.commit();
 
             responseConverter.addWithOp(responses, context, ApiSuccessUtils.defaultCreatedEntry(
@@ -269,7 +257,7 @@ class CtrlStorPoolDfnApiCallHandler
                 StorPoolName storPoolName = storPoolDfn.getName();
                 delete(storPoolDfn);
 
-                storPoolDefinitionRepository.remove(apiCtx, storPoolName);
+                storPoolDefinitionRepository.remove(storPoolName);
                 ctrlTransactionHelper.commit();
 
                 responseConverter.addWithOp(responses, context, ApiSuccessUtils.defaultDeletedEntry(
@@ -288,15 +276,7 @@ class CtrlStorPoolDfnApiCallHandler
     {
         try
         {
-            storPoolDfn.delete(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete " + getStorPoolDfnDescriptionInline(storPoolDfn),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
-            );
+            storPoolDfn.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -307,14 +287,7 @@ class CtrlStorPoolDfnApiCallHandler
     private Iterator<StorPool> getPrivilegedStorPoolIterator(StorPoolDefinition storPoolDfn)
     {
         Iterator<StorPool> iterator;
-        try
-        {
-            iterator = storPoolDfn.iterateStorPools(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        iterator = storPoolDfn.iterateStorPools();
         return iterator;
     }
 
@@ -323,13 +296,13 @@ class CtrlStorPoolDfnApiCallHandler
         ArrayList<StorPoolDefinitionApi> storPoolDfns = new ArrayList<>();
         try
         {
-            for (StorPoolDefinition storPoolDfn : storPoolDefinitionRepository.getMapForView(peerAccCtx.get()).values())
+            for (StorPoolDefinition storPoolDfn : storPoolDefinitionRepository.getMapForView().values())
             {
                 try
                 {
                     if (!storPoolDfn.getName().getDisplayName().equals(LinStor.DISKLESS_STOR_POOL_NAME))
                     {
-                        storPoolDfns.add(storPoolDfn.getApiData(peerAccCtx.get()));
+                        storPoolDfns.add(storPoolDfn.getApiData());
                     }
                 }
                 catch (AccessDeniedException accDeniedExc)
@@ -352,16 +325,7 @@ class CtrlStorPoolDfnApiCallHandler
         try
         {
             storPoolDfn = storPoolDefinitionFactory.create(
-                peerAccCtx.get(),
                 LinstorParsingUtils.asStorPoolName(storPoolNameStrRef)
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "create " + getStorPoolDfnDescriptionInline(storPoolNameStrRef),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
             );
         }
         catch (LinStorDataAlreadyExistsException alreadyExistsExc)
@@ -381,38 +345,12 @@ class CtrlStorPoolDfnApiCallHandler
 
     private void requireStorPoolDfnChangeAccess()
     {
-        try
-        {
-            storPoolDefinitionRepository.requireAccess(
-                peerAccCtx.get(),
-                AccessType.CHANGE
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "change any storage definitions pools",
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
-            );
-        }
     }
 
     private Props getProps(StorPoolDefinition storPoolDfn)
     {
         Props props;
-        try
-        {
-            props = storPoolDfn.getProps(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties of storage pool definition '" + storPoolDfn.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
-            );
-        }
+        props = storPoolDfn.getProps();
         return props;
     }
 
@@ -420,31 +358,24 @@ class CtrlStorPoolDfnApiCallHandler
     {
         List<Flux<Flux<ApiCallRc>>> fluxes = new ArrayList<>();
 
-        try
+        Iterator<StorPool> iterateStorPools = storPoolDfn.iterateStorPools();
+        while (iterateStorPools.hasNext())
         {
-            Iterator<StorPool> iterateStorPools = storPoolDfn.iterateStorPools(apiCtx);
-            while (iterateStorPools.hasNext())
-            {
-                fluxes.add(
-                    Flux.just(
-                    ctrlSatelliteUpdateCaller.updateSatellite(iterateStorPools.next())
-                        .transform(
-                            updateResponses -> CtrlResponseUtils.combineResponses(
-                                errorReporter,
-                                updateResponses,
-                                storPoolDfn.getName().displayValue,
-                                Collections.emptyList(),
-                                "Storage pool updated on {0}",
-                                "Storage pool updated on {0}"
-                            )
+            fluxes.add(
+                Flux.just(
+                ctrlSatelliteUpdateCaller.updateSatellite(iterateStorPools.next())
+                    .transform(
+                        updateResponses -> CtrlResponseUtils.combineResponses(
+                            errorReporter,
+                            updateResponses,
+                            storPoolDfn.getName().displayValue,
+                            Collections.emptyList(),
+                            "Storage pool updated on {0}",
+                            "Storage pool updated on {0}"
                         )
                     )
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+                )
+            );
         }
 
         return fluxes;

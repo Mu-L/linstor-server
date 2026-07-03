@@ -2,11 +2,8 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.ExternalFileName;
 import com.linbit.linstor.core.identifier.KeyValueStoreName;
@@ -46,8 +43,6 @@ import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline;
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscGrpApiCallHandler.getRscGrpDescriptionInline;
@@ -59,8 +54,6 @@ import javax.inject.Provider;
 
 public class CtrlApiDataLoader
 {
-    private final Provider<AccessContext> peerAccCtx;
-    private final AccessContext systemCtx;
     private final NodeRepository nodeRepository;
     private final ResourceDefinitionRepository resourceDefinitionRepository;
     private final StorPoolDefinitionRepository storPoolDefinitionRepository;
@@ -73,8 +66,6 @@ public class CtrlApiDataLoader
 
     @Inject
     public CtrlApiDataLoader(
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
-        @SystemContext AccessContext sysCtxRef,
         NodeRepository nodeRepositoryRef,
         ResourceDefinitionRepository resourceDefinitionRepositoryRef,
         StorPoolDefinitionRepository storPoolDefinitionRepositoryRef,
@@ -86,8 +77,6 @@ public class CtrlApiDataLoader
         ScheduleRepository scheduleRepositoryRef
     )
     {
-        peerAccCtx = peerAccCtxRef;
-        systemCtx = sysCtxRef;
         nodeRepository = nodeRepositoryRef;
         resourceDefinitionRepository = resourceDefinitionRepositoryRef;
         storPoolDefinitionRepository = storPoolDefinitionRepositoryRef;
@@ -113,51 +102,39 @@ public class CtrlApiDataLoader
     {
         @Nullable Node node;
         NodeName fqdnName = nodeName;
-        try
+        // if node name is a short name, try to append search domain (if there is any)
+        if (!ignoreSearchDomain && !nodeName.getDisplayName().contains("."))
         {
-            // if node name is a short name, try to append search domain (if there is any)
-            if (!ignoreSearchDomain && !nodeName.getDisplayName().contains("."))
+            // TODO: use user properties
+            final ReadOnlyProps ctrlProps = systemConfRepository.getCtrlConfForView(systemCtx);
+            try
             {
-                // TODO: use user properties
-                final ReadOnlyProps ctrlProps = systemConfRepository.getCtrlConfForView(systemCtx);
-                try
+                final String domain = ctrlProps.getProp(ApiConsts.KEY_SEARCH_DOMAIN);
+                if (domain != null)
                 {
-                    final String domain = ctrlProps.getProp(ApiConsts.KEY_SEARCH_DOMAIN);
-                    if (domain != null)
-                    {
-                        fqdnName = LinstorParsingUtils.asNodeName(nodeName.getDisplayName() + "." + domain);
-                    }
-                }
-                catch (InvalidKeyException ignored)
-                {
+                    fqdnName = LinstorParsingUtils.asNodeName(nodeName.getDisplayName() + "." + domain);
                 }
             }
-
-            node = nodeRepository.get(
-                peerAccCtx.get(),
-                fqdnName
-            );
-
-            if (failIfNull && node == null)
+            catch (InvalidKeyException ignored)
             {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_NODE,
-                        "Node '" + fqdnName.displayValue + "' not found."
-                    )
-                    .setCause("The specified node '" + fqdnName.displayValue + "' could not be found in the database")
-                    .setCorrection("Create a node with the name '" + fqdnName.displayValue + "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
             }
         }
-        catch (AccessDeniedException accDenied)
+
+        node = nodeRepository.get(
+            fqdnName
+        );
+
+        if (failIfNull && node == null)
         {
-            throw new ApiAccessDeniedException(
-                accDenied,
-                "loading node '" + fqdnName.displayValue + "'.",
-                ApiConsts.FAIL_ACC_DENIED_NODE
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_NODE,
+                    "Node '" + fqdnName.displayValue + "' not found."
+                )
+                .setCause("The specified node '" + fqdnName.displayValue + "' could not be found in the database")
+                .setCorrection("Create a node with the name '" + fqdnName.displayValue + "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
         return node;
@@ -177,37 +154,25 @@ public class CtrlApiDataLoader
     )
     {
         @Nullable ResourceDefinition rscDfn;
-        try
-        {
-            rscDfn = resourceDefinitionRepository.get(
-                peerAccCtx.get(),
-                rscName
-            );
+        rscDfn = resourceDefinitionRepository.get(
+            rscName
+        );
 
-            if (failIfNull && rscDfn == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_RSC_DFN,
-                        "Resource definition '" + rscName.displayValue + "' not found."
-                    )
-                    .setCause("The specified resource definition '" + rscName.displayValue +
-                        "' could not be found in the database")
-                    .setCorrection("Create a resource definition with the name '" + rscName.displayValue + "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
-
-        }
-        catch (AccessDeniedException accDeniedExc)
+        if (failIfNull && rscDfn == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + getRscDfnDescriptionInline(rscName.displayValue),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_RSC_DFN,
+                    "Resource definition '" + rscName.displayValue + "' not found."
+                )
+                .setCause("The specified resource definition '" + rscName.displayValue +
+                    "' could not be found in the database")
+                .setCorrection("Create a resource definition with the name '" + rscName.displayValue + "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
+
         return rscDfn;
     }
 
@@ -220,34 +185,23 @@ public class CtrlApiDataLoader
     {
         @Nullable ResourceDefinition rscDfn = loadRscDfn(rscName, failIfNull);
         @Nullable VolumeDefinition vlmDfn = null;
-        try
+        if (rscDfn != null)
         {
-            if (rscDfn != null)
-            {
-                vlmDfn = rscDfn.getVolumeDfn(peerAccCtx.get(), vlmNr);
-            }
-
-            if (failIfNull && vlmDfn == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_VLM_DFN,
-                        "Volume definition '" + rscName + "' with volume number '" + vlmNr + "' not found."
-                    )
-                    .setCause("The specified volume definition '" + rscName +
-                        "' with volume number '" + vlmNr + "' could not be found in the database")
-                    .setCorrection("Create a volume definition with the name '" + rscName + "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
+            vlmDfn = rscDfn.getVolumeDfn(vlmNr);
         }
-        catch (AccessDeniedException accDeniedExc)
+
+        if (failIfNull && vlmDfn == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "load volume definition '" + vlmNr + "' from resource definition '" + rscName + "'",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_VLM_DFN,
+                    "Volume definition '" + rscName + "' with volume number '" + vlmNr + "' not found."
+                )
+                .setCause("The specified volume definition '" + rscName +
+                    "' with volume number '" + vlmNr + "' could not be found in the database")
+                .setCorrection("Create a volume definition with the name '" + rscName + "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
         return vlmDfn;
@@ -286,31 +240,20 @@ public class CtrlApiDataLoader
         ResourceName rscName = rscDfn.getName();
         NodeName nodeName = node.getName();
         @Nullable Resource rsc;
-        try
+        rsc = node.getResource(rscDfn.getName());
+        if (rsc == null && failIfNull)
         {
-            rsc = node.getResource(peerAccCtx.get(), rscDfn.getName());
-            if (rsc == null && failIfNull)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_RSC,
-                        "Resource '" + rscName + "' on node '" + nodeName + "' not found."
-                    )
-                    .setCause("The specified resource '" + rscName + "' on node '" + nodeName + "' could not " +
-                        "be found in the database")
-                    .setCorrection("Create a resource with the name '" + rscName + "' on node '" + nodeName +
-                        "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "loading resource '" + rscName + "' on node '" + nodeName + "'",
-                ApiConsts.FAIL_ACC_DENIED_RSC
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_RSC,
+                    "Resource '" + rscName + "' on node '" + nodeName + "' not found."
+                )
+                .setCause("The specified resource '" + rscName + "' on node '" + nodeName + "' could not " +
+                    "be found in the database")
+                .setCorrection("Create a resource with the name '" + rscName + "' on node '" + nodeName +
+                    "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
         return rsc;
@@ -321,19 +264,7 @@ public class CtrlApiDataLoader
         Resource rscA = loadRsc(nodeANameRef, rscNameRef, true);
         Resource rscB = loadRsc(nodeBNameRef, rscNameRef, true);
         ResourceConnection rscCon;
-        try
-        {
-            rscCon = rscA.getAbsResourceConnection(systemCtx, rscB);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "loading resource connection '" + rscNameRef + "' between nodes '" + nodeANameRef + "' and '" +
-                    nodeBNameRef + "'",
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
-            );
-        }
+        rscCon = rscA.getAbsResourceConnection(systemCtx, rscB);
         return rscCon;
     }
 
@@ -372,29 +303,18 @@ public class CtrlApiDataLoader
     )
     {
         @Nullable SnapshotDefinition snapshotDfn;
-        try
-        {
-            snapshotDfn = rscDfn.getSnapshotDfn(peerAccCtx.get(), snapshotName);
+        snapshotDfn = rscDfn.getSnapshotDfn(snapshotName);
 
-            if (failIfNull && snapshotDfn == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_SNAPSHOT_DFN,
-                        "Snapshot '" + snapshotName.displayValue +
-                            "' of resource '" + rscDfn.getName().displayValue + "' not found."
-                    )
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
+        if (failIfNull && snapshotDfn == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "loading snapshot '" + snapshotName + "' of resource '" + rscDfn.getName() + "'",
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_DFN
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_SNAPSHOT_DFN,
+                    "Snapshot '" + snapshotName.displayValue +
+                        "' of resource '" + rscDfn.getName().displayValue + "' not found."
+                )
+                .setSkipErrorReport(true)
+                .build()
             );
         }
         return snapshotDfn;
@@ -403,29 +323,16 @@ public class CtrlApiDataLoader
     public @Nullable Snapshot loadSnapshot(Node node, SnapshotDefinition snapshotDfn)
     {
         Snapshot snapshot;
-        try
-        {
-            snapshot = snapshotDfn.getSnapshot(peerAccCtx.get(), node.getName());
+        snapshot = snapshotDfn.getSnapshot(node.getName());
 
-            if (snapshot == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl.simpleEntry(
-                    ApiConsts.FAIL_NOT_FOUND_SNAPSHOT,
-                    "Snapshot '" + snapshotDfn.getName() +
-                        "' of resource '" + snapshotDfn.getResourceName() +
-                        "' on node '" + node.getName() + "' not found."
-                ));
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
+        if (snapshot == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "load snapshot '" + snapshotDfn.getName() +
+            throw new ApiRcException(ApiCallRcImpl.simpleEntry(
+                ApiConsts.FAIL_NOT_FOUND_SNAPSHOT,
+                "Snapshot '" + snapshotDfn.getName() +
                     "' of resource '" + snapshotDfn.getResourceName() +
-                    "' on node '" + node.getName() + "'",
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
-            );
+                    "' on node '" + node.getName() + "' not found."
+            ));
         }
         return snapshot;
     }
@@ -460,37 +367,25 @@ public class CtrlApiDataLoader
     )
     {
         @Nullable StorPoolDefinition storPoolDfn;
-        try
-        {
-            storPoolDfn = storPoolDefinitionRepository.get(
-                peerAccCtx.get(),
-                storPoolName
-            );
+        storPoolDfn = storPoolDefinitionRepository.get(
+            storPoolName
+        );
 
-            if (failIfNull && storPoolDfn == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_STOR_POOL_DFN,
-                        "Storage pool definition '" + storPoolName.displayValue + "' not found."
-                    )
-                    .setCause("The specified storage pool definition '" + storPoolName.displayValue +
-                        "' could not be found in the database")
-                    .setCorrection("Create a storage pool definition '" + storPoolName.displayValue + "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
-
-        }
-        catch (AccessDeniedException accDeniedExc)
+        if (failIfNull && storPoolDfn == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "loading storage pool definition '" + storPoolName.displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_STOR_POOL_DFN,
+                    "Storage pool definition '" + storPoolName.displayValue + "' not found."
+                )
+                .setCause("The specified storage pool definition '" + storPoolName.displayValue +
+                    "' could not be found in the database")
+                .setCorrection("Create a storage pool definition '" + storPoolName.displayValue + "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
+
         return storPoolDfn;
     }
 
@@ -526,38 +421,27 @@ public class CtrlApiDataLoader
     )
     {
         @Nullable StorPool storPool;
-        try
-        {
-            storPool = node.getStorPool(peerAccCtx.get(), storPoolDfn.getName());
+        storPool = node.getStorPool(storPoolDfn.getName());
 
-            if (failIfNull && storPool == null)
-            {
-                throw new ApiRcException(
-                    ApiCallRcImpl
-                        .entryBuilder(
-                            ApiConsts.FAIL_NOT_FOUND_STOR_POOL_DFN,
-                            "Storage pool '" + storPoolDfn.getName().displayValue + "' on node '" +
-                                node.getName().displayValue + "' not found."
-                        )
-                        .setCause(
-                            "The specified storage pool '" + storPoolDfn.getName().displayValue +
-                                "' on node '" + node.getName().displayValue + "' could not be found in the database"
-                        )
-                        .setCorrection(
-                            "Create a storage pool '" + storPoolDfn.getName().displayValue + "' on node '" +
-                                node.getName().displayValue + "' first."
-                        )
-                        .setSkipErrorReport(true)
-                        .build()
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
+        if (failIfNull && storPool == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "load " + getStorPoolDescriptionInline(node, storPoolDfn),
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL
+            throw new ApiRcException(
+                ApiCallRcImpl
+                    .entryBuilder(
+                        ApiConsts.FAIL_NOT_FOUND_STOR_POOL_DFN,
+                        "Storage pool '" + storPoolDfn.getName().displayValue + "' on node '" +
+                            node.getName().displayValue + "' not found."
+                    )
+                    .setCause(
+                        "The specified storage pool '" + storPoolDfn.getName().displayValue +
+                            "' on node '" + node.getName().displayValue + "' could not be found in the database"
+                    )
+                    .setCorrection(
+                        "Create a storage pool '" + storPoolDfn.getName().displayValue + "' on node '" +
+                            node.getName().displayValue + "' first."
+                    )
+                    .setSkipErrorReport(true)
+                    .build()
             );
         }
         return storPool;
@@ -571,36 +455,24 @@ public class CtrlApiDataLoader
     public final @Nullable KeyValueStore loadKvs(KeyValueStoreName kvsName, boolean failIfNull)
     {
         @Nullable KeyValueStore kvs;
-        try
-        {
-            kvs = kvsRepository.get(
-                peerAccCtx.get(),
-                kvsName
-            );
+        kvs = kvsRepository.get(
+            kvsName
+        );
 
-            if (failIfNull && kvs == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_KVS,
-                        "KeyValueStore '" + kvsName.displayValue + "' not found."
-                    )
-                    .setCause(
-                        "The specified keyValueStore '" + kvsName.displayValue +
-                        "' could not be found in the database"
-                    )
-                    .setCorrection("Create a keyValueStore with the name '" + kvsName.displayValue + "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
-        }
-        catch (AccessDeniedException accDenied)
+        if (failIfNull && kvs == null)
         {
-            throw new ApiAccessDeniedException(
-                    accDenied,
-                    "loading keyValueStore '" + kvsName.displayValue + "'.",
-                    ApiConsts.FAIL_ACC_DENIED_KVS
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_KVS,
+                    "KeyValueStore '" + kvsName.displayValue + "' not found."
+                )
+                .setCause(
+                    "The specified keyValueStore '" + kvsName.displayValue +
+                    "' could not be found in the database"
+                )
+                .setCorrection("Create a keyValueStore with the name '" + kvsName.displayValue + "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
         return kvs;
@@ -654,34 +526,22 @@ public class CtrlApiDataLoader
     public final @Nullable ResourceGroup loadResourceGroup(ResourceGroupName rscGrpNameRef, boolean failIfNull)
     {
         @Nullable ResourceGroup rscGrp;
-        try
+        rscGrp = resourceGroupRepository.get(
+            rscGrpNameRef
+        );
+        if (failIfNull && rscGrp == null)
         {
-            rscGrp = resourceGroupRepository.get(
-                peerAccCtx.get(),
-                rscGrpNameRef
-            );
-            if (failIfNull && rscGrp == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_RSC_GRP,
-                        "Resource group '" + rscGrpNameRef.displayValue + "' not found."
-                    )
-                    .setCause("The specified resource group '" + rscGrpNameRef.displayValue +
-                        "' could not be found in the database")
-                    .setCorrection("Create a resource group with the name '" +
-                        rscGrpNameRef.displayValue + "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + getRscGrpDescriptionInline(rscGrpNameRef.displayValue),
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_RSC_GRP,
+                    "Resource group '" + rscGrpNameRef.displayValue + "' not found."
+                )
+                .setCause("The specified resource group '" + rscGrpNameRef.displayValue +
+                    "' could not be found in the database")
+                .setCorrection("Create a resource group with the name '" +
+                    rscGrpNameRef.displayValue + "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
         return rscGrp;
@@ -703,36 +563,25 @@ public class CtrlApiDataLoader
     )
     {
         @Nullable VolumeGroup vlmGrp = null;
-        try
+        ResourceGroup rscGrp = loadResourceGroup(rscGrpNameRef, failIfNull);
+        if (rscGrp != null)
         {
-            ResourceGroup rscGrp = loadResourceGroup(rscGrpNameRef, failIfNull);
-            if (rscGrp != null)
-            {
-                vlmGrp = rscGrp.getVolumeGroup(peerAccCtx.get(), vlmNr);
-            }
-            if (failIfNull && vlmGrp == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_VLM_GRP,
-                        "Volume group '" + rscGrpNameRef.displayValue + "' with volume number '" +
-                            vlmNr + "' not found."
-                    )
-                    .setCause("The specified volume group '" + rscGrpNameRef.displayValue +
-                        "' with volume number '" + vlmNr + "' could not be found in the database")
-                    .setCorrection("Create a volume group with the name '" +
-                        rscGrpNameRef.displayValue + "' and volume number '" + vlmNr + "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
+            vlmGrp = rscGrp.getVolumeGroup(vlmNr);
         }
-        catch (AccessDeniedException accDeniedExc)
+        if (failIfNull && vlmGrp == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + getVlmGrpDescriptionInline(rscGrpNameRef.displayValue, vlmNr.value),
-                ApiConsts.FAIL_ACC_DENIED_VLM_GRP
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_VLM_GRP,
+                    "Volume group '" + rscGrpNameRef.displayValue + "' with volume number '" +
+                        vlmNr + "' not found."
+                )
+                .setCause("The specified volume group '" + rscGrpNameRef.displayValue +
+                    "' with volume number '" + vlmNr + "' could not be found in the database")
+                .setCorrection("Create a volume group with the name '" +
+                    rscGrpNameRef.displayValue + "' and volume number '" + vlmNr + "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
         return vlmGrp;
@@ -749,35 +598,23 @@ public class CtrlApiDataLoader
     )
     {
         @Nullable ExternalFile extFile;
-        try
-        {
-            extFile = extFileRepository.get(
-                peerAccCtx.get(),
-                extFileName
-            );
+        extFile = extFileRepository.get(
+            extFileName
+        );
 
-            if (failIfNull && extFile == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl
-                    .entryBuilder(
-                        ApiConsts.FAIL_NOT_FOUND_EXT_FILE,
-                        "External file '" + extFileName.extFileName + "' not registered."
-                    )
-                    .setCause(
-                        "The specified external file '" + extFileName.extFileName +
-                        "' could not be found in the database")
-                    .setCorrection("Create an external file with the name '" + extFileName.extFileName + "' first.")
-                    .setSkipErrorReport(true)
-                    .build()
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
+        if (failIfNull && extFile == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + getRscDfnDescriptionInline(extFileName.extFileName),
-                ApiConsts.FAIL_ACC_DENIED_EXT_FILE
+            throw new ApiRcException(ApiCallRcImpl
+                .entryBuilder(
+                    ApiConsts.FAIL_NOT_FOUND_EXT_FILE,
+                    "External file '" + extFileName.extFileName + "' not registered."
+                )
+                .setCause(
+                    "The specified external file '" + extFileName.extFileName +
+                    "' could not be found in the database")
+                .setCorrection("Create an external file with the name '" + extFileName.extFileName + "' first.")
+                .setSkipErrorReport(true)
+                .build()
             );
         }
         return extFile;
@@ -794,37 +631,25 @@ public class CtrlApiDataLoader
     )
     {
         @Nullable AbsRemote remote;
-        try
-        {
-            remote = remoteRepository.get(
-                peerAccCtx.get(),
-                remoteName
-            );
+        remote = remoteRepository.get(
+            remoteName
+        );
 
-            if (failIfNull && remote == null)
-            {
-                throw new ApiRcException(
-                    ApiCallRcImpl
-                        .entryBuilder(
-                            ApiConsts.FAIL_NOT_FOUND_REMOTE,
-                            "Remote '" + remoteName.displayValue + "' not registered."
-                        )
-                        .setCause(
-                            "The specified remote '" + remoteName.displayValue +
-                                "' could not be found in the database"
-                        )
-                        .setCorrection("Create a remote with the name '" + remoteName.displayValue + "' first.")
-                        .setSkipErrorReport(true)
-                        .build()
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
+        if (failIfNull && remote == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + getRscDfnDescriptionInline(remoteName.displayValue),
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
+            throw new ApiRcException(
+                ApiCallRcImpl
+                    .entryBuilder(
+                        ApiConsts.FAIL_NOT_FOUND_REMOTE,
+                        "Remote '" + remoteName.displayValue + "' not registered."
+                    )
+                    .setCause(
+                        "The specified remote '" + remoteName.displayValue +
+                            "' could not be found in the database"
+                    )
+                    .setCorrection("Create a remote with the name '" + remoteName.displayValue + "' first.")
+                    .setSkipErrorReport(true)
+                    .build()
             );
         }
         return remote;
@@ -841,37 +666,25 @@ public class CtrlApiDataLoader
     )
     {
         @Nullable Schedule schedule;
-        try
-        {
-            schedule = scheduleRepository.get(
-                peerAccCtx.get(),
-                scheduleName
-            );
+        schedule = scheduleRepository.get(
+            scheduleName
+        );
 
-            if (failIfNull && schedule == null)
-            {
-                throw new ApiRcException(
-                    ApiCallRcImpl
-                        .entryBuilder(
-                            ApiConsts.FAIL_NOT_FOUND_SCHEDULE,
-                            "Schedule '" + scheduleName.displayValue + "' not registered."
-                        )
-                        .setCause(
-                            "The specified schedule '" + scheduleName.displayValue +
-                                "' could not be found in the database"
-                        )
-                        .setCorrection("Create a schedule with the name '" + scheduleName.displayValue + "' first.")
-                        .setSkipErrorReport(true)
-                        .build()
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
+        if (failIfNull && schedule == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + getRscDfnDescriptionInline(scheduleName.displayValue),
-                ApiConsts.FAIL_ACC_DENIED_SCHEDULE
+            throw new ApiRcException(
+                ApiCallRcImpl
+                    .entryBuilder(
+                        ApiConsts.FAIL_NOT_FOUND_SCHEDULE,
+                        "Schedule '" + scheduleName.displayValue + "' not registered."
+                    )
+                    .setCause(
+                        "The specified schedule '" + scheduleName.displayValue +
+                            "' could not be found in the database"
+                    )
+                    .setCorrection("Create a schedule with the name '" + scheduleName.displayValue + "' first.")
+                    .setSkipErrorReport(true)
+                    .build()
             );
         }
         return schedule;

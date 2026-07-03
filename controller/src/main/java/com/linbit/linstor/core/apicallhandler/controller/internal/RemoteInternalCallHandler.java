@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.RemoteName;
@@ -11,8 +10,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.repository.RemoteRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 
 import javax.inject.Inject;
@@ -25,7 +22,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 public class RemoteInternalCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final RemoteRepository remoteRepo;
     private final CtrlStltSerializer ctrlStltSerializer;
     private final Provider<Peer> peer;
@@ -35,7 +31,6 @@ public class RemoteInternalCallHandler
     @Inject
     public RemoteInternalCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         RemoteRepository externalFileRepoRef,
         CtrlStltSerializer ctrlStltSerializerRef,
         Provider<Peer> peerRef,
@@ -43,7 +38,6 @@ public class RemoteInternalCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         remoteRepo = externalFileRepoRef;
         ctrlStltSerializer = ctrlStltSerializerRef;
         peer = peerRef;
@@ -67,7 +61,7 @@ public class RemoteInternalCallHandler
             long updateId = currentPeer.getNextSerializerId();
 
 
-            AbsRemote remote = remoteRepo.get(apiCtx, remoteName);
+            AbsRemote remote = remoteRepo.get(remoteName);
             if (remote != null)
             {
                 if (!remote.getUuid().equals(remoteUuidRef))

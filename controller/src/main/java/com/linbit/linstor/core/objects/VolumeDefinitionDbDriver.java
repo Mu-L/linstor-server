@@ -5,7 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.VolumeDefinition.InitMaps;
@@ -18,8 +17,6 @@ import com.linbit.linstor.dbdrivers.interfaces.VolumeDefinitionCtrlDatabaseDrive
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -54,7 +51,6 @@ public final class VolumeDefinitionDbDriver extends
 
     @Inject
     public VolumeDefinitionDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -64,7 +60,6 @@ public final class VolumeDefinitionDbDriver extends
     )
     {
         super(
-            dbCtxRef,
             errorReporterRef,
             GeneratedDatabaseTables.VOLUME_DEFINITIONS,
             dbEngineRef,
@@ -77,15 +72,15 @@ public final class VolumeDefinitionDbDriver extends
         setColumnSetter(UUID, vlmDfn -> vlmDfn.getUuid().toString());
         setColumnSetter(RESOURCE_NAME, vlmDfn -> vlmDfn.getResourceDefinition().getName().value);
         setColumnSetter(VLM_NR, vlmDfn -> vlmDfn.getVolumeNumber().value);
-        setColumnSetter(VLM_SIZE, vlmDfn -> vlmDfn.getVolumeSize(dbCtxRef));
-        setColumnSetter(VLM_FLAGS, vlmDfn -> vlmDfn.getFlags().getFlagsBits(dbCtxRef));
+        setColumnSetter(VLM_SIZE, vlmDfn -> vlmDfn.getVolumeSize());
+        setColumnSetter(VLM_FLAGS, vlmDfn -> vlmDfn.getFlags().getFlagsBits());
 
         setColumnSetter(SNAPSHOT_NAME, ignored -> DFLT_SNAP_NAME_FOR_RSC);
 
         flagsDriver = generateFlagDriver(VLM_FLAGS, VolumeDefinition.Flags.class);
         volumeSizeDriver = generateSingleColumnDriver(
             VLM_SIZE,
-            vlmDfn -> Long.toString(vlmDfn.getVolumeSize(dbCtxRef)),
+            vlmDfn -> Long.toString(vlmDfn.getVolumeSize()),
             Function.identity()
         );
     }

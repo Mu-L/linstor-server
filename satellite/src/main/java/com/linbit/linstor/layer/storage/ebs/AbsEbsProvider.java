@@ -27,7 +27,6 @@ import com.linbit.linstor.layer.DeviceLayerUtils;
 import com.linbit.linstor.layer.storage.AbsStorageProvider;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
 import com.linbit.linstor.storage.data.provider.StorageRscData;
@@ -167,8 +166,8 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
                     try
                     {
                         EndpointConfiguration endpointConfiguration = new EndpointConfiguration(
-                            remoteRef.getUrl(storDriverAccCtx).toString(),
-                            remoteRef.getRegion(storDriverAccCtx)
+                            remoteRef.getUrl().toString(),
+                            remoteRef.getRegion()
                         );
                         client = AmazonEC2ClientBuilder.standard()
                             .withEndpointConfiguration(endpointConfiguration)
@@ -178,24 +177,20 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
                                         new String(
                                             decHelper.decrypt(
                                                 masterKey,
-                                                remoteRef.getEncryptedAccessKey(storDriverAccCtx)
+                                                remoteRef.getEncryptedAccessKey()
                                             ),
                                             StandardCharsets.UTF_8
                                         ),
                                         new String(
                                             decHelper.decrypt(
                                                 masterKey,
-                                                remoteRef.getEncryptedSecretKey(storDriverAccCtx)
+                                                remoteRef.getEncryptedSecretKey()
                                             ),
                                             StandardCharsets.UTF_8
                                         )
                                     )
                                 )
                             ).build();
-                    }
-                    catch (AccessDeniedException exc)
-                    {
-                        throw new ImplementationError(exc);
                     }
                     catch (LinStorException exc)
                     {
@@ -226,7 +221,7 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
         List<EbsData<Resource>> vlmDataListRef,
         List<EbsData<Snapshot>> snapVlmsRef
     )
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         final Map<String, com.amazonaws.services.ec2.model.Volume> ret = new HashMap<>();
 
@@ -246,7 +241,7 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
             AmazonEC2 client = getClient(ebsRemote);
             DescribeVolumesResult volumesResult = client.describeVolumes(
                 new DescribeVolumesRequest().withFilters(
-                    new Filter("availability-zone", Arrays.asList(ebsRemote.getAvailabilityZone(storDriverAccCtx)))
+                    new Filter("availability-zone", Arrays.asList(ebsRemote.getAvailabilityZone()))
                 )
             );
             for (com.amazonaws.services.ec2.model.Volume amazonVolume : volumesResult.getVolumes())
@@ -345,30 +340,30 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPoolRef) throws StorageException, AccessDeniedException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPoolRef) throws StorageException
     {
         return ENOUGH_SPACE_INFO;
     }
 
     @Override
     protected String getStorageName(EbsData<Resource> vlmDataRef)
-        throws DatabaseException, AccessDeniedException, StorageException
+        throws DatabaseException, StorageException
     {
         return getStorageName(vlmDataRef.getStorPool());
     }
 
     @Override
-    protected String getStorageName(StorPool storPoolRef) throws AccessDeniedException, StorageException
+    protected String getStorageName(StorPool storPoolRef) throws StorageException
     {
         String poolName;
         try
         {
             poolName = DeviceLayerUtils.getNamespaceStorDriver(
-                storPoolRef.getProps(storDriverAccCtx)
+                storPoolRef.getProps()
             )
                 .getProp(ApiConsts.KEY_STOR_POOL_NAME);
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -376,11 +371,11 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
     }
 
     protected void setEbsVlmId(EbsData<Resource> vlmDataRef, String ebsVlmIdRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         try
         {
-            ((Volume) vlmDataRef.getVolume()).getProps(storDriverAccCtx)
+            ((Volume) vlmDataRef.getVolume()).getProps()
                 .setProp(
                     InternalApiConsts.KEY_EBS_VLM_ID + vlmDataRef.getRscLayerObject().getResourceNameSuffix(),
                     ebsVlmIdRef,
@@ -397,20 +392,20 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
     {
         try
         {
-            return EbsUtils.getEbsVlmId(storDriverAccCtx, vlmDataRef);
+            return EbsUtils.getEbsVlmId(vlmDataRef);
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
     }
 
     protected void setEbsSnapId(EbsData<Snapshot> snapVlmDataRef, String ebsSnapIdRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         try
         {
-            ((SnapshotVolume) snapVlmDataRef.getVolume()).getSnapVlmProps(storDriverAccCtx)
+            ((SnapshotVolume) snapVlmDataRef.getVolume()).getSnapVlmProps()
                 .setProp(
                     EbsUtils.getEbsSnapIdKey(snapVlmDataRef),
                     ebsSnapIdRef
@@ -426,9 +421,9 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
     {
         try
         {
-            return EbsUtils.getEbsSnapId(storDriverAccCtx, snapVlmDataRef);
+            return EbsUtils.getEbsSnapId(snapVlmDataRef);
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -436,7 +431,6 @@ public abstract class AbsEbsProvider<INFO> extends AbsStorageProvider<INFO, EbsD
 
     protected EbsRemote getEbsRemote(StorPool storPoolRef) {
         return EbsUtils.getEbsRemote(
-            storDriverAccCtx,
             remoteMap,
             storPoolRef,
             stltConfigAccessor.getReadonlyProps()

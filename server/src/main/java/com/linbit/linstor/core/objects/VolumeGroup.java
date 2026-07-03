@@ -8,14 +8,8 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeGroupDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -30,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-public class VolumeGroup extends AbsCoreObj<VolumeGroup> implements ProtectedObject
+public class VolumeGroup extends AbsCoreObj<VolumeGroup>
 {
     private final ResourceGroup rscGrp;
 
@@ -87,13 +81,6 @@ public class VolumeGroup extends AbsCoreObj<VolumeGroup> implements ProtectedObj
 
     }
 
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return rscGrp.getObjProt();
-    }
-
     public ResourceGroup getResourceGroup()
     {
         return rscGrp;
@@ -110,10 +97,10 @@ public class VolumeGroup extends AbsCoreObj<VolumeGroup> implements ProtectedObj
         return vlmGrpKey;
     }
 
-    public Props getProps(AccessContext accCtxRef) throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtxRef, rscGrp.getObjProt(), vlmGrpProps);
+        return vlmGrpProps;
     }
 
     public StateFlags<VolumeGroup.Flags> getFlags()
@@ -123,13 +110,12 @@ public class VolumeGroup extends AbsCoreObj<VolumeGroup> implements ProtectedObj
     }
 
     @Override
-    public void delete(AccessContext accCtxRef) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            rscGrp.getObjProt().requireAccess(accCtxRef, AccessType.USE);
 
-            rscGrp.deleteVolumeGroup(accCtxRef, vlmNr);
+            rscGrp.deleteVolumeGroup(vlmNr);
             vlmGrpProps.delete();
             dbDriver.delete(this);
 
@@ -173,14 +159,14 @@ public class VolumeGroup extends AbsCoreObj<VolumeGroup> implements ProtectedObj
         return ret;
     }
 
-    public VolumeGroupApi getApiData(AccessContext accCtxRef) throws AccessDeniedException
+    public VolumeGroupApi getApiData()
     {
         checkDeleted();
         return new VlmGrpPojo(
             objId,
             vlmNr.value,
             vlmGrpProps.cloneMap(),
-            flags.getFlagsBits(accCtxRef)
+            flags.getFlagsBits()
         );
     }
 

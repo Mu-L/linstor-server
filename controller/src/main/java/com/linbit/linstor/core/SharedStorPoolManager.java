@@ -1,15 +1,12 @@
 package com.linbit.linstor.core;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.TransactionObject;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 
@@ -34,7 +31,6 @@ import java.util.stream.Collectors;
 @Singleton
 public class SharedStorPoolManager
 {
-    private final AccessContext sysCtx;
     private final ErrorReporter errorReporter;
 
     /*
@@ -47,11 +43,9 @@ public class SharedStorPoolManager
 
     @Inject
     public SharedStorPoolManager(
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef
     )
     {
-        sysCtx = sysCtxRef;
         errorReporter = errorReporterRef;
 
         queueByLock = new TreeMap<>();
@@ -86,16 +80,9 @@ public class SharedStorPoolManager
     public boolean isActive(Resource rsc)
     {
         boolean ret = true;
-        try
+        for (StorPool sp : LayerVlmUtils.getStorPools(rsc))
         {
-            for (StorPool sp : LayerVlmUtils.getStorPools(rsc, sysCtx))
-            {
-                ret &= isActive(sp);
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            ret &= isActive(sp);
         }
         return ret;
     }
@@ -390,40 +377,33 @@ public class SharedStorPoolManager
     private Set<SharedStorPoolName> getSharedSpNames(TransactionObject txObj)
     {
         Set<SharedStorPoolName> ret;
-        try
+        if (txObj instanceof Resource rsc)
         {
-            if (txObj instanceof Resource rsc)
-            {
-                ret = getSharedSpNames(LayerVlmUtils.getStorPools(rsc, sysCtx));
-            }
-            else
-            if (txObj instanceof Snapshot snap)
-            {
-                ret = getSharedSpNames(LayerVlmUtils.getStorPools(snap, sysCtx));
-            }
-            else
-            if (txObj instanceof Node node)
-            {
-                ret = getSharedSpNames(
-                    node.streamStorPools(sysCtx)
-                        .collect(Collectors.toList())
-                );
-            }
-            else
-            if (txObj instanceof StorPool storPool)
-            {
-                ret = getSharedSpNames(Collections.singleton(storPool));
-            }
-            else
-            {
-                throw new ImplementationError(
-                    "Unknown TransactionObject type - cannot map to Storage Pool"
-                );
-            }
+            ret = getSharedSpNames(LayerVlmUtils.getStorPools(rsc));
         }
-        catch (AccessDeniedException exc)
+        else
+        if (txObj instanceof Snapshot snap)
         {
-            throw new ImplementationError(exc);
+            ret = getSharedSpNames(LayerVlmUtils.getStorPools(snap));
+        }
+        else
+        if (txObj instanceof Node node)
+        {
+            ret = getSharedSpNames(
+                node.streamStorPools()
+                    .collect(Collectors.toList())
+            );
+        }
+        else
+        if (txObj instanceof StorPool storPool)
+        {
+            ret = getSharedSpNames(Collections.singleton(storPool));
+        }
+        else
+        {
+            throw new ImplementationError(
+                "Unknown TransactionObject type - cannot map to Storage Pool"
+            );
         }
         return ret;
     }

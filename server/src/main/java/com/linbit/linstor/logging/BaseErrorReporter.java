@@ -5,7 +5,6 @@ import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.utils.TimeUtils;
 
 import java.net.InetAddress;
@@ -103,7 +102,6 @@ public abstract class BaseErrorReporter
     void renderReport(
         ErrorReportRenderer outputRef,
         long reportNr,
-        @Nullable AccessContext accCtxRef,
         @Nullable Peer client,
         @Nullable Throwable errorInfo,
         LocalDateTime errorTime,
@@ -112,7 +110,7 @@ public abstract class BaseErrorReporter
     )
     {
         // Error report header
-        reportHeader(outputRef, reportNr, accCtxRef, client, errorTime);
+        reportHeader(outputRef, reportNr, client, errorTime);
 
         // Generate and report a null pointer exception if this
         // method is called with a null argument
@@ -173,7 +171,7 @@ public abstract class BaseErrorReporter
         outputRef.println("\nEND OF ERROR REPORT.");
     }
 
-    void reportAccessContext(ErrorReportRenderer output, AccessContext accCtx)
+    void reportAccessContext(ErrorReportRenderer output)
     {
         output.println("Access context information\n");
         output.printf(ERROR_FIELD_FORMAT, "Identity:", accCtx.subjectDomain.name.displayValue);
@@ -212,7 +210,6 @@ public abstract class BaseErrorReporter
     void reportHeader(
         ErrorReportRenderer output,
         long reportNr,
-        @Nullable AccessContext accCtxRef,
         @Nullable Peer client,
         LocalDateTime errorTime
     )
@@ -234,7 +231,7 @@ public abstract class BaseErrorReporter
         output.printf(ERROR_FIELD_FORMAT, "Thread:", Thread.currentThread().getName());
         if (accCtxRef != null)
         {
-            reportAccessContext(output, accCtxRef);
+            reportAccessContext(output);
         }
         if (client != null)
         {

@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -12,7 +11,6 @@ import com.linbit.linstor.api.pojo.DrbdRscPojo;
 import com.linbit.linstor.api.pojo.RscGrpPojo;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.ResourceList;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDefinitionUtils;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apis.ControllerConfigApi;
@@ -40,8 +38,6 @@ import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.tasks.AutoSnapshotTask;
 import com.linbit.locks.LockGuard;
@@ -101,7 +97,6 @@ public class CtrlApiCallHandler
     private final LockGuardFactory lockGuardFactory;
     private final AutoSnapshotTask autoSnapshotTask;
     private final CtrlSnapshotDeleteApiCallHandler ctrlSnapDeleteHandler;
-    private final Provider<AccessContext> peerAccCtx;
     private final SystemConfRepository systemConfRepository;
 
     @Inject
@@ -127,7 +122,6 @@ public class CtrlApiCallHandler
         CtrlVlmGrpApiCallHandler vlmGrpApiCallHandlerRef,
         AutoSnapshotTask autoSnapshotTaskRef,
         CtrlSnapshotDeleteApiCallHandler ctrlSnapDeleteHandlerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         SystemConfRepository systemConfRepositoryRef,
         DbEngine dbEngineRef,
         LockGuardFactory lockGuardFactoryRef
@@ -154,7 +148,6 @@ public class CtrlApiCallHandler
         vlmGrpApiCallHandler = vlmGrpApiCallHandlerRef;
         autoSnapshotTask = autoSnapshotTaskRef;
         ctrlSnapDeleteHandler = ctrlSnapDeleteHandlerRef;
-        peerAccCtx = peerAccCtxRef;
         systemConfRepository = systemConfRepositoryRef;
         dbEngine = dbEngineRef;
         lockGuardFactory = lockGuardFactoryRef;
@@ -255,19 +248,10 @@ public class CtrlApiCallHandler
                     Collections.emptySet(),
                     Collections.emptySet(),
                     Collections.singletonList(rscDfn),
-                    peerAccCtx.get(),
-                    systemConfRepository.getStltConfForView(peerAccCtx.get()),
+                    systemConfRepository.getStltConfForView(),
                     true
                 );
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "create resource definition",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
         }
         return apiCallRc;
     }
@@ -914,7 +898,6 @@ public class CtrlApiCallHandler
     public Flux<ApiCallRc> setConfig(
         ControllerConfigApi config
     )
-        throws AccessDeniedException
     {
         return ctrlConfApiCallHandler.setCtrlConfig(config);
     }

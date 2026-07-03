@@ -5,7 +5,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
@@ -16,10 +15,6 @@ import com.linbit.linstor.dbdrivers.interfaces.remotes.EbsRemoteCtrlDatabaseDriv
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -61,7 +56,6 @@ public final class EbsRemoteDbDriver extends AbsProtectedDatabaseDriver<EbsRemot
     @Inject
     public EbsRemoteDbDriver(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext dbCtxRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
         ObjectProtectionFactory objProtFactoryRef,
@@ -69,7 +63,7 @@ public final class EbsRemoteDbDriver extends AbsProtectedDatabaseDriver<EbsRemot
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.EBS_REMOTES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.EBS_REMOTES, dbEngine, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -77,23 +71,23 @@ public final class EbsRemoteDbDriver extends AbsProtectedDatabaseDriver<EbsRemot
         setColumnSetter(UUID, remote -> remote.getUuid().toString());
         setColumnSetter(NAME, remote -> remote.getName().value);
         setColumnSetter(DSP_NAME, remote -> remote.getName().displayValue);
-        setColumnSetter(FLAGS, remote -> remote.getFlags().getFlagsBits(dbCtx));
-        setColumnSetter(URL, remote -> remote.getUrl(dbCtxRef).toString());
-        setColumnSetter(AVAILABILITY_ZONE, remote -> remote.getAvailabilityZone(dbCtx));
-        setColumnSetter(REGION, remote -> remote.getRegion(dbCtx));
+        setColumnSetter(FLAGS, remote -> remote.getFlags().getFlagsBits());
+        setColumnSetter(URL, remote -> remote.getUrl().toString());
+        setColumnSetter(AVAILABILITY_ZONE, remote -> remote.getAvailabilityZone());
+        setColumnSetter(REGION, remote -> remote.getRegion());
 
-        setColumnSetter(ACCESS_KEY, remote -> remote.getEncryptedAccessKey(dbCtx));
-        setColumnSetter(SECRET_KEY, remote -> remote.getEncryptedSecretKey(dbCtx));
+        setColumnSetter(ACCESS_KEY, remote -> remote.getEncryptedAccessKey());
+        setColumnSetter(SECRET_KEY, remote -> remote.getEncryptedSecretKey());
 
-        urlDriver = generateSingleColumnDriver(URL, remote -> remote.getUrl(dbCtx).toString(), java.net.URL::toString);
+        urlDriver = generateSingleColumnDriver(URL, remote -> remote.getUrl().toString(), java.net.URL::toString);
         availabilityZoneDriver = generateSingleColumnDriver(
             AVAILABILITY_ZONE,
-            remote -> remote.getAvailabilityZone(dbCtx),
+            remote -> remote.getAvailabilityZone(),
             Function.identity()
         );
         regionDriver = generateSingleColumnDriver(
             REGION,
-            remote -> remote.getRegion(dbCtx),
+            remote -> remote.getRegion(),
             Function.identity()
         );
 
@@ -192,7 +186,7 @@ public final class EbsRemoteDbDriver extends AbsProtectedDatabaseDriver<EbsRemot
     }
 
     @Override
-    protected String getId(EbsRemote dataRef) throws AccessDeniedException
+    protected String getId(EbsRemote dataRef)
     {
         return "EbsRemote(" + dataRef.getName().displayValue + ")";
     }

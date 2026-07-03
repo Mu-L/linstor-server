@@ -25,7 +25,6 @@ import com.linbit.linstor.dbdrivers.interfaces.updater.CollectionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.MapDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.K8sCrdTransaction;
@@ -89,12 +88,12 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA> void create(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         DATA data,
         DatabaseTable table,
         DataToString<DATA> dataIdToString
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         try
         {
@@ -108,10 +107,6 @@ public class K8sCrdEngine implements DbEngine
             );
             tx.create(table, crd);
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
         catch (JsonProcessingException exc)
         {
             throw new DatabaseException(exc);
@@ -120,7 +115,7 @@ public class K8sCrdEngine implements DbEngine
 
     private <DATA> void update(
         DatabaseTable table,
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         DATA data,
         DataToString<DATA> dataIdToString
     )
@@ -138,10 +133,6 @@ public class K8sCrdEngine implements DbEngine
             );
             tx.replace(table, crd);
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
         catch (JsonProcessingException exc)
         {
             throw new DatabaseException(exc);
@@ -150,12 +141,12 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA> void upsert(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         DATA dataRef,
         DatabaseTable tableRef,
         DataToString<DATA> dataToStringRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         try
         {
@@ -171,10 +162,6 @@ public class K8sCrdEngine implements DbEngine
             // although tx.getclient is a cached client, the cache should be filled on startup.
             tx.upsert(tableRef, crd);
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
         catch (JsonProcessingException exc)
         {
             throw new DatabaseException(exc);
@@ -183,12 +170,12 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA> void delete(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         DATA data,
         DatabaseTable table,
         DataToString<DATA> dataIdToString
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         try
         {
@@ -201,10 +188,6 @@ public class K8sCrdEngine implements DbEngine
                 objectMapper.writeValueAsString(crd)
             );
             tx.delete(table, crd);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         catch (JsonProcessingException exc)
         {
@@ -228,7 +211,7 @@ public class K8sCrdEngine implements DbEngine
         LOAD_ALL parents,
         DataLoader<DATA, INIT_MAPS, LOAD_ALL> dataLoader
     )
-        throws DatabaseException, AccessDeniedException, InvalidNameException, InvalidIpAddressException,
+        throws DatabaseException, InvalidNameException, InvalidIpAddressException,
         ValueOutOfRangeException, MdException, ValueInUseException, ExhaustedPoolException
     {
         Map<DATA, INIT_MAPS> loadedObjectsMap = new TreeMap<>();
@@ -286,7 +269,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA, FLAG extends Enum<FLAG> & Flags> StateFlagsPersistence<DATA> generateFlagsDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         Column colRef,
         Class<FLAG> ignoredFlagsClass,
         DataToString<DATA> dataIdToString
@@ -299,11 +282,11 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA, INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         Column colRef,
         Function<INPUT_TYPE, DB_TYPE> ignoredTypeMapper,
         DataToString<DATA> dataIdToString,
-        ExceptionThrowingFunction<DATA, String, AccessDeniedException> dataValueToStringRef,
+        ExceptionThrowingFunction<DATA, String> dataValueToStringRef,
         DataToString<INPUT_TYPE> ignoredInputToString
     )
     {
@@ -314,7 +297,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA, LIST_TYPE> CollectionDatabaseDriver<DATA, LIST_TYPE> generateCollectionToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         Column colRef,
         DataToString<DATA> dataIdToString
     )
@@ -341,7 +324,7 @@ public class K8sCrdEngine implements DbEngine
 
     @Override
     public <DATA, KEY, VALUE> MapDatabaseDriver<DATA, KEY, VALUE> generateMapToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         Column colRef,
         DataToString<DATA> dataIdToString
         )

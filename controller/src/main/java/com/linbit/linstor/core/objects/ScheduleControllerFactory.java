@@ -10,10 +10,6 @@ import com.linbit.linstor.core.objects.Schedule.OnFailure;
 import com.linbit.linstor.core.repository.ScheduleRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ScheduleDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -57,7 +53,6 @@ public class ScheduleControllerFactory
     }
 
     public Schedule create(
-        AccessContext accCtxRef,
         ScheduleName nameRef,
         String fullCron,
         @Nullable String incCron,
@@ -66,9 +61,9 @@ public class ScheduleControllerFactory
         OnFailure onFailure,
         @Nullable Integer maxRetries
     )
-        throws AccessDeniedException, LinStorDataAlreadyExistsException, DatabaseException
+        throws LinStorDataAlreadyExistsException, DatabaseException
     {
-        if (scheduleRepo.get(accCtxRef, nameRef) != null)
+        if (scheduleRepo.get(nameRef) != null)
         {
             throw new LinStorDataAlreadyExistsException("This schedule name is already registered");
         }
@@ -126,7 +121,6 @@ public class ScheduleControllerFactory
         }
         Schedule schedule = new Schedule(
             objProtFactory.getInstance(
-                accCtxRef,
                 ObjectProtection.buildPath(nameRef),
                 true
             ),

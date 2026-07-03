@@ -4,7 +4,6 @@ import com.linbit.AutoIndent;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgrGenerator;
 import com.linbit.linstor.transaction.manager.TransactionMgrUtil;
@@ -32,7 +31,6 @@ public class DebugConsoleImpl implements DebugConsole
 
     private boolean exitFlag = false;
 
-    private final AccessContext debugCtx;
     private final ErrorReporter errorReporter;
     private final Map<String, CommonDebugCmd> commandMap;
     private final LinStorScope debugScope;
@@ -52,14 +50,12 @@ public class DebugConsoleImpl implements DebugConsole
     }
 
     public DebugConsoleImpl(
-        AccessContext debugCtxRef,
         ErrorReporter errorReporterRef,
         LinStorScope debugScopeRef,
         TransactionMgrGenerator transactionMgrGeneratorRef,
         Set<CommonDebugCmd> debugCommands
     )
     {
-        debugCtx = debugCtxRef;
         errorReporter = errorReporterRef;
         debugScope = debugScopeRef;
         transactionMgrGenerator = transactionMgrGeneratorRef;

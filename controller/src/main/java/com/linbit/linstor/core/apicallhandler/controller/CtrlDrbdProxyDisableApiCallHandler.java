@@ -2,16 +2,13 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.ValueInUseException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
@@ -24,8 +21,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlDrbdProxyEnableApiCallHandler.makeDrbdProxyContext;
@@ -45,7 +40,6 @@ import reactor.core.publisher.Flux;
 public class CtrlDrbdProxyDisableApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
@@ -54,11 +48,9 @@ public class CtrlDrbdProxyDisableApiCallHandler
     private final ResponseConverter responseConverter;
     private final ReadWriteLock nodesMapLock;
     private final ReadWriteLock rscDfnMapLock;
-    private final Provider<AccessContext> peerAccCtx;
 
     @Inject
     public CtrlDrbdProxyDisableApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
@@ -67,11 +59,9 @@ public class CtrlDrbdProxyDisableApiCallHandler
         ResponseConverter responseConverterRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
         @Named(CoreModule.RSC_DFN_MAP_LOCK) ReadWriteLock rscDfnMapLockRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ErrorReporter errorReporterRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
@@ -80,7 +70,6 @@ public class CtrlDrbdProxyDisableApiCallHandler
         responseConverter = responseConverterRef;
         nodesMapLock = nodesMapLockRef;
         rscDfnMapLock = rscDfnMapLockRef;
-        peerAccCtx = peerAccCtxRef;
         errorReporter = errorReporterRef;
     }
 
@@ -146,7 +135,7 @@ public class CtrlDrbdProxyDisableApiCallHandler
 
         responses.addEntry(ApiCallRcImpl.simpleEntry(
             ApiConsts.MODIFIED,
-            "DRBD Proxy disabled on " + getResourceConnectionDescriptionInline(apiCtx, rscConn)
+            "DRBD Proxy disabled on " + getResourceConnectionDescriptionInline(rscConn)
         ));
 
         return Flux
@@ -159,7 +148,7 @@ public class CtrlDrbdProxyDisableApiCallHandler
     {
         try
         {
-            rscConn.getProps(peerAccCtx.get()).setProp(
+            rscConn.getProps().setProp(
                 ApiConsts.KEY_DRBD_PROXY_AUTO_ENABLE,
                 ApiConsts.NAMESPC_DRBD_PROXY,
                 ApiConsts.VAL_FALSE
@@ -168,15 +157,6 @@ public class CtrlDrbdProxyDisableApiCallHandler
         catch (InvalidKeyException | InvalidValueException exc)
         {
             throw new ImplementationError(exc);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "setting property to disable auto drbd-proxy of " +
-                    getResourceConnectionDescriptionInline(apiCtx, rscConn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
-            );
         }
         catch (DatabaseException exc)
         {
@@ -188,15 +168,7 @@ public class CtrlDrbdProxyDisableApiCallHandler
     {
         try
         {
-            rscConn.getStateFlags().disableFlags(peerAccCtx.get(), ResourceConnection.Flags.LOCAL_DRBD_PROXY);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "disable local proxy flag of " + getResourceConnectionDescriptionInline(apiCtx, rscConn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
-            );
+            rscConn.getStateFlags().disableFlags(ResourceConnection.Flags.LOCAL_DRBD_PROXY);
         }
         catch (DatabaseException exc)
         {
@@ -208,20 +180,12 @@ public class CtrlDrbdProxyDisableApiCallHandler
     {
         try
         {
-            rscConn.setDrbdProxyPortSource(peerAccCtx.get(), null);
-            rscConn.setDrbdProxyPortTarget(peerAccCtx.get(), null);
+            rscConn.setDrbdProxyPortSource(null);
+            rscConn.setDrbdProxyPortTarget(null);
         }
         catch (ValueInUseException exc)
         {
             throw new ImplementationError(exc);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "unset port of " + getResourceConnectionDescriptionInline(apiCtx, rscConn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
         }
         catch (DatabaseException exc)
         {

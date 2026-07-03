@@ -5,7 +5,6 @@ import com.linbit.SizeConv.SizeUnit;
 import com.linbit.extproc.ExtCmd;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.layer.storage.spdk.SpdkCommands;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.utils.Commands;
 import com.linbit.utils.StringUtils;
@@ -80,7 +79,7 @@ public class SpdkUtils
         final SpdkCommands<T> spdkCommands,
         final Set<String> volumeGroups
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         final HashMap<String, LvsInfo> infoByIdentifier = new HashMap<>();
 
@@ -129,7 +128,7 @@ public class SpdkUtils
     }
 
     public static <T> Map<String, Long> getExtentSize(SpdkCommands<T> spdkCommands, Set<String> volumeGroups)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         final Map<String, Long> result = new HashMap<>();
 
@@ -149,7 +148,7 @@ public class SpdkUtils
     }
 
     public static <T> Long getBlockSizeByName(final SpdkCommands<T> spdkCommands, String name)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         Long blockSize;
         Iterator<JsonNode> elements = spdkCommands.getJsonElements(spdkCommands.lvsByName(name));
@@ -166,7 +165,7 @@ public class SpdkUtils
     }
 
     public static <T> Map<String, Long> getVgTotalSize(final SpdkCommands<T> spdkCommands, Set<String> volumeGroups)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         final Map<String, Long> result = new HashMap<>();
 
@@ -190,7 +189,7 @@ public class SpdkUtils
     }
 
     public static <T> Map<String, Long> getVgFreeSize(final SpdkCommands<T> spdkCommands, Set<String> volumeGroups)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         final Map<String, Long> result = new HashMap<>();
 
@@ -214,7 +213,7 @@ public class SpdkUtils
     }
 
     public static <T> void checkVgExists(final SpdkCommands<T> spdkCommands, String volumeGroup)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         boolean found = false;
 
@@ -236,7 +235,7 @@ public class SpdkUtils
     }
 
     public static <T> String getVgNameFromUuid(SpdkCommands<T> spdkCommands, String volumeGroup)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         String vgName = null;
         Iterator<JsonNode> elements = spdkCommands.getJsonElements(spdkCommands.getLvolStores());
@@ -258,7 +257,7 @@ public class SpdkUtils
     }
 
     public static <T> boolean checkTargetExists(final SpdkCommands<T> spdkCommands, String nqn)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         boolean targetExists = false;
         Iterator<JsonNode> elements = spdkCommands.getJsonElements(spdkCommands.getNvmfSubsystems());
@@ -275,7 +274,7 @@ public class SpdkUtils
     }
 
     public static <T> boolean checkNamespaceExists(final SpdkCommands<T> spdkCommands, String nqn, int nsid)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         boolean namespaceExists = false;
         Iterator<JsonNode> elements = spdkCommands.getJsonElements(spdkCommands.getNvmfSubsystems());

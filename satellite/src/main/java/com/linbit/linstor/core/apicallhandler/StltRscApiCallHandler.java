@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.pojo.RscPojo;
 import com.linbit.linstor.api.pojo.RscPojo.OtherNodeNetInterfacePojo;
 import com.linbit.linstor.api.pojo.RscPojo.OtherRscPojo;
@@ -41,8 +40,6 @@ import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -68,7 +65,6 @@ import java.util.stream.Collectors;
 class StltRscApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final DeviceManager deviceManager;
     private final ControllerPeerConnector controllerPeerConnector;
     private final CoreModule.ResourceGroupMap rscGrpMap;
@@ -88,7 +84,6 @@ class StltRscApiCallHandler
     @Inject
     StltRscApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         DeviceManager deviceManagerRef,
         ControllerPeerConnector controllerPeerConnectorRef,
         CoreModule.ResourceGroupMap rscGrpMapRef,
@@ -107,7 +102,6 @@ class StltRscApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         deviceManager = deviceManagerRef;
         controllerPeerConnector = controllerPeerConnectorRef;
         rscGrpMap = rscGrpMapRef;
@@ -142,19 +136,19 @@ class StltRscApiCallHandler
             if (rscDfn != null)
             {
                 // Copy the resources to void concurrentModificationException when deleting the rscs from the rscDfn
-                for (Resource rsc : rscDfn.copyResourceMap(apiCtx).values())
+                for (Resource rsc : rscDfn.copyResourceMap().values())
                 {
-                    rsc.delete(apiCtx);
+                    rsc.delete();
                 }
-                if (rscDfn.getSnapshotDfns(apiCtx).isEmpty())
+                if (rscDfn.getSnapshotDfns().isEmpty())
                 {
                     rscDfnMap.remove(rscName); // just to be sure
                     ResourceGroup rscGrp = rscDfn.getResourceGroup();
-                    rscDfn.delete(apiCtx);
-                    if (!rscGrp.hasResourceDefinitions(apiCtx))
+                    rscDfn.delete();
+                    if (!rscGrp.hasResourceDefinitions())
                     {
                         rscGrpMap.remove(rscGrp.getName());
-                        rscGrp.delete(apiCtx);
+                        rscGrp.delete();
                     }
                     errorReporter.logInfo("Resource definition '" + rscNameStr +
                         "' and the corresponding resource removed by Controller.");
@@ -204,7 +198,6 @@ class StltRscApiCallHandler
             {
                 errorReporter.logTrace("creating new rscDfn '%s'", rscName);
                 rscDfn = resourceDefinitionFactory.getInstanceSatellite(
-                    apiCtx,
                     rscRawData.getRscDfnUuid(),
                     rscGrp,
                     rscName,
@@ -219,7 +212,7 @@ class StltRscApiCallHandler
             if (!oldRscGrp.equals(rscGrp))
             {
                 // setRscGrp also calls oldRscGrp.remove(rscDfn); newRscGrp.add(rscDfn)
-                rscDfn.setResourceGroup(apiCtx, rscGrp);
+                rscDfn.setResourceGroup(rscGrp);
                 ResourceGroupName oldRscGrpName = oldRscGrp.getName();
                 errorReporter.logInfo(
                     "rscDfn '%s' moved from rscGrp '%s' to '%s'",
@@ -227,15 +220,15 @@ class StltRscApiCallHandler
                     oldRscGrpName.displayValue,
                     rscGrp.getName().displayValue
                 );
-                if (oldRscGrp.getRscDfns(apiCtx).isEmpty())
+                if (oldRscGrp.getRscDfns().isEmpty())
                 {
                     errorReporter.logTrace("deleting no longer used rscGrp '%s'", oldRscGrpName.displayValue);
-                    oldRscGrp.delete(apiCtx);
+                    oldRscGrp.delete();
                     rscGrpMap.remove(oldRscGrpName);
                 }
             }
 
-            Props rscDfnProps = rscDfn.getProps(apiCtx);
+            Props rscDfnProps = rscDfn.getProps();
             rscDfnProps.map().putAll(rscRawData.getRscDfnProps());
             rscDfnProps.keySet().retainAll(rscRawData.getRscDfnProps().keySet());
             errorReporter.logTrace(
@@ -243,7 +236,7 @@ class StltRscApiCallHandler
                 rscDfn,
                 FlagsHelper.toStringList(ResourceDefinition.Flags.class, rscRawData.getRscDfnFlags())
             );
-            rscDfn.getFlags().resetFlagsTo(apiCtx, rscDfnFlags);
+            rscDfn.getFlags().resetFlagsTo(rscDfnFlags);
 
             // merge vlmDfns
             {
@@ -254,10 +247,9 @@ class StltRscApiCallHandler
                     VolumeDefinition.Flags[] vlmDfnFlags = VolumeDefinition.Flags.restoreFlags(vlmDfnRaw.getFlags());
                     VolumeNumber vlmNr = new VolumeNumber(vlmDfnRaw.getVolumeNr());
 
-                    boolean vlmDfnExisted = rscDfn.getVolumeDfn(apiCtx, vlmNr) != null;
+                    boolean vlmDfnExisted = rscDfn.getVolumeDfn(vlmNr) != null;
 
                     VolumeDefinition vlmDfn = volumeDefinitionFactory.getInstanceSatellite(
-                        apiCtx,
                         vlmDfnRaw.getUuid(),
                         rscDfn,
                         vlmNr,
@@ -273,11 +265,11 @@ class StltRscApiCallHandler
                         );
                     }
                     checkUuid(vlmDfn, vlmDfnRaw, rscName.displayValue);
-                    Props vlmDfnProps = vlmDfn.getProps(apiCtx);
+                    Props vlmDfnProps = vlmDfn.getProps();
                     vlmDfnProps.map().putAll(vlmDfnRaw.getProps());
                     vlmDfnProps.keySet().retainAll(vlmDfnRaw.getProps().keySet());
 
-                    vlmDfn.setVolumeSize(apiCtx, vlmDfnRaw.getSize());
+                    vlmDfn.setVolumeSize(vlmDfnRaw.getSize());
 
                     // corresponding volumes will be created later when iterating over (local|remote)vlmApis
 
@@ -286,7 +278,7 @@ class StltRscApiCallHandler
                         vlmDfn,
                         FlagsHelper.toStringList(VolumeDefinition.Flags.class, vlmDfnRaw.getFlags())
                     );
-                    vlmDfn.getFlags().resetFlagsTo(apiCtx, vlmDfnFlags);
+                    vlmDfn.getFlags().resetFlagsTo(vlmDfnFlags);
 
                     if (Arrays.asList(vlmDfnFlags).contains(VolumeDefinition.Flags.DELETE))
                     {
@@ -298,19 +290,19 @@ class StltRscApiCallHandler
                 {
                      VolumeDefinition vlmDfn = entry.getValue();
                     errorReporter.logTrace("marking vlmDfn (%s) and its volumes as deleted", vlmDfn);
-                    Iterator<Volume> iterateVolumes = vlmDfn.iterateVolumes(apiCtx);
+                    Iterator<Volume> iterateVolumes = vlmDfn.iterateVolumes();
                      while (iterateVolumes.hasNext())
                      {
                         Volume vlm = iterateVolumes.next();
-                         vlm.markDeleted(apiCtx);
+                         vlm.markDeleted();
                      }
-                    vlmDfn.markDeleted(apiCtx);
+                    vlmDfn.markDeleted();
                 }
             }
 
             final Set<Resource.ResourceKey> createdRscSet = new TreeSet<>();
             final Set<Resource.ResourceKey> updatedRscSet = new TreeSet<>();
-            Iterator<Resource> rscIterator = rscDfn.iterateResource(apiCtx);
+            Iterator<Resource> rscIterator = rscDfn.iterateResource();
             Resource localRsc = null;
             if (!rscIterator.hasNext())
             {
@@ -414,7 +406,7 @@ class StltRscApiCallHandler
 
                 // update props
                 {
-                    Props localRscProps = localRsc.getProps(apiCtx);
+                    Props localRscProps = localRsc.getProps();
                     localRscProps.map().putAll(rscRawData.getProps());
                     localRscProps.keySet().retainAll(rscRawData.getProps().keySet());
                 }
@@ -426,7 +418,6 @@ class StltRscApiCallHandler
                     FlagsHelper.toStringList(Resource.Flags.class, rscRawData.getFlags())
                 );
                 localRsc.getStateFlags().resetFlagsTo(
-                    apiCtx,
                     Resource.Flags.restoreFlags(rscRawData.getFlags())
                 );
 
@@ -491,7 +482,7 @@ class StltRscApiCallHandler
                         getMergedRemoteNode(otherRsc);
 
                         // update matching resource props
-                        Props remoteRscProps = remoteRsc.getProps(apiCtx);
+                        Props remoteRscProps = remoteRsc.getProps();
                         remoteRscProps.map().putAll(otherRsc.getRscProps());
                         remoteRscProps.keySet().retainAll(otherRsc.getRscProps().keySet());
 
@@ -502,7 +493,6 @@ class StltRscApiCallHandler
                         );
                         // update flags
                         remoteRsc.getStateFlags().resetFlagsTo(
-                            apiCtx,
                             Resource.Flags.restoreFlags(otherRsc.getRscFlags())
                         );
 
@@ -548,8 +538,8 @@ class StltRscApiCallHandler
             // create resource connections
             for (ResourceConnectionApi rscConnApi : rscRawData.getRscConnections())
             {
-                Resource sourceResource = rscDfn.getResource(apiCtx, new NodeName(rscConnApi.getSourceNodeName()));
-                Resource targetResource = rscDfn.getResource(apiCtx, new NodeName(rscConnApi.getTargetNodeName()));
+                Resource sourceResource = rscDfn.getResource(new NodeName(rscConnApi.getSourceNodeName()));
+                Resource targetResource = rscDfn.getResource(new NodeName(rscConnApi.getTargetNodeName()));
 
                 /*
                  *  When the remote resource was just deleted within this call, the controller
@@ -562,7 +552,6 @@ class StltRscApiCallHandler
                 if (sourceResource != null && targetResource != null)
                 {
                     ResourceConnection rscConn = resourceConnectionFactory.getInstanceSatellite(
-                        apiCtx,
                         rscConnApi.getUuid(),
                         sourceResource,
                         targetResource,
@@ -572,22 +561,19 @@ class StltRscApiCallHandler
                         null
                     );
 
-                    Props rscConnProps = rscConn.getProps(apiCtx);
+                    Props rscConnProps = rscConn.getProps();
                     rscConnProps.map().putAll(rscConnApi.getProps());
                     rscConnProps.keySet().retainAll(rscConnApi.getProps().keySet());
 
-                    rscConn.getStateFlags().resetFlagsTo(
-                        apiCtx, ResourceConnection.Flags.restoreFlags(rscConnApi.getFlags())
+                    rscConn.getStateFlags().resetFlagsTo(ResourceConnection.Flags.restoreFlags(rscConnApi.getFlags())
                     );
 
                     rscConn.setDrbdProxyPortSource(
-                        apiCtx,
                         rscConnApi.getDrbdProxyPortSource() == null ?
                             null :
                             new TcpPortNumber(rscConnApi.getDrbdProxyPortSource())
                     );
                     rscConn.setDrbdProxyPortTarget(
-                        apiCtx,
                         rscConnApi.getDrbdProxyPortTarget() == null ?
                             null :
                             new TcpPortNumber(rscConnApi.getDrbdProxyPortTarget())
@@ -631,11 +617,10 @@ class StltRscApiCallHandler
      * @return The fully merged remote {@link Node}
      */
     private Node getMergedRemoteNode(OtherRscPojo otherRscRawRef)
-        throws ImplementationError, InvalidNameException, AccessDeniedException, InvalidIpAddressException,
+        throws ImplementationError, InvalidNameException, InvalidIpAddressException,
         DatabaseException
     {
         Node remoteNode = nodeFactory.getInstanceSatellite(
-            apiCtx,
             otherRscRawRef.getNodeUuid(),
             new NodeName(otherRscRawRef.getNodeName()),
             Node.Type.valueOf(otherRscRawRef.getNodeType()),
@@ -651,7 +636,7 @@ class StltRscApiCallHandler
         // Mirrors the existing guard on the netIf case in mergeNetIfs() below.
         if (!otherRscRawRef.getNodeProps().isEmpty())
         {
-            Map<String, String> propsMap = remoteNode.getProps(apiCtx).map();
+            Map<String, String> propsMap = remoteNode.getProps().map();
             propsMap.clear();
             propsMap.putAll(otherRscRawRef.getNodeProps());
         }
@@ -662,7 +647,7 @@ class StltRscApiCallHandler
     }
 
     private void mergeNetIfs(Node remoteNode, OtherRscPojo otherRscRawRef)
-        throws AccessDeniedException, InvalidNameException, InvalidIpAddressException, ImplementationError,
+        throws InvalidNameException, InvalidIpAddressException, ImplementationError,
         DatabaseException
     {
         // the list of netIfs could be empty if we are processing (remote) resources during a FullSync. The FullSync
@@ -680,7 +665,7 @@ class StltRscApiCallHandler
             // since we should also to delete no longer existing netIfs, we first create a list of registered netIfs of
             // the remoteNode
             Map<NetInterfaceName, NetInterface> netIfsToRemove = new HashMap<>();
-            Iterator<NetInterface> netIfIt = remoteNode.iterateNetInterfaces(apiCtx);
+            Iterator<NetInterface> netIfIt = remoteNode.iterateNetInterfaces();
             while (netIfIt.hasNext())
             {
                 NetInterface netIf = netIfIt.next();
@@ -693,15 +678,14 @@ class StltRscApiCallHandler
                 NetInterfaceName netIfName = new NetInterfaceName(otherNodeNetIf.getName());
                 LsIpAddress addr = new LsIpAddress(otherNodeNetIf.getAddress());
                 NetInterface netIf = netInterfaceFactory.getInstanceSatellite(
-                    apiCtx,
                     otherNodeNetIf.getUuid(),
                     remoteNode,
                     netIfName,
                     addr
                 );
-                if (!netIf.getAddress(apiCtx).equals(addr))
+                if (!netIf.getAddress().equals(addr))
                 {
-                    netIf.setAddress(apiCtx, addr);
+                    netIf.setAddress(addr);
                 }
                 netIfsToRemove.remove(netIfName);
             }
@@ -709,7 +693,7 @@ class StltRscApiCallHandler
             // remove nodes no longer known netIfs
             for (NetInterface netIf : netIfsToRemove.values())
             {
-                remoteNode.removeNetInterface(apiCtx, netIf);
+                remoteNode.removeNetInterface(netIf);
             }
         }
     }
@@ -740,11 +724,10 @@ class StltRscApiCallHandler
         Map<String, String> rscProps,
         List<VolumeApi> vlms
     )
-        throws AccessDeniedException, ValueOutOfRangeException, InvalidNameException,
+        throws ValueOutOfRangeException, InvalidNameException,
             DatabaseException
     {
         Resource rsc = resourceFactory.getInstanceSatellite(
-            apiCtx,
             rscUuid,
             node,
             rscDfn,
@@ -759,7 +742,7 @@ class StltRscApiCallHandler
             "Node: '" + node.getName().displayValue + "', RscName: '" + rscDfn.getName().displayValue + "'"
         );
 
-        Props rscDataProps = rsc.getProps(apiCtx);
+        Props rscDataProps = rsc.getProps();
         rscDataProps.map().putAll(rscProps);
         rscDataProps.keySet().retainAll(rscProps.keySet());
 
@@ -775,13 +758,12 @@ class StltRscApiCallHandler
         VolumeApi vlmApi,
         Resource rsc
     )
-        throws AccessDeniedException, InvalidNameException, ValueOutOfRangeException,
+        throws InvalidNameException, ValueOutOfRangeException,
         DatabaseException
     {
-        VolumeDefinition vlmDfn = rsc.getResourceDefinition().getVolumeDfn(apiCtx, new VolumeNumber(vlmApi.getVlmNr()));
+        VolumeDefinition vlmDfn = rsc.getResourceDefinition().getVolumeDfn(new VolumeNumber(vlmApi.getVlmNr()));
 
         Volume vlm = volumeFactory.getInstanceSatellite(
-            apiCtx,
             vlmApi.getVlmUuid(),
             rsc,
             vlmDfn,
@@ -795,13 +777,13 @@ class StltRscApiCallHandler
             FlagsHelper.toStringList(Volume.Flags.class, vlmApi.getFlags())
         );
 
-        vlm.getProps(apiCtx).map().putAll(vlmApi.getVlmProps());
+        vlm.getProps().map().putAll(vlmApi.getVlmProps());
 
         // XXX check if vlm really has expected layerStack (stack cannot be changed!)
     }
 
     private void mergeVlm(Volume vlm, VolumeApi vlmApi)
-        throws AccessDeniedException, DatabaseException, InvalidNameException
+        throws DatabaseException, InvalidNameException
     {
         boolean remoteRsc = isRemoteRsc(vlm.getAbsResource());
         if (!remoteRsc)
@@ -809,7 +791,7 @@ class StltRscApiCallHandler
             checkUuid(vlm, vlmApi);
         }
 
-        Props vlmProps = vlm.getProps(apiCtx);
+        Props vlmProps = vlm.getProps();
         vlmProps.map().putAll(vlmApi.getVlmProps());
         vlmProps.keySet().retainAll(vlmApi.getVlmProps().keySet());
         errorReporter.logTrace(
@@ -818,7 +800,7 @@ class StltRscApiCallHandler
             vlm.toString(),
             FlagsHelper.toStringList(Volume.Flags.class, vlmApi.getFlags())
         );
-        vlm.getFlags().resetFlagsTo(apiCtx, Volume.Flags.restoreFlags(vlmApi.getFlags()));
+        vlm.getFlags().resetFlagsTo(Volume.Flags.restoreFlags(vlmApi.getFlags()));
     }
 
     /**

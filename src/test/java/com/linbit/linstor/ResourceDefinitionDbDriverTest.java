@@ -15,7 +15,6 @@ import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.security.GenericDbBase;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
@@ -53,7 +52,6 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
     private final TransportType transportType;
 
     private java.util.UUID rscDfnUuid;
-    private ObjectProtection rscDfnObjProt;
 
     private Node node1;
 
@@ -88,14 +86,12 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
         rscDfnUuid = randomUUID();
 
         rscDfnObjProt = createTestObjectProtection(
-            SYS_CTX,
             ObjectProtection.buildPath(resName)
         );
 
-        dfltRscGrp = createDefaultResourceGroup(SYS_CTX);
+        dfltRscGrp = createDefaultResourceGroup();
 
         node1 = nodeFactory.create(
-            SYS_CTX,
             nodeName,
             null,
             null
@@ -148,7 +144,6 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
         drbdRscDfn.sharedSecret = secret;
         drbdRscDfn.transportType = transportType;
         resourceDefinitionFactory.create(
-            SYS_CTX,
             resName,
             null,
             new ResourceDefinition.Flags[]
@@ -205,7 +200,7 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
     {
         driver.create(resDfn);
 
-        Props props = resDfn.getProps(SYS_CTX);
+        Props props = resDfn.getProps();
         String testKey = "TestKey";
         String testValue = "TestValue";
         props.setProp(testKey, testValue);
@@ -222,7 +217,7 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
     {
         driver.create(resDfn);
 
-        resDfn.getFlags().disableAllFlags(SYS_CTX);
+        resDfn.getFlags().disableAllFlags();
 
         commit();
 
@@ -262,7 +257,6 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
         drbdRscDfn.sharedSecret = secret;
         drbdRscDfn.transportType = transportType;
         resourceDefinitionFactory.create(
-            SYS_CTX,
             resName2,
             null,
             null,
@@ -295,8 +289,7 @@ public class ResourceDefinitionDbDriverTest extends GenericDbBase
         DrbdRscDfnPayload drbdRscDfn = payload.getDrbdRscDfn();
         drbdRscDfn.sharedSecret = secret;
         drbdRscDfn.transportType = transportType;
-        resourceDefinitionFactory.create(
-            SYS_CTX, resName, null, null, new ArrayList<>(), payload, dfltRscGrp
+        resourceDefinitionFactory.create(resName, null, null, new ArrayList<>(), payload, dfltRscGrp
         );
     }
 }

@@ -21,8 +21,6 @@ import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.LayerResourceIdDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
@@ -217,7 +215,6 @@ public abstract class AbsLayerRscDataDbDriver<
     private final Map<RSC_DFN_DATA, List<RSC_DATA>> loadedRscDfnChildRscDataMap = new HashMap<>();
 
     protected AbsLayerRscDataDbDriver(
-        AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         @Nullable DatabaseTable tableRef,
         @Nullable Column layerRscIdColumnRef,
@@ -230,7 +227,7 @@ public abstract class AbsLayerRscDataDbDriver<
         Provider<TransactionMgrSQL> transMgrProviderRef
     )
     {
-        super(dbCtxRef, errorReporterRef, tableRef, dbEngineRef);
+        super(errorReporterRef, tableRef, dbEngineRef);
         layerRscIdColumn = layerRscIdColumnRef;
         rscLayerIdDriver = rscLayerIdDriverRef;
         rscDfnDriver = rscDfnDriverRef;
@@ -253,59 +250,52 @@ public abstract class AbsLayerRscDataDbDriver<
     @Override
     public void cacheAll(ParentObjects parentObjectsRef) throws DatabaseException
     {
-        try
+        parentObjects = parentObjectsRef;
+        if (rscDfnDriver != null)
         {
-            parentObjects = parentObjectsRef;
-            if (rscDfnDriver != null)
-            {
-                rscDfnDriver.cacheAll(parentObjectsRef, loadedRscDfnChildRscDataMap, allRscDfnData);
-            }
+            rscDfnDriver.cacheAll(parentObjectsRef, loadedRscDfnChildRscDataMap, allRscDfnData);
+        }
 
-            if (vlmDfnDriver != null)
-            {
-                vlmDfnDriver.cacheAll(parentObjectsRef, allRscDfnData, allVlmDfnData);
-            }
+        if (vlmDfnDriver != null)
+        {
+            vlmDfnDriver.cacheAll(parentObjectsRef, allRscDfnData, allVlmDfnData);
+        }
 
-            if (table != null)
+        if (table != null)
+        {
+            super.loadAll(parentObjectsRef);
+        }
+        else
+        {
+            /*
+             * The current DbDriver does not have a dedicated database table for its resources (like the storage
+             * layer).
+             * However, not calling super.loadAll will not populate the rscDataRawCache, and would leave calling the
+             * loadImpl method with a null value instead of its RawParameters
+             *
+             * To prevent this, we now populate the rscDataRawCache with the basic information from the
+             * LayerResourceId table,
+             */
+            DeviceLayerKind localKind = getDeviceLayerKind();
+            for (AbsRscLayerObject<?> absRscLayerObject : parentObjectsRef.dummyLayerResourceObjectyById.values())
             {
-                super.loadAll(parentObjectsRef);
-            }
-            else
-            {
-                /*
-                 * The current DbDriver does not have a dedicated database table for its resources (like the storage
-                 * layer).
-                 * However, not calling super.loadAll will not populate the rscDataRawCache, and would leave calling the
-                 * loadImpl method with a null value instead of its RawParameters
-                 *
-                 * To prevent this, we now populate the rscDataRawCache with the basic information from the
-                 * LayerResourceId table,
-                 */
-                DeviceLayerKind localKind = getDeviceLayerKind();
-                for (AbsRscLayerObject<?> absRscLayerObject : parentObjectsRef.dummyLayerResourceObjectyById.values())
+                if (absRscLayerObject.getLayerKind().equals(localKind))
                 {
-                    if (absRscLayerObject.getLayerKind().equals(localKind))
-                    {
-                        Map<String, Object> rawMap = new HashMap<>();
+                    Map<String, Object> rawMap = new HashMap<>();
 
-                        rawMap.put(NULL_TABLE_LAYER_RSC_DATA_COLUMN.getName(), absRscLayerObject);
+                    rawMap.put(NULL_TABLE_LAYER_RSC_DATA_COLUMN.getName(), absRscLayerObject);
 
-                        rscDataRawCache.put(absRscLayerObject.getRscLayerId(), new RawParameters(null, rawMap));
-                    }
+                    rscDataRawCache.put(absRscLayerObject.getRscLayerId(), new RawParameters(null, rawMap));
                 }
             }
-
-            // intentionally not loading volumes here.
-            // volumes are loaded once all layerRscData (from all layers, not just the current) are loaded, since
-            // volumes require their rscData, which on the other hand has to be loaded in a given order (due to
-            // parent-child dependency).
-
-            // volumes are loaded at the end, all volumes from each table
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+
+        // intentionally not loading volumes here.
+        // volumes are loaded once all layerRscData (from all layers, not just the current) are loaded, since
+        // volumes require their rscData, which on the other hand has to be loaded in a given order (due to
+        // parent-child dependency).
+
+        // volumes are loaded at the end, all volumes from each table
     }
 
     @Override
@@ -365,7 +355,7 @@ public abstract class AbsLayerRscDataDbDriver<
         int rscLayerIdRef
     )
         throws DatabaseException, InvalidNameException, ValueOutOfRangeException, InvalidIpAddressException,
-        MdException, AccessDeniedException
+        MdException
     {
         AbsRscLayerObject<?> dummyLoadingRLO = getDummyLoadingRLO(rscLayerIdRef);
         PairNonNull<NodeName, SuffixedResourceName> nodeNameSuffixedRscNamePair = getNodeNameSuffixedRscNamePair(
@@ -481,7 +471,7 @@ public abstract class AbsLayerRscDataDbDriver<
         RSC absRscRef
     )
         throws DatabaseException, InvalidNameException, ValueOutOfRangeException, InvalidIpAddressException,
-        MdException, AccessDeniedException;
+        MdException;
 
     public LayerResourceIdDatabaseDriver getIdDriver()
     {

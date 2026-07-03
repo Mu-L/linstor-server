@@ -9,7 +9,6 @@ import com.linbit.drbd.DrbdVersion;
 import com.linbit.extproc.ExtCmd.ExtCmdConditionNotFullfilledException;
 import com.linbit.extproc.ExtCmdFactoryStlt;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -61,8 +60,6 @@ import com.linbit.linstor.layer.drbd.drbdstate.DrbdEventService;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.transaction.manager.SatelliteTransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -114,7 +111,6 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
     //          therefore no other locks should be taken while the sched lock is held, so as to avoid deadlock.
     private final Object sched = new Object();
 
-    private final AccessContext wrkCtx;
     private final ErrorReporter errLog;
 
     private final CoreModule.NodesMap nodesMap;
@@ -236,7 +232,6 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
 
     @Inject
     DeviceManagerImpl(
-        @DeviceManagerContext AccessContext wrkCtxRef,
         ErrorReporter errorReporterRef,
         CoreModule.NodesMap nodesMapRef,
         CoreModule.ResourceGroupMap rscGrpMapRef,
@@ -266,7 +261,6 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
         StltExternalFileHandler extFileHandlerRef
     )
     {
-        wrkCtx = wrkCtxRef;
         errLog = errorReporterRef;
         nodesMap = nodesMapRef;
         rscGrpMap = rscGrpMapRef;
@@ -613,7 +607,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
     }
 
     @Override
-    public void applyChangedNodeProps(Props propsRef) throws StorageException, AccessDeniedException
+    public void applyChangedNodeProps(Props propsRef) throws StorageException
     {
         devHandler.localNodePropsChanged(propsRef);
     }
@@ -631,15 +625,8 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
             svcCondFlag.set(true);
             collectUpdateNotificationForceWakeFlag.set(true);
             sched.notify();
-            try
-            {
-                devHandler.localNodePropsChanged(localNode.getProps(wrkCtx));
-                copyReadOnlyData(localNode);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            devHandler.localNodePropsChanged(localNode.getProps());
+            copyReadOnlyData(localNode);
         }
     }
 
@@ -938,7 +925,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
     }
 
     private void phaseDispatchDeviceHandlers(SyncPoint phaseLock)
-        throws AccessDeniedException, SvcCondException
+        throws SvcCondException
     {
         errLog.logTrace("Dispatching nodes and resources to device handlers");
 
@@ -1014,14 +1001,14 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     ResourceDefinition rscDfn = rscDfnMap.get(rscName);
                     if (rscDfn != null)
                     {
-                        Resource rsc = rscDfn.getResource(wrkCtx, localNodeName);
+                        Resource rsc = rscDfn.getResource(localNodeName);
 
-                        Iterator<Resource> rscIt = rscDfn.iterateResource(wrkCtx);
+                        Iterator<Resource> rscIt = rscDfn.iterateResource();
                         while (rscIt.hasNext())
                         {
                             Resource otherRsc = rscIt.next();
                             if (!otherRsc.equals(rsc) &&
-                                otherRsc.getStateFlags().isSet(wrkCtx, Resource.Flags.DELETE)
+                                otherRsc.getStateFlags().isSet(Resource.Flags.DELETE)
                             )
                             {
                                 remoteResourcesToDelete.add(otherRsc);
@@ -1033,11 +1020,11 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                         // have encrypted volumes
                         if (!haveMasterKey)
                         {
-                            Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn(wrkCtx);
+                            Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn();
                             while (vlmDfnIter.hasNext())
                             {
                                 VolumeDefinition vlmDfn = vlmDfnIter.next();
-                                if (vlmDfn.getFlags().isSet(wrkCtx, VolumeDefinition.Flags.ENCRYPTED))
+                                if (vlmDfn.getFlags().isSet(VolumeDefinition.Flags.ENCRYPTED))
                                 {
                                     needMasterKey = true;
                                     break;
@@ -1093,10 +1080,10 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     ResourceDefinition rscDfn = rscDfnMap.get(snapDfnKey.getResourceName());
                     if (rscDfn != null)
                     {
-                        SnapshotDefinition snapDfn = rscDfn.getSnapshotDfn(wrkCtx, snapDfnKey.getSnapshotName());
+                        SnapshotDefinition snapDfn = rscDfn.getSnapshotDfn(snapDfnKey.getSnapshotName());
                         if (snapDfn != null)
                         {
-                            Snapshot snapshot = snapDfn.getSnapshot(wrkCtx, localNodeName);
+                            Snapshot snapshot = snapDfn.getSnapshot(localNodeName);
                             if (snapshot != null)
                             {
                                 snapshotsToDispatch.add(snapshot);
@@ -1174,15 +1161,15 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
         }
     }
 
-    private void copyReadOnlyData(Node localNodeRef) throws AccessDeniedException
+    private void copyReadOnlyData(Node localNodeRef)
     {
         Collection<ReadOnlyStorPool> roStorPoolList = new ArrayList<>();
-        StltReadOnlyInfo.ReadOnlyNode roLocalNode = StltReadOnlyInfo.ReadOnlyNode.copyFrom(localNodeRef, wrkCtx);
-        Iterator<StorPool> localSpIt = localNodeRef.iterateStorPools(wrkCtx);
+        StltReadOnlyInfo.ReadOnlyNode roLocalNode = StltReadOnlyInfo.ReadOnlyNode.copyFrom(localNodeRef);
+        Iterator<StorPool> localSpIt = localNodeRef.iterateStorPools();
         while (localSpIt.hasNext())
         {
             StorPool localSp = localSpIt.next();
-            roStorPoolList.add(StltReadOnlyInfo.ReadOnlyStorPool.copyFrom(roLocalNode, localSp, wrkCtx));
+            roStorPoolList.add(StltReadOnlyInfo.ReadOnlyStorPool.copyFrom(roLocalNode, localSp));
         }
         stltReadOnlyInfo = new StltReadOnlyInfo(roStorPoolList);
     }
@@ -1204,47 +1191,40 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
         Set<Snapshot> snapshotsToDispatchRef
     )
     {
-        try
+        errLog.logTrace(
+            "Checking shared locks required for resources: %s, snapshots: %s",
+            resourcesToDispatchRef,
+            snapshotsToDispatchRef
+        );
+        Set<StorPool> allStorPools = new TreeSet<>();
+        for (Resource rsc : resourcesToDispatchRef)
         {
-            errLog.logTrace(
-                "Checking shared locks required for resources: %s, snapshots: %s",
-                resourcesToDispatchRef,
-                snapshotsToDispatchRef
-            );
-            Set<StorPool> allStorPools = new TreeSet<>();
-            for (Resource rsc : resourcesToDispatchRef)
-            {
-                allStorPools.addAll(LayerVlmUtils.getStorPools(rsc, wrkCtx, true));
-            }
-            for (Snapshot snap : snapshotsToDispatchRef)
-            {
-                allStorPools.addAll(LayerVlmUtils.getStorPools(snap, wrkCtx, true));
-            }
+            allStorPools.addAll(LayerVlmUtils.getStorPools(rsc, true));
+        }
+        for (Snapshot snap : snapshotsToDispatchRef)
+        {
+            allStorPools.addAll(LayerVlmUtils.getStorPools(snap, true));
+        }
 
-            TreeSet<SharedStorPoolName> curRequiredLocks = new TreeSet<>();
-            for (StorPool sp : allStorPools)
-            {
-                if (sp.isShared())
-                {
-                    curRequiredLocks.add(sp.getSharedStorPoolName());
-                }
-            }
-            if (
-                !curRequiredLocks.isEmpty() &&
-                    (!curRequiredLocks.equals(grantedLocks) || !curRequiredLocks.equals(requiredLocks))
-            )
-            {
-                throw new ImplementationError(
-                    "Required locks: " + requiredLocks + ", requested locks: " + curRequiredLocks +
-                        ", granted locks: " + grantedLocks
-                );
-            }
-            // errLog.logTrace("Requested shared locks granted: " + grantedLocks);
-        }
-        catch (AccessDeniedException exc)
+        TreeSet<SharedStorPoolName> curRequiredLocks = new TreeSet<>();
+        for (StorPool sp : allStorPools)
         {
-            throw new ImplementationError(exc);
+            if (sp.isShared())
+            {
+                curRequiredLocks.add(sp.getSharedStorPoolName());
+            }
         }
+        if (
+            !curRequiredLocks.isEmpty() &&
+                (!curRequiredLocks.equals(grantedLocks) || !curRequiredLocks.equals(requiredLocks))
+        )
+        {
+            throw new ImplementationError(
+                "Required locks: " + requiredLocks + ", requested locks: " + curRequiredLocks +
+                    ", granted locks: " + grantedLocks
+            );
+        }
+        // errLog.logTrace("Requested shared locks granted: " + grantedLocks);
     }
 
     private <RSC extends AbsResource<RSC>> void phaseRequestSharedLock()
@@ -1280,7 +1260,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     Node node = nodesMap.get(nodeName);
                     if (node != null)
                     {
-                        Iterator<Resource> rscIt = node.iterateResources(wrkCtx);
+                        Iterator<Resource> rscIt = node.iterateResources();
                         while (rscIt.hasNext())
                         {
                             Resource rsc = rscIt.next();
@@ -1296,13 +1276,13 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     ResourceDefinition rscDfn = rscDfnMap.get(rscName);
                     if (rscDfn != null)
                     {
-                        Resource rsc = rscDfn.getResource(wrkCtx, localNode.getName());
+                        Resource rsc = rscDfn.getResource(localNode.getName());
                         /*
                          * rsc might be null if we have to process a snapshot where the resource was already deleted
                          */
                         if (rsc != null)
                         {
-                            for (StorPool sp : LayerVlmUtils.getStorPools(rsc, wrkCtx, true))
+                            for (StorPool sp : LayerVlmUtils.getStorPools(rsc, true))
                             {
                                 SharedStorPoolName sharedName = sp.getSharedStorPoolName();
                                 if (sp.isShared())
@@ -1311,12 +1291,12 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                                 }
                             }
                         }
-                        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns(wrkCtx))
+                        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
                         {
-                            Snapshot snapshot = snapshotDfn.getSnapshot(wrkCtx, localNode.getName());
+                            Snapshot snapshot = snapshotDfn.getSnapshot(localNode.getName());
                             if (snapshot != null)
                             {
-                                for (StorPool sp : LayerVlmUtils.getStorPools(snapshot, wrkCtx, true))
+                                for (StorPool sp : LayerVlmUtils.getStorPools(snapshot, true))
                                 {
                                     SharedStorPoolName sharedName = sp.getSharedStorPoolName();
                                     if (sp.isShared())
@@ -1328,10 +1308,6 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                         }
                     }
                 }
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
             }
             finally
             {
@@ -1530,7 +1506,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
         dispatchResponsesRef.clear();
     }
 
-    private void deletedObjectsCleanup(Set<Resource> remoteResourcesToDelete) throws AccessDeniedException
+    private void deletedObjectsCleanup(Set<Resource> remoteResourcesToDelete)
     {
         final Set<NodeName> localDelNodeSet = new TreeSet<>();
         final Set<ResourceName> localDelRscSet;
@@ -1572,14 +1548,12 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     if (resourceDefinition != null)
                     {
                         SnapshotDefinition snapshotDefinition = resourceDefinition.getSnapshotDfn(
-                            wrkCtx,
                             snapshotKey.getSnapshotName()
                         );
                         StltSnapshotApiCallHandler.deleteSnapshotsAndCleanup(
                             rscDfnMap,
                             rscGrpMap,
                             snapshotDefinition,
-                            wrkCtx,
                             errLog,
                             backupServiceMgr
                         );
@@ -1591,14 +1565,13 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     ResourceDefinition curRscDfn = rscDfnMap.get(volumeKey.rscName);
                     if (curRscDfn != null)
                     {
-                        Resource curRsc = curRscDfn.getResource(
-                            wrkCtx, controllerPeerConnector.getLocalNode().getName());
+                        Resource curRsc = curRscDfn.getResource(controllerPeerConnector.getLocalNode().getName());
                         if (curRsc != null)
                         {
                             Volume curVlm = curRsc.getVolume(volumeKey.vlmNr);
                             if (curVlm != null)
                             {
-                                curVlm.getFlags().disableFlags(wrkCtx, Volume.Flags.DRBD_RESIZE);
+                                curVlm.getFlags().disableFlags(Volume.Flags.DRBD_RESIZE);
                             }
                         }
                     }
@@ -1614,15 +1587,15 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     {
                         // Delete the resource from all nodes
                         Map<NodeName, Resource> rscMap = new TreeMap<>();
-                        curRscDfn.copyResourceMap(wrkCtx, rscMap);
+                        curRscDfn.copyResourceMap(rscMap);
                         for (Resource delRsc : rscMap.values())
                         {
                             Node peerNode = delRsc.getNode();
                             errLog.logTrace("Removing resource '%s' from the satellite's model", delRsc);
-                            delRsc.delete(wrkCtx);
+                            delRsc.delete();
                             if (!peerNode.equals(controllerPeerConnector.getLocalNode()))
                             {
-                                if (StltNodeApiCallHandler.canRemoteNodeBeDeleted(wrkCtx, localNode, peerNode))
+                                if (StltNodeApiCallHandler.canRemoteNodeBeDeleted(localNode, peerNode))
                                 {
                                     // This satellite does no longer have any peer resources
                                     // on the peer node, so is does not need to know about this
@@ -1637,15 +1610,15 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                         // Since the local node no longer has the resource, it also does not need
                         // to know about the resource definition any longer, therefore
                         // delete the resource definition as well as long as it has no snapDfns depending on it
-                        if (curRscDfn.getSnapshotDfns(wrkCtx).isEmpty())
+                        if (curRscDfn.getSnapshotDfns().isEmpty())
                         {
                             errLog.logTrace("Removing rscDfn '%s' from the satellite's model", curRscName);
-                            curRscDfn.delete(wrkCtx); // just to be sure
+                            curRscDfn.delete(); // just to be sure
                             rscDfnMap.remove(curRscName);
-                            if (!rscGrp.hasResourceDefinitions(wrkCtx))
+                            if (!rscGrp.hasResourceDefinitions())
                             {
                                 ResourceGroupName rscGrpName = rscGrp.getName();
-                                rscGrp.delete(wrkCtx);
+                                rscGrp.delete();
                                 rscGrpMap.remove(rscGrpName);
                             }
                         }
@@ -1662,10 +1635,9 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                         // recreated
                         Node remoteNode = remoteRsc.getNode();
                         errLog.logTrace("Removing remote resource '%s' from the satellite's model", remoteRsc);
-                        remoteRsc.delete(wrkCtx);
+                        remoteRsc.delete();
 
                         StltNodeApiCallHandler.deleteRemoteNodeIfNeeded(
-                            wrkCtx,
                             nodesMap,
                             localNode,
                             remoteNode
@@ -1682,11 +1654,11 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                     ResourceDefinition curRscDfn = rscDfnMap.get(volumeKey.rscName);
                     if (curRscDfn != null)
                     {
-                        VolumeDefinition curVlmDfn = curRscDfn.getVolumeDfn(wrkCtx, volumeKey.vlmNr);
+                        VolumeDefinition curVlmDfn = curRscDfn.getVolumeDfn(volumeKey.vlmNr);
                         if (curVlmDfn != null)
                         {
                             errLog.logTrace("Removing vlmDfn '%s' from the satellite's model", curVlmDfn);
-                            curVlmDfn.delete(wrkCtx);
+                            curVlmDfn.delete();
                         }
                     }
                 }
@@ -1704,7 +1676,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                 for (NodeName curNodeName : localDelNodeSet)
                 {
                     Node nodeToDelete = nodesMap.remove(curNodeName);
-                    nodeToDelete.delete(wrkCtx);
+                    nodeToDelete.delete();
                 }
             }
             finally
@@ -1718,11 +1690,11 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                 List<ExternalFileName> extFileNamesToDelete = new ArrayList<>();
                 for (ExternalFile extFile : extFileMap.values())
                 {
-                    if (extFile.getFlags().isSet(wrkCtx, ExternalFile.Flags.DELETE))
+                    if (extFile.getFlags().isSet(ExternalFile.Flags.DELETE))
                     {
                         extFileHandler.ensureNotInUse(extFile);
                         extFileNamesToDelete.add(extFile.getName());
-                        extFile.delete(wrkCtx);
+                        extFile.delete();
                     }
                 }
                 for (ExternalFileName extFileNameToDelete : extFileNamesToDelete)
@@ -1741,10 +1713,10 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                 List<RemoteName> remoteNamesToDelete = new ArrayList<>();
                 for (AbsRemote remote : remoteMap.values())
                 {
-                    if (remote.getFlags().isSet(wrkCtx, AbsRemote.Flags.DELETE))
+                    if (remote.getFlags().isSet(AbsRemote.Flags.DELETE))
                     {
                         remoteNamesToDelete.add(remote.getName());
-                        remote.delete(wrkCtx);
+                        remote.delete();
                     }
                 }
                 for (RemoteName remoteNameToDelete : remoteNamesToDelete)

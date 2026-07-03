@@ -8,8 +8,6 @@ import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.layer.storage.BlockSizeConsts;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.DummySecurityInitializer;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 
@@ -33,7 +31,6 @@ public class SelectionManagerTest extends GenericDbBase
     private Autoplacer.StorPoolWithScore[] storPoolWithScores;
     private HashMap<String, Node> nodes;
 
-    private AccessContext accessContext;
 
     @Before
     public void setup() throws Exception
@@ -43,9 +40,9 @@ public class SelectionManagerTest extends GenericDbBase
         nodes = new HashMap<>();
 
         StorPoolDefinition dfltDisklessPoolDef = storPoolDefinitionRepository
-            .get(accessContext, new StorPoolName(LinStor.DISKLESS_STOR_POOL_NAME));
+            .get(new StorPoolName(LinStor.DISKLESS_STOR_POOL_NAME));
         StorPoolDefinition diskfulPoolDef = storPoolDefinitionFactory
-            .create(accessContext, new StorPoolName("pool1"));
+            .create(new StorPoolName("pool1"));
 
         ArrayList<Autoplacer.StorPoolWithScore> storPools = new ArrayList<>(24);
         // We create 12 nodes:
@@ -62,19 +59,17 @@ public class SelectionManagerTest extends GenericDbBase
                 {
                     String nodeName = String.format("node-%s%d-%d", zone, rack + 1, i + 1);
                     Node node = nodeFactory.create(
-                        accessContext,
                         new NodeName(nodeName),
                         Node.Type.SATELLITE,
                         new Node.Flags[0]);
-                    node.getProps(accessContext).setProp(ZONE_KEY, zone);
-                    node.getProps(accessContext).setProp(RACK_KEY, Integer.toString(rack + 1));
-                    node.getProps(accessContext).setProp(UNIQUE_KEY, zone + "-" + (rack + 1) + "-" + (i + 1));
+                    node.getProps().setProp(ZONE_KEY, zone);
+                    node.getProps().setProp(RACK_KEY, Integer.toString(rack + 1));
+                    node.getProps().setProp(UNIQUE_KEY, zone + "-" + (rack + 1) + "-" + (i + 1));
 
                     nodes.put(nodeName, node);
 
                     storPools.add(new Autoplacer.StorPoolWithScore(
                         storPoolFactory.create(
-                            accessContext,
                             node,
                             dfltDisklessPoolDef,
                             DeviceProviderKind.DISKLESS,
@@ -85,7 +80,6 @@ public class SelectionManagerTest extends GenericDbBase
                     ));
                     storPools.add(new Autoplacer.StorPoolWithScore(
                         storPoolFactory.create(
-                            accessContext,
                             node,
                             diskfulPoolDef,
                             DeviceProviderKind.LVM_THIN,
@@ -160,13 +154,13 @@ public class SelectionManagerTest extends GenericDbBase
         Set<Autoplacer.StorPoolWithScore> actual = selectionManager.findSelection();
         Assert.assertEquals(3, actual.size());
 
-        String expectedKey = storPoolWithScores[0].storPool.getNode().getProps(accessContext).getProp(RACK_KEY);
+        String expectedKey = storPoolWithScores[0].storPool.getNode().getProps().getProp(RACK_KEY);
         Set<String> seenZones = new HashSet<>();
 
         for (Autoplacer.StorPoolWithScore pool : actual)
         {
-            Assert.assertEquals(expectedKey, pool.storPool.getNode().getProps(accessContext).getProp(RACK_KEY));
-            Assert.assertTrue(seenZones.add(pool.storPool.getNode().getProps(accessContext).getProp(ZONE_KEY)));
+            Assert.assertEquals(expectedKey, pool.storPool.getNode().getProps().getProp(RACK_KEY));
+            Assert.assertTrue(seenZones.add(pool.storPool.getNode().getProps().getProp(ZONE_KEY)));
         }
     }
 
@@ -225,7 +219,7 @@ public class SelectionManagerTest extends GenericDbBase
         Assert.assertEquals(1, actual.size());
         for (Autoplacer.StorPoolWithScore selected : actual)
         {
-            Assert.assertEquals("c", selected.storPool.getNode().getProps(accessContext).getProp(ZONE_KEY));
+            Assert.assertEquals("c", selected.storPool.getNode().getProps().getProp(ZONE_KEY));
         }
     }
 
@@ -256,7 +250,7 @@ public class SelectionManagerTest extends GenericDbBase
         Assert.assertEquals(1, actual.size());
         for (Autoplacer.StorPoolWithScore selected : actual)
         {
-            Assert.assertEquals("c", selected.storPool.getNode().getProps(accessContext).getProp(ZONE_KEY));
+            Assert.assertEquals("c", selected.storPool.getNode().getProps().getProp(ZONE_KEY));
         }
     }
 
@@ -293,8 +287,8 @@ public class SelectionManagerTest extends GenericDbBase
 
         for (Autoplacer.StorPoolWithScore pool : actual)
         {
-            Assert.assertEquals("2", pool.storPool.getNode().getProps(accessContext).getProp(RACK_KEY));
-            Assert.assertTrue(seenZones.add(pool.storPool.getNode().getProps(accessContext).getProp(ZONE_KEY)));
+            Assert.assertEquals("2", pool.storPool.getNode().getProps().getProp(RACK_KEY));
+            Assert.assertTrue(seenZones.add(pool.storPool.getNode().getProps().getProp(ZONE_KEY)));
         }
     }
 

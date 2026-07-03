@@ -8,8 +8,6 @@ import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.PriorityProps.MultiResult;
 import com.linbit.linstor.PriorityProps.ValueWithDescription;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -18,7 +16,6 @@ import com.linbit.linstor.api.pojo.backups.ScheduleDetailsPojo;
 import com.linbit.linstor.api.pojo.backups.ScheduledRscsPojo;
 import com.linbit.linstor.core.CoreModule.ResourceDefinitionMap;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
@@ -37,8 +34,6 @@ import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.ScheduleBackupService;
 import com.linbit.linstor.tasks.ScheduleBackupService.ScheduledShippingConfig;
 import com.linbit.locks.LockGuard;
@@ -78,11 +73,9 @@ public class CtrlScheduleApiCallHandler
     private static final String REASON_DISABLED = "disabled";
     private static final String REASON_UNDEPLOYED = "undeployed";
 
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final ResponseConverter responseConverter;
     private final ScheduleControllerFactory scheduleFactory;
@@ -93,11 +86,9 @@ public class CtrlScheduleApiCallHandler
 
     @Inject
     public CtrlScheduleApiCallHandler(
-        @SystemContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         ResponseConverter responseConverterRef,
         ScheduleControllerFactory scheduleFactoryRef,
@@ -107,11 +98,9 @@ public class CtrlScheduleApiCallHandler
         ScheduleBackupService scheduleServiceRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         responseConverter = responseConverterRef;
         scheduleFactory = scheduleFactoryRef;
@@ -127,9 +116,9 @@ public class CtrlScheduleApiCallHandler
         try (LockGuard lg = lockGuardFactory.build(LockType.READ, LockObj.SCHEDULE_MAP))
         {
             AccessContext pAccCtx = peerAccCtx.get();
-            for (Entry<ScheduleName, Schedule> entry : scheduleRepository.getMapForView(pAccCtx).entrySet())
+            for (Entry<ScheduleName, Schedule> entry : scheduleRepository.getMapForView().entrySet())
             {
-                ret.add(entry.getValue().getApiData(pAccCtx, null, null));
+                ret.add(entry.getValue().getApiData(null, null));
             }
         }
         catch (AccessDeniedException exc)
@@ -192,20 +181,11 @@ public class CtrlScheduleApiCallHandler
         try
         {
             schedule = scheduleFactory
-                .create(
-                    peerAccCtx.get(), scheduleName, fullCronRef, incCronRef, keepLocalRef, keepRemoteRef, failureType,
+                .create(scheduleName, fullCronRef, incCronRef, keepLocalRef, keepRemoteRef, failureType,
                     maxRetriesRef
                 );
-            scheduleRepository.put(apiCtx, schedule);
+            scheduleRepository.put(schedule);
             scheduleDescription = getDetailedScheduleDescription(schedule);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "create " + getScheduleDescription(scheduleNameStr),
-                ApiConsts.FAIL_ACC_DENIED_SCHEDULE
-            );
         }
         catch (LinStorDataAlreadyExistsException exc)
         {
@@ -272,7 +252,7 @@ public class CtrlScheduleApiCallHandler
             {
                 try
                 {
-                    schedule.setFullCron(peerAccCtx.get(), fullCronRef);
+                    schedule.setFullCron(fullCronRef);
                 }
                 catch (IllegalArgumentException exc)
                 {
@@ -284,13 +264,13 @@ public class CtrlScheduleApiCallHandler
             {
                 if (incCronRef.isEmpty())
                 {
-                    schedule.setIncCron(peerAccCtx.get(), null);
+                    schedule.setIncCron(null);
                 }
                 else
                 {
                     try
                     {
-                        schedule.setIncCron(peerAccCtx.get(), incCronRef);
+                        schedule.setIncCron(incCronRef);
                     }
                     catch (IllegalArgumentException exc)
                     {
@@ -303,53 +283,45 @@ public class CtrlScheduleApiCallHandler
             {
                 if (keepLocalRef < 0)
                 {
-                    schedule.setKeepLocal(peerAccCtx.get(), null);
+                    schedule.setKeepLocal(null);
                 }
                 else
                 {
-                    schedule.setKeepLocal(peerAccCtx.get(), keepLocalRef);
+                    schedule.setKeepLocal(keepLocalRef);
                 }
             }
             if (keepRemoteRef != null)
             {
                 if (keepRemoteRef < 0)
                 {
-                    schedule.setKeepRemote(peerAccCtx.get(), null);
+                    schedule.setKeepRemote(null);
                 }
                 else
                 {
-                    schedule.setKeepRemote(peerAccCtx.get(), keepRemoteRef);
+                    schedule.setKeepRemote(keepRemoteRef);
                 }
             }
             if (onFailureRef != null && !onFailureRef.isEmpty())
             {
-                schedule.setOnFailure(peerAccCtx.get(), onFailureRef);
+                schedule.setOnFailure(onFailureRef);
             }
             if (maxRetriesRef != null)
             {
                 if (maxRetriesRef < 0)
                 {
-                    schedule.setMaxRetries(peerAccCtx.get(), null);
+                    schedule.setMaxRetries(null);
                 }
                 else
                 {
-                    schedule.setMaxRetries(peerAccCtx.get(), maxRetriesRef);
+                    schedule.setMaxRetries(maxRetriesRef);
                 }
             }
             ctrlTransactionHelper.commit();
             if (modifyTask)
             {
-                scheduleService.modifyTasks(schedule, peerAccCtx.get());
+                scheduleService.modifyTasks(schedule);
                 scheduleDescription = getDetailedScheduleDescription(schedule);
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "modify " + getScheduleDescription(scheduleNameStr),
-                ApiConsts.FAIL_ACC_DENIED_SCHEDULE
-            );
         }
         catch (DatabaseException exc)
         {
@@ -404,19 +376,11 @@ public class CtrlScheduleApiCallHandler
             enableFlags(schedule, Schedule.Flags.DELETE);
             try
             {
-                scheduleService.removeTasks(schedule, peerAccCtx.get());
+                scheduleService.removeTasks(schedule);
             }
             catch (InvalidKeyException exc)
             {
                 throw new ImplementationError(exc);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ApiAccessDeniedException(
-                    exc,
-                    "while trying to remove props",
-                    ApiConsts.FAIL_ACC_DENIED_SCHEDULE
-                );
             }
             catch (DatabaseException exc)
             {
@@ -476,19 +440,18 @@ public class CtrlScheduleApiCallHandler
     }
 
     private List<ScheduledRscsPojo> listUnscheduledRsc(@Nullable String rscName)
-        throws AccessDeniedException
     {
         // Map<rscName, Pair<reason, List<Pair<remoteName, scheduleName>>>>
         List<ScheduledRscsPojo> ret = new ArrayList<>();
-        ResourceDefinitionMap map = rscDfnRepo.getMapForView(peerAccCtx.get());
+        ResourceDefinitionMap map = rscDfnRepo.getMapForView();
         for (ResourceDefinition rscDfn : map.values())
         {
             if (rscName == null || rscName.isEmpty() || rscDfn.getName().value.equalsIgnoreCase(rscName))
             {
                 PriorityProps prioProps = new PriorityProps(
-                    rscDfn.getProps(peerAccCtx.get()),
-                    rscDfn.getResourceGroup().getProps(peerAccCtx.get()),
-                    systemConfRepository.getCtrlConfForView(peerAccCtx.get())
+                    rscDfn.getProps(),
+                    rscDfn.getResourceGroup().getProps(),
+                    systemConfRepository.getCtrlConfForView()
                 );
                 Map<String, String> props = prioProps.renderRelativeMap(InternalApiConsts.NAMESPC_SCHEDULE);
                 if (props.size() == 0)
@@ -601,14 +564,13 @@ public class CtrlScheduleApiCallHandler
         @Nullable String remoteName,
         @Nullable String scheduleName
     )
-        throws AccessDeniedException
     {
         List<ScheduledRscsPojo> ret = new ArrayList<>();
         Set<ScheduledShippingConfig> activeShippings = scheduleService
             .getAllFilteredActiveShippings(rscName, remoteName, scheduleName);
         for (ScheduledShippingConfig conf : activeShippings)
         {
-            String lastSnapTime = conf.rscDfn.getProps(peerAccCtx.get()).getProp(
+            String lastSnapTime = conf.rscDfn.getProps().getProp(
                 conf.remote.getName().displayValue + ReadOnlyProps.PATH_SEPARATOR + conf.schedule.getName().displayValue
                     + ReadOnlyProps.PATH_SEPARATOR + InternalApiConsts.KEY_LAST_BACKUP_TIME,
                 InternalApiConsts.NAMESPC_SCHEDULE
@@ -625,7 +587,7 @@ public class CtrlScheduleApiCallHandler
                 lastSnapTimeLong = -1;
                 lastSnap = ZonedDateTime.now(ZoneId.systemDefault());
             }
-            String lastSnapInc = conf.rscDfn.getProps(peerAccCtx.get()).getProp(
+            String lastSnapInc = conf.rscDfn.getProps().getProp(
                 conf.remote.getName().displayValue + ReadOnlyProps.PATH_SEPARATOR + conf.schedule.getName().displayValue
                     + ReadOnlyProps.PATH_SEPARATOR + InternalApiConsts.KEY_LAST_BACKUP_INC,
                 InternalApiConsts.NAMESPC_SCHEDULE
@@ -636,15 +598,15 @@ public class CtrlScheduleApiCallHandler
             }
             long nextPlannedFull = -1;
             long nextPlannedInc = -1;
-            Optional<ZonedDateTime> nextExecFull = ExecutionTime.forCron(conf.schedule.getFullCron(peerAccCtx.get()))
+            Optional<ZonedDateTime> nextExecFull = ExecutionTime.forCron(conf.schedule.getFullCron())
                 .nextExecution(lastSnap);
             if (nextExecFull.isPresent())
             {
                 nextPlannedFull = nextExecFull.get().toEpochSecond() * 1000;
             }
-            if (conf.schedule.getIncCron(peerAccCtx.get()) != null)
+            if (conf.schedule.getIncCron() != null)
             {
-                Optional<ZonedDateTime> nextExecInc = ExecutionTime.forCron(conf.schedule.getIncCron(peerAccCtx.get()))
+                Optional<ZonedDateTime> nextExecInc = ExecutionTime.forCron(conf.schedule.getIncCron())
                     .nextExecution(lastSnap);
                 if (nextExecInc.isPresent())
                 {
@@ -704,9 +666,9 @@ public class CtrlScheduleApiCallHandler
             final String rscDfnStr = "rscDfn";
             final String rscGrpStr = "rscGrp";
             final String ctrlStr = "ctrl";
-            prioProps.addProps(rscDfn.getProps(peerAccCtx.get()), rscDfnStr);
-            prioProps.addProps(rscDfn.getResourceGroup().getProps(peerAccCtx.get()), rscGrpStr);
-            prioProps.addProps(systemConfRepository.getCtrlConfForView(peerAccCtx.get()), ctrlStr);
+            prioProps.addProps(rscDfn.getProps(), rscDfnStr);
+            prioProps.addProps(rscDfn.getResourceGroup().getProps(), rscGrpStr);
+            prioProps.addProps(systemConfRepository.getCtrlConfForView(), ctrlStr);
             Map<String, MultiResult> propsMap = prioProps
                 .renderConflictingMap(InternalApiConsts.NAMESPC_SCHEDULE, false);
             for (Entry<String, MultiResult> prop : propsMap.entrySet())
@@ -781,16 +743,8 @@ public class CtrlScheduleApiCallHandler
 
         try
         {
-            scheduleRef.delete(peerAccCtx.get());
-            scheduleRepository.remove(apiCtx, scheduleName);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "delete " + scheduleDescription,
-                ApiConsts.FAIL_ACC_DENIED_SCHEDULE
-            );
+            scheduleRef.delete();
+            scheduleRepository.remove(scheduleName);
         }
         catch (DatabaseException exc)
         {
@@ -810,15 +764,7 @@ public class CtrlScheduleApiCallHandler
     {
         try
         {
-            scheduleRef.getFlags().enableFlags(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "delete " + getScheduleDescription(scheduleRef.getName().displayValue),
-                ApiConsts.FAIL_ACC_DENIED_SCHEDULE
-            );
+            scheduleRef.getFlags().enableFlags(flags);
         }
         catch (DatabaseException exc)
         {
@@ -843,12 +789,12 @@ public class CtrlScheduleApiCallHandler
         );
     }
 
-    private String getDetailedScheduleDescription(Schedule scheduleRef) throws AccessDeniedException
+    private String getDetailedScheduleDescription(Schedule scheduleRef)
     {
         CronDescriptor descriptor = CronDescriptor.instance(Locale.US);
-        String fullDescription = descriptor.describe(scheduleRef.getFullCron(apiCtx));
+        String fullDescription = descriptor.describe(scheduleRef.getFullCron());
         String incDescription = "";
-        Cron incCron = scheduleRef.getIncCron(apiCtx);
+        Cron incCron = scheduleRef.getIncCron();
         if (incCron != null)
         {
             incDescription = ", IncCron: " + descriptor.describe(incCron);

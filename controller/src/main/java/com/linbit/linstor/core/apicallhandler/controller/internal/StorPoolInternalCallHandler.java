@@ -3,9 +3,7 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -16,7 +14,6 @@ import com.linbit.linstor.core.CoreModule.NodesMap;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlApiDataLoader;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlStorPoolApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlTransactionHelper;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
@@ -28,8 +25,6 @@ import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 
 import static com.linbit.linstor.core.apicallhandler.controller.helpers.StorPoolHelper.getStorPoolDescriptionInline;
@@ -46,13 +41,11 @@ import java.util.concurrent.locks.ReadWriteLock;
 public class StorPoolInternalCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final ResponseConverter responseConverter;
     private final CtrlStltSerializer ctrlStltSerializer;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
 
     private final ReadWriteLock nodesMapLock;
     private final ReadWriteLock storPoolDfnMapLock;
@@ -61,26 +54,22 @@ public class StorPoolInternalCallHandler
     @Inject
     public StorPoolInternalCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         ResponseConverter responseConverterRef,
         CtrlStltSerializer ctrlStltSerializerRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
         @Named(CoreModule.STOR_POOL_DFN_MAP_LOCK) ReadWriteLock storPoolDfnMapLockRef,
         NodesMap nodesMapRef
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         responseConverter = responseConverterRef;
         ctrlStltSerializer = ctrlStltSerializerRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         nodesMapLock = nodesMapLockRef;
         storPoolDfnMapLock = storPoolDfnMapLockRef;
         nodesMap = nodesMapRef;
@@ -108,7 +97,7 @@ public class StorPoolInternalCallHandler
             }
             else
             {
-                storPool = node.getStorPool(apiCtx, storPoolName);
+                storPool = node.getStorPool(storPoolName);
             }
 
             // TODO: check if the storPool has the same uuid as storPoolUuid
@@ -158,20 +147,7 @@ public class StorPoolInternalCallHandler
 
     private void setCapacityInfo(StorPool storPool, long freeCapacity, long totalCapacity)
     {
-        try
-        {
-            storPool.getFreeSpaceTracker().setCapacityInfo(peerAccCtx.get(), freeCapacity, totalCapacity);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "update free space of free space manager '" +
-                    storPool.getFreeSpaceTracker().getName().displayValue +
-                    "'",
-                ApiConsts.FAIL_ACC_DENIED_FREE_SPACE_MGR
-            );
-        }
+        storPool.getFreeSpaceTracker().setCapacityInfo(freeCapacity, totalCapacity);
     }
 
     public void updateRealFreeSpace(List<CapacityInfoPojo> capacityInfoPojoList)
@@ -242,7 +218,6 @@ public class StorPoolInternalCallHandler
                     {
                         errorReporter.reportError(
                             exc.getCause() != null ? exc.getCause() : exc,
-                            peerAccCtx.get(),
                             peerRef,
                             entry.getMessage()
                         );
@@ -267,15 +242,15 @@ public class StorPoolInternalCallHandler
             @Nullable Node node = currentPeer.getNode();
             if (node != null && !node.isDeleted())
             {
-                storPool = node.getStorPool(apiCtx, new StorPoolName(storPoolNameRef));
+                storPool = node.getStorPool(new StorPoolName(storPoolNameRef));
                 if (storPool != null && !storPool.isDeleted())
                 {
-                    storPool.setSupportsSnapshot(apiCtx, supportsSnapshotsRef);
+                    storPool.setSupportsSnapshot(supportsSnapshotsRef);
                     updateRealFreeSpace(currentPeer, Collections.singletonList(capacityInfoPojoRef));
                 }
             }
         }
-        catch (AccessDeniedException | InvalidNameException | DatabaseException exc)
+        catch (InvalidNameException | DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }

@@ -4,15 +4,12 @@ import com.linbit.ImplementationError;
 import com.linbit.SizeConv;
 import com.linbit.SizeConv.SizeUnit;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.StltConfigAccessor;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.layer.storage.spdk.SpdkCommands;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.utils.HttpHeader;
@@ -48,7 +45,6 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final AccessContext sysCtx;
     private final ErrorReporter errorReporter;
     private final StltConfigAccessor stltConfigAccessor;
 
@@ -57,12 +53,10 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Inject
     public SpdkRemoteCommands(
-        @DeviceManagerContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef,
         StltConfigAccessor stltConfigAccessorRef
     )
     {
-        sysCtx = sysCtxRef;
         errorReporter = errorReporterRef;
         stltConfigAccessor = stltConfigAccessorRef;
 
@@ -82,13 +76,13 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
     }
 
     @Override
-    public JsonNode lvs() throws StorageException, AccessDeniedException
+    public JsonNode lvs() throws StorageException
     {
         return request("bdev_get_bdevs").getData();
     }
 
     @Override
-    public JsonNode lvsByName(String name) throws StorageException, AccessDeniedException
+    public JsonNode lvsByName(String name) throws StorageException
     {
         return request(
             "bdev_get_bdevs",
@@ -97,7 +91,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
     }
 
     @Override
-    public JsonNode getLvolStores() throws StorageException, AccessDeniedException
+    public JsonNode getLvolStores() throws StorageException
     {
         return request(
             "bdev_lvol_get_lvstores"
@@ -111,7 +105,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
         long size,
         String... additionalParameters
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return create(volumeGroup, vlmId, size, false);
     }
@@ -122,7 +116,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
         long size,
         boolean thin
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         HashMap<String, Object> params = map("lvs_name", volumeGroup);
         params.put("lvol_name", vlmId);
@@ -140,7 +134,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
         String fullQualifiedVlmIdRef,
         String snapName
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         HashMap<String, Object> params = map("lvol_name", fullQualifiedVlmIdRef);
         params.put("snapshot_name", snapName);
@@ -150,7 +144,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Override
     public JsonNode restoreSnapshot(String fullQualifiedSnapName, String newVlmId)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         HashMap<String, Object> params = map("snapshot_name", fullQualifiedSnapName);
         params.put("clone_name", newVlmId);
@@ -159,7 +153,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
     }
 
     @Override
-    public JsonNode decoupleParent(String fullQualifiedIdentifierRef) throws StorageException, AccessDeniedException
+    public JsonNode decoupleParent(String fullQualifiedIdentifierRef) throws StorageException
     {
         return request(
             "bdev_lvol_decouple_parent",
@@ -169,7 +163,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Override
     public JsonNode clone(String fullQualifiedSourceSnapNameRef, String lvTargetIdRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         HashMap<String, Object> params = map("snapshot_name", fullQualifiedSourceSnapNameRef);
         params.put("clone_name", lvTargetIdRef);
@@ -181,7 +175,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Override
     public JsonNode delete(String volumeGroup, String vlmId)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return request(
             "bdev_lvol_delete",
@@ -191,7 +185,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Override
     public JsonNode resize(String volumeGroup, String vlmId, long size)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         HashMap<String, Object> params = map("name", volumeGroup + File.separator + vlmId);
         params.put(
@@ -203,7 +197,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Override
     public JsonNode rename(String volumeGroup, String vlmCurrentId, String vlmNewId)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         HashMap<String, Object> params = map("old_name", volumeGroup + File.separator + vlmCurrentId);
         params.put("new_name", vlmNewId);
@@ -212,7 +206,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Override
     public void ensureTransportExists(String type)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         JsonNode response = request("nvmf_get_transports").getData();
         Iterator<JsonNode> resultElements = getJsonElements(response);
@@ -239,13 +233,13 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
     }
 
     @Override
-    public JsonNode getNvmfSubsystems() throws StorageException, AccessDeniedException
+    public JsonNode getNvmfSubsystems() throws StorageException
     {
         return request("nvmf_get_subsystems").getData();
     }
 
     @Override
-    public JsonNode nvmSubsystemCreate(String subsystemNameRef) throws StorageException, AccessDeniedException
+    public JsonNode nvmSubsystemCreate(String subsystemNameRef) throws StorageException
     {
         Map<String, Object> data = map("nqn", subsystemNameRef);
         data.put("allow_any_host", true);
@@ -260,7 +254,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
         String addressType,
         String portRef
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
 
         Map<String, Object> data = map("nqn", subsystemNameRef);
@@ -276,7 +270,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Override
     public JsonNode nvmfSubsystemAddNs(String nqn, String bdevName)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         HashMap<String, Object> data = map("nqn", nqn);
 
@@ -287,7 +281,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
     }
 
     @Override
-    public JsonNode nvmfDeleteSubsystem(String subsystemNameRef) throws StorageException, AccessDeniedException
+    public JsonNode nvmfDeleteSubsystem(String subsystemNameRef) throws StorageException
     {
         return request(
             "delete_nvmf_subsystem",
@@ -297,7 +291,7 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
 
     @Override
     public JsonNode nvmfSubsystemRemoveNamespace(String subsystemNameRef, int namespaceNrRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         HashMap<String, Object> params = map("nqn", subsystemNameRef);
         params.put("nsid", namespaceNrRef);
@@ -311,13 +305,13 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
         return request(errorReporter, restClient, method, prioProps, params);
     }
 
-    private RestResponse<JsonNode> request(String method) throws StorageException, AccessDeniedException
+    private RestResponse<JsonNode> request(String method) throws StorageException
     {
         return request(method, getPrioProps(null), null);
     }
 
     private RestResponse<JsonNode> request(String method, Map<String, Object> params)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return request(errorReporter, restClient, method, getPrioProps(null), params);
     }
@@ -423,12 +417,12 @@ public class SpdkRemoteCommands implements SpdkCommands<JsonNode>
         return prioPropsRef.getProp(key, StorageConstants.NAMESPACE_STOR_DRIVER);
     }
 
-    private PriorityProps getPrioProps(@Nullable StorPool storPoolRef) throws AccessDeniedException
+    private PriorityProps getPrioProps(@Nullable StorPool storPoolRef)
     {
         PriorityProps prioProps = new PriorityProps();
         if (storPoolRef != null)
         {
-            prioProps.addProps(storPoolRef.getProps(sysCtx), "Storage pool: " + storPoolRef.getName());
+            prioProps.addProps(storPoolRef.getProps(), "Storage pool: " + storPoolRef.getName());
         }
         prioProps.addProps(localNodeProps, "Local node");
         prioProps.addProps(stltConfigAccessor.getReadonlyProps(), "Controller");

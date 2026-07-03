@@ -7,8 +7,6 @@ import com.linbit.linstor.core.CoreModule.ResourceDefinitionMap;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -48,7 +46,6 @@ public class ResourceDefinitionSatelliteFactory
     }
 
     public ResourceDefinition getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         ResourceGroup rscGrpRef,
         ResourceName rscName,
@@ -65,7 +62,7 @@ public class ResourceDefinitionSatelliteFactory
             {
                 rscDfn = new ResourceDefinition(
                     uuid,
-                    objectProtectionFactory.getInstance(accCtx, "", false),
+                    objectProtectionFactory.getInstance("", false),
                     rscName,
                     null,
                     StateFlagsBits.getMask(initFlags),
@@ -81,7 +78,7 @@ public class ResourceDefinitionSatelliteFactory
                     new TreeMap<>(),
                     rscGrpRef
                 );
-                rscGrpRef.addResourceDefinition(accCtx, rscDfn);
+                rscGrpRef.addResourceDefinition(rscDfn);
             }
         }
         catch (Exception exc)

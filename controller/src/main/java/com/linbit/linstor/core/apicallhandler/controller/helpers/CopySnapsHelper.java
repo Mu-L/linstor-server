@@ -6,7 +6,6 @@ import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.BackgroundRunner;
@@ -36,8 +35,6 @@ import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
@@ -63,7 +60,6 @@ public class CopySnapsHelper
     private final SystemConfRepository systemConfRepository;
     private final RemoteRepository remoteRepository;
     private final LinstorRemoteControllerFactory linstorRemoteFactory;
-    private final AccessContext apiCtx;
     private final LockGuardFactory lockGuardFactory;
     private final ScopeRunner scopeRunner;
     private final ResponseConverter responseConverter;
@@ -79,7 +75,6 @@ public class CopySnapsHelper
         SystemConfRepository systemConfRepositoryRef,
         RemoteRepository remoteRepositoryRef,
         LinstorRemoteControllerFactory linstorRemoteFactoryRef,
-        @SystemContext AccessContext apiCtxRef,
         LockGuardFactory lockGuardFactoryRef,
         ScopeRunner scopeRunnerRef,
         ResponseConverter responseConverterRef,
@@ -94,7 +89,6 @@ public class CopySnapsHelper
         systemConfRepository = systemConfRepositoryRef;
         remoteRepository = remoteRepositoryRef;
         linstorRemoteFactory = linstorRemoteFactoryRef;
-        apiCtx = apiCtxRef;
         lockGuardFactory = lockGuardFactoryRef;
         scopeRunner = scopeRunnerRef;
         responseConverter = responseConverterRef;
@@ -206,7 +200,6 @@ public class CopySnapsHelper
                         Collections.singletonList(nodeName.displayValue)
                     )
                 ),
-            apiCtx,
             Collections.emptyList(),
             true
         );
@@ -266,9 +259,9 @@ public class CopySnapsHelper
             {
                 ResourceDefinition rscDfn = rsc.getResourceDefinition();
                 PriorityProps prioProps = new PriorityProps(
-                    rscDfn.getProps(apiCtx),
-                    rscDfn.getResourceGroup().getProps(apiCtx),
-                    systemConfRepository.getCtrlConfForView(apiCtx)
+                    rscDfn.getProps(),
+                    rscDfn.getResourceGroup().getProps(),
+                    systemConfRepository.getCtrlConfForView()
                 );
                 String copyAllSnapsStr = prioProps.getProp(ApiConsts.KEY_COPY_ALL_SNAPS);
                 if (copyAllSnapsStr != null)
@@ -276,7 +269,7 @@ public class CopySnapsHelper
                     copyAllSnaps = Boolean.parseBoolean(copyAllSnapsStr);
                 }
                 String targetNodeNameStr = rsc.getNode().getName().displayValue;
-                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(apiCtx))
+                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
                 {
                     if (copyAllSnaps || upperSnapNames.contains(snapDfn.getName().value))
                     {
@@ -292,7 +285,7 @@ public class CopySnapsHelper
                 }
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -314,10 +307,10 @@ public class CopySnapsHelper
         try
         {
             RemoteName remoteName = new RemoteName(LOCAL_REMOTE);
-            @Nullable AbsRemote localRemote = remoteRepository.get(apiCtx, remoteName);
+            @Nullable AbsRemote localRemote = remoteRepository.get(remoteName);
             if (localRemote == null)
             {
-                @Nullable String clusterIdStr = systemConfRepository.getCtrlConfForView(apiCtx)
+                @Nullable String clusterIdStr = systemConfRepository.getCtrlConfForView()
                     .getProp(
                         InternalApiConsts.KEY_CLUSTER_LOCAL_ID,
                         ApiConsts.NAMESPC_CLUSTER
@@ -328,11 +321,11 @@ public class CopySnapsHelper
                     throw new ImplementationError("cluster-id is not allowed to be null");
                 }
                 final UUID localClusterUuid = UUID.fromString(clusterIdStr);
-                for (AbsRemote remote : remoteRepository.getMapForView(apiCtx).values())
+                for (AbsRemote remote : remoteRepository.getMapForView().values())
                 {
                     if (remote instanceof LinstorRemote linstorRemote)
                     {
-                        if (localClusterUuid.equals(linstorRemote.getClusterId(apiCtx)))
+                        if (localClusterUuid.equals(linstorRemote.getClusterId()))
                         {
                             ret = linstorRemote;
                         }
@@ -341,13 +334,12 @@ public class CopySnapsHelper
                 if (ret == null)
                 {
                     ret = linstorRemoteFactory.create(
-                        apiCtx,
                         remoteName,
                         CtrlRemoteApiCallHandler.createUrlWithDefaults(LOCALHOST),
                         null,
                         localClusterUuid
                     );
-                    remoteRepository.put(apiCtx, ret);
+                    remoteRepository.put(ret);
                 }
             }
             else
@@ -355,7 +347,7 @@ public class CopySnapsHelper
                 ret = (LinstorRemote) localRemote;
             }
         }
-        catch (LinStorDataAlreadyExistsException | AccessDeniedException | InvalidNameException exc)
+        catch (LinStorDataAlreadyExistsException | InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }

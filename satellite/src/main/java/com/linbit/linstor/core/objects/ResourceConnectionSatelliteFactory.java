@@ -5,7 +5,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceConnectionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -39,7 +38,6 @@ public class ResourceConnectionSatelliteFactory
     }
 
     public ResourceConnection getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         Resource sourceResource,
         Resource targetResource,
@@ -53,7 +51,7 @@ public class ResourceConnectionSatelliteFactory
 
         try
         {
-            rscConData = sourceResource.getAbsResourceConnection(accCtx, targetResource);
+            rscConData = sourceResource.getAbsResourceConnection(targetResource);
 
             if (rscConData == null)
             {
@@ -67,11 +65,10 @@ public class ResourceConnectionSatelliteFactory
                     propsContainerFactory,
                     transObjFactory,
                     transMgrProvider,
-                    StateFlagsBits.getMask(initFlags),
-                    accCtx
+                    StateFlagsBits.getMask(initFlags)
                 );
-                sourceResource.setAbsResourceConnection(accCtx, rscConData);
-                targetResource.setAbsResourceConnection(accCtx, rscConData);
+                sourceResource.setAbsResourceConnection(rscConData);
+                targetResource.setAbsResourceConnection(rscConData);
             }
         }
         catch (Exception exc)

@@ -6,15 +6,12 @@ import com.linbit.drbd.md.MdException;
 import com.linbit.drbd.md.MetaData;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
 import com.linbit.linstor.api.prop.LinStorObject;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.ResourceName;
@@ -39,8 +36,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.utils.SuspendLayerUtils;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmData;
@@ -74,37 +69,31 @@ import java.util.Set;
 @Singleton
 public class CtrlSnapshotCrtHelper
 {
-    private final AccessContext apiCtx;
     private final CtrlSnapshotHelper ctrlSnapshotHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final SnapshotDefinitionControllerFactory snapshotDefinitionFactory;
     private final SnapshotVolumeDefinitionControllerFactory snapshotVolumeDefinitionControllerFactory;
     private final SnapshotControllerFactory snapshotFactory;
     private final SnapshotVolumeControllerFactory snapshotVolumeControllerFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlPropsHelper ctrlPropsHelper;
 
     @Inject
     public CtrlSnapshotCrtHelper(
-        @ApiContext AccessContext apiCtxRef,
         CtrlSnapshotHelper ctrlSnapshotHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         SnapshotDefinitionControllerFactory snapshotDefinitionFactoryRef,
         SnapshotVolumeDefinitionControllerFactory snapshotVolumeDefinitionControllerFactoryRef,
         SnapshotControllerFactory snapshotFactoryRef,
         SnapshotVolumeControllerFactory snapshotVolumeControllerFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlPropsHelper ctrlPropsHelperRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlSnapshotHelper = ctrlSnapshotHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         snapshotDefinitionFactory = snapshotDefinitionFactoryRef;
         snapshotVolumeDefinitionControllerFactory = snapshotVolumeDefinitionControllerFactoryRef;
         snapshotFactory = snapshotFactoryRef;
         snapshotVolumeControllerFactory = snapshotVolumeControllerFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
     }
 
@@ -255,7 +244,7 @@ public class CtrlSnapshotCrtHelper
         try
         {
             Set<AbsRscLayerObject<Resource>> drbdLayers = LayerRscUtils
-                .getRscDataByLayer(rsc.getLayerData(apiCtx), DeviceLayerKind.DRBD);
+                .getRscDataByLayer(rsc.getLayerData(), DeviceLayerKind.DRBD);
 
             if (drbdLayers.size() > 1)
             {
@@ -277,7 +266,7 @@ public class CtrlSnapshotCrtHelper
                 {
                     for (DrbdRscData<Resource> rscData : drbdLayer.getRscDfnLayerObject().getDrbdRscDataList())
                     {
-                        if (!rscData.isDiskless(apiCtx))
+                        if (!rscData.isDiskless())
                         {
                             /*
                              * diskless nodes do reserve a node-id for themselves, but the peer-slot is not used in the
@@ -289,16 +278,12 @@ public class CtrlSnapshotCrtHelper
                 }
             }
             snap.getSnapshotDefinition()
-                .getSnapDfnProps(apiCtx)
+                .getSnapDfnProps()
                 .setProp(
                     InternalApiConsts.KEY_BACKUP_NODE_IDS_TO_RESET,
                     StringUtils.join(nodeIds, InternalApiConsts.KEY_BACKUP_NODE_ID_SEPERATOR),
                     ApiConsts.NAMESPC_BACKUP_SHIPPING
             );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "create snapshot", ApiConsts.FAIL_ACC_DENIED_RSC);
         }
         catch (DatabaseException dbExc)
         {
@@ -344,35 +329,28 @@ public class CtrlSnapshotCrtHelper
         while (rscIterator.hasNext())
         {
             Resource currentRsc = rscIterator.next();
-            try
+            Set<AbsRscLayerObject<Resource>> drbdLayerDataSet = LayerRscUtils.getRscDataByLayer(
+                currentRsc.getLayerData(),
+                DeviceLayerKind.DRBD
+            );
+            ReadOnlyProps stltProps = ctrlPropsHelper.getStltPropsForView();
+            for (AbsRscLayerObject<Resource> drbdLayerData : drbdLayerDataSet)
             {
-                Set<AbsRscLayerObject<Resource>> drbdLayerDataSet = LayerRscUtils.getRscDataByLayer(
-                    currentRsc.getLayerData(apiCtx),
-                    DeviceLayerKind.DRBD
-                );
-                ReadOnlyProps stltProps = ctrlPropsHelper.getStltPropsForView();
-                for (AbsRscLayerObject<Resource> drbdLayerData : drbdLayerDataSet)
+                DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) drbdLayerData;
+                if (drbdRscData.isSkipDiskEnabled(stltProps))
                 {
-                    DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) drbdLayerData;
-                    if (drbdRscData.isSkipDiskEnabled(apiCtx, stltProps))
-                    {
-                        throw new ApiRcException(ApiCallRcImpl
-                            .entryBuilder(
-                                ApiConsts.FAIL_SNAPSHOT_NOT_UPTODATE,
-                                "SkipDisk is enabled for resource " + rscDfn.getName()
-                            )
-                            .setDetails(
-                                "Snapshots are not allowed while SkipDisk is enabled, " +
-                                    "because upToDate-state cannot be ensured."
-                            )
-                            .build()
-                        );
-                    }
+                    throw new ApiRcException(ApiCallRcImpl
+                        .entryBuilder(
+                            ApiConsts.FAIL_SNAPSHOT_NOT_UPTODATE,
+                            "SkipDisk is enabled for resource " + rscDfn.getName()
+                        )
+                        .setDetails(
+                            "Snapshots are not allowed while SkipDisk is enabled, " +
+                                "because upToDate-state cannot be ensured."
+                        )
+                        .build()
+                    );
                 }
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
             }
             ensureDriversSupportSnapshots(currentRsc);
             if (!isDisklessPrivileged(currentRsc) && ctrlSnapshotHelper.satelliteConnected(currentRsc))
@@ -396,63 +374,47 @@ public class CtrlSnapshotCrtHelper
 
     private void ensureDriversSupportSnapshots(Resource rsc)
     {
-        try
+        if (!isDisklessPrivileged(rsc))
         {
-            if (!isDisklessPrivileged(rsc))
+            Iterator<Volume> vlmIterator = rsc.iterateVolumes();
+            while (vlmIterator.hasNext())
             {
-                Iterator<Volume> vlmIterator = rsc.iterateVolumes();
-                while (vlmIterator.hasNext())
+                Volume vlm = vlmIterator.next();
+                Map<String, StorPool> storPoolMap = getStorPoolMap(
+                    vlm
+                );
+
+                for (StorPool storPool : storPoolMap.values())
                 {
-                    Volume vlm = vlmIterator.next();
-                    Map<String, StorPool> storPoolMap = getStorPoolMap(
-                        vlm,
-                        apiCtx
-                    );
+                    DeviceProviderKind providerKind = storPool.getDeviceProviderKind();
+                    boolean supportsSnapshot = storPool.isSnapshotSupported();
 
-                    for (StorPool storPool : storPoolMap.values())
+                    if (!supportsSnapshot)
                     {
-                        DeviceProviderKind providerKind = storPool.getDeviceProviderKind();
-                        boolean supportsSnapshot = storPool.isSnapshotSupported(apiCtx);
-
-                        if (!supportsSnapshot)
-                        {
-                            throw new ApiRcException(
-                                ApiCallRcImpl.entryBuilder(
-                                    ApiConsts.FAIL_SNAPSHOTS_NOT_SUPPORTED,
-                                    "Storage driver '" + providerKind + "' " + "does not support snapshots."
-                                ).setDetails(
-                                    "Used for storage pool '" + storPool.getName() + "'" +
-                                        " on '" + rsc.getNode().getName() + "'."
-                                ).build()
-                            );
-                        }
+                        throw new ApiRcException(
+                            ApiCallRcImpl.entryBuilder(
+                                ApiConsts.FAIL_SNAPSHOTS_NOT_SUPPORTED,
+                                "Storage driver '" + providerKind + "' " + "does not support snapshots."
+                            ).setDetails(
+                                "Used for storage pool '" + storPool.getName() + "'" +
+                                    " on '" + rsc.getNode().getName() + "'."
+                            ).build()
+                        );
                     }
                 }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
     }
 
     private boolean isDisklessPrivileged(Resource rsc)
     {
         boolean isDiskless;
-        try
-        {
-            StateFlags<Flags> stateFlags = rsc.getStateFlags();
-            isDiskless = stateFlags.isSomeSet(
-                apiCtx,
-                Resource.Flags.DRBD_DISKLESS,
-                Resource.Flags.NVME_INITIATOR,
-                Resource.Flags.EBS_INITIATOR
-            );
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
-        }
+        StateFlags<Flags> stateFlags = rsc.getStateFlags();
+        isDiskless = stateFlags.isSomeSet(
+            Resource.Flags.DRBD_DISKLESS,
+            Resource.Flags.NVME_INITIATOR,
+            Resource.Flags.EBS_INITIATOR
+        );
         return isDiskless;
     }
 
@@ -464,14 +426,7 @@ public class CtrlSnapshotCrtHelper
     private boolean isEvacuatingPrivileged(Resource rsc)
     {
         boolean isEvacuating;
-        try
-        {
-            isEvacuating = rsc.getNode().getFlags().isSet(apiCtx, Node.Flags.EVACUATE);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        isEvacuating = rsc.getNode().getFlags().isSet(Node.Flags.EVACUATE);
         return isEvacuating;
     }
 
@@ -485,18 +440,9 @@ public class CtrlSnapshotCrtHelper
         try
         {
             snapshotDfn = snapshotDefinitionFactory.create(
-                peerAccCtx.get(),
                 rscDfn,
                 snapshotName,
                 snapshotDfnInitFlags
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register " + getSnapshotDfnDescriptionInline(rscDfn.getName().displayValue, snapshotName.displayValue),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_DFN
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
@@ -534,13 +480,11 @@ public class CtrlSnapshotCrtHelper
         try
         {
             snapshotVlmDfn = snapshotDfn.getSnapshotVolumeDefinition(
-                apiCtx,
                 new VolumeNumber(vlmDfn.getVolumeNumber().value)
             );
             if (snapshotVlmDfn == null)
             {
                 snapshotVlmDfn = snapshotVolumeDefinitionControllerFactory.create(
-                    peerAccCtx.get(),
                     snapshotDfn,
                     vlmDfn,
                     volumeSize,
@@ -549,26 +493,18 @@ public class CtrlSnapshotCrtHelper
             }
             else
             {
-                if (snapshotVlmDfn.getVolumeSize(apiCtx) != volumeSize)
+                if (snapshotVlmDfn.getVolumeSize() != volumeSize)
                 {
                     throw new ApiRcException(
                         ApiCallRcImpl.simpleEntry(
                             ApiConsts.FAIL_INVLD_BACKUP_CONFIG,
                             "The snapshot-volume-definition " + descriptionInline +
                                 " already exists but has a different size. Current size: " + snapshotVlmDfn
-                                    .getVolumeSize(apiCtx) + ", expected size: " + volumeSize
+                                    .getVolumeSize() + ", expected size: " + volumeSize
                         )
                     );
                 }
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register " + descriptionInline,
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_VLM_DFN
-            );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
         {
@@ -623,22 +559,9 @@ public class CtrlSnapshotCrtHelper
         try
         {
             snapshot = snapshotFactory.create(
-                peerAccCtx.get(),
                 rsc,
                 snapshotDfn,
                 new Snapshot.Flags[0]
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register " + getSnapshotDescriptionInline(
-                    Collections.singletonList(nodeNameStr),
-                    rscNameStr,
-                    snapshotNameStr
-                ),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
@@ -679,25 +602,12 @@ public class CtrlSnapshotCrtHelper
         try
         {
             snapshot = snapshotFactory.restore(
-                apiCtx,
                 layerData,
                 node,
                 snapshotDfn,
                 new Snapshot.Flags[0],
                 renameStorPoolsMap,
                 apiCallRc
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register " + getSnapshotDescriptionInline(
-                    Collections.singletonList(nodeName),
-                    rscNameStr,
-                    snapshotNameStr
-                ),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
@@ -732,23 +642,9 @@ public class CtrlSnapshotCrtHelper
         try
         {
             snapVlm = snapshotVolumeControllerFactory.create(
-                peerAccCtx.get(),
                 rsc,
                 snapshot,
                 snapshotVolumeDefinition
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register " + getSnapshotVlmDescriptionInline(
-                    snapshot.getNodeName(),
-                    snapshot.getResourceName(),
-                    snapshot.getSnapshotName(),
-                    snapshotVolumeDefinition.getVolumeNumber()
-                ),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
@@ -786,25 +682,11 @@ public class CtrlSnapshotCrtHelper
         try
         {
             snapVlm = snapshotVolumeControllerFactory.restore(
-                apiCtx,
                 layerData,
                 snapshot,
                 snapshotVolumeDefinition,
                 renameStorPoolsMap,
                 apiCallRc
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register " + getSnapshotVlmDescriptionInline(
-                    snapshot.getNodeName(),
-                    snapshot.getResourceName(),
-                    snapshot.getSnapshotName(),
-                    snapshotVolumeDefinition.getVolumeNumber()
-                ),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
@@ -833,33 +715,14 @@ public class CtrlSnapshotCrtHelper
     @Deprecated
     private void setSuspend(Snapshot snapshot)
     {
-        try
-        {
-            snapshot.setSuspendResource(peerAccCtx.get(), true);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "set resource suspension for " + getSnapshotDescriptionInline(snapshot),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
-            );
-        }
+        snapshot.setSuspendResource(true);
     }
 
     private void setSuspend(Resource rsc, boolean suspend)
     {
         try
         {
-            SuspendLayerUtils.setSuspend(peerAccCtx.get(), rsc, suspend);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "set resource suspension for " + getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
-            );
+            SuspendLayerUtils.setSuspend(rsc, suspend);
         }
         catch (DatabaseException exc)
         {
@@ -870,36 +733,14 @@ public class CtrlSnapshotCrtHelper
     private long getVolumeSize(VolumeDefinition vlmDfn)
     {
         long volumeSize;
-        try
-        {
-            volumeSize = vlmDfn.getVolumeSize(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "get size of " + getVlmDfnDescriptionInline(vlmDfn),
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
-        }
+        volumeSize = vlmDfn.getVolumeSize();
         return volumeSize;
     }
 
     private Iterator<VolumeDefinition> iterateVolumeDfn(ResourceDefinition rscDfn)
     {
         Iterator<VolumeDefinition> vlmDfnIter;
-        try
-        {
-            vlmDfnIter = rscDfn.iterateVolumeDfn(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "iterate the volume definitions of " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
+        vlmDfnIter = rscDfn.iterateVolumeDfn();
         return vlmDfnIter;
     }
 
@@ -907,15 +748,7 @@ public class CtrlSnapshotCrtHelper
     {
         try
         {
-            snapshotDfn.setInCreation(peerAccCtx.get(), true);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getSnapshotDfnDescriptionInline(snapshotDfn) + " in creation",
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_DFN
-            );
+            snapshotDfn.setInCreation(true);
         }
         catch (DatabaseException sqlExc)
         {

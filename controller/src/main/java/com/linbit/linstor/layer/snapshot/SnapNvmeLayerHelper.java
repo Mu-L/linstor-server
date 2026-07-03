@@ -4,7 +4,6 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
@@ -18,8 +17,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.nvme.NvmeRscData;
 import com.linbit.linstor.storage.data.adapter.nvme.NvmeVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -44,14 +41,12 @@ class SnapNvmeLayerHelper extends AbsSnapLayerHelper<
     @Inject
     SnapNvmeLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef
     )
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             DeviceLayerKind.NVME
@@ -60,7 +55,7 @@ class SnapNvmeLayerHelper extends AbsSnapLayerHelper<
 
     @Override
     protected @Nullable RscDfnLayerObject createSnapDfnData(SnapshotDefinition rscDfnRef, String rscNameSuffixRef)
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // NvmeLayer does not have resource-definition specific data (nothing to snapshot)
@@ -72,7 +67,7 @@ class SnapNvmeLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapVlmDfnRef,
         String rscNameSuffixRef
     )
-        throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // NvmeLayer does not have resource-definition specific data (nothing to snapshot)
@@ -85,7 +80,7 @@ class SnapNvmeLayerHelper extends AbsSnapLayerHelper<
         AbsRscLayerObject<Resource> rscDataRef,
         AbsRscLayerObject<Snapshot> parentRef
     )
-        throws AccessDeniedException, DatabaseException, ExhaustedPoolException
+        throws DatabaseException, ExhaustedPoolException
     {
         // nothing to copy
         return layerDataFactory.createNvmeRscData(
@@ -102,7 +97,7 @@ class SnapNvmeLayerHelper extends AbsSnapLayerHelper<
         NvmeRscData<Snapshot> snapDataRef,
         VlmProviderObject<Resource> vlmProviderObjectRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // nothing to copy
         return layerDataFactory.createNvmeVlmData(snapVlmRef, snapDataRef);
@@ -125,7 +120,7 @@ class SnapNvmeLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapshotVolumeDefinitionRef,
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // NvmeLayer does not have resource-definition specific data (nothing to snapshot)
@@ -138,7 +133,7 @@ class SnapNvmeLayerHelper extends AbsSnapLayerHelper<
         RscLayerDataApi rscLayerDataApiRef,
         @Nullable AbsRscLayerObject<Snapshot> parentRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException, AccessDeniedException
+    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException
     {
         // nothing to copy
         return layerDataFactory.createNvmeRscData(
@@ -156,7 +151,7 @@ class SnapNvmeLayerHelper extends AbsSnapLayerHelper<
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef,
         @Nullable ApiCallRc apiCallRc
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         // nothing to copy
         return layerDataFactory.createNvmeVlmData(snapVlmRef, snapDataRef);

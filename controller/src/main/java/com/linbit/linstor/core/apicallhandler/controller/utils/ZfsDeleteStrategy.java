@@ -7,8 +7,6 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 public enum ZfsDeleteStrategy
 {
@@ -22,17 +20,15 @@ public enum ZfsDeleteStrategy
 
     public static ZfsDeleteStrategy getStrat(
         ResourceDefinition rscDfnRef,
-        ReadOnlyProps ctrlPropsRef,
-        AccessContext accCtxRef
+        ReadOnlyProps ctrlPropsRef
     )
-        throws AccessDeniedException
     {
         try
         {
             return parseStrat(
                 new PriorityProps(
-                    rscDfnRef.getProps(accCtxRef),
-                    rscDfnRef.getResourceGroup().getProps(accCtxRef),
+                    rscDfnRef.getProps(),
+                    rscDfnRef.getResourceGroup().getProps(),
                     ctrlPropsRef
                 ).getProp(FULL_KEY_ZFS_DELETE_STRATEGY)
             );

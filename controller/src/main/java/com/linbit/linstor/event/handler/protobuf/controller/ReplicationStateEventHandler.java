@@ -2,7 +2,6 @@ package com.linbit.linstor.event.handler.protobuf.controller;
 
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.event.EventIdentifier;
@@ -13,8 +12,6 @@ import com.linbit.linstor.event.handler.protobuf.ProtobufEventHandler;
 import com.linbit.linstor.layer.drbd.drbdstate.ReplState;
 import com.linbit.linstor.proto.eventdata.EventReplicationStateOuterClass;
 import com.linbit.linstor.satellitestate.SatelliteVolumeState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.PairNonNull;
 
 import javax.inject.Inject;
@@ -31,20 +28,17 @@ public class ReplicationStateEventHandler implements EventHandler
 {
     private final SatelliteStateHelper satelliteStateHelper;
     private final ReplicationStateEvent replicationStateEvent;
-    private final AccessContext sysCtx;
     private final NodeRepository nodeRepo;
 
     @Inject
     public ReplicationStateEventHandler(
         SatelliteStateHelper satelliteStateHelperRef,
         ReplicationStateEvent replicationStateEventRef,
-        @SystemContext AccessContext sysCtxRef,
         NodeRepository nodeRepositoryRef
     )
     {
         satelliteStateHelper = satelliteStateHelperRef;
         replicationStateEvent = replicationStateEventRef;
-        sysCtx = sysCtxRef;
         nodeRepo = nodeRepositoryRef;
     }
 
@@ -56,12 +50,12 @@ public class ReplicationStateEventHandler implements EventHandler
      * once connected.
      * @return The Linstor node name or null if not found in uname map.
      */
-    static @Nullable NodeName getMappedName(NodeRepository nodeRepo, AccessContext sysCtx, String peerName)
+    static @Nullable NodeName getMappedName(NodeRepository nodeRepo, String peerName)
     {
         @Nullable NodeName ret = null;
         try
         {
-            ret = nodeRepo.getUname(sysCtx, peerName);
+            ret = nodeRepo.getUname(peerName);
         }
         catch (AccessDeniedException ignored)
         {
@@ -78,7 +72,7 @@ public class ReplicationStateEventHandler implements EventHandler
             EventReplicationStateOuterClass.EventReplicationState eventReplicationState =
                 EventReplicationStateOuterClass.EventReplicationState.parseDelimitedFrom(eventDataIn);
 
-            @Nullable NodeName mappedName = getMappedName(nodeRepo, sysCtx, eventReplicationState.getPeerName());
+            @Nullable NodeName mappedName = getMappedName(nodeRepo, eventReplicationState.getPeerName());
             if (mappedName != null)
             {
                 PairNonNull<String, ReplState> replicationState = eventReplicationState.getReplicationState().isEmpty() ?

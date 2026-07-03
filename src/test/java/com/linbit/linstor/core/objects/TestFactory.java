@@ -16,9 +16,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -68,7 +65,6 @@ public class TestFactory
      * Creates a new {@link NodeConnection} without persisting it to the database
      *
      * @throws DatabaseException
-     * @throws AccessDeniedException
      * @throws LinStorDataAlreadyExistsException
      */
     public static NodeConnection createNodeConnection(
@@ -78,10 +74,9 @@ public class TestFactory
         NodeConnectionDbDriver driverRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
-        Provider<? extends TransactionMgr> transMgrProviderRef,
-        AccessContext accCtx
+        Provider<? extends TransactionMgr> transMgrProviderRef
     )
-        throws DatabaseException, LinStorDataAlreadyExistsException, AccessDeniedException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
         return NodeConnection.createWithSorting(
             uuidRef,
@@ -90,8 +85,7 @@ public class TestFactory
             driverRef,
             propsContainerFactoryRef,
             transObjFactoryRef,
-            transMgrProviderRef,
-            accCtx
+            transMgrProviderRef
         );
     }
 
@@ -101,7 +95,6 @@ public class TestFactory
      */
     public static Node createNode(
         UUID uuidRef,
-        ObjectProtection objProtRef,
         NodeName nodeNameRef,
         Node.Type initialTypeRef,
         long initialFlagsRef,
@@ -134,7 +127,6 @@ public class TestFactory
      *
      * @throws DatabaseException
      * @throws LinStorDataAlreadyExistsException
-     * @throws AccessDeniedException
      */
     public static ResourceConnection createResourceConnection(
         UUID uuidRef,
@@ -146,10 +138,9 @@ public class TestFactory
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<? extends TransactionMgr> transMgrProviderRef,
-        long initFlags,
-        AccessContext accCtx
+        long initFlags
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
         return ResourceConnection.createWithSorting(
             uuidRef,
@@ -161,8 +152,7 @@ public class TestFactory
             propsContainerFactoryRef,
             transObjFactoryRef,
             transMgrProviderRef,
-            initFlags,
-            accCtx
+            initFlags
         );
     }
 
@@ -172,7 +162,6 @@ public class TestFactory
      */
     public static Resource createResource(
         UUID resUuidRef,
-        ObjectProtection objProtRef,
         ResourceDefinition resDfnRef,
         Node nodeRef,
         long initFlagsRef,
@@ -207,7 +196,6 @@ public class TestFactory
      */
     public static ResourceDefinition createResourceDefinition(
         UUID resDfnUuidRef,
-        ObjectProtection resDfnObjProtRef,
         ResourceName resNameRef,
         byte[] extName,
         long flagValueRef,
@@ -288,7 +276,6 @@ public class TestFactory
      */
     public static StorPoolDefinition createStorPoolDefinition(
         UUID uuidRef,
-        ObjectProtection objProtRef,
         StorPoolName spNameRef,
         StorPoolDefinitionDbDriver driverRef,
         PropsContainerFactory propsContainerFactoryRef,
@@ -314,7 +301,6 @@ public class TestFactory
      * Creates a new {@link VolumeConnection} without persisting it to the database
      *
      * @throws DatabaseException
-     * @throws AccessDeniedException
      * @throws LinStorDataAlreadyExistsException
      */
     public static VolumeConnection createVolumeConnection(
@@ -324,10 +310,9 @@ public class TestFactory
         VolumeConnectionDbDriver driverRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
-        Provider<? extends TransactionMgr> transMgrProviderRef,
-        AccessContext accCtx
+        Provider<? extends TransactionMgr> transMgrProviderRef
     )
-        throws DatabaseException, LinStorDataAlreadyExistsException, AccessDeniedException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
         return VolumeConnection.createWithSorting(
             uuidRef,
@@ -336,8 +321,7 @@ public class TestFactory
             driverRef,
             propsContainerFactoryRef,
             transObjFactoryRef,
-            transMgrProviderRef,
-            accCtx
+            transMgrProviderRef
         );
     }
 

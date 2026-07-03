@@ -10,7 +10,6 @@ import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.LayerDrbdRscDfnDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.transaction.BaseTransactionObject;
@@ -243,7 +242,7 @@ public class DrbdRscDfnData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public DrbdRscDfnPojo getApiData(AccessContext accCtxRef)
+    public DrbdRscDfnPojo getApiData()
     {
         @Nullable TcpPortNumber tcpPortNum = port.get();
         return new DrbdRscDfnPojo(

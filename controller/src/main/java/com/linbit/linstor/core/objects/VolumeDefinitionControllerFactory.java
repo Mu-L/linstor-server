@@ -13,9 +13,6 @@ import com.linbit.linstor.dbdrivers.interfaces.VolumeDefinitionDatabaseDriver;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -51,20 +48,18 @@ public class VolumeDefinitionControllerFactory
     }
 
     public VolumeDefinition create(
-        AccessContext accCtx,
         ResourceDefinition rscDfn,
         VolumeNumber vlmNr,
         @Nullable Integer minor,
         Long vlmSize,
         @Nullable VolumeDefinition.Flags[] initFlags
     )
-        throws DatabaseException, AccessDeniedException, MdException, LinStorDataAlreadyExistsException,
+        throws DatabaseException, MdException, LinStorDataAlreadyExistsException,
         ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, LinStorException
     {
 
-        rscDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
 
-        VolumeDefinition vlmDfnData = rscDfn.getVolumeDfn(accCtx, vlmNr);
+        VolumeDefinition vlmDfnData = rscDfn.getVolumeDfn(vlmNr);
 
         if (vlmDfnData != null)
         {
@@ -86,7 +81,7 @@ public class VolumeDefinitionControllerFactory
         );
 
         driver.create(vlmDfnData);
-        rscDfn.putVolumeDefinition(accCtx, vlmDfnData);
+        rscDfn.putVolumeDefinition(vlmDfnData);
 
         // TODO: might be a good idea to create this object earlier
         LayerPayload payload = new LayerPayload();

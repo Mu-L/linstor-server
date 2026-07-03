@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
@@ -15,8 +14,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeGroupCtrlDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -45,7 +42,6 @@ public final class VolumeGroupDbDriver
 
     @Inject
     public VolumeGroupDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -54,7 +50,7 @@ public final class VolumeGroupDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.VOLUME_GROUPS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.VOLUME_GROUPS, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -62,7 +58,7 @@ public final class VolumeGroupDbDriver
         setColumnSetter(UUID, vlmGrp -> vlmGrp.getUuid().toString());
         setColumnSetter(RESOURCE_GROUP_NAME, vlmGrp -> vlmGrp.getResourceGroup().getName().value);
         setColumnSetter(VLM_NR, vlmGrp -> vlmGrp.getVolumeNumber().value);
-        setColumnSetter(FLAGS, vlmGrp -> vlmGrp.getFlags().getFlagsBits(dbCtxRef));
+        setColumnSetter(FLAGS, vlmGrp -> vlmGrp.getFlags().getFlagsBits());
 
         flagsDriver = generateFlagDriver(FLAGS, VolumeGroup.Flags.class);
     }

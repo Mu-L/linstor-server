@@ -4,7 +4,6 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
@@ -19,8 +18,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.luks.LuksRscData;
 import com.linbit.linstor.storage.data.adapter.luks.LuksVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -45,14 +42,12 @@ class SnapLuksLayerHelper extends AbsSnapLayerHelper<
     @Inject
     SnapLuksLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef
     )
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             DeviceLayerKind.LUKS
@@ -61,7 +56,7 @@ class SnapLuksLayerHelper extends AbsSnapLayerHelper<
 
     @Override
     protected @Nullable RscDfnLayerObject createSnapDfnData(SnapshotDefinition rscDfnRef, String rscNameSuffixRef)
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // LuksLayer does not have resource-definition specific data (nothing to snapshot)
@@ -73,7 +68,7 @@ class SnapLuksLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapVlmDfnRef,
         String rscNameSuffixRef
     )
-        throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // LuksLayer does not have volume-definition specific data (nothing to snapshot)
@@ -86,7 +81,7 @@ class SnapLuksLayerHelper extends AbsSnapLayerHelper<
         AbsRscLayerObject<Resource> rscDataRef,
         AbsRscLayerObject<Snapshot> parentObjectRef
     )
-        throws AccessDeniedException, DatabaseException, ExhaustedPoolException
+        throws DatabaseException, ExhaustedPoolException
     {
         return layerDataFactory.createLuksRscData(
             layerRscIdPool.autoAllocate(),
@@ -102,7 +97,7 @@ class SnapLuksLayerHelper extends AbsSnapLayerHelper<
         LuksRscData<Snapshot> snapDataRef,
         VlmProviderObject<Resource> vlmDataRef
     )
-            throws DatabaseException, AccessDeniedException
+            throws DatabaseException
     {
         LuksVlmData<Resource> luksVlmData = (LuksVlmData<Resource>) vlmDataRef;
         return layerDataFactory.createLuksVlmData(
@@ -129,7 +124,7 @@ class SnapLuksLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapshotVolumeDefinitionRef,
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // LuksLayer does not have volume-definition specific data (nothing to snapshot)
@@ -142,7 +137,7 @@ class SnapLuksLayerHelper extends AbsSnapLayerHelper<
         RscLayerDataApi rscLayerDataApiRef,
         @Nullable AbsRscLayerObject<Snapshot> parentRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException, AccessDeniedException
+    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException
     {
         return layerDataFactory.createLuksRscData(
             layerRscIdPool.autoAllocate(),
@@ -159,7 +154,7 @@ class SnapLuksLayerHelper extends AbsSnapLayerHelper<
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef,
         @Nullable ApiCallRc apiCallRc
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         LuksVlmPojo luksVlmPojo = (LuksVlmPojo) vlmLayerDataApiRef;
         return layerDataFactory.createLuksVlmData(

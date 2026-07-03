@@ -10,7 +10,6 @@ import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -18,8 +17,6 @@ import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.objects.VolumeDefinitionControllerFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlVlmDfnApiCallHandler.getVlmDfnDescriptionInline;
 
@@ -40,7 +37,6 @@ public class CtrlVlmDfnCrtApiHelper
     }
 
     public VolumeDefinition createVlmDfnData(
-        AccessContext accCtx,
         ResourceDefinition rscDfn,
         VolumeNumber volNr,
         @Nullable Integer minorNr,
@@ -52,20 +48,11 @@ public class CtrlVlmDfnCrtApiHelper
         try
         {
             vlmDfn = volumeDefinitionFactory.create(
-                accCtx,
                 rscDfn,
                 volNr,
                 minorNr,
                 size,
                 vlmDfnInitFlags
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "create " + getVlmDfnDescriptionInline(rscDfn, volNr),
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)

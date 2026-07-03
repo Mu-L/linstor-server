@@ -8,7 +8,6 @@ import com.linbit.SystemServiceStartException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -31,8 +30,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.TaskScheduleService.Task;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
@@ -87,7 +84,6 @@ public class ScheduleBackupService implements SystemService
 
     private final TaskScheduleService taskScheduleService;
     private final ResourceDefinitionRepository rscDfnRepo;
-    private final AccessContext sysCtx;
     private final SystemConfRepository systemConfRepository;
     private final RemoteRepository remoteRepo;
     private final ScheduleRepository scheduleRepo;
@@ -114,7 +110,6 @@ public class ScheduleBackupService implements SystemService
     public ScheduleBackupService(
         TaskScheduleService taskScheduleServiceRef,
         ResourceDefinitionRepository rscDfnRepoRef,
-        @SystemContext AccessContext sysCtxRef,
         SystemConfRepository systemConfRepositoryRef,
         RemoteRepository remoteRepoRef,
         ScheduleRepository scheduleRepoRef,
@@ -128,7 +123,6 @@ public class ScheduleBackupService implements SystemService
     {
         taskScheduleService = taskScheduleServiceRef;
         rscDfnRepo = rscDfnRepoRef;
-        sysCtx = sysCtxRef;
         systemConfRepository = systemConfRepositoryRef;
         remoteRepo = remoteRepoRef;
         scheduleRepo = scheduleRepoRef;
@@ -182,16 +176,9 @@ public class ScheduleBackupService implements SystemService
     public void start() throws SystemServiceStartException
     {
         running = true;
-        try
+        for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
         {
-            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(sysCtx).values())
-            {
-                addAllTasks(rscDfn, sysCtx);
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            addAllTasks(rscDfn);
         }
     }
 
@@ -248,15 +235,15 @@ public class ScheduleBackupService implements SystemService
         }
     }
 
-    public ApiCallRc addAllTasks(ResourceDefinition rscDfn, AccessContext accCtx) throws AccessDeniedException
+    public ApiCallRc addAllTasks(ResourceDefinition rscDfn)
     {
         ApiCallRcImpl rc = new ApiCallRcImpl();
         try (LockGuard lg = lockGuardFactory.build(LockType.READ, LockObj.RSC_DFN_MAP, LockObj.RSC_GRP_MAP))
         {
             PriorityProps prioProps = new PriorityProps(
-                rscDfn.getProps(accCtx),
-                rscDfn.getResourceGroup().getProps(accCtx),
-                systemConfRepository.getCtrlConfForView(accCtx)
+                rscDfn.getProps(),
+                rscDfn.getResourceGroup().getProps(),
+                systemConfRepository.getCtrlConfForView()
             );
             for (
                 Entry<String, String> prop : prioProps.renderRelativeMap(InternalApiConsts.NAMESPC_SCHEDULE).entrySet()
@@ -271,9 +258,9 @@ public class ScheduleBackupService implements SystemService
                 {
                     String remoteStr = keyParts[0];
                     String scheduleStr = keyParts[1];
-                    AbsRemote remote = remoteRepo.get(accCtx, new RemoteName(remoteStr));
-                    Schedule schedule = scheduleRepo.get(accCtx, new ScheduleName(scheduleStr));
-                    addNewTask(rscDfn, schedule, remote, false, accCtx);
+                    AbsRemote remote = remoteRepo.get(new RemoteName(remoteStr));
+                    Schedule schedule = scheduleRepo.get(new ScheduleName(scheduleStr));
+                    addNewTask(rscDfn, schedule, remote, false);
                     if (remote == null || schedule == null)
                     {
                         rc.addEntry(
@@ -306,7 +293,7 @@ public class ScheduleBackupService implements SystemService
         }
     }
 
-    public Flux<ApiCallRc> fluxAllNewTasks(ResourceDefinition rscDfn, AccessContext accCtx)
+    public Flux<ApiCallRc> fluxAllNewTasks(ResourceDefinition rscDfn)
     {
         return scopeRunner
             .fluxInTransactionlessScope(
@@ -315,7 +302,7 @@ public class ScheduleBackupService implements SystemService
                     LockType.READ, LockObj.RSC_DFN_MAP, LockObj.RSC_GRP_MAP
                 ),
                 () -> {
-                    ApiCallRc rc = addAllTasks(rscDfn, accCtx);
+                    ApiCallRc rc = addAllTasks(rscDfn);
                     return Flux.just(rc);
                 },
                 MDC.getCopyOfContextMap()
@@ -332,12 +319,10 @@ public class ScheduleBackupService implements SystemService
         @Nullable ResourceDefinition rscDfn,
         @Nullable Schedule schedule,
         @Nullable AbsRemote remote,
-        boolean lastInc,
-        AccessContext accCtx
+        boolean lastInc
     )
-        throws AccessDeniedException
     {
-        addTaskAgain(rscDfn, schedule, remote, NOT_STARTED_YET, true, false, lastInc, accCtx);
+        addTaskAgain(rscDfn, schedule, remote, NOT_STARTED_YET, true, false, lastInc);
     }
 
     /**
@@ -357,14 +342,13 @@ public class ScheduleBackupService implements SystemService
         long lastStartTime,
         boolean lastBackupSucceeded,
         boolean forceSkip,
-        boolean lastInc,
-        AccessContext accCtx
-    ) throws AccessDeniedException
+        boolean lastInc
+    )
     {
         if (
             running &&
                 schedule != null && remote != null && rscDfn != null &&
-                rscDfn.getNotDeletedDiskfulCount(accCtx) > 0
+                rscDfn.getNotDeletedDiskfulCount() > 0
         )
         {
             boolean isNew = true;
@@ -395,9 +379,9 @@ public class ScheduleBackupService implements SystemService
                 try (LockGuard lg = lockGuardFactory.build(LockType.READ, LockObj.RSC_DFN_MAP, LockObj.RSC_GRP_MAP))
                 {
                     PriorityProps prioProps = new PriorityProps(
-                        rscDfn.getProps(accCtx),
-                        rscDfn.getResourceGroup().getProps(accCtx),
-                        systemConfRepository.getCtrlConfForView(accCtx)
+                        rscDfn.getProps(),
+                        rscDfn.getResourceGroup().getProps(),
+                        systemConfRepository.getCtrlConfForView()
                     );
                     // namespace for schedule-remote-rsc props is {remoteName}/{scheduleName}/
                     String namespace = InternalApiConsts.NAMESPC_SCHEDULE + ReadOnlyProps.PATH_SEPARATOR +
@@ -435,11 +419,10 @@ public class ScheduleBackupService implements SystemService
                 ZonedDateTime now = ZonedDateTime.now(ZoneId.systemDefault());
                 PairNonNull<Long, Boolean> infoPair = getTimeoutAndType(
                     schedule,
-                    accCtx,
                     now,
                     lastStartTime,
                     lastBackupSucceeded,
-                    forceSkip || tooManyRetries(lastBackupSucceeded, schedule, accCtx),
+                    forceSkip || tooManyRetries(lastBackupSucceeded, schedule),
                     lastInc
                 );
                 boolean incremental = infoPair.objB;
@@ -469,7 +452,6 @@ public class ScheduleBackupService implements SystemService
                 {
                     BackupShippingTask task = new BackupShippingTask(
                         new BackupShippingtaskConfig(
-                            accCtx,
                             config,
                             rscDfn.getName().displayValue,
                             prefNode,
@@ -530,7 +512,7 @@ public class ScheduleBackupService implements SystemService
      *
      *
      */
-    public void modifyTasks(Schedule scheduleRef, AccessContext accCtx) throws AccessDeniedException
+    public void modifyTasks(Schedule scheduleRef)
     {
         if (running)
         {
@@ -548,7 +530,7 @@ public class ScheduleBackupService implements SystemService
                             throw new ImplementationError("config.task not initialized");
                         }
                         PairNonNull<Long, Boolean> infoPair = getTimeoutAndType(
-                            scheduleRef, accCtx, now, config.task.getPreviousTaskStartTime(), true, false,
+                            scheduleRef, now, config.task.getPreviousTaskStartTime(), true, false,
                             config.lastInc
                         );
                         config.task.setIncremental(infoPair.objB);
@@ -567,18 +549,17 @@ public class ScheduleBackupService implements SystemService
         }
     }
 
-    private boolean tooManyRetries(boolean lastBackupSucceeded, Schedule schedule, AccessContext accCtx)
-        throws AccessDeniedException
+    private boolean tooManyRetries(boolean lastBackupSucceeded, Schedule schedule)
     {
         boolean ret = false;
-        if (!lastBackupSucceeded && schedule.getOnFailure(accCtx).equals(Schedule.OnFailure.RETRY))
+        if (!lastBackupSucceeded && schedule.getOnFailure().equals(Schedule.OnFailure.RETRY))
         {
             // the schedule has already been run at least once, otherwise lastBackupSucceeded couldn't be false
             for (ScheduledShippingConfig conf : activeShippings)
             {
                 if (conf.schedule.equals(schedule))
                 {
-                    Integer maxRetries = schedule.getMaxRetries(accCtx);
+                    Integer maxRetries = schedule.getMaxRetries();
                     if (maxRetries != null)
                     {
                         if (maxRetries <= conf.retryCt)
@@ -623,23 +604,21 @@ public class ScheduleBackupService implements SystemService
 
     static PairNonNull<Long, Boolean> getTimeoutAndType(
         Schedule schedule,
-        AccessContext accCtx,
         ZonedDateTime now,
         long lastStartTime,
         boolean lastBackupSucceeded,
         boolean forceSkip,
         boolean lastIncr
     )
-        throws AccessDeniedException
     {
-        boolean incExists = schedule.getIncCron(accCtx) != null;
+        boolean incExists = schedule.getIncCron() != null;
         // skip: whether we retry or not; forceSkip: always skip
-        boolean skip = schedule.getOnFailure(accCtx).equals(Schedule.OnFailure.SKIP) || forceSkip;
-        ExecutionTime fullExec = ExecutionTime.forCron(schedule.getFullCron(accCtx));
+        boolean skip = schedule.getOnFailure().equals(Schedule.OnFailure.SKIP) || forceSkip;
+        ExecutionTime fullExec = ExecutionTime.forCron(schedule.getFullCron());
         ExecutionTime incrExec = null;
         if (incExists)
         {
-            incrExec = ExecutionTime.forCron(schedule.getIncCron(accCtx));
+            incrExec = ExecutionTime.forCron(schedule.getIncCron());
         }
 
         ZonedDateTime nextFullFromNow = nextExec(fullExec, now);
@@ -741,25 +720,25 @@ public class ScheduleBackupService implements SystemService
         }
     }
 
-    public void removeTasks(Schedule scheduleRef, AccessContext accCtx)
-        throws InvalidKeyException, AccessDeniedException, DatabaseException
+    public void removeTasks(Schedule scheduleRef)
+        throws InvalidKeyException, DatabaseException
     {
         synchronized (syncObj)
         {
             // see comment of removeTasks(rscDfn)
             removeFromAll(getAllFilteredActiveShippings(null, null, scheduleRef.getName().displayValue));
-            removeAllRelatedProps(null, scheduleRef.getName().displayValue, accCtx);
+            removeAllRelatedProps(null, scheduleRef.getName().displayValue);
         }
     }
 
-    public void removeTasks(AbsRemote remoteRef, AccessContext accCtx)
-        throws InvalidKeyException, AccessDeniedException, DatabaseException
+    public void removeTasks(AbsRemote remoteRef)
+        throws InvalidKeyException, DatabaseException
     {
         synchronized (syncObj)
         {
             // see comment of removeTasks(rscDfn)
             removeFromAll(getAllFilteredActiveShippings(null, remoteRef.getName().displayValue, null));
-            removeAllRelatedProps(remoteRef.getName().displayValue, null, accCtx);
+            removeAllRelatedProps(remoteRef.getName().displayValue, null);
         }
     }
 
@@ -834,24 +813,24 @@ public class ScheduleBackupService implements SystemService
      *     can be null if remoteName is set
      *
      */
-    private void removeAllRelatedProps(@Nullable String remoteName, @Nullable String scheduleName, AccessContext accCtx)
-        throws AccessDeniedException, InvalidKeyException, DatabaseException
+    private void removeAllRelatedProps(@Nullable String remoteName, @Nullable String scheduleName)
+        throws InvalidKeyException, DatabaseException
     {
         Set<ResourceGroup> rscGrps = new HashSet<>();
-        for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(accCtx).values())
+        for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
         {
             rscGrps.add(rscDfn.getResourceGroup());
-            removePropsFromContainer(rscDfn.getProps(accCtx), remoteName, scheduleName);
+            removePropsFromContainer(rscDfn.getProps(), remoteName, scheduleName);
         }
         for (ResourceGroup rscGrp : rscGrps)
         {
-            removePropsFromContainer(rscGrp.getProps(accCtx), remoteName, scheduleName);
+            removePropsFromContainer(rscGrp.getProps(), remoteName, scheduleName);
         }
-        removePropsFromContainer(systemConfRepository.getCtrlConfForChange(accCtx), remoteName, scheduleName);
+        removePropsFromContainer(systemConfRepository.getCtrlConfForChange(), remoteName, scheduleName);
     }
 
     private void removePropsFromContainer(Props props, @Nullable String remoteName, @Nullable String scheduleName)
-        throws InvalidKeyException, DatabaseException, AccessDeniedException
+        throws InvalidKeyException, DatabaseException
     {
         @Nullable Props namespaceProps = props.getNamespace(InternalApiConsts.NAMESPC_SCHEDULE);
         if (namespaceProps != null)
@@ -1030,7 +1009,6 @@ public class ScheduleBackupService implements SystemService
      */
     class BackupShippingtaskConfig
     {
-        private final AccessContext accCtx;
         private final ScheduledShippingConfig schedShipCfg;
         private final String rscName;
         private final String nodeName;
@@ -1039,7 +1017,6 @@ public class ScheduleBackupService implements SystemService
         private final long lastStartTime;
 
         private BackupShippingtaskConfig(
-            AccessContext accCtxRef,
             ScheduledShippingConfig schedShipCfgRef,
             String rscNameRef,
             String nodeNameRef,
@@ -1048,7 +1025,6 @@ public class ScheduleBackupService implements SystemService
             long lastStartTimeRef
         )
         {
-            accCtx = accCtxRef;
             schedShipCfg = schedShipCfgRef;
             rscName = rscNameRef;
             nodeName = nodeNameRef;

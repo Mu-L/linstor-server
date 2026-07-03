@@ -37,7 +37,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
@@ -103,7 +102,7 @@ public class LvmProvider
 
     @Override
     protected void updateStates(List<LvmData<Resource>> vlmDataList, List<LvmData<Snapshot>> snapVlmDataList)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         final Map<String, VgsInfo> extentSizes = LvmUtils.getVgsInfo(
             extCmdFactory,
@@ -180,7 +179,7 @@ public class LvmProvider
      */
     @SuppressWarnings({ "unchecked" })
     protected void updateInfo(LvmData<?> vlmDataRef, @Nullable LvsInfo info)
-        throws DatabaseException, AccessDeniedException, StorageException
+        throws DatabaseException, StorageException
     {
         boolean setDevicePath;
         String lvcreateOptions;
@@ -189,7 +188,7 @@ public class LvmProvider
             LvmData<Resource> vlmData = (LvmData<Resource>) vlmDataRef;
             vlmDataRef.setIdentifier(asLvIdentifier(vlmData));
             setDevicePath = !vlmData.getVolume().getAbsResource().getStateFlags()
-                .isSet(storDriverAccCtx, Resource.Flags.INACTIVE);
+                .isSet(Resource.Flags.INACTIVE);
             /*
              * while the volume is cloning, we do not want to set the device path so that other tools do not try to
              * access it
@@ -259,12 +258,12 @@ public class LvmProvider
     }
 
     private void updateStripesPropIfNeeded(LvmData<?> vlmDataRef, @Nullable Integer stripesRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         if (stripesRef != null && stripesRef > 1)
         {
             // only update if non-default
-            Props props = StorageLayerSizeCalculator.getProps(storDriverAccCtx, vlmDataRef);
+            Props props = StorageLayerSizeCalculator.getProps(vlmDataRef);
             String propKey = StorageLayerSizeCalculator.getStripesPropKey(vlmDataRef);
             @Nullable String propValue = props.getProp(propKey);
             String currentStripesStr = Integer.toString(stripesRef);
@@ -289,7 +288,7 @@ public class LvmProvider
 
     @Override
     protected void createLvImpl(LvmData<Resource> vlmData)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         List<String> additionalOptions = ShellUtils.shellSplit(getLvcreateOptions(vlmData));
         Stream<String> additionalOptionsStream = additionalOptions.stream();
@@ -347,7 +346,7 @@ public class LvmProvider
                     DFLT_LVCREATE_TYPE
                 );
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -355,14 +354,14 @@ public class LvmProvider
     }
 
     @SuppressWarnings("unchecked")
-    protected PriorityProps getPrioProps(LvmData<?> vlmDataRef) throws AccessDeniedException
+    protected PriorityProps getPrioProps(LvmData<?> vlmDataRef)
     {
         return vlmDataRef.getRscLayerObject().getAbsResource() instanceof Resource ?
             getPrioPropsRsc((LvmData<Resource>) vlmDataRef) :
             getPrioPropsSnap((LvmData<Snapshot>) vlmDataRef);
     }
 
-    protected PriorityProps getPrioPropsRsc(LvmData<Resource> vlmDataRef) throws AccessDeniedException
+    protected PriorityProps getPrioPropsRsc(LvmData<Resource> vlmDataRef)
     {
         Volume vlm = (Volume) vlmDataRef.getVolume();
         Resource rsc = vlm.getAbsResource();
@@ -370,19 +369,19 @@ public class LvmProvider
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
         return new PriorityProps(
-            vlm.getProps(storDriverAccCtx),
-            rsc.getProps(storDriverAccCtx),
-            vlmDataRef.getStorPool().getProps(storDriverAccCtx),
-            rsc.getNode().getProps(storDriverAccCtx),
-            vlmDfn.getProps(storDriverAccCtx),
-            rscDfn.getProps(storDriverAccCtx),
-            rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmDfn.getVolumeNumber()),
-            rscGrp.getProps(storDriverAccCtx),
+            vlm.getProps(),
+            rsc.getProps(),
+            vlmDataRef.getStorPool().getProps(),
+            rsc.getNode().getProps(),
+            vlmDfn.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rscGrp.getProps(),
             stltConfigAccessor.getReadonlyProps()
         );
     }
 
-    protected PriorityProps getPrioPropsSnap(LvmData<Snapshot> vlmDataRef) throws AccessDeniedException
+    protected PriorityProps getPrioPropsSnap(LvmData<Snapshot> vlmDataRef)
     {
         SnapshotVolume snapVlm = (SnapshotVolume) vlmDataRef.getVolume();
         Snapshot snap = snapVlm.getAbsResource();
@@ -391,21 +390,21 @@ public class LvmProvider
         SnapshotVolumeDefinition snapVlmDfn = snapVlm.getSnapshotVolumeDefinition();
         SnapshotDefinition snapDfn = snap.getSnapshotDefinition();
         return new PriorityProps(
-            snapVlm.getSnapVlmProps(storDriverAccCtx),
-            snapVlm.getVlmProps(storDriverAccCtx),
-            snap.getSnapProps(storDriverAccCtx),
-            snap.getRscProps(storDriverAccCtx),
-            vlmDataRef.getStorPool().getProps(storDriverAccCtx),
-            snap.getNode().getProps(storDriverAccCtx),
-            snapVlmDfn.getSnapVlmDfnProps(storDriverAccCtx),
-            snapVlmDfn.getVlmDfnProps(storDriverAccCtx),
-            snapDfn.getSnapDfnProps(storDriverAccCtx),
-            snapDfn.getRscDfnProps(storDriverAccCtx),
+            snapVlm.getSnapVlmProps(),
+            snapVlm.getVlmProps(),
+            snap.getSnapProps(),
+            snap.getRscProps(),
+            vlmDataRef.getStorPool().getProps(),
+            snap.getNode().getProps(),
+            snapVlmDfn.getSnapVlmDfnProps(),
+            snapVlmDfn.getVlmDfnProps(),
+            snapDfn.getSnapDfnProps(),
+            snapDfn.getRscDfnProps(),
             // we have to skip vlmDfn (not snapVlmDfn) since vlmDfn might have been removed in the meantime
             // we can still include rscDfn, since a rscDfn cannot be removed while it has snapshots
-            rscDfn.getProps(storDriverAccCtx),
-            rscGrp.getVolumeGroupProps(storDriverAccCtx, snapVlmDfn.getVolumeNumber()),
-            rscGrp.getProps(storDriverAccCtx),
+            rscDfn.getProps(),
+            rscGrp.getVolumeGroupProps(snapVlmDfn.getVolumeNumber()),
+            rscGrp.getProps(),
             stltConfigAccessor.getReadonlyProps()
         );
     }
@@ -447,7 +446,7 @@ public class LvmProvider
         {
             options = getPrioProps(vlmDataRef).getProp(key, namespace, dfltValue);
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -456,7 +455,7 @@ public class LvmProvider
 
     @Override
     protected void resizeLvImpl(LvmData<Resource> vlmData)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         LvmUtils.execWithRetry(
             extCmdFactory,
@@ -474,7 +473,7 @@ public class LvmProvider
 
     @Override
     protected void deleteLvImpl(LvmData<Resource> vlmData, String oldLvmId)
-        throws StorageException, DatabaseException, AccessDeniedException
+        throws StorageException, DatabaseException
     {
         /*
          * The devicePath can be null either when cleaning up a failed clone (cloning might still be set,
@@ -559,7 +558,7 @@ public class LvmProvider
 
     @Override
     protected void deactivateLvImpl(LvmData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         LvmUtils.execWithRetry(
             extCmdFactory,
@@ -603,7 +602,7 @@ public class LvmProvider
         List<LvmData<Resource>> vlmDataList,
         List<LvmData<Snapshot>> snapVlms
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         if (hasSharedVolumeGroups(vlmDataList, snapVlms))
         {
@@ -680,10 +679,10 @@ public class LvmProvider
         String volumeGroup;
         try
         {
-            volumeGroup = StringUtils.split(DeviceLayerUtils.getNamespaceStorDriver(storPool.getReadOnlyProps(storDriverAccCtx))
+            volumeGroup = StringUtils.split(DeviceLayerUtils.getNamespaceStorDriver(storPool.getReadOnlyProps())
                 .getProp(StorageConstants.CONFIG_LVM_VOLUME_GROUP_KEY), "/")[0];
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -697,7 +696,7 @@ public class LvmProvider
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException, AccessDeniedException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException
     {
         String vg = getVolumeGroup(storPool);
         if (vg == null)
@@ -725,10 +724,10 @@ public class LvmProvider
      */
     @Override
     public @Nullable LocalPropsChangePojo checkConfig(StorPoolInfo storPool)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         ReadOnlyProps publicStorDriverNamespace = DeviceLayerUtils.getNamespaceStorDriver(
-            storPool.getReadOnlyProps(storDriverAccCtx)
+            storPool.getReadOnlyProps()
         );
         StorageConfigReader.checkVolumeGroupEntry(extCmdFactory, publicStorDriverNamespace);
         StorageConfigReader.checkToleranceFactor(publicStorDriverNamespace);
@@ -754,7 +753,7 @@ public class LvmProvider
 
     @Override
     public @Nullable LocalPropsChangePojo update(StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         LocalPropsChangePojo ret = new LocalPropsChangePojo();
         List<String> pvs = LvmUtils.getPhysicalVolumes(extCmdFactory, getVolumeGroup(storPoolRef));
@@ -831,7 +830,7 @@ public class LvmProvider
     protected void createSnapshotForCloneImpl(
         LvmData<Resource> vlmData,
         String cloneRscName)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         final String srcId = asLvIdentifier(vlmData);
         final String srcFullSnapshotName = getCloneSnapshotNameFull(vlmData, cloneRscName, "_");
@@ -973,14 +972,14 @@ public class LvmProvider
 
     @Override
     public Map<ReadOnlyVlmProviderInfo, Long> fetchAllocatedSizes(List<ReadOnlyVlmProviderInfo> vlmDataListRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return fetchOrigAllocatedSizes(vlmDataListRef);
     }
 
     @Override
     public void openForClone(VlmProviderObject<?> vlm, @Nullable String cloneName, boolean readOnly)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         LvmData<Resource> srcData = (LvmData<Resource>) vlm;
         if (cloneName != null)
@@ -993,14 +992,7 @@ public class LvmProvider
         {
             createLvImpl(srcData);
             String devicePath = getDevicePath(srcData.getVolumeGroup(), asLvIdentifier(srcData));
-            try
-            {
-                waitUntilDeviceCreated(srcData, devicePath);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new StorageException("Unable to run openForClone::waitUntilDeviceCreated", exc);
-            }
+            waitUntilDeviceCreated(srcData, devicePath);
             vlm.setCloneDevicePath(devicePath);
         }
     }

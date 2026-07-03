@@ -9,7 +9,6 @@ import com.linbit.linstor.debug.HexViewer;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.IllegalMessageStateException;
 import com.linbit.linstor.netcom.TcpConnectorPeer;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -155,13 +154,12 @@ public class SslTcpConnectorPeer extends TcpConnectorPeer
         final String                   peerId,
         final SslTcpConnectorService   sslConnectorService,
         final SelectionKey             connKey,
-        final AccessContext            peerAccCtx,
         final SSLContext               sslCtxRef,
         @Nullable final InetSocketAddress       peerAddress,
         @Nullable final Node                     node
     )
     {
-        super(errorReporter, commonSerializer, peerHostAddr, peerId, sslConnectorService, connKey, peerAccCtx, node,
+        super(errorReporter, commonSerializer, peerHostAddr, peerId, sslConnectorService, connKey, node,
             peerAddress != null);
         address     = peerAddress;
         sslReady    = false;

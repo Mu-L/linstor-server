@@ -15,7 +15,6 @@ import com.linbit.linstor.api.protobuf.ProtoDeserializationUtils;
 import com.linbit.linstor.core.CriticalError;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.ResponseUtils;
 import com.linbit.linstor.logging.ErrorReporter;
@@ -27,7 +26,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.TcpConnector;
 import com.linbit.linstor.proto.MsgHeaderOuterClass.MsgHeader.MsgType;
 import com.linbit.linstor.proto.common.ApiCallResponseOuterClass;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.locks.LockGuard;
 import com.linbit.utils.MathUtils;
@@ -419,7 +417,7 @@ public class CommonMessageProcessor implements MessageProcessor
                     )
                     .contextWrite(Context.of(
                         ApiModule.API_CALL_NAME, apiCallName,
-                        AccessContext.class, peerAccCtx,
+                        AccessContext.class,
                         Peer.class, peer,
                         ApiModule.API_CALL_ID, apiCallId
                     ));

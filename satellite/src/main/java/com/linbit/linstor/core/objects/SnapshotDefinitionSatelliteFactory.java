@@ -4,8 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -41,7 +39,6 @@ public class SnapshotDefinitionSatelliteFactory
     }
 
     public SnapshotDefinition getInstanceSatellite(
-        AccessContext accCtx,
         UUID snapshotDfnUuid,
         ResourceDefinition rscDfn,
         SnapshotName snapshotName,
@@ -52,12 +49,12 @@ public class SnapshotDefinitionSatelliteFactory
         SnapshotDefinition snapshotDfnData;
         try
         {
-            snapshotDfnData = rscDfn.getSnapshotDfn(accCtx, snapshotName);
+            snapshotDfnData = rscDfn.getSnapshotDfn(snapshotName);
             if (snapshotDfnData == null)
             {
                 snapshotDfnData = new SnapshotDefinition(
                     snapshotDfnUuid,
-                    objectProtectionFactory.getInstance(accCtx, "", false),
+                    objectProtectionFactory.getInstance("", false),
                     rscDfn,
                     snapshotName,
                     StateFlagsBits.getMask(flags),
@@ -69,7 +66,7 @@ public class SnapshotDefinitionSatelliteFactory
                     new TreeMap<>(),
                     new TreeMap<>()
                 );
-                rscDfn.addSnapshotDfn(accCtx, snapshotDfnData);
+                rscDfn.addSnapshotDfn(snapshotDfnData);
             }
         }
         catch (Exception exc)

@@ -4,7 +4,6 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
@@ -21,8 +20,6 @@ import com.linbit.linstor.layer.AbsLayerHelperUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheRscData;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -46,14 +43,12 @@ class SnapBCacheLayerHelper extends AbsSnapLayerHelper<
     @Inject
     SnapBCacheLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef
     )
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             DeviceLayerKind.BCACHE
@@ -85,7 +80,7 @@ class SnapBCacheLayerHelper extends AbsSnapLayerHelper<
         Snapshot snapRef,
         AbsRscLayerObject<Resource> rscDataRef,
         AbsRscLayerObject<Snapshot> parentRef
-    ) throws AccessDeniedException, DatabaseException, ExhaustedPoolException
+    ) throws DatabaseException, ExhaustedPoolException
     {
         return layerDataFactory.createBCacheRscData(
             layerRscIdPool.autoAllocate(),
@@ -100,7 +95,7 @@ class SnapBCacheLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolume snapVlmRef,
         BCacheRscData<Snapshot> snapDataRef,
         VlmProviderObject<Resource> vlmProviderObjectRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         return layerDataFactory.createBCacheVlmData(
             snapVlmRef,
@@ -126,7 +121,7 @@ class SnapBCacheLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapshotVolumeDefinitionRef,
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // BCacheLayer does not have volume-definition specific data
@@ -139,7 +134,7 @@ class SnapBCacheLayerHelper extends AbsSnapLayerHelper<
         RscLayerDataApi rscLayerDataApiRef,
         @Nullable AbsRscLayerObject<Snapshot> parentRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException, AccessDeniedException
+    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException
     {
         return layerDataFactory.createBCacheRscData(
             layerRscIdPool.autoAllocate(),
@@ -156,10 +151,9 @@ class SnapBCacheLayerHelper extends AbsSnapLayerHelper<
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef,
         @Nullable ApiCallRc apiCallRc
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         StorPool cacheStorPool = AbsLayerHelperUtils.getStorPool(
-            apiCtx,
             snapVlmRef,
             snapDataRef,
             ((BCacheVlmPojo) vlmLayerDataApiRef).getCacheStorPoolName(),

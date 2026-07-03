@@ -2,7 +2,6 @@ package com.linbit.linstor.tasks;
 
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.objects.Node;
@@ -10,8 +9,6 @@ import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 
@@ -27,7 +24,6 @@ public class LogArchiveTask implements TaskScheduleService.Task
     private final ErrorReporter errorReporter;
     private final NodeRepository nodeRepository;
     private final LockGuardFactory lockGuardFactory;
-    private final AccessContext sysCtx;
     private final CtrlStltSerializer ctrlStltSerializer;
     private final SystemConfRepository systemConfRepository;
 
@@ -36,7 +32,6 @@ public class LogArchiveTask implements TaskScheduleService.Task
         ErrorReporter errorReporterRef,
         NodeRepository nodeRepositoryRef,
         LockGuardFactory lockGuardFactoryRef,
-        @SystemContext AccessContext sysCtxRef,
         CtrlStltSerializer ctrlClientSerializerRef,
         SystemConfRepository systemConfRepositoryRef
     )
@@ -44,7 +39,6 @@ public class LogArchiveTask implements TaskScheduleService.Task
         errorReporter = errorReporterRef;
         nodeRepository = nodeRepositoryRef;
         lockGuardFactory = lockGuardFactoryRef;
-        sysCtx = sysCtxRef;
         ctrlStltSerializer = ctrlClientSerializerRef;
         systemConfRepository = systemConfRepositoryRef;
     }
@@ -60,9 +54,9 @@ public class LogArchiveTask implements TaskScheduleService.Task
         {
             try (LockGuard lg = lockGuardFactory.build(READ, NODES_MAP))
             {
-                for (Node node : nodeRepository.getMapForView(sysCtx).values())
+                for (Node node : nodeRepository.getMapForView().values())
                 {
-                    Peer nodePeer = node.getPeer(sysCtx);
+                    Peer nodePeer = node.getPeer();
                     if (nodePeer != null && nodePeer.isOnline())
                     {
                         nodePeer.sendMessage(
@@ -72,9 +66,6 @@ public class LogArchiveTask implements TaskScheduleService.Task
                         );
                     }
                 }
-            }
-            catch (AccessDeniedException ignored)
-            {
             }
         }
 
@@ -88,7 +79,7 @@ public class LogArchiveTask implements TaskScheduleService.Task
         long ageDays = ErrorReporter.DFLT_LOG_ARCHIVE_AGE_DAYS;
         try
         {
-            @Nullable String ageDaysProp = systemConfRepository.getCtrlConfForView(sysCtx).getProp(
+            @Nullable String ageDaysProp = systemConfRepository.getCtrlConfForView().getProp(
                 ApiConsts.KEY_LOG_ARCHIVE_AGE_DAYS,
                 ApiConsts.NAMESPC_LOGGING
             );
@@ -97,7 +88,7 @@ public class LogArchiveTask implements TaskScheduleService.Task
                 ageDays = Long.parseLong(ageDaysProp);
             }
         }
-        catch (AccessDeniedException | NumberFormatException exc)
+        catch (NumberFormatException exc)
         {
             errorReporter.logWarning(
                 "LogArchive: unable to read property %s/%s, using default of %d days: %s",

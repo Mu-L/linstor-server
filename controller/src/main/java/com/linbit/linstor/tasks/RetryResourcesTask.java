@@ -3,7 +3,6 @@ package com.linbit.linstor.tasks;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiModule;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
@@ -15,8 +14,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerNotConnectedException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.TaskScheduleService.Task;
 
 import javax.inject.Inject;
@@ -52,18 +49,15 @@ public class RetryResourcesTask implements Task
     private final Object syncObj = new Object();
     private final HashMap<Resource, RetryConfig> failedResources = new HashMap<>();
 
-    private final AccessContext sysCtx;
     private final CtrlStltSerializer serializer;
     private final ErrorReporter errorReporter;
 
     @Inject
     public RetryResourcesTask(
-        @SystemContext AccessContext sysCtxRef,
         CtrlStltSerializer serializerRef,
         ErrorReporter errorReporterRef
     )
     {
-        sysCtx = sysCtxRef;
         serializer = serializerRef;
         errorReporter = errorReporterRef;
     }
@@ -133,7 +127,7 @@ public class RetryResourcesTask implements Task
                     Node node = rsc.getNode();
                     if (!node.isDeleted())
                     {
-                        Peer peer = node.getPeer(sysCtx);
+                        Peer peer = node.getPeer();
                         NodeName nodeName = node.getName();
 
                         errorReporter.logDebug(

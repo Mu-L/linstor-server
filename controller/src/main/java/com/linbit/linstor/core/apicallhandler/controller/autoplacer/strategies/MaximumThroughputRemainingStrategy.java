@@ -8,8 +8,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.repository.SystemConfRepository;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 
 import java.util.Collection;
@@ -19,21 +17,17 @@ import java.util.Map;
 
 public class MaximumThroughputRemainingStrategy implements AutoplaceStrategy
 {
-    private final AccessContext apiCtx;
     private final SystemConfRepository sysCfgRepo;
 
     public MaximumThroughputRemainingStrategy(
-        AccessContext apiCtxRef,
         SystemConfRepository sysCfgRepoRef
     )
     {
-        apiCtx = apiCtxRef;
         sysCfgRepo = sysCfgRepoRef;
     }
 
     @Override
     public Map<StorPool, Double> rate(Collection<StorPool> storPoolsRef, RatingAdditionalInfo additionalInfoRef)
-        throws AccessDeniedException
     {
         Map<StorPool, Double> ret = new HashMap<>();
         for (StorPool sp : storPoolsRef)
@@ -42,7 +36,7 @@ public class MaximumThroughputRemainingStrategy implements AutoplaceStrategy
 
             // only count distinct volumes
             HashSet<Volume> vlms = new HashSet<>();
-            for (VlmProviderObject<Resource> vlmObj : sp.getVolumes(apiCtx))
+            for (VlmProviderObject<Resource> vlmObj : sp.getVolumes())
             {
                 Volume vlm = (Volume) vlmObj.getVolume();
                 if (vlms.add(vlm))
@@ -57,12 +51,11 @@ public class MaximumThroughputRemainingStrategy implements AutoplaceStrategy
 
 
     private double getMaxThroughput(StorPool spRef)
-        throws AccessDeniedException
     {
         String val = new PriorityProps(
-            spRef.getProps(apiCtx),
-            spRef.getDefinition(apiCtx).getProps(apiCtx),
-            sysCfgRepo.getCtrlConfForView(apiCtx)
+            spRef.getProps(),
+            spRef.getDefinition().getProps(),
+            sysCfgRepo.getCtrlConfForView()
         ).getProp(
             ApiConsts.KEY_AUTOPLACE_MAX_THROUGHPUT,
             ApiConsts.NAMESPC_AUTOPLACER,
@@ -85,17 +78,17 @@ public class MaximumThroughputRemainingStrategy implements AutoplaceStrategy
         return val;
     }
 
-    private double getThroughput(Volume vlm) throws AccessDeniedException
+    private double getThroughput(Volume vlm)
     {
         PriorityProps prioProps = new PriorityProps(
-            vlm.getProps(apiCtx),
-            vlm.getAbsResource().getProps(apiCtx),
-            vlm.getAbsResource().getNode().getProps(apiCtx),
-            vlm.getVolumeDefinition().getProps(apiCtx),
-            vlm.getResourceDefinition().getProps(apiCtx),
-            vlm.getResourceDefinition().getResourceGroup().getVolumeGroupProps(apiCtx, vlm.getVolumeNumber()),
-            vlm.getResourceDefinition().getResourceGroup().getProps(apiCtx),
-            sysCfgRepo.getCtrlConfForView(apiCtx)
+            vlm.getProps(),
+            vlm.getAbsResource().getProps(),
+            vlm.getAbsResource().getNode().getProps(),
+            vlm.getVolumeDefinition().getProps(),
+            vlm.getResourceDefinition().getProps(),
+            vlm.getResourceDefinition().getResourceGroup().getVolumeGroupProps(vlm.getVolumeNumber()),
+            vlm.getResourceDefinition().getResourceGroup().getProps(),
+            sysCfgRepo.getCtrlConfForView()
         );
         String readVal = prioProps.getProp(ApiConsts.KEY_SYS_FS_BLKIO_THROTTLE_READ, ApiConsts.NAMESPC_SYS_FS, "0.0");
         String writeVal = prioProps.getProp(ApiConsts.KEY_SYS_FS_BLKIO_THROTTLE_WRITE, ApiConsts.NAMESPC_SYS_FS, "0.0");

@@ -6,10 +6,6 @@ import com.linbit.linstor.core.repository.KeyValueStoreRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.KeyValueStoreDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -47,12 +43,11 @@ public class KeyValueStoreControllerFactory
     }
 
     public KeyValueStore create(
-        AccessContext accCtx,
         KeyValueStoreName kvsName
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        KeyValueStore kvs = kvsRepository.get(accCtx, kvsName);
+        KeyValueStore kvs = kvsRepository.get(kvsName);
 
         if (kvs != null)
         {
@@ -62,7 +57,6 @@ public class KeyValueStoreControllerFactory
         kvs = new KeyValueStore(
             UUID.randomUUID(),
             objectProtectionFactory.getInstance(
-                accCtx,
                 ObjectProtection.buildPath(kvsName),
                 true
             ),

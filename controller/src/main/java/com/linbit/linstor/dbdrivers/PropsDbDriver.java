@@ -1,14 +1,10 @@
 package com.linbit.linstor.dbdrivers;
 
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.dbdrivers.interfaces.PropsCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.PropsDatabaseDriver.PropsDbEntry;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.utils.Pair;
 
 import static com.linbit.linstor.dbdrivers.GeneratedDatabaseTables.PROPS_CONTAINERS;
@@ -34,13 +30,12 @@ public class PropsDbDriver extends AbsProtectedDatabaseDriver<PropsDbEntry, Void
 
     @Inject
     public PropsDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         ObjectProtectionFactory objProtFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, PROPS_CONTAINERS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, PROPS_CONTAINERS, dbEngineRef, objProtFactoryRef);
 
         setColumnSetter(
             PROPS_INSTANCE,
@@ -106,7 +101,7 @@ public class PropsDbDriver extends AbsProtectedDatabaseDriver<PropsDbEntry, Void
     }
 
     @Override
-    protected String getId(PropsDbEntry dataRef) throws AccessDeniedException
+    protected String getId(PropsDbEntry dataRef)
     {
         StringBuilder id = new StringBuilder("(InstanceName=").append(dataRef.propsInstance);
         id.append(" Key=").append(dataRef.propKey);

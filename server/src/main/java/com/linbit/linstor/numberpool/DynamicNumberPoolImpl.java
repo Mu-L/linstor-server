@@ -13,7 +13,6 @@ import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.range.Range;
 import com.linbit.linstor.range.RangeUtils;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -67,14 +66,14 @@ public class DynamicNumberPoolImpl implements DynamicNumberPool
             loadRanges(null);
             loadBlockedRanges(null);
         }
-        catch (DatabaseException | AccessDeniedException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
         recaculateEffecitveRanges();
     }
 
-    private void loadRanges(@Nullable Props propsToUpdateRef) throws DatabaseException, AccessDeniedException
+    private void loadRanges(@Nullable Props propsToUpdateRef) throws DatabaseException
     {
         List<Range> newRanges = parseRange(propKeyRange, true, propsToUpdateRef);
         if (newRanges.isEmpty())
@@ -84,20 +83,20 @@ public class DynamicNumberPoolImpl implements DynamicNumberPool
         ranges = newRanges;
     }
 
-    private void loadBlockedRanges(@Nullable Props propsToUpdateRef) throws DatabaseException, AccessDeniedException
+    private void loadBlockedRanges(@Nullable Props propsToUpdateRef) throws DatabaseException
     {
         blockedRanges = parseRange(propKeyBlockedRange, false, propsToUpdateRef);
     }
 
     @Override
-    public void reloadRange(@Nullable Props propsToUpdateRef) throws DatabaseException, AccessDeniedException
+    public void reloadRange(@Nullable Props propsToUpdateRef) throws DatabaseException
     {
         loadRanges(propsToUpdateRef);
         recaculateEffecitveRanges();
     }
 
     @Override
-    public void reloadBlockedRange(@Nullable Props propsToUpdateRef) throws DatabaseException, AccessDeniedException
+    public void reloadBlockedRange(@Nullable Props propsToUpdateRef) throws DatabaseException
     {
         loadBlockedRanges(propsToUpdateRef);
         recaculateEffecitveRanges();
@@ -108,7 +107,7 @@ public class DynamicNumberPoolImpl implements DynamicNumberPool
         final boolean runRangeChecksRef,
         final @Nullable Props propsToUpdateRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         @Nullable String strRange;
         try

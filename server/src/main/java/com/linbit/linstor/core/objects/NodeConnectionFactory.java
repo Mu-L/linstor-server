@@ -5,8 +5,6 @@ import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.NodeConnectionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -37,11 +35,10 @@ public class NodeConnectionFactory
     }
 
     public NodeConnection create(
-        AccessContext accCtx,
         Node node1,
         Node node2
     )
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
 
         NodeConnection nodeConData = NodeConnection.createWithSorting(
@@ -51,19 +48,17 @@ public class NodeConnectionFactory
             dbDriver,
             propsContainerFactory,
             transObjFactory,
-            transMgrProvider,
-            accCtx
+            transMgrProvider
         );
         dbDriver.create(nodeConData);
 
-        node1.setNodeConnection(accCtx, nodeConData);
-        node2.setNodeConnection(accCtx, nodeConData);
+        node1.setNodeConnection(nodeConData);
+        node2.setNodeConnection(nodeConData);
 
         return nodeConData;
     }
 
     public NodeConnection getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         Node node1,
         Node node2
@@ -74,7 +69,7 @@ public class NodeConnectionFactory
 
         try
         {
-            nodeConData = node1.getNodeConnection(accCtx, node2);
+            nodeConData = node1.getNodeConnection(node2);
             if (nodeConData == null)
             {
                 nodeConData = NodeConnection.createWithSorting(
@@ -84,12 +79,11 @@ public class NodeConnectionFactory
                     dbDriver,
                     propsContainerFactory,
                     transObjFactory,
-                    transMgrProvider,
-                    accCtx
+                    transMgrProvider
                 );
 
-                node1.setNodeConnection(accCtx, nodeConData);
-                node2.setNodeConnection(accCtx, nodeConData);
+                node1.setNodeConnection(nodeConData);
+                node2.setNodeConnection(nodeConData);
             }
         }
         catch (Exception exc)

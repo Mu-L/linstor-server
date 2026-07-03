@@ -6,7 +6,6 @@ import com.linbit.extproc.ExtCmdFailedException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -33,8 +32,6 @@ import com.linbit.linstor.layer.dmsetup.DmSetupUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.adapter.luks.LuksRscData;
@@ -68,7 +65,6 @@ public class LuksLayer implements DeviceLayer
         DeviceHandler.CloneStrategy.DD
     );
 
-    private final AccessContext sysCtx;
     private final CryptSetupCommands cryptSetup;
     private final Provider<DeviceHandler> resourceProcessorProvider;
     private final ExtCmdFactory extCmdFactory;
@@ -79,7 +75,6 @@ public class LuksLayer implements DeviceLayer
 
     @Inject
     public LuksLayer(
-        @DeviceManagerContext AccessContext sysCtxRef,
         CryptSetupCommands cryptSetupRef,
         ExtCmdFactory extCmdFactoryRef,
         Provider<DeviceHandler> resourceProcessorRef,
@@ -89,7 +84,6 @@ public class LuksLayer implements DeviceLayer
         StltConfigAccessor stltConfigAccessorRef
     )
     {
-        sysCtx = sysCtxRef;
         cryptSetup = cryptSetupRef;
         extCmdFactory = extCmdFactoryRef;
         resourceProcessorProvider = resourceProcessorRef;
@@ -110,22 +104,22 @@ public class LuksLayer implements DeviceLayer
         Set<AbsRscLayerObject<Resource>> rscDataList,
         Set<AbsRscLayerObject<Snapshot>> affectedSnapshots
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // no-op
     }
 
     @Override
-    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef) throws AccessDeniedException
+    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef)
     {
         StateFlags<Flags> rscFlags = layerDataRef.getAbsResource().getStateFlags();
-        if (rscFlags.isSet(sysCtx, Resource.Flags.DELETE))
+        if (rscFlags.isSet(Resource.Flags.DELETE))
         {
             resourceProcessorProvider.get().sendResourceDeletedEvent(layerDataRef);
         }
         else
         {
-            boolean isActive = rscFlags.isSet(sysCtx, Resource.Flags.INACTIVE);
+            boolean isActive = rscFlags.isSet(Resource.Flags.INACTIVE);
             resourceProcessorProvider.get().sendResourceCreatedEvent(
                 layerDataRef,
                 new ResourceState(
@@ -195,12 +189,12 @@ public class LuksLayer implements DeviceLayer
         AbsRscLayerObject<Resource> rscData,
         ApiCallRcImpl apiCallRc
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException
+        throws StorageException, ResourceException, VolumeException, DatabaseException
     {
         LuksRscData<Resource> luksRscData = (LuksRscData<Resource>) rscData;
         StateFlags<Flags> flags = luksRscData.getAbsResource().getStateFlags();
-        boolean deleteRsc = flags.isSomeSet(sysCtx, Resource.Flags.DELETE, Resource.Flags.DISK_REMOVING);
-        boolean deactivateRsc = flags.isSet(sysCtx, Resource.Flags.INACTIVE);
+        boolean deleteRsc = flags.isSomeSet(Resource.Flags.DELETE, Resource.Flags.DISK_REMOVING);
+        boolean deactivateRsc = flags.isSet(Resource.Flags.INACTIVE);
 
         boolean failedMissingDecryptedPassphrase = false;
 
@@ -209,7 +203,6 @@ public class LuksLayer implements DeviceLayer
             boolean deleteVlm = deleteRsc ||
                 ((Volume) vlmData.getVolume()).getFlags()
                     .isSomeSet(
-                        sysCtx,
                         Volume.Flags.DELETE,
                         Volume.Flags.CLONING
                     );
@@ -243,7 +236,7 @@ public class LuksLayer implements DeviceLayer
             else
             {
                 // shrink if necessary
-                if (((Volume) vlmData.getVolume()).getFlags().isSet(sysCtx, Volume.Flags.RESIZE) &&
+                if (((Volume) vlmData.getVolume()).getFlags().isSet(Volume.Flags.RESIZE) &&
                     vlmData.getSizeState().equals(Size.TOO_LARGE))
                 {
                     String identifier = getIdentifier(vlmData);
@@ -280,7 +273,6 @@ public class LuksLayer implements DeviceLayer
             boolean deleteVlm = deleteRsc ||
                 vlm.getFlags()
                     .isSomeSet(
-                        sysCtx,
                         Volume.Flags.DELETE,
                         Volume.Flags.CLONING
                     );
@@ -381,7 +373,7 @@ public class LuksLayer implements DeviceLayer
                     }
                 }
 
-                if (((Volume) vlmData.getVolume()).getFlags().isSet(sysCtx, Volume.Flags.RESIZE) &&
+                if (((Volume) vlmData.getVolume()).getFlags().isSet(Volume.Flags.RESIZE) &&
                     !vlmData.getSizeState().equals(Size.AS_EXPECTED))
                 {
                     if (decryptedPassphrase != null)
@@ -448,14 +440,14 @@ public class LuksLayer implements DeviceLayer
         @Nullable byte[] ret = null;
         try
         {
-            @Nullable String propVal = vlmDataRef.getVolume().getVolumeDefinition().getProps(sysCtx)
+            @Nullable String propVal = vlmDataRef.getVolume().getVolumeDefinition().getProps()
                 .getProp(ApiConsts.KEY_PASSPHRASE, ApiConsts.NAMESPC_ENCRYPTION);
             if (propVal != null)
             {
                 ret = Base64.decode(propVal);
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -530,7 +522,7 @@ public class LuksLayer implements DeviceLayer
 
     @Override
     public void openDeviceForClone(VlmProviderObject<?> vlm, @Nullable String targetRscNameRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         LuksVlmData<Resource> luksVlmData = (LuksVlmData<Resource>) vlm;
         String vlmIdentifier = getIdentifier(luksVlmData);
@@ -616,7 +608,7 @@ public class LuksLayer implements DeviceLayer
             final @Nullable String userOptProp = prioProps.getProp(optionsKey, STOR_DRIVER_NAMESPACE);
             return userOptProp != null ? ShellUtils.shellSplit(userOptProp) : new ArrayList<>();
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -633,14 +625,13 @@ public class LuksLayer implements DeviceLayer
             );
             return ApiConsts.VAL_TRUE.equalsIgnoreCase(val);
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
     }
 
     private PriorityProps buildPriorityProps(final LuksVlmData<Resource> vlmData)
-        throws AccessDeniedException
     {
         Volume vlm = (Volume) vlmData.getVolume();
         Resource rsc = vlm.getAbsResource();
@@ -649,19 +640,19 @@ public class LuksLayer implements DeviceLayer
         VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
 
         PriorityProps prioProps = new PriorityProps(
-            vlm.getProps(sysCtx),
-            rsc.getProps(sysCtx)
+            vlm.getProps(),
+            rsc.getProps()
         );
-        for (StorPool storPool : LayerVlmUtils.getStorPoolSet(vlmData, sysCtx))
+        for (StorPool storPool : LayerVlmUtils.getStorPoolSet(vlmData))
         {
-            prioProps.addProps(storPool.getProps(sysCtx));
+            prioProps.addProps(storPool.getProps());
         }
         prioProps.addProps(
-            rsc.getNode().getProps(sysCtx),
-            vlmDfn.getProps(sysCtx),
-            rscDfn.getProps(sysCtx),
-            rscGrp.getVolumeGroupProps(sysCtx, vlmDfn.getVolumeNumber()),
-            rscGrp.getProps(sysCtx),
+            rsc.getNode().getProps(),
+            vlmDfn.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rscGrp.getProps(),
             stltConfigAccessor.getReadonlyProps()
         );
         return prioProps;

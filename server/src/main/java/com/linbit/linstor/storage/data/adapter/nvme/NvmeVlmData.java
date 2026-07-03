@@ -5,7 +5,6 @@ import com.linbit.linstor.api.pojo.NvmeRscPojo.NvmeVlmPojo;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.storage.data.AbsVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmLayerObject;
@@ -133,7 +132,7 @@ public class NvmeVlmData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public NvmeVlmPojo asPojo(AccessContext accCtxRef)
+    public NvmeVlmPojo asPojo()
     {
         return new NvmeVlmPojo(
             getVlmNr().getValue(),

@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -18,9 +17,6 @@ import com.linbit.linstor.dbdrivers.interfaces.ResourceCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -59,7 +55,6 @@ public final class ResourceDbDriver extends
 
     @Inject
     public ResourceDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -69,7 +64,6 @@ public final class ResourceDbDriver extends
     )
     {
         super(
-            dbCtxRef,
             errorReporterRef,
             GeneratedDatabaseTables.RESOURCES,
             dbEngine,
@@ -84,7 +78,7 @@ public final class ResourceDbDriver extends
         setColumnSetter(UUID, rsc -> rsc.getUuid().toString());
         setColumnSetter(NODE_NAME, rsc -> rsc.getNode().getName().value);
         setColumnSetter(RESOURCE_NAME, rsc -> rsc.getResourceDefinition().getName().value);
-        setColumnSetter(RESOURCE_FLAGS, rsc -> ((Resource) rsc).getStateFlags().getFlagsBits(dbCtxRef));
+        setColumnSetter(RESOURCE_FLAGS, rsc -> ((Resource) rsc).getStateFlags().getFlagsBits());
         setColumnSetter(SNAPSHOT_NAME, ignored -> DFLT_SNAP_NAME_FOR_RSC);
         setColumnSetter(CREATE_TIMESTAMP, rsc -> dbEngine.getDateToDbTypeConverter(rsc.getCreateTimestamp()));
 

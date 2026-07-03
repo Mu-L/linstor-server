@@ -2,7 +2,6 @@ package com.linbit.linstor.core.apicallhandler.controller.autoplacer;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscCrtApiHelper;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer.StorPoolWithScore;
 import com.linbit.linstor.core.identifier.NodeName;
@@ -20,8 +19,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -52,29 +49,25 @@ import java.util.regex.Pattern;
 @Singleton
 public class AutoUnplacer
 {
-    private final AccessContext apiAccCtx;
     private final ErrorReporter errorReporter;
     private final StrategyHandler strategyHandler;
 
     @Inject
     public AutoUnplacer(
-        @SystemContext AccessContext apiAccCtxRef,
         ErrorReporter errorReporterRef,
         StrategyHandler strategyHandlerRef
     )
     {
-        apiAccCtx = apiAccCtxRef;
         errorReporter = errorReporterRef;
         strategyHandler = strategyHandlerRef;
     }
 
     public @Nullable Resource unplace(ResourceDefinition rscDfnRef, Collection<Resource> fixedResources)
-        throws AccessDeniedException
     {
         return unplace(
             new AutoUnselectorConfig.CfgBuilder(rscDfnRef)
                 .setFilterForFixedResources(fixedResources)
-                .build(apiAccCtx)
+                .build()
         );
     }
 
@@ -94,173 +87,163 @@ public class AutoUnplacer
         // in the end, select the X resources with the highest score (X being the number of resources we should
         // unselect)
 
-        try
+        ResourceDefinition rscDfn = cfgRef.getRscDfn();
+        ResourceName rscName = rscDfn.getName();
+        errorReporter.logTrace("AutoUnplacer: Finding resource to unplace for '%s'", rscName.displayValue);
+
+        Map<Resource, Long> unplaceScore = initializeUnplaceScoreMap(cfgRef, rscDfn);
+
+        if (!unplaceScore.isEmpty())
         {
-            ResourceDefinition rscDfn = cfgRef.getRscDfn();
-            ResourceName rscName = rscDfn.getName();
-            errorReporter.logTrace("AutoUnplacer: Finding resource to unplace for '%s'", rscName.displayValue);
+            AutoSelectorConfig autoPlaceConfig = rscDfn.getResourceGroup().getAutoPlaceConfig();
 
-            Map<Resource, Long> unplaceScore = initializeUnplaceScoreMap(cfgRef, rscDfn);
+            @Nullable List<String> replicasOnSame = autoPlaceConfig.getReplicasOnSameList();
+            @Nullable List<String> replicasOnDifferent = autoPlaceConfig.getReplicasOnDifferentList();
+            @Nullable Map<String, Integer> xReplicasOnDifferent = autoPlaceConfig.getXReplicasOnDifferentMap();
+            @Nullable List<String> doNotPlaceWithRscList = autoPlaceConfig.getDoNotPlaceWithRscList();
+            @Nullable String doNotPlaceWithRscRegex = autoPlaceConfig.getDoNotPlaceWithRscRegex();
+            // looks weird, but just in case someone changed RG's preferred layer stack, LINSTOR could focus on
+            // getting
+            // rid of the resource stack with the older layer-stack
+            @Nullable List<DeviceLayerKind> layerStackList = autoPlaceConfig.getLayerStackList();
+            @Nullable List<String> nodeNameList = autoPlaceConfig.getNodeNameList();
+            @Nullable List<DeviceProviderKind> providerList = autoPlaceConfig.getProviderList();
+            @Nullable List<String> storPoolNameList = autoPlaceConfig.getStorPoolNameList();
 
-            if (!unplaceScore.isEmpty())
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
+
+            List<Node> alreadyDeployedNodes = new ArrayList<>();
+            while (rscIt.hasNext())
             {
-                AutoSelectorConfig autoPlaceConfig = rscDfn.getResourceGroup().getAutoPlaceConfig();
+                Resource rsc = rscIt.next();
+                alreadyDeployedNodes.add(rsc.getNode());
+            }
 
-                @Nullable List<String> replicasOnSame = autoPlaceConfig.getReplicasOnSameList(apiAccCtx);
-                @Nullable List<String> replicasOnDifferent = autoPlaceConfig.getReplicasOnDifferentList(apiAccCtx);
-                @Nullable Map<String, Integer> xReplicasOnDifferent = autoPlaceConfig.getXReplicasOnDifferentMap(
-                    apiAccCtx
+            HashMap<String, Map<String, Integer>> xReplicasOnDiffMapWithValues = SelectionManager
+                .calcCurrentXReplicasOnDiffMap(
+                    xReplicasOnDifferent,
+                    replicasOnDifferent,
+                    alreadyDeployedNodes,
+                    null,
+                    true
                 );
-                @Nullable List<String> doNotPlaceWithRscList = autoPlaceConfig.getDoNotPlaceWithRscList(apiAccCtx);
-                @Nullable String doNotPlaceWithRscRegex = autoPlaceConfig.getDoNotPlaceWithRscRegex(apiAccCtx);
-                // looks weird, but just in case someone changed RG's preferred layer stack, LINSTOR could focus on
-                // getting
-                // rid of the resource stack with the older layer-stack
-                @Nullable List<DeviceLayerKind> layerStackList = autoPlaceConfig.getLayerStackList(apiAccCtx);
-                @Nullable List<String> nodeNameList = autoPlaceConfig.getNodeNameList(apiAccCtx);
-                @Nullable List<DeviceProviderKind> providerList = autoPlaceConfig.getProviderList(apiAccCtx);
-                @Nullable List<String> storPoolNameList = autoPlaceConfig.getStorPoolNameList(apiAccCtx);
 
-                Iterator<Resource> rscIt = rscDfn.iterateResource(apiAccCtx);
+            var onlineNodeIds = CtrlRscCrtApiHelper.getOnlineNodeIds(rscDfn);
 
-                List<Node> alreadyDeployedNodes = new ArrayList<>();
-                while (rscIt.hasNext())
+            final Resource[] rscArr = unplaceScore.keySet().toArray(size -> new Resource[size]);
+            for (int idx1 = 0; idx1 < rscArr.length; idx1++)
+            {
+                final Resource rsc1 = rscArr[idx1];
+                final Node node1 = rsc1.getNode();
+                final ReadOnlyProps node1Props = node1.getReadOnlyProps();
+
+                int soloRating = 0;
+
+                errorReporter.logTrace("AutoUnplacer: Checking violation count for   '%s'", rsc1);
+
+                soloRating += getViolationsCountDoNotPlaceWith(
+                    doNotPlaceWithRscList,
+                    doNotPlaceWithRscRegex,
+                    node1
+                );
+                soloRating += getViolationsCountLayerStack(layerStackList, rsc1);
+                soloRating += getViolationsCountNodeNameList(nodeNameList, rsc1);
+                soloRating += getViolationsCounthandleProvider(providerList, rsc1);
+                soloRating += getViolationsCountStorPoolName(storPoolNameList, rsc1);
+                soloRating += getViolationsCountReplicasOnDifferentWithValueList(replicasOnDifferent, node1Props);
+                soloRating += getViolationsCountReplicasOnSameWithValueList(replicasOnSame, node1Props);
+                soloRating += getViolationsCountXReplicasOnDifferentMap(xReplicasOnDiffMapWithValues, node1Props);
+
+                @Nullable Peer peer1 = node1.getPeer();
+                if (peer1 != null)
                 {
-                    Resource rsc = rscIt.next();
-                    alreadyDeployedNodes.add(rsc.getNode());
-                }
-
-                HashMap<String, Map<String, Integer>> xReplicasOnDiffMapWithValues = SelectionManager
-                    .calcCurrentXReplicasOnDiffMap(
-                        apiAccCtx,
-                        xReplicasOnDifferent,
-                        replicasOnDifferent,
-                        alreadyDeployedNodes,
-                        null,
-                        true
-                    );
-
-                var onlineNodeIds = CtrlRscCrtApiHelper.getOnlineNodeIds(rscDfn, apiAccCtx);
-
-                final Resource[] rscArr = unplaceScore.keySet().toArray(size -> new Resource[size]);
-                for (int idx1 = 0; idx1 < rscArr.length; idx1++)
-                {
-                    final Resource rsc1 = rscArr[idx1];
-                    final Node node1 = rsc1.getNode();
-                    final ReadOnlyProps node1Props = node1.getReadOnlyProps(apiAccCtx);
-
-                    int soloRating = 0;
-
-                    errorReporter.logTrace("AutoUnplacer: Checking violation count for   '%s'", rsc1);
-
-                    soloRating += getViolationsCountDoNotPlaceWith(
-                        doNotPlaceWithRscList,
-                        doNotPlaceWithRscRegex,
-                        node1
-                    );
-                    soloRating += getViolationsCountLayerStack(layerStackList, rsc1);
-                    soloRating += getViolationsCountNodeNameList(nodeNameList, rsc1);
-                    soloRating += getViolationsCounthandleProvider(providerList, rsc1);
-                    soloRating += getViolationsCountStorPoolName(storPoolNameList, rsc1);
-                    soloRating += getViolationsCountReplicasOnDifferentWithValueList(replicasOnDifferent, node1Props);
-                    soloRating += getViolationsCountReplicasOnSameWithValueList(replicasOnSame, node1Props);
-                    soloRating += getViolationsCountXReplicasOnDifferentMap(xReplicasOnDiffMapWithValues, node1Props);
-
-                    @Nullable Peer peer1 = node1.getPeer(apiAccCtx);
-                    if (peer1 != null)
+                    @Nullable SatelliteState stltState = peer1.getSatelliteState();
+                    if (stltState != null)
                     {
-                        @Nullable SatelliteState stltState = peer1.getSatelliteState();
-                        if (stltState != null)
+                        @Nullable SatelliteResourceState stltRscState = stltState
+                            .getResourceStates()
+                            .get(rscName);
+                        if (stltRscState != null)
                         {
-                            @Nullable SatelliteResourceState stltRscState = stltState
-                                .getResourceStates()
-                                .get(rscName);
-                            if (stltRscState != null)
-                            {
-                                var onlineNodeIdsNotSelf = new HashMap<>(onlineNodeIds);
-                                onlineNodeIdsNotSelf.remove(rsc1);
+                            var onlineNodeIdsNotSelf = new HashMap<>(onlineNodeIds);
+                            onlineNodeIdsNotSelf.remove(rsc1);
 
-                                if (!stltRscState.allVolumesUpToDate())
-                                {
-                                    soloRating += 1;
-                                }
-                                if (!stltRscState.isReady(onlineNodeIdsNotSelf.values()))
-                                {
-                                    soloRating += 1;
-                                }
+                            if (!stltRscState.allVolumesUpToDate())
+                            {
+                                soloRating += 1;
+                            }
+                            if (!stltRscState.isReady(onlineNodeIdsNotSelf.values()))
+                            {
+                                soloRating += 1;
                             }
                         }
                     }
+                }
 
-                    // TODO: maybe add some weights for the different violation types?
-                    // TODO: make those weights configurable
+                // TODO: maybe add some weights for the different violation types?
+                // TODO: make those weights configurable
 
-                    add(unplaceScore, rsc1, soloRating);
+                add(unplaceScore, rsc1, soloRating);
 
-                    for (int idx2 = idx1 + 1; idx2 < rscArr.length; idx2++)
-                    {
-                        final Resource rsc2 = rscArr[idx2];
-                        final Node node2 = rsc2.getNode();
-                        final ReadOnlyProps node2Props = node2.getReadOnlyProps(apiAccCtx);
-                        int pairRating = 0;
+                for (int idx2 = idx1 + 1; idx2 < rscArr.length; idx2++)
+                {
+                    final Resource rsc2 = rscArr[idx2];
+                    final Node node2 = rsc2.getNode();
+                    final ReadOnlyProps node2Props = node2.getReadOnlyProps();
+                    int pairRating = 0;
 
-                        pairRating += getViolationsCountReplicasOnSameList(
-                            replicasOnSame,
-                            node1Props,
-                            node2Props
-                        );
-
-                        add(unplaceScore, rsc1, pairRating);
-                        add(unplaceScore, rsc2, pairRating);
-                    }
-                    long violationScore = unplaceScore.get(rsc1);
-                    errorReporter.logTrace(
-                        "AutoUnplacer: Score of %d from violations for '%s'",
-                        violationScore,
-                        rsc1
+                    pairRating += getViolationsCountReplicasOnSameList(
+                        replicasOnSame,
+                        node1Props,
+                        node2Props
                     );
+
+                    add(unplaceScore, rsc1, pairRating);
+                    add(unplaceScore, rsc2, pairRating);
                 }
+                long violationScore = unplaceScore.get(rsc1);
+                errorReporter.logTrace(
+                    "AutoUnplacer: Score of %d from violations for '%s'",
+                    violationScore,
+                    rsc1
+                );
+            }
 
 
-                Set<Resource> highestRatedResources = findResourceWithHighestScore(unplaceScore);
-                // currently we only want to return a single resource since deleting that resource could change some
-                // violations, for example XReplicasOnDifferent might change from a -1 value to a 0, which is allowed.
-                // the -1 would have caused multiple resources to be deleted. if that resource is deleted other
-                // violations might become more significant
+            Set<Resource> highestRatedResources = findResourceWithHighestScore(unplaceScore);
+            // currently we only want to return a single resource since deleting that resource could change some
+            // violations, for example XReplicasOnDifferent might change from a -1 value to a 0, which is allowed.
+            // the -1 would have caused multiple resources to be deleted. if that resource is deleted other
+            // violations might become more significant
 
-                if (highestRatedResources.size() > 1)
+            if (highestRatedResources.size() > 1)
+            {
+                Map<Resource, Double> spRatingByResource = getStorPoolRatingByResource(highestRatedResources);
+
+                Entry<Resource, Double> firstEntry = spRatingByResource.entrySet().iterator().next();
+
+                Resource lowestSpRatedRsc = firstEntry.getKey();
+                double lowestSpRating = firstEntry.getValue();
+                for (Map.Entry<Resource, Double> entry : spRatingByResource.entrySet())
                 {
-                    Map<Resource, Double> spRatingByResource = getStorPoolRatingByResource(highestRatedResources);
-
-                    Entry<Resource, Double> firstEntry = spRatingByResource.entrySet().iterator().next();
-
-                    Resource lowestSpRatedRsc = firstEntry.getKey();
-                    double lowestSpRating = firstEntry.getValue();
-                    for (Map.Entry<Resource, Double> entry : spRatingByResource.entrySet())
+                    double rating = entry.getValue();
+                    if (lowestSpRating > rating)
                     {
-                        double rating = entry.getValue();
-                        if (lowestSpRating > rating)
-                        {
-                            lowestSpRating = rating;
-                            lowestSpRatedRsc = entry.getKey();
-                        }
+                        lowestSpRating = rating;
+                        lowestSpRatedRsc = entry.getKey();
                     }
-                    ret = lowestSpRatedRsc;
                 }
-                else
-                {
-                    ret = highestRatedResources.iterator().next();
-                }
+                ret = lowestSpRatedRsc;
             }
             else
             {
-                // no resources to delete since all are in a state that does not allow unplacing...
-                ret = null;
+                ret = highestRatedResources.iterator().next();
             }
         }
-        catch (AccessDeniedException exc)
+        else
         {
-            throw new ImplementationError(exc);
+            // no resources to delete since all are in a state that does not allow unplacing...
+            ret = null;
         }
 
         if (ret != null)
@@ -275,13 +258,12 @@ public class AutoUnplacer
     }
 
     private Map<Resource, Double> getStorPoolRatingByResource(Set<Resource> highestRatedResourcesRef)
-        throws AccessDeniedException
     {
         Set<StorPool> allStorPoolList = new HashSet<>();
         Map<StorPool, Resource> spToRscLut = new HashMap<>();
         for (Resource rsc : highestRatedResourcesRef)
         {
-            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, apiAccCtx);
+            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc);
             for (StorPool sp : storPools)
             {
                 spToRscLut.put(sp, rsc);
@@ -336,9 +318,8 @@ public class AutoUnplacer
 
 
     private Map<Resource, Long> initializeUnplaceScoreMap(AutoUnselectorConfig cfgRef, ResourceDefinition rscDfn)
-        throws AccessDeniedException
     {
-        Iterator<Resource> rscIt = rscDfn.iterateResource(apiAccCtx);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
 
         Map<Resource, Long> unplaceRate = new TreeMap<>();
         while (rscIt.hasNext())
@@ -346,7 +327,7 @@ public class AutoUnplacer
             Resource rsc = rscIt.next();
 
             StateFlags<Flags> rscFlags = rsc.getStateFlags();
-            if (rscFlags.isSomeSet(apiAccCtx, Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
+            if (rscFlags.isSomeSet(Resource.Flags.DELETE, Resource.Flags.DRBD_DELETE))
             {
                 errorReporter.logTrace(
                     "AutoUnplacer: Not unplacing resource on node '%s': Resource is marked for deletion",
@@ -488,7 +469,6 @@ public class AutoUnplacer
         @Nullable String doNotPlaceWithRscRegexRef,
         Node nodeRef
     )
-        throws AccessDeniedException
     {
         int violations = 0;
         @Nullable Predicate<ResourceName> testCombined = null;
@@ -513,7 +493,7 @@ public class AutoUnplacer
 
         if (testCombined != null)
         {
-            violations = (int) nodeRef.streamResources(apiAccCtx)
+            violations = (int) nodeRef.streamResources()
                 .map(rsc -> rsc.getResourceDefinition().getName())
                 .filter(testCombined)
                 .count();
@@ -524,12 +504,11 @@ public class AutoUnplacer
     }
 
     private int getViolationsCountLayerStack(@Nullable List<DeviceLayerKind> expectedLayerStackListRef, Resource rscRef)
-        throws AccessDeniedException
     {
         int violations = 0;
         if (expectedLayerStackListRef != null && !expectedLayerStackListRef.isEmpty())
         {
-            List<DeviceLayerKind> layerStack = LayerRscUtils.getLayerStack(rscRef.getLayerData(apiAccCtx), apiAccCtx);
+            List<DeviceLayerKind> layerStack = LayerRscUtils.getLayerStack(rscRef.getLayerData());
             if (!layerStack.equals(expectedLayerStackListRef))
             {
                 violations = 1;
@@ -556,7 +535,6 @@ public class AutoUnplacer
     }
 
     private int getViolationsCounthandleProvider(@Nullable List<DeviceProviderKind> providerListRef, Resource rscRef)
-        throws AccessDeniedException
     {
         return genericSpCheck(
             providerListRef,
@@ -568,7 +546,6 @@ public class AutoUnplacer
     }
 
     private int getViolationsCountStorPoolName(@Nullable List<String> storPoolNameListRef, Resource rscRef)
-        throws AccessDeniedException
     {
         return genericSpCheck(
             storPoolNameListRef,
@@ -586,13 +563,12 @@ public class AutoUnplacer
         Function<StorPool, T> typeMapperRef,
         String logDescriptionRef
     )
-        throws AccessDeniedException
     {
         int violations = 0;
         if (expectedListRef != null && !expectedListRef.isEmpty())
         {
             List<T> mappedExpectedList = listMapperRef.apply(expectedListRef);
-            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rscRef, apiAccCtx);
+            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rscRef);
             for (StorPool sp : storPools)
             {
                 if (!mappedExpectedList.contains(typeMapperRef.apply(sp)))

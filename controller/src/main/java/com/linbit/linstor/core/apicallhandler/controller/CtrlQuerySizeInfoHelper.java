@@ -2,8 +2,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRcWith;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.api.pojo.AutoSelectFilterPojo;
@@ -19,8 +17,6 @@ import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.layer.storage.BlockSizeConsts;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.PairNonNull;
 
 import javax.inject.Inject;
@@ -41,8 +37,6 @@ public class CtrlQuerySizeInfoHelper
     private static final int SEC_TO_MS = 1000;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext sysAccCtx;
-    private final Provider<AccessContext> peerCtxProvider;
     private final Autoplacer autoplacer;
     private final StorPoolFilter storPoolFilter;
 
@@ -54,16 +48,12 @@ public class CtrlQuerySizeInfoHelper
     @Inject
     public CtrlQuerySizeInfoHelper(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext sysAccCtxRef,
-        @PeerContext Provider<AccessContext> peerCtxProviderRef,
         Autoplacer autoplacerRef,
         StorPoolFilter storPoolFilterRef,
         SystemConfRepository sysCfgRepoRef
     )
     {
         errorReporter = errorReporterRef;
-        sysAccCtx = sysAccCtxRef;
-        peerCtxProvider = peerCtxProviderRef;
         autoplacer = autoplacerRef;
         storPoolFilter = storPoolFilterRef;
         sysCfgRepo = sysCfgRepoRef;
@@ -77,7 +67,6 @@ public class CtrlQuerySizeInfoHelper
         AutoSelectFilterPojo selectCfgRef,
         Map<StorPool.Key, Long> thinFreeCapacitiesRef
     )
-        throws AccessDeniedException
     {
         /*
          * This is not a hack :)
@@ -119,7 +108,6 @@ public class CtrlQuerySizeInfoHelper
                     sp.getApiData(
                         null,
                         null,
-                        peerCtxProvider.get(),
                         null,
                         null,
                         FreeCapacityAutoPoolSelectorUtils.getFreeCapacityOversubscriptionRatioPrivileged(
@@ -175,14 +163,7 @@ public class CtrlQuerySizeInfoHelper
 
     private ReadOnlyProps getCtrlPropsPrivileged()
     {
-        try
-        {
-            return sysCfgRepo.getCtrlConfForView(sysAccCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return sysCfgRepo.getCtrlConfForView(sysAccCtx);
     }
 
     private long getAvailable(
@@ -255,13 +236,13 @@ public class CtrlQuerySizeInfoHelper
         return ret;
     }
 
-    private long getCapacity(int placeCountRef, List<StorPool> availableStorPoolListRef) throws AccessDeniedException
+    private long getCapacity(int placeCountRef, List<StorPool> availableStorPoolListRef)
     {
         AccessContext peerCtx = peerCtxProvider.get();
         ArrayList<Long> capacitySizes = new ArrayList<>();
         for (StorPool sp : availableStorPoolListRef)
         {
-            Optional<Long> optTotalCapacity = sp.getFreeSpaceTracker().getTotalCapacity(peerCtx);
+            Optional<Long> optTotalCapacity = sp.getFreeSpaceTracker().getTotalCapacity();
             if (optTotalCapacity.isPresent())
             {
                 capacitySizes.add(optTotalCapacity.get());

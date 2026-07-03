@@ -2,7 +2,6 @@ package com.linbit.linstor.layer;
 
 import com.linbit.exceptions.InvalidSizeException;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.StltConfigAccessor;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;
@@ -16,8 +15,6 @@ import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
@@ -39,27 +36,23 @@ public abstract class AbsLayerSizeCalculator<VLM_TYPE extends VlmProviderObject<
     @Singleton
     public static class AbsLayerSizeCalculatorInit
     {
-        private final AccessContext sysCtx;
         private final ErrorReporter errorReporter;
         private final StltConfigAccessor stltCfgAccessor;
         private final Provider<LayerSizeHelper> layerSizeHelper;
 
         @Inject
         public AbsLayerSizeCalculatorInit(
-            @SystemContext AccessContext sysCtxRef,
             ErrorReporter errorReporterRef,
             StltConfigAccessor stltCfgAccessorRef,
             Provider<LayerSizeHelper> layerSizeHelperProviderRef
         )
         {
-            sysCtx = sysCtxRef;
             errorReporter = errorReporterRef;
             stltCfgAccessor = stltCfgAccessorRef;
             layerSizeHelper = layerSizeHelperProviderRef;
         }
     }
 
-    protected final AccessContext sysCtx;
     protected final DeviceLayerKind kind;
     protected final ReadOnlyProps stltProps;
     protected final ErrorReporter errorReporter;
@@ -97,7 +90,7 @@ public abstract class AbsLayerSizeCalculator<VLM_TYPE extends VlmProviderObject<
      *
      */
     public final void updateAllocatedSizeFromUsableSize(VlmProviderObject<?> vlmDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         AbsLayerSizeCalculator<VlmProviderObject<?>> sizeCalc = getLayerSizeCalculator(vlmDataRef);
         String suffixedRscName = vlmDataRef.getRscLayerObject().getSuffixedResourceName();
@@ -130,7 +123,7 @@ public abstract class AbsLayerSizeCalculator<VLM_TYPE extends VlmProviderObject<
      *
      */
     public final void updateUsableSizeFromAllocatedSize(VlmProviderObject<?> vlmDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         AbsLayerSizeCalculator<VlmProviderObject<?>> sizeCalc = getLayerSizeCalculator(vlmDataRef);
         String kindName = sizeCalc.kind.name();
@@ -171,7 +164,7 @@ public abstract class AbsLayerSizeCalculator<VLM_TYPE extends VlmProviderObject<
      *
      *
      */
-    protected PriorityProps getPrioProps(AbsVolume<?> vlmRef) throws AccessDeniedException
+    protected PriorityProps getPrioProps(AbsVolume<?> vlmRef)
     {
         VolumeDefinition vlmDfn = vlmRef.getVolumeDefinition();
         ResourceDefinition rscDfn = vlmRef.getResourceDefinition();
@@ -180,20 +173,20 @@ public abstract class AbsLayerSizeCalculator<VLM_TYPE extends VlmProviderObject<
         AbsResource<?> absRsc = vlmRef.getAbsResource();
         if (vlmRef instanceof Volume)
         {
-            absRscProps = ((Resource) absRsc).getProps(sysCtx);
+            absRscProps = ((Resource) absRsc).getProps();
         }
         else
         {
-            absRscProps = ((Snapshot) absRsc).getRscProps(sysCtx);
+            absRscProps = ((Snapshot) absRsc).getRscProps();
         }
         Node node = absRsc.getNode();
         return new PriorityProps(
-            vlmDfn.getProps(sysCtx),
-            rscGrp.getVolumeGroupProps(sysCtx, vlmDfn.getVolumeNumber()),
+            vlmDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
             absRscProps,
-            rscDfn.getProps(sysCtx),
-            rscGrp.getProps(sysCtx),
-            node.getProps(sysCtx),
+            rscDfn.getProps(),
+            rscGrp.getProps(),
+            node.getProps(),
             stltProps
         );
     }
@@ -206,7 +199,7 @@ public abstract class AbsLayerSizeCalculator<VLM_TYPE extends VlmProviderObject<
      *
      */
     protected abstract void updateAllocatedSizeFromUsableSizeImpl(VLM_TYPE vlmData)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException;
+        throws DatabaseException, InvalidSizeException;
 
     /**
      * The layer implementing this method can assume that its allocated size is already set.
@@ -217,5 +210,5 @@ public abstract class AbsLayerSizeCalculator<VLM_TYPE extends VlmProviderObject<
      *
      */
     protected abstract void updateUsableSizeFromAllocatedSizeImpl(VLM_TYPE vlmData)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException;
+        throws DatabaseException, InvalidSizeException;
 }

@@ -7,9 +7,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDatabaseDriver;
 import com.linbit.linstor.layer.snapshot.CtrlSnapLayerDataFactory;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -49,17 +46,15 @@ public class SnapshotControllerFactory
     }
 
     public Snapshot create(
-        AccessContext accCtx,
         Resource rsc,
         SnapshotDefinition snapshotDfn,
         Snapshot.Flags[] initFlags
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        snapshotDfn.getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.USE);
 
         Node node = rsc.getNode();
-        Snapshot snapshot = snapshotDfn.getSnapshot(accCtx, node.getName());
+        Snapshot snapshot = snapshotDfn.getSnapshot(node.getName());
 
         if (snapshot != null)
         {
@@ -80,8 +75,8 @@ public class SnapshotControllerFactory
         );
 
         driver.create(snapshot);
-        snapshotDfn.addSnapshot(accCtx, snapshot);
-        node.addSnapshot(accCtx, snapshot);
+        snapshotDfn.addSnapshot(snapshot);
+        node.addSnapshot(snapshot);
 
         snapLayerFactory.copyLayerData(rsc, snapshot);
 
@@ -89,18 +84,16 @@ public class SnapshotControllerFactory
     }
 
     public Snapshot restore(
-        AccessContext accCtx,
         RscLayerDataApi layerData,
         Node node,
         SnapshotDefinition snapDfn,
         Snapshot.Flags[] initFlags,
         Map<String, String> renameStorPoolMap,
         @Nullable ApiCallRc apiCallRc
-    ) throws LinStorDataAlreadyExistsException, DatabaseException, AccessDeniedException
+    ) throws LinStorDataAlreadyExistsException, DatabaseException
     {
-        snapDfn.getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.USE);
 
-        Snapshot snapshot = snapDfn.getSnapshot(accCtx, node.getName());
+        Snapshot snapshot = snapDfn.getSnapshot(node.getName());
 
         if (snapshot != null)
         {
@@ -121,8 +114,8 @@ public class SnapshotControllerFactory
         );
 
         driver.create(snapshot);
-        snapDfn.addSnapshot(accCtx, snapshot);
-        node.addSnapshot(accCtx, snapshot);
+        snapDfn.addSnapshot(snapshot);
+        node.addSnapshot(snapshot);
 
         snapLayerFactory.restoreLayerData(layerData, snapshot, renameStorPoolMap, apiCallRc);
 

@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -13,7 +12,6 @@ import com.linbit.linstor.core.BackupInfoManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -44,8 +42,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
@@ -89,7 +85,6 @@ public class CtrlSnapshotRestoreApiCallHandler
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlRscAutoHelper autoHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
@@ -108,7 +103,6 @@ public class CtrlSnapshotRestoreApiCallHandler
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlRscAutoHelper ctrlRscAutoHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
@@ -126,7 +120,6 @@ public class CtrlSnapshotRestoreApiCallHandler
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         lockGuardFactory = lockGuardFactoryRef;
         autoHelper = ctrlRscAutoHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
@@ -291,7 +284,7 @@ public class CtrlSnapshotRestoreApiCallHandler
                 ));
             }
 
-            if (BackupShippingUtils.isAnyShippingInProgress(fromSnapshotDfn, peerAccCtx.get()))
+            if (BackupShippingUtils.isAnyShippingInProgress(fromSnapshotDfn))
             {
                 throw new ApiRcException(
                     ApiCallRcImpl.simpleEntry(
@@ -323,7 +316,7 @@ public class CtrlSnapshotRestoreApiCallHandler
 
             if (nodeNameStrs.isEmpty())
             {
-                for (Snapshot snapshot : fromSnapshotDfn.getAllSnapshots(peerAccCtx.get()))
+                for (Snapshot snapshot : fromSnapshotDfn.getAllSnapshots())
                 {
                     restoredResources.add(
                         restoreOnNode(
@@ -355,7 +348,7 @@ public class CtrlSnapshotRestoreApiCallHandler
                 while (vlmIt.hasNext())
                 {
                     Volume vlm = vlmIt.next();
-                    vlm.getProps(peerAccCtx.get()).removeNamespace(
+                    vlm.getProps().removeNamespace(
                         ApiConsts.NAMESPC_STLT + "/" + ApiConsts.NAMESPC_EBS
                     );
                 }
@@ -366,11 +359,11 @@ public class CtrlSnapshotRestoreApiCallHandler
             checkDrbdInitializedState(toRscDfn);
 
             Flux<ApiCallRc> balanceFlux = ctrlRscAutoBalanceHelper.balanceAfterOperation(
-                toRscDfn, peerAccCtx.get(), ApiConsts.KEY_BALANCE_AFTER_RESTORE, ApiConsts.NAMESPC_SNAPSHOT);
+                toRscDfn, ApiConsts.KEY_BALANCE_AFTER_RESTORE, ApiConsts.NAMESPC_SNAPSHOT);
 
             ctrlTransactionHelper.commit();
 
-            if (toRscDfn.getVolumeDfnCount(peerAccCtx.get()) == 0)
+            if (toRscDfn.getVolumeDfnCount() == 0)
             {
                 responseConverter.addWithDetail(responses, context, ApiCallRcImpl
                     .entryBuilder(
@@ -395,7 +388,7 @@ public class CtrlSnapshotRestoreApiCallHandler
                         "from resource '" + fromRscName + "', snapshot '" + fromSnapshotName + "'."
                 )
                 .setDetails("Resource UUIDs: " +
-                    toRscDfn.streamResource(peerAccCtx.get())
+                    toRscDfn.streamResource()
                         .map(Resource::getUuid)
                         .map(UUID::toString)
                         .collect(Collectors.joining(", ")))
@@ -460,28 +453,28 @@ public class CtrlSnapshotRestoreApiCallHandler
      * therefore the restored VolumeDefinition will also not have the DRBD_INITIALIZED flag set, although it
      * refers to a device with healthy and UpToDate metadata. To fix this issue we simply set the flag in this case.</p>
      */
-    private void checkDrbdInitializedState(ResourceDefinition rscDfnRef) throws AccessDeniedException
+    private void checkDrbdInitializedState(ResourceDefinition rscDfnRef)
     {
         AccessContext accCtx = peerAccCtx.get();
-        if (rscDfnRef.getDiskfulCount(accCtx) > 0)
+        if (rscDfnRef.getDiskfulCount() > 0)
         {
-            String winnerNodeName = rscDfnRef.getDiskfulResources(accCtx).get(0).getNode().getName().value;
-            boolean uninitializeDrbd = DrbdLayerUtils.isForceInitialSyncSet(accCtx, rscDfnRef);
-            Iterator<VolumeDefinition> vlmDfnIt = rscDfnRef.iterateVolumeDfn(accCtx);
+            String winnerNodeName = rscDfnRef.getDiskfulResources().get(0).getNode().getName().value;
+            boolean uninitializeDrbd = DrbdLayerUtils.isForceInitialSyncSet(rscDfnRef);
+            Iterator<VolumeDefinition> vlmDfnIt = rscDfnRef.iterateVolumeDfn();
             while (vlmDfnIt.hasNext())
             {
                 VolumeDefinition vlmDfn = vlmDfnIt.next();
                 try
                 {
-                    vlmDfn.getProps(accCtx)
+                    vlmDfn.getProps()
                         .setProp(InternalApiConsts.KEY_LINSTOR_DRBD_INITIAL_UPTODATE_ON, winnerNodeName);
                     if (uninitializeDrbd)
                     {
-                        vlmDfn.getFlags().disableFlags(accCtx, VolumeDefinition.Flags.DRBD_INITIALIZED);
+                        vlmDfn.getFlags().disableFlags(VolumeDefinition.Flags.DRBD_INITIALIZED);
                     }
                     else
                     {
-                        vlmDfn.getFlags().enableFlags(accCtx, VolumeDefinition.Flags.DRBD_INITIALIZED);
+                        vlmDfn.getFlags().enableFlags(VolumeDefinition.Flags.DRBD_INITIALIZED);
                     }
                 }
                 catch (InvalidKeyException | InvalidValueException exc)
@@ -537,15 +530,7 @@ public class CtrlSnapshotRestoreApiCallHandler
     {
         try
         {
-            rscDfn.getFlags().disableFlags(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "setting resource-definition flags",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
+            rscDfn.getFlags().disableFlags(flags);
         }
         catch (DatabaseException exc)
         {
@@ -576,20 +561,12 @@ public class CtrlSnapshotRestoreApiCallHandler
                 while (iterateVolumes.hasNext())
                 {
                     Volume vlm = iterateVolumes.next();
-                    Props props = vlm.getProps(peerCtx);
+                    Props props = vlm.getProps();
                     props.removeProp(ApiConsts.KEY_VLM_RESTORE_FROM_RESOURCE);
                     props.removeProp(ApiConsts.KEY_VLM_RESTORE_FROM_SNAPSHOT);
                 }
             }
             ctrlTransactionHelper.commit();
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "access volume properties",
-                ApiConsts.FAIL_ACC_DENIED_VLM
-            );
         }
         catch (DatabaseException exc)
         {
@@ -606,7 +583,7 @@ public class CtrlSnapshotRestoreApiCallHandler
         Map<String, String> renameStorPoolMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws AccessDeniedException, InvalidKeyException, InvalidValueException, DatabaseException
+        throws InvalidKeyException, InvalidValueException, DatabaseException
     {
         Snapshot snapshot = ctrlApiDataLoader.loadSnapshot(node, fromSnapshotDfn);
 
@@ -626,7 +603,7 @@ public class CtrlSnapshotRestoreApiCallHandler
             ctrlPropsHelper.getProps(rsc)
         );
         StateFlags<Flags> rscFlags = rsc.getStateFlags();
-        rscFlags.enableFlags(peerAccCtx.get(), Resource.Flags.RESTORE_FROM_SNAPSHOT);
+        rscFlags.enableFlags(Resource.Flags.RESTORE_FROM_SNAPSHOT);
 
         Iterator<VolumeDefinition> toVlmDfnIter = ctrlRscCrtApiHelper.getVlmDfnIterator(toRscDfn);
         while (toVlmDfnIter.hasNext())
@@ -635,7 +612,7 @@ public class CtrlSnapshotRestoreApiCallHandler
             VolumeNumber volumeNumber = toVlmDfn.getVolumeNumber();
 
             SnapshotVolumeDefinition fromSnapshotVlmDfn =
-                fromSnapshotDfn.getSnapshotVolumeDefinition(peerAccCtx.get(), volumeNumber);
+                fromSnapshotDfn.getSnapshotVolumeDefinition(volumeNumber);
 
             if (fromSnapshotVlmDfn == null)
             {
@@ -653,8 +630,8 @@ public class CtrlSnapshotRestoreApiCallHandler
                 );
             }
 
-            long snapshotVolumeSize = fromSnapshotVlmDfn.getVolumeSize(peerAccCtx.get());
-            long requiredVolumeSize = toVlmDfn.getVolumeSize(peerAccCtx.get());
+            long snapshotVolumeSize = fromSnapshotVlmDfn.getVolumeSize();
+            long requiredVolumeSize = toVlmDfn.getVolumeSize();
             if (snapshotVolumeSize != requiredVolumeSize)
             {
                 throw new ApiRcException(ApiCallRcImpl.simpleEntry(
@@ -672,7 +649,7 @@ public class CtrlSnapshotRestoreApiCallHandler
                 throw new ImplementationError("Expected snapshot volume missing");
             }
 
-            Map<String, StorPool> storPool = LayerVlmUtils.getStorPoolMap(snapshot, volumeNumber, peerAccCtx.get());
+            Map<String, StorPool> storPool = LayerVlmUtils.getStorPoolMap(snapshot, volumeNumber);
             LayerPayload payload = new LayerPayload();
             for (Entry<String, StorPool> storPoolEntry : storPool.entrySet())
             {
@@ -705,26 +682,25 @@ public class CtrlSnapshotRestoreApiCallHandler
             );
         }
         Set<AbsRscLayerObject<Resource>> drbdLayers = LayerRscUtils.getRscDataByLayer(
-            rsc.getLayerData(peerAccCtx.get()),
+            rsc.getLayerData(),
             DeviceLayerKind.DRBD
         );
         boolean forceInitSync = false;
         for (AbsRscLayerObject<Resource> layer : drbdLayers)
         {
             DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) layer;
-            if (DrbdLayerUtils.isForceInitialSyncSet(peerAccCtx.get(), drbdRscData))
+            if (DrbdLayerUtils.isForceInitialSyncSet(drbdRscData))
             {
                 forceInitSync = true;
-                drbdRscData.getFlags().disableFlags(peerAccCtx.get(), DrbdRscFlags.INITIALIZED);
+                drbdRscData.getFlags().disableFlags(DrbdRscFlags.INITIALIZED);
                 drbdRscData.getFlags().enableFlags(
-                    peerAccCtx.get(),
                     DrbdRscFlags.FROM_BACKUP, DrbdRscFlags.FORCE_NEW_METADATA
                 );
             }
         }
         if (forceInitSync)
         {
-            rsc.getResourceDefinition().getProps(peerAccCtx.get()).removeProp(InternalApiConsts.DEPRECATED_PROP_PRIMARY_SET);
+            rsc.getResourceDefinition().getProps().removeProp(InternalApiConsts.DEPRECATED_PROP_PRIMARY_SET);
         }
         unsetFlags(toRscDfn, ResourceDefinition.Flags.RESTORE_TARGET);
 

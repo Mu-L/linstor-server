@@ -8,7 +8,6 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
 
 import java.util.Map;
 
@@ -33,7 +32,6 @@ public class ResponseUtils
         boolean skipErrorReport,
         ApiCallRcImpl apiCallRcRef,
         ErrorReporter errorReporter,
-        AccessContext accCtx,
         Peer peer
     )
     {
@@ -48,7 +46,6 @@ public class ResponseUtils
             skipErrorReport,
             apiCallRcRef,
             errorReporter,
-            accCtx,
             peer
         );
     }
@@ -70,7 +67,6 @@ public class ResponseUtils
         boolean skipErrorReport,
         ApiCallRcImpl apiCallRcRef,
         ErrorReporter errorReporter,
-        AccessContext accCtx,
         Peer peer
     )
     {
@@ -84,7 +80,6 @@ public class ResponseUtils
         {
             errorId = errorReporter.reportError(
                 throwable,
-                accCtx,
                 peer,
                 errorMsg
             );
@@ -176,7 +171,7 @@ public class ResponseUtils
         }
     }
 
-    public static String getAccDeniedMsg(AccessContext accCtx, String action)
+    public static String getAccDeniedMsg(String action)
     {
         return String.format("Identity '%s' using role: '%s' is not authorized to %s.",
             accCtx.subjectId.name.displayValue,

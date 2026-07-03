@@ -6,7 +6,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -86,7 +85,6 @@ public class CmdDisplayConfValue extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
@@ -103,7 +101,7 @@ public class CmdDisplayConfValue extends BaseDebugCmd
             confLock.readLock().lock();
             try
             {
-                @Nullable ReadOnlyProps searchRoot = systemConfRepository.getCtrlConfForView(accCtx);
+                @Nullable ReadOnlyProps searchRoot = systemConfRepository.getCtrlConfForView();
                 if (prmNamespace != null)
                 {
                     searchRoot = searchRoot.getNamespace(prmNamespace);

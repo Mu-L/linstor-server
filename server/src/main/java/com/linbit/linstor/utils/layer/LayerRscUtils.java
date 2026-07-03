@@ -2,8 +2,6 @@ package com.linbit.linstor.utils.layer;
 
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.Resource;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -59,14 +57,12 @@ public class LayerRscUtils
         return rscLayerObjects;
     }
 
-    public static List<DeviceLayerKind> getLayerStack(Resource rscRef, AccessContext accCtx)
-        throws AccessDeniedException
+    public static List<DeviceLayerKind> getLayerStack(Resource rscRef)
     {
-        return getLayerStack(rscRef.getLayerData(accCtx), accCtx);
+        return getLayerStack(rscRef.getLayerData());
     }
 
-    public static List<DeviceLayerKind> getLayerStack(AbsRscLayerObject<?> rootLayerObject, AccessContext accCtx)
-        throws AccessDeniedException
+    public static List<DeviceLayerKind> getLayerStack(AbsRscLayerObject<?> rootLayerObject)
     {
         List<DeviceLayerKind> ret = new ArrayList<>();
         AbsRscLayerObject<?> layerData = rootLayerObject;

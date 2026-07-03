@@ -4,7 +4,6 @@ import javax.inject.Inject;
 import java.io.PrintStream;
 import java.util.Map;
 
-import com.linbit.linstor.security.AccessContext;
 
 /**
  * Displays information about the module's threads (Controller or Satellite)
@@ -34,7 +33,6 @@ public class CmdDisplayThreads extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     ) throws Exception
     {

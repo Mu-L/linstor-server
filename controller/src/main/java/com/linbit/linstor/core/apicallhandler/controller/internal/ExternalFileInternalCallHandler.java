@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.ExternalFileName;
@@ -11,8 +10,6 @@ import com.linbit.linstor.core.objects.ExternalFile;
 import com.linbit.linstor.core.repository.ExternalFileRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 
 import javax.inject.Inject;
@@ -25,7 +22,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 public class ExternalFileInternalCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ExternalFileRepository externalFileRepo;
     private final CtrlStltSerializer ctrlStltSerializer;
     private final Provider<Peer> peer;
@@ -35,7 +31,6 @@ public class ExternalFileInternalCallHandler
     @Inject
     public ExternalFileInternalCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         ExternalFileRepository externalFileRepoRef,
         CtrlStltSerializer ctrlStltSerializerRef,
         Provider<Peer> peerRef,
@@ -43,7 +38,6 @@ public class ExternalFileInternalCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         externalFileRepo = externalFileRepoRef;
         ctrlStltSerializer = ctrlStltSerializerRef;
         peer = peerRef;
@@ -66,7 +60,7 @@ public class ExternalFileInternalCallHandler
             long fullSyncId = currentPeer.getFullSyncId();
             long updateId = currentPeer.getNextSerializerId();
 
-            ExternalFile extFile = externalFileRepo.get(apiCtx, extFileName);
+            ExternalFile extFile = externalFileRepo.get(extFileName);
             if (extFile != null)
             {
                 if (!extFile.getUuid().equals(extFileUuidRef))

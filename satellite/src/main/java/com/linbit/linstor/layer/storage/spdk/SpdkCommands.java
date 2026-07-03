@@ -1,6 +1,5 @@
 package com.linbit.linstor.layer.storage.spdk;
 
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 
 import java.util.Iterator;
@@ -15,26 +14,26 @@ public interface SpdkCommands<T>
         long size,
         String... additionalParameters
     )
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 
-    T resize(String volumeGroupRef, String vlmIdRef, long sizeRef) throws StorageException, AccessDeniedException;
+    T resize(String volumeGroupRef, String vlmIdRef, long sizeRef) throws StorageException;
 
     T rename(String volumeGroupRef, String vlmCurrentIdRef, String vlmNewIdRef)
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 
-    T delete(String volumeGroupRef, String vlmIdRef) throws StorageException, AccessDeniedException;
+    T delete(String volumeGroupRef, String vlmIdRef) throws StorageException;
 
-    void ensureTransportExists(String typeRef) throws StorageException, AccessDeniedException;
+    void ensureTransportExists(String typeRef) throws StorageException;
 
-    T lvs() throws StorageException, AccessDeniedException;
+    T lvs() throws StorageException;
 
-    T getLvolStores() throws StorageException, AccessDeniedException;
+    T getLvolStores() throws StorageException;
 
-    T lvsByName(String nameRef) throws StorageException, AccessDeniedException;
+    T lvsByName(String nameRef) throws StorageException;
 
-    T getNvmfSubsystems() throws StorageException, AccessDeniedException;
+    T getNvmfSubsystems() throws StorageException;
 
-    T nvmSubsystemCreate(String subsystemNameRef) throws StorageException, AccessDeniedException;
+    T nvmSubsystemCreate(String subsystemNameRef) throws StorageException;
 
     T nvmfSubsystemAddListener(
         String subsystemNameRef,
@@ -43,24 +42,24 @@ public interface SpdkCommands<T>
         String stringRef,
         String portRef
     )
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 
-    T nvmfSubsystemAddNs(String subsystemNameRef, String stringRef) throws StorageException, AccessDeniedException;
+    T nvmfSubsystemAddNs(String subsystemNameRef, String stringRef) throws StorageException;
 
-    T nvmfDeleteSubsystem(String subsystemNameRef) throws StorageException, AccessDeniedException;
+    T nvmfDeleteSubsystem(String subsystemNameRef) throws StorageException;
 
     T nvmfSubsystemRemoveNamespace(String subsystemNameRef, int namespaceNrRef)
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 
-    Iterator<JsonNode> getJsonElements(T data) throws StorageException, AccessDeniedException;
+    Iterator<JsonNode> getJsonElements(T data) throws StorageException;
 
-    T createSnapshot(String fullQualifiedVlmId, String snapName) throws StorageException, AccessDeniedException;
+    T createSnapshot(String fullQualifiedVlmId, String snapName) throws StorageException;
 
     T restoreSnapshot(String fullQualifiedSnapId, String newVlmId)
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 
-    T decoupleParent(String fullQualifiedIdentifierRef) throws StorageException, AccessDeniedException;
+    T decoupleParent(String fullQualifiedIdentifierRef) throws StorageException;
 
     T clone(String fullQualifiedSourceSnapNameRef, String lvTargetIdRef)
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 }

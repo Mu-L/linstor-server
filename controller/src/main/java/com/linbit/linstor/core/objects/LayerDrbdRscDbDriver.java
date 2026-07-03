@@ -7,7 +7,6 @@ import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -23,8 +22,6 @@ import com.linbit.linstor.dbdrivers.interfaces.LayerResourceIdDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.CollectionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscDfnData;
@@ -63,7 +60,6 @@ public class LayerDrbdRscDbDriver
 
     @Inject
     public LayerDrbdRscDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         LayerResourceIdDatabaseDriver rscLayerIdDriverRef,
@@ -75,7 +71,6 @@ public class LayerDrbdRscDbDriver
     )
     {
         super(
-            dbCtxRef,
             errorReporterRef,
             GeneratedDatabaseTables.LAYER_DRBD_RESOURCES,
             LayerDrbdResources.LAYER_RESOURCE_ID,
@@ -97,7 +92,7 @@ public class LayerDrbdRscDbDriver
         );
         setColumnSetter(LayerDrbdResources.AL_STRIPES, DrbdRscData::getAlStripes);
         setColumnSetter(LayerDrbdResources.AL_STRIPE_SIZE, DrbdRscData::getAlStripeSize);
-        setColumnSetter(LayerDrbdResources.FLAGS, drbdData -> drbdData.getFlags().getFlagsBits(dbCtxRef));
+        setColumnSetter(LayerDrbdResources.FLAGS, drbdData -> drbdData.getFlags().getFlagsBits());
         setColumnSetter(LayerDrbdResources.NODE_ID, drbdData -> drbdData.getNodeId().value);
         setColumnSetter(LayerDrbdResources.TCP_PORT_LIST, this::tcpPortSetter);
 
@@ -167,7 +162,7 @@ public class LayerDrbdRscDbDriver
         RSC absRscRef
     )
         throws DatabaseException, InvalidNameException, ValueOutOfRangeException, InvalidIpAddressException,
-        MdException, AccessDeniedException
+        MdException
     {
         Set<AbsRscLayerObject<?>> typeErasedChildren;
         Map<VolumeNumber, DrbdVlmData<?>> typeErasedVlmMap;
@@ -231,7 +226,7 @@ public class LayerDrbdRscDbDriver
                     alStripes,
                     alStripeSize,
                     initFlags,
-                    absRscRef.getNode().getTcpPortPool(dbCtx),
+                    absRscRef.getNode().getTcpPortPool(),
                     this,
                     drbdVlmDriver,
                     transObjFactory,
@@ -266,7 +261,7 @@ public class LayerDrbdRscDbDriver
                     alStripes,
                     alStripeSize,
                     initFlags,
-                    absRscRef.getNode().getTcpPortPool(dbCtx),
+                    absRscRef.getNode().getTcpPortPool(),
                     this,
                     drbdVlmDriver,
                     transObjFactory,

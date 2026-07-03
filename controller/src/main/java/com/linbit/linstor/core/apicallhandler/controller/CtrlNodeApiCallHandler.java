@@ -10,9 +10,7 @@ import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcWith;
@@ -44,7 +42,6 @@ import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteU
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdater;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
 import com.linbit.linstor.core.apicallhandler.controller.utils.SatelliteResourceStateDrbdUtils;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -86,9 +83,6 @@ import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.proto.javainternal.s2c.MsgIntApplyConfigResponseOuterClass.MsgIntApplyConfigResponse;
 import com.linbit.linstor.range.Range;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -139,7 +133,6 @@ import reactor.util.function.Tuple2;
 @Singleton
 public class CtrlNodeApiCallHandler
 {
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -150,7 +143,6 @@ public class CtrlNodeApiCallHandler
     private final SatelliteConnector satelliteConnector;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final StorPoolHelper storPoolHelper;
     private final DynamicNumberPool specStltPortPool;
     private final SpecialSatelliteProcessManager specStltProcMgr;
@@ -178,7 +170,6 @@ public class CtrlNodeApiCallHandler
 
     @Inject
     public CtrlNodeApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -190,7 +181,6 @@ public class CtrlNodeApiCallHandler
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
         StorPoolHelper storPoolHelperRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         @Named(NumberPoolModule.SPECIAL_SATELLTE_PORT_POOL) DynamicNumberPool specStltTargetPortPoolRef,
         SpecialSatelliteProcessManager specStltTargetProcMgrRef,
         ReconnectorTask reconnectorTaskRef,
@@ -216,7 +206,6 @@ public class CtrlNodeApiCallHandler
         CopySnapsHelper copySnapsHelperRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -228,7 +217,6 @@ public class CtrlNodeApiCallHandler
         responseConverter = responseConverterRef;
         peer = peerRef;
         storPoolHelper = storPoolHelperRef;
-        peerAccCtx = peerAccCtxRef;
         specStltPortPool = specStltTargetPortPoolRef;
         specStltProcMgr = specStltTargetProcMgrRef;
         reconnectorTask = reconnectorTaskRef;
@@ -264,7 +252,6 @@ public class CtrlNodeApiCallHandler
         boolean startConnecting,
         boolean autoCommit
     )
-        throws AccessDeniedException
     {
         requireNodesMapChangeAccess();
         Node node = null;
@@ -317,7 +304,7 @@ public class CtrlNodeApiCallHandler
                     setActiveStltConn(node, netIf);
                 }
 
-                node.addNetInterface(peerAccCtx.get(), netIf);
+                node.addNetInterface(netIf);
             }
 
             if (getActiveStltConn(node) == null)
@@ -329,7 +316,7 @@ public class CtrlNodeApiCallHandler
             }
             else
             {
-                nodeRepository.put(apiCtx, nodeName, node);
+                nodeRepository.put(nodeName, node);
 
                 if (type.isDeviceProviderKindAllowed(DeviceProviderKind.DISKLESS))
                 {
@@ -358,7 +345,7 @@ public class CtrlNodeApiCallHandler
 
                 if (startConnecting)
                 {
-                    satelliteConnector.startConnecting(node, peerAccCtx.get());
+                    satelliteConnector.startConnecting(node);
                 }
             }
         }
@@ -455,15 +442,7 @@ public class CtrlNodeApiCallHandler
     {
         try
         {
-            node.setActiveStltConn(peerAccCtx.get(), netIf);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "set the current satellite connection of " + getNodeDescriptionInline(node),
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
+            node.setActiveStltConn(netIf);
         }
         catch (DatabaseException exc)
         {
@@ -474,18 +453,7 @@ public class CtrlNodeApiCallHandler
     private @Nullable NetInterface getActiveStltConn(Node node)
     {
         NetInterface netIf;
-        try
-        {
-            netIf = node.getActiveStltConn(peerAccCtx.get());
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "access the current satellite connection of " + getNodeDescriptionInline(node),
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        netIf = node.getActiveStltConn();
         return netIf;
     }
 
@@ -558,7 +526,7 @@ public class CtrlNodeApiCallHandler
             }
 
             Map<String, PropertyChangedListener> propsChangedListeners = propsChangeListenerBuilderProvider.get()
-                .buildPropsChangedListeners(peerAccCtx.get(), node, specialPropFluxes);
+                .buildPropsChangedListeners(node, specialPropFluxes);
 
             List<String> prefixesIgnoringWhitelistCheck = new ArrayList<>();
             prefixesIgnoringWhitelistCheck.add(ApiConsts.NAMESPC_EBS + "/" + ApiConsts.NAMESPC_TAGS + "/");
@@ -585,12 +553,12 @@ public class CtrlNodeApiCallHandler
 
             flux = flux.concatWith(checkProperties(apiCallRcs, node, overrideProps, deletePropKeys, deleteNamespaces));
 
-            NodeApi oldNodeData = node.getApiData(peerAccCtx.get(), null, null);
+            NodeApi oldNodeData = node.getApiData(null, null);
 
             ctrlTransactionHelper.commit();
 
             eventNodeHandlerBridge.triggerNodeModified(oldNodeData,
-                node.getApiData(peerAccCtx.get(), null, null));
+                node.getApiData(null, null));
 
             responseConverter.addWithOp(apiCallRcs, context, ApiSuccessUtils.defaultModifiedEntry(
                 node.getUuid(), getNodeDescriptionInline(node)));
@@ -601,7 +569,7 @@ public class CtrlNodeApiCallHandler
                     ctrlSatelliteUpdateCaller.updateSatellites(
                         node.getUuid(),
                         nodeName,
-                        findNodesToContact(apiCtx, node)
+                        findNodesToContact(node)
                     ).flatMap(updateTuple -> updateTuple == null ? Flux.empty() : updateTuple.getT2())
                 );
             }
@@ -655,11 +623,11 @@ public class CtrlNodeApiCallHandler
             for (String nodeStr : nodes)
             {
                 Node node = ctrlApiDataLoader.loadNode(new NodeName(nodeStr), true);
-                node.getPeer(apiCtx); // check for access
+                node.getPeer(); // check for access
 
-                if (!node.getFlags().isSet(apiCtx, Node.Flags.EVICTED))
+                if (!node.getFlags().isSet(Node.Flags.EVICTED))
                 {
-                    node.getPeer(apiCtx).closeConnection(false);
+                    node.getPeer().closeConnection(false);
                     waitForConnectFlux = waitForConnectFlux
                         .concatWith(ctrlNodeCrtApiCallHandlerProvider.get().connectNow(node));
                     reconNodes.add(nodeStr);
@@ -704,16 +672,16 @@ public class CtrlNodeApiCallHandler
 
         try
         {
-            nodeRepository.getMapForView(peerAccCtx.get()).values().stream()
+            nodeRepository.getMapForView().values().stream()
                 .filter(node -> RegexMatcher.matchesAny(nodesFilter, node.getName().displayValue))
                 .forEach(node ->
                     {
                         try
                         {
-                            final ReadOnlyProps props = node.getProps(peerAccCtx.get());
+                            final ReadOnlyProps props = node.getProps();
                             if (props.contains(propFilters))
                             {
-                                nodes.add(node.getApiData(peerAccCtx.get(), null, null));
+                                nodes.add(node.getApiData(null, null));
                             }
                         }
                         catch (AccessDeniedException accDeniedExc)
@@ -737,29 +705,10 @@ public class CtrlNodeApiCallHandler
         try
         {
             node = nodeFactory.create(
-                peerAccCtx.get(),
                 nodeName,
                 type,
                 new Node.Flags[0]
             );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            // accDeniedExc during creation means that an objectProtection already exists
-            // and gives no permission to the accCtx to access it.
-            // This means we have an existing objProt without corresponding Node --> exception
-            throw new ApiRcException(
-                ApiCallRcImpl.simpleEntry(
-                    ApiConsts.FAIL_ACC_DENIED_NODE,
-                    "ObjProt of non-existing Node denies access of registering the Node in question."
-                ),
-                new LinStorException(
-                    "An accessDeniedException occurred during creation of a node. That means the " +
-                        "ObjectProtection (of the non-existing Node) denied access to the node. " +
-                        "It is possible that someone has modified the database accordingly. Please " +
-                        "file a bug report otherwise.",
-                    accDeniedExc
-                ));
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
         {
@@ -808,20 +757,11 @@ public class CtrlNodeApiCallHandler
         try
         {
             netIf = netInterfaceFactory.create(
-                peerAccCtx.get(),
                 node,
                 netName,
                 addr,
                 port,
                 type
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register the netinterface '" + netName + "' on node '" + node.getName() + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
@@ -851,7 +791,7 @@ public class CtrlNodeApiCallHandler
         Node.Type nodeType = LinstorParsingUtils.asNodeType(nodeTypeStr);
         try
         {
-            Node.Type oldType = node.getNodeType(apiCtx);
+            Node.Type oldType = node.getNodeType();
 
             boolean allowed = true;
             if (oldType.isSpecial() != nodeType.isSpecial())
@@ -871,7 +811,7 @@ public class CtrlNodeApiCallHandler
                 );
             }
 
-            if (!node.streamStorPools(apiCtx)
+            if (!node.streamStorPools()
                 .map(StorPool::getDeviceProviderKind)
                 .allMatch(nodeType::isDeviceProviderKindAllowed)
             )
@@ -886,7 +826,7 @@ public class CtrlNodeApiCallHandler
                     .build()
                 );
             }
-            if (nodeType.isSpecial() && node.streamNetInterfaces(apiCtx).count() != 1)
+            if (nodeType.isSpecial() && node.streamNetInterfaces().count() != 1)
             {
                 throw new ApiRcException(
                     ApiCallRcImpl.entryBuilder(
@@ -900,9 +840,9 @@ public class CtrlNodeApiCallHandler
                 );
             }
 
-            NetInterface activeStltConn = node.getActiveStltConn(apiCtx);
-            EncryptionType stltConnEncryptionType = activeStltConn.getStltConnEncryptionType(apiCtx);
-            int currentStltPort = activeStltConn.getStltConnPort(apiCtx).value;
+            NetInterface activeStltConn = node.getActiveStltConn();
+            EncryptionType stltConnEncryptionType = activeStltConn.getStltConnEncryptionType();
+            int currentStltPort = activeStltConn.getStltConnPort().value;
 
             int newStltPort = currentStltPort;
             EncryptionType encrType = null;
@@ -949,7 +889,7 @@ public class CtrlNodeApiCallHandler
             {
                 try
                 {
-                    activeStltConn.setStltConn(apiCtx, new TcpPortNumber(newStltPort), encrType);
+                    activeStltConn.setStltConn(new TcpPortNumber(newStltPort), encrType);
                     needsReconnect = true;
                 }
                 catch (ValueOutOfRangeException exc)
@@ -959,15 +899,7 @@ public class CtrlNodeApiCallHandler
                 // update satellite port
             }
 
-            node.setNodeType(peerAccCtx.get(), nodeType);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "update the node type",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
+            node.setNodeType(nodeType);
         }
         catch (DatabaseException sqlExc)
         {
@@ -978,21 +910,6 @@ public class CtrlNodeApiCallHandler
 
     private void requireNodesMapChangeAccess()
     {
-        try
-        {
-            nodeRepository.requireAccess(
-                peerAccCtx.get(),
-                AccessType.CHANGE
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "change any nodes",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
     }
 
     /**
@@ -1008,7 +925,7 @@ public class CtrlNodeApiCallHandler
         Set<String> deletePropKeys,
         Set<String> deleteNamespaces
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException
+        throws InvalidNameException, DatabaseException
     {
         /*
          * Checks that throw exceptions
@@ -1016,14 +933,12 @@ public class CtrlNodeApiCallHandler
 
         // check if specified preferred network interface exists
         ctrlPropsHelper.checkPrefNic(
-            apiCtx,
             node,
             overrideProps.get(ApiConsts.KEY_STOR_POOL_PREF_NIC),
             ApiConsts.MASK_NODE
         );
         // check if specified "outside address" network interface exists
         ctrlPropsHelper.checkPrefOutsideAddress(
-            apiCtx,
             node,
             overrideProps.get(
                 ApiConsts.NAMESPC_LINSTOR_DRBD + "/" + ApiConsts.KEY_DRBD_OUTSIDE_ADDRESS
@@ -1034,8 +949,8 @@ public class CtrlNodeApiCallHandler
         /*
          * Checks that only generate warnings
          */
-        ExtToolsInfo drbd9 = node.getPeer(apiCtx).getExtToolsManager().getExtToolInfo(ExtTools.DRBD9_KERNEL);
-        ExtToolsInfo drbdProxy = node.getPeer(apiCtx).getExtToolsManager().getExtToolInfo(ExtTools.DRBD_PROXY);
+        ExtToolsInfo drbd9 = node.getPeer().getExtToolsManager().getExtToolInfo(ExtTools.DRBD9_KERNEL);
+        ExtToolsInfo drbdProxy = node.getPeer().getExtToolsManager().getExtToolInfo(ExtTools.DRBD_PROXY);
         boolean isDrbd9Supported = drbd9 != null && drbd9.isSupported();
         boolean isDrbdProxySupported = drbdProxy != null && drbdProxy.isSupported();
         for (Entry<String, String> entry : overrideProps.entrySet())
@@ -1096,7 +1011,7 @@ public class CtrlNodeApiCallHandler
                 allRangesValid &= checkRangesValid(apiCallRcsRef, value);
                 if (allRangesValid)
                 {
-                    node.getTcpPortPool(apiCtx).reloadRange(node.getProps(apiCtx));
+                    node.getTcpPortPool().reloadRange(node.getProps());
                 }
             }
             else if (key.equals(ApiConsts.KEY_TCP_PORTS_BLOCKED))
@@ -1104,7 +1019,7 @@ public class CtrlNodeApiCallHandler
                 allRangesValid &= checkRangesValid(apiCallRcsRef, value);
                 if (allRangesValid)
                 {
-                    node.getTcpPortPool(apiCtx).reloadBlockedRange(node.getProps(apiCtx));
+                    node.getTcpPortPool().reloadBlockedRange(node.getProps());
                 }
             }
         }
@@ -1124,11 +1039,11 @@ public class CtrlNodeApiCallHandler
             }
             else if (key.equals(ApiConsts.KEY_TCP_PORT_AUTO_RANGE))
             {
-                node.getTcpPortPool(apiCtx).reloadRange();
+                node.getTcpPortPool().reloadRange();
             }
             else if (key.equals(ApiConsts.KEY_TCP_PORTS_BLOCKED))
             {
-                node.getTcpPortPool(apiCtx).reloadBlockedRange();
+                node.getTcpPortPool().reloadBlockedRange();
             }
         }
         Flux<ApiCallRc> retFlux = Flux.empty();
@@ -1198,16 +1113,16 @@ public class CtrlNodeApiCallHandler
         );
     }
 
-    public StltConfig getConfig(String nodeName) throws AccessDeniedException
+    public StltConfig getConfig(String nodeName)
     {
-        return ctrlApiDataLoader.loadNode(nodeName, true).getPeer(peerAccCtx.get()).getStltConfig();
+        return ctrlApiDataLoader.loadNode(nodeName, true).getPeer().getStltConfig();
     }
 
-    public Flux<ApiCallRc> setGlobalConfig(SatelliteConfigApi config) throws AccessDeniedException
+    public Flux<ApiCallRc> setGlobalConfig(SatelliteConfigApi config)
     {
         ArrayList<Flux<ApiCallRc>> answers = new ArrayList<>();
 
-        for (NodeName nodeName : nodeRepository.getMapForView(peerAccCtx.get()).keySet())
+        for (NodeName nodeName : nodeRepository.getMapForView().keySet())
         {
             answers.add(setConfig(nodeName.getName(), config));
         }
@@ -1230,10 +1145,10 @@ public class CtrlNodeApiCallHandler
     }
 
     private Flux<ApiCallRc> setStltConfig(String nodeName, SatelliteConfigApi config)
-        throws IOException, AccessDeniedException
+        throws IOException
     {
         Flux<ApiCallRc> flux;
-        Peer curPeer = ctrlApiDataLoader.loadNode(nodeName, true).getPeer(peerAccCtx.get());
+        Peer curPeer = ctrlApiDataLoader.loadNode(nodeName, true).getPeer();
         if (!curPeer.isOnline())
         {
             flux = Flux.empty();
@@ -1321,8 +1236,8 @@ public class CtrlNodeApiCallHandler
                     Node node = ctrlApiDataLoader.loadNode(nodeName, true);
 
                     StateFlags<Node.Flags> nodeFlags = node.getFlags();
-                    boolean wasNodeEvicted = nodeFlags.isSet(peerCtx, Node.Flags.EVICTED);
-                    boolean wasNodeEvacuated = nodeFlags.isSet(peerCtx, Node.Flags.EVACUATE);
+                    boolean wasNodeEvicted = nodeFlags.isSet(Node.Flags.EVICTED);
+                    boolean wasNodeEvacuated = nodeFlags.isSet(Node.Flags.EVACUATE);
                     if (!wasNodeEvacuated && !wasNodeEvicted)
                     {
                         throw new ApiRcException(
@@ -1334,10 +1249,9 @@ public class CtrlNodeApiCallHandler
                                 .setSkipErrorReport(true)
                         );
                     }
-                    node.getObjProt().requireAccess(peerCtx, AccessType.CONTROL);
-                    nodeFlags.disableFlags(peerCtx, Node.Flags.EVACUATE, Node.Flags.EVICTED);
+                    nodeFlags.disableFlags(Node.Flags.EVACUATE, Node.Flags.EVICTED);
 
-                    Iterator<Resource> rscIt = node.iterateResources(peerCtx);
+                    Iterator<Resource> rscIt = node.iterateResources();
                     if (deleteResources)
                     {
                         while (rscIt.hasNext())
@@ -1345,19 +1259,19 @@ public class CtrlNodeApiCallHandler
                             Resource rsc = rscIt.next();
 
                             // false if not a DRBD resource. false -> delete this resource
-                            boolean isLastNonDeletedDiskful = LayerRscUtils.getLayerStack(rsc, apiCtx)
+                            boolean isLastNonDeletedDiskful = LayerRscUtils.getLayerStack(rsc)
                                 .contains(DeviceLayerKind.DRBD);
                             {
                                 ResourceDefinition rscDfn = rsc.getResourceDefinition();
-                                Iterator<Resource> rscIt2 = rscDfn.iterateResource(apiCtx);
+                                Iterator<Resource> rscIt2 = rscDfn.iterateResource();
                                 while (rscIt2.hasNext())
                                 {
                                     Resource otherRsc = rscIt2.next();
                                     if (!otherRsc.equals(rsc))
                                     {
                                         StateFlags<Flags> rscFlags = otherRsc.getStateFlags();
-                                        if (!rscFlags.isSet(apiCtx, Resource.Flags.DISKLESS) &&
-                                            !rscFlags.isSet(apiCtx, Resource.Flags.DELETE))
+                                        if (!rscFlags.isSet(Resource.Flags.DISKLESS) &&
+                                            !rscFlags.isSet(Resource.Flags.DELETE))
                                         {
                                             isLastNonDeletedDiskful = false;
                                             break;
@@ -1399,21 +1313,21 @@ public class CtrlNodeApiCallHandler
                             Resource rsc = rscIt.next();
                             StateFlags<Flags> flags = rsc.getStateFlags();
                             boolean updateSatellite = false;
-                            if (flags.isSet(peerCtx, Resource.Flags.EVICTED))
+                            if (flags.isSet(Resource.Flags.EVICTED))
                             {
-                                flags.disableFlags(peerCtx, Resource.Flags.EVICTED);
-                                if (flags.isSet(peerCtx, Resource.Flags.INACTIVE_BEFORE_EVICTION))
+                                flags.disableFlags(Resource.Flags.EVICTED);
+                                if (flags.isSet(Resource.Flags.INACTIVE_BEFORE_EVICTION))
                                 {
-                                    flags.enableFlags(peerCtx, Resource.Flags.INACTIVE);
-                                    flags.disableFlags(peerCtx, Resource.Flags.INACTIVE_BEFORE_EVICTION);
+                                    flags.enableFlags(Resource.Flags.INACTIVE);
+                                    flags.disableFlags(Resource.Flags.INACTIVE_BEFORE_EVICTION);
                                 }
                                 // although we will perform a FullSync soon, the other satellites also need to be
                                 // updated that this resource is back online
                                 updateSatellite = true;
                             }
-                            if (flags.isSet(peerCtx, Resource.Flags.EVACUATE))
+                            if (flags.isSet(Resource.Flags.EVACUATE))
                             {
-                                flags.disableFlags(peerCtx, Resource.Flags.EVACUATE);
+                                flags.disableFlags(Resource.Flags.EVACUATE);
                                 updateSatellite = true;
                             }
 
@@ -1441,7 +1355,7 @@ public class CtrlNodeApiCallHandler
 
                     if (deleteSnapshots)
                     {
-                        for (Snapshot snap : node.getSnapshots(peerCtx))
+                        for (Snapshot snap : node.getSnapshots())
                         {
                             flux = flux.concatWith(
                                 snapDeleteHandler.deleteSnapshot(
@@ -1471,12 +1385,12 @@ public class CtrlNodeApiCallHandler
 
                     ctrlTransactionHelper.commit();
 
-                    eventNodeHandlerBridge.triggerNodeRestored(node.getApiData(peerCtx, null, null));
+                    eventNodeHandlerBridge.triggerNodeRestored(node.getApiData(null, null));
 
                     if (wasNodeEvicted)
                     {
                         reconnectorTask.add(
-                            node.getPeer(peerCtx).getConnector().reconnect(node.getPeer(peerCtx)),
+                            node.getPeer().getConnector().reconnect(node.getPeer()),
                             false,
                             false
                         );
@@ -1484,7 +1398,7 @@ public class CtrlNodeApiCallHandler
                     Flux<Tuple2<NodeName, Flux<ApiCallRc>>> updateFlux = ctrlSatelliteUpdateCaller.updateSatellites(
                         node.getUuid(),
                         node.getName(),
-                        CtrlSatelliteUpdater.findNodesToContact(peerCtx, node)
+                        CtrlSatelliteUpdater.findNodesToContact(node)
                     );
 
                     flux = flux.concatWith(updateFlux.transform(tuple -> Flux.empty()))
@@ -1522,21 +1436,14 @@ public class CtrlNodeApiCallHandler
             () ->
             {
                 Node node = ctrlApiDataLoader.loadNode(nodeName, true);
-                try
+                if (node.getPeer().isOnline())
                 {
-                    if (node.getPeer(apiCtx).isOnline())
-                    {
-                        throw new ApiRcException(
-                            ApiCallRcImpl.simpleEntry(
-                                ApiConsts.FAIL_IN_USE | ApiConsts.MASK_NODE,
-                                "Eviction of an online node is not possible."
-                            )
-                        );
-                    }
-                }
-                catch (AccessDeniedException exc)
-                {
-                    throw new ApiAccessDeniedException(exc, "to " + nodeName, ApiConsts.FAIL_ACC_DENIED_NODE);
+                    throw new ApiRcException(
+                        ApiCallRcImpl.simpleEntry(
+                            ApiConsts.FAIL_IN_USE | ApiConsts.MASK_NODE,
+                            "Eviction of an online node is not possible."
+                        )
+                    );
                 }
                 return declareEvicted(node);
             },
@@ -1554,11 +1461,11 @@ public class CtrlNodeApiCallHandler
                 lockGuardFactory.createDeferred().write(LockObj.NODES_MAP).build(),
                 () ->
                 {
-                    node.markEvicted(apiCtx);
+                    node.markEvicted();
                     Flux<ApiCallRc> flux = Flux.empty();
-                    for (Resource res : node.streamResources(apiCtx).collect(Collectors.toList()))
+                    for (Resource res : node.streamResources().collect(Collectors.toList()))
                     {
-                        if (LayerRscUtils.getLayerStack(res, apiCtx).contains(DeviceLayerKind.DRBD))
+                        if (LayerRscUtils.getLayerStack(res).contains(DeviceLayerKind.DRBD))
                         {
                             Map<String, String> objRefs = new TreeMap<>();
                             objRefs.put(ApiConsts.KEY_RSC_DFN, res.getResourceDefinition().getName().displayValue);
@@ -1578,11 +1485,11 @@ public class CtrlNodeApiCallHandler
                             );
 
                             StateFlags<Flags> rscFlags = res.getStateFlags();
-                            if (rscFlags.isSet(apiCtx, Resource.Flags.INACTIVE))
+                            if (rscFlags.isSet(Resource.Flags.INACTIVE))
                             {
-                                rscFlags.enableFlags(apiCtx, Resource.Flags.INACTIVE_BEFORE_EVICTION);
+                                rscFlags.enableFlags(Resource.Flags.INACTIVE_BEFORE_EVICTION);
                             }
-                            rscFlags.enableFlags(apiCtx, Resource.Flags.EVICTED);
+                            rscFlags.enableFlags(Resource.Flags.EVICTED);
                             autoRePlaceRscHelper.addNeedRePlaceRsc(res);
                             autoRePlaceRscHelper.manage(autoHelperCtx);
 
@@ -1612,12 +1519,12 @@ public class CtrlNodeApiCallHandler
                         }
                     }
                     ctrlTransactionHelper.commit();
-                    eventNodeHandlerBridge.triggerNodeEvicted(node.getApiData(apiCtx, null, null));
+                    eventNodeHandlerBridge.triggerNodeEvicted(node.getApiData(null, null));
                     flux = flux.concatWith(ctrlBackupCrtApiCallHandler.deleteNodeQueueAndReQueueSnapsIfNeeded(node));
                     flux = ctrlSatelliteUpdateCaller.updateSatellites(
                         node.getUuid(),
                         node.getName(),
-                        CtrlSatelliteUpdater.findNodesToContact(apiCtx, node)
+                        CtrlSatelliteUpdater.findNodesToContact(node)
                     )
                         .transform(tuple -> Flux.<ApiCallRc>empty())
                         .concatWith(flux);
@@ -1672,22 +1579,22 @@ public class CtrlNodeApiCallHandler
         try
         {
             AccessContext peerCtx = peerAccCtx.get();
-            nodeToEvacuate.getFlags().enableFlags(peerCtx, Node.Flags.EVACUATE);
+            nodeToEvacuate.getFlags().enableFlags(Node.Flags.EVACUATE);
 
             PriorityProps prioProps = new PriorityProps(
-                nodeToEvacuate.getProps(apiCtx),
+                nodeToEvacuate.getProps(),
                 ctrlPropsHelper.getCtrlPropsForView()
             );
             @Nullable String copyAllSnapsStr = prioProps.getProp(ApiConsts.KEY_COPY_ALL_SNAPS_ON_EVAC);
             boolean copyAllSnaps = copyAllSnapsStr == null || Boolean.parseBoolean(copyAllSnapsStr);
 
             LinkedHashSet<ResourceDefinition> affectedRscDfnList = new LinkedHashSet<>();
-            Iterator<Resource> rscIt = nodeToEvacuate.iterateResources(peerCtx);
+            Iterator<Resource> rscIt = nodeToEvacuate.iterateResources();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
-                rsc.getStateFlags().enableFlags(peerCtx, Resource.Flags.EVACUATE);
-                rsc.getProps(peerAccCtx.get()).map().put(ApiConsts.KEY_RSC_MIGRATE_FROM, nodeNameEvacuateSource.value);
+                rsc.getStateFlags().enableFlags(Resource.Flags.EVACUATE);
+                rsc.getProps().map().put(ApiConsts.KEY_RSC_MIGRATE_FROM, nodeNameEvacuateSource.value);
                 affectedRscDfnList.add(rsc.getResourceDefinition());
             }
 
@@ -1698,7 +1605,7 @@ public class CtrlNodeApiCallHandler
                  * and in the later cases (create target rsc, toggle-disk target rsc, no target rsc at all) we also make
                  * sure to properly start the shipments.
                  */
-                for (Snapshot snap : nodeToEvacuate.getSnapshots(peerCtx))
+                for (Snapshot snap : nodeToEvacuate.getSnapshots())
                 {
                     affectedRscDfnList.add(snap.getResourceDefinition());
                 }
@@ -1708,7 +1615,7 @@ public class CtrlNodeApiCallHandler
             for (ResourceDefinition rscDfn : affectedRscDfnList)
             {
                 ResourceName rscName = rscDfn.getName();
-                if (!rscDfn.usesLayer(peerCtx, DeviceLayerKind.DRBD))
+                if (!rscDfn.usesLayer(DeviceLayerKind.DRBD))
                 {
                     apiCallRc.addEntry(
                         ApiCallRcImpl.simpleEntry(
@@ -1721,27 +1628,26 @@ public class CtrlNodeApiCallHandler
                 else
                 {
                     // rscToEvac might be null if we have added the RD from a snapshot
-                    @Nullable Resource rscToEvacuate = rscDfn.getResource(peerCtx, nodeNameEvacuateSource);
+                    @Nullable Resource rscToEvacuate = rscDfn.getResource(nodeNameEvacuateSource);
                     if (rscToEvacuate != null)
                     {
                         StateFlags<Flags> rscToEvacFlags = rscToEvacuate.getStateFlags();
-                        boolean justDeleteRscToEvac = rscToEvacFlags.isSet(peerCtx, Resource.Flags.DRBD_DISKLESS);
+                        boolean justDeleteRscToEvac = rscToEvacFlags.isSet(Resource.Flags.DRBD_DISKLESS);
 
                         if (!justDeleteRscToEvac)
                         {
                             // no use to keep a non-UpToDate resource that should be evacuated
                             justDeleteRscToEvac = !SatelliteResourceStateDrbdUtils.allVolumesUpToDate(
-                                apiCtx,
                                 rscToEvacuate
                             );
                         }
 
                         int expectedReplicaCount = rscDfn.getResourceGroup()
                             .getAutoPlaceConfig()
-                            .getReplicaCount(peerCtx);
+                            .getReplicaCount();
                         if (!justDeleteRscToEvac)
                         {
-                            int upToDatePeerCount = getUpToDatePeerCount(peerCtx, rscDfn);
+                            int upToDatePeerCount = getUpToDatePeerCount(rscDfn);
                             if (upToDatePeerCount >= expectedReplicaCount)
                             {
                                 justDeleteRscToEvac = true;
@@ -1752,9 +1658,9 @@ public class CtrlNodeApiCallHandler
                         {
                             if (copyAllSnaps)
                             {
-                                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(peerCtx))
+                                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
                                 {
-                                    @Nullable Snapshot snap = snapDfn.getSnapshot(peerCtx, nodeNameEvacuateSource);
+                                    @Nullable Snapshot snap = snapDfn.getSnapshot(nodeNameEvacuateSource);
                                     if (snap != null)
                                     {
                                         StorPool sp = getStorPoolForEvacuation(
@@ -1780,7 +1686,7 @@ public class CtrlNodeApiCallHandler
                                         else
                                         {
                                             NodeName nodeNameEvacTarget = sp.getNode().getName();
-                                            int snapCount = snapDfn.getAllNotDeletingSnapshots(apiCtx).size();
+                                            int snapCount = snapDfn.getAllNotDeletingSnapshots().size();
                                             if (snapCount == 1 || snapCount - 1 < expectedReplicaCount)
                                             {
                                                 copySnapsHelper.deleteSnapAfterShipmentSent(snap, false);
@@ -1826,12 +1732,12 @@ public class CtrlNodeApiCallHandler
                                 NodeName nodeNameEvacTarget = sp.getNode().getName();
 
                                 Flux<ApiCallRc> createOrToggleDiskFlux = null;
-                                @Nullable Resource rscOnTargetNode = sp.getNode().getResource(peerCtx, rscName);
+                                @Nullable Resource rscOnTargetNode = sp.getNode().getResource(rscName);
                                 if (copyAllSnaps)
                                 {
-                                    for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(peerCtx))
+                                    for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
                                     {
-                                        @Nullable Snapshot snap = snapDfn.getSnapshot(peerCtx, nodeNameEvacuateSource);
+                                        @Nullable Snapshot snap = snapDfn.getSnapshot(nodeNameEvacuateSource);
                                         if (snap != null)
                                         {
                                             copySnapsHelper.deleteSnapAfterShipmentSent(snap, false);
@@ -1841,7 +1747,7 @@ public class CtrlNodeApiCallHandler
                                 if (rscOnTargetNode != null)
                                 {
                                     // selected node already has the resource
-                                    if (rscOnTargetNode.getStateFlags().isSet(peerCtx, Resource.Flags.DRBD_DISKLESS))
+                                    if (rscOnTargetNode.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS))
                                     {
                                         createOrToggleDiskFlux = rscToggleDiskApiCallHandler.resourceToggleDisk(
                                             nodeNameEvacTarget.displayValue,
@@ -1870,7 +1776,7 @@ public class CtrlNodeApiCallHandler
                                                 sp.getName().displayValue
                                             )
                                         ),
-                                        rscDfn.getLayerStack(peerCtx)
+                                        rscDfn.getLayerStack()
                                             .stream()
                                             .map(DeviceLayerKind::name)
                                             .collect(Collectors.toList()),
@@ -1902,9 +1808,9 @@ public class CtrlNodeApiCallHandler
                     else
                     {
                         // we have added the RD because we have a snapshot
-                        for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(peerCtx))
+                        for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
                         {
-                            @Nullable Snapshot snap = snapDfn.getSnapshot(peerCtx, nodeNameEvacuateSource);
+                            @Nullable Snapshot snap = snapDfn.getSnapshot(nodeNameEvacuateSource);
                             if (snap != null)
                             {
                                 StorPool sp = getStorPoolForEvacuation(
@@ -1949,7 +1855,7 @@ public class CtrlNodeApiCallHandler
             }
 
             ctrlTransactionHelper.commit();
-            eventNodeHandlerBridge.triggerNodeEvacuate(nodeToEvacuate.getApiData(peerCtx, null, null));
+            eventNodeHandlerBridge.triggerNodeEvacuate(nodeToEvacuate.getApiData(null, null));
             flux = Flux.<ApiCallRc>just(apiCallRc)
                 .concatWith(
                     // we must make sure to first interrupt all currently ongoing shipments
@@ -1958,14 +1864,6 @@ public class CtrlNodeApiCallHandler
                 )
                 .concatWith(Flux.merge(fluxList));
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "update the node type",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
         catch (DatabaseException sqlExc)
         {
             throw new ApiDatabaseException(sqlExc);
@@ -1973,16 +1871,15 @@ public class CtrlNodeApiCallHandler
         return flux;
     }
 
-    private int getUpToDatePeerCount(AccessContext accCtx, ResourceDefinition rscDfnRef) throws AccessDeniedException
+    private int getUpToDatePeerCount(ResourceDefinition rscDfnRef)
     {
         int ret = 0;
-        Iterator<Resource> rscIt = rscDfnRef.iterateResource(accCtx);
+        Iterator<Resource> rscIt = rscDfnRef.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
             StateFlags<Flags> rscFlags = rsc.getStateFlags();
             if (rscFlags.isUnset(
-                accCtx,
                 Resource.Flags.DELETE,
                 Resource.Flags.EVACUATE,
                 Resource.Flags.INACTIVE,
@@ -1990,7 +1887,6 @@ public class CtrlNodeApiCallHandler
             ))
             {
                 boolean allDrbdVolumesUpToDate = SatelliteResourceStateDrbdUtils.allVolumesUpToDate(
-                    accCtx,
                     rsc,
                     false
                 );
@@ -2008,7 +1904,6 @@ public class CtrlNodeApiCallHandler
         @Nullable List<String> allowedTargetNodeNameStrListRef,
         @Nullable List<String> prohibitedNodeNamesStrListRef
     )
-        throws AccessDeniedException
     {
         AccessContext peerCtx = peerAccCtx.get();
 
@@ -2019,8 +1914,8 @@ public class CtrlNodeApiCallHandler
         );
 
         // first try to toggle disk if possible
-        Set<Resource> disklessRscSet = ResourceUtils.filterResourcesDrbdDiskless(rscDfn, peerCtx);
-        long rscSize = CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn, peerCtx);
+        Set<Resource> disklessRscSet = ResourceUtils.filterResourcesDrbdDiskless(rscDfn);
+        long rscSize = CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn);
         if (!disklessRscSet.isEmpty())
         {
             errorReporter.logTrace("searching for diskless replacement to toggle-disk");
@@ -2090,17 +1985,16 @@ public class CtrlNodeApiCallHandler
     }
 
     private @Nullable StorPool getStorPoolForCopySnaps(ResourceDefinition rscDfn, SnapshotDefinition snapDfn)
-        throws AccessDeniedException
     {
         // if placing only a snapshot, limit nodes to those that don't already have the snap,
         // and disable the rscAlreadyPlacedOn rule
         errorReporter.logTrace("searching for rsc to add snapshots to");
-        long rscSize = CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn, apiCtx);
+        long rscSize = CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn);
         List<String> nodesWithoutSnap = new ArrayList<>();
-        for (Resource rsc : rscDfn.getDiskfulResources(apiCtx))
+        for (Resource rsc : rscDfn.getDiskfulResources())
         {
             NodeName nodeName = rsc.getNode().getName();
-            if (snapDfn.getSnapshot(apiCtx, nodeName) == null)
+            if (snapDfn.getSnapshot(nodeName) == null)
             {
                 nodesWithoutSnap.add(nodeName.displayValue);
             }
@@ -2124,41 +2018,34 @@ public class CtrlNodeApiCallHandler
     )
     {
         List<String> ret = new ArrayList<>();
-        try
+        if (!CollectionUtils.isEmpty(allowedTargetNodeNameStrListRef))
         {
-            if (!CollectionUtils.isEmpty(allowedTargetNodeNameStrListRef))
+            if (!CollectionUtils.isEmpty(prohibitedNodeNamesStrListRef))
             {
-                if (!CollectionUtils.isEmpty(prohibitedNodeNamesStrListRef))
-                {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.simpleEntry(
-                            ApiConsts.FAIL_INVLD_CONF,
-                            "Must not use --target and --do-not-target in the same request"
-                        )
-                    );
-                }
-                for (NodeName nodeName : nodeRepository.getMapForView(apiCtx).keySet())
-                {
-                    if (CollectionUtils.contains(nodeName, allowedTargetNodeNameStrListRef))
-                    {
-                        ret.add(nodeName.displayValue);
-                    }
-                }
+                throw new ApiRcException(
+                    ApiCallRcImpl.simpleEntry(
+                        ApiConsts.FAIL_INVLD_CONF,
+                        "Must not use --target and --do-not-target in the same request"
+                    )
+                );
             }
-            else
+            for (NodeName nodeName : nodeRepository.getMapForView().keySet())
             {
-                for (NodeName nodeName : nodeRepository.getMapForView(apiCtx).keySet())
+                if (CollectionUtils.contains(nodeName, allowedTargetNodeNameStrListRef))
                 {
-                    if (!CollectionUtils.contains(nodeName, prohibitedNodeNamesStrListRef))
-                    {
-                        ret.add(nodeName.displayValue);
-                    }
+                    ret.add(nodeName.displayValue);
                 }
             }
         }
-        catch (AccessDeniedException exc)
+        else
         {
-            throw new ImplementationError(exc);
+            for (NodeName nodeName : nodeRepository.getMapForView().keySet())
+            {
+                if (!CollectionUtils.contains(nodeName, prohibitedNodeNamesStrListRef))
+                {
+                    ret.add(nodeName.displayValue);
+                }
+            }
         }
         return ret;
     }

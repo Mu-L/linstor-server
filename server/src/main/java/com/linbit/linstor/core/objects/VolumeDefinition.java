@@ -22,15 +22,8 @@ import com.linbit.linstor.dbdrivers.interfaces.VolumeDefinitionDatabaseDriver;
 import com.linbit.linstor.layer.storage.BlockSizeConsts;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.Identity;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmDfnData;
@@ -64,7 +57,7 @@ import java.util.stream.Stream;
  *
  * @author Robert Altnoeder &lt;robert.altnoeder@linbit.com&gt;
  */
-public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements ProtectedObject
+public class VolumeDefinition extends AbsCoreObj<VolumeDefinition>
 {
     public interface InitMaps
     {
@@ -165,11 +158,10 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
 
     }
 
-    public void recheckVolumeSize(AccessContext accCtxRef)
-        throws AccessDeniedException, MinSizeException, MaxSizeException
+    public void recheckVolumeSize()
+        throws MinSizeException, MaxSizeException
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtxRef, AccessType.VIEW);
         checkVolumeSize(volumeSize.get(), layerStorage);
     }
 
@@ -225,21 +217,20 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
         }
     }
 
-    public Props getProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, resourceDfn.getObjProt(), vlmDfnProps);
+        return vlmDfnProps;
     }
 
     /**
-     * Calls <code>getMinIoSize(accCtx, null)</code>.
+     * Calls <code>getMinIoSize(null)</code>.
      *
      * @see #getMinIoSize(AccessContext, Long)
      */
-    public @Nullable Long getMinIoSize(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable Long getMinIoSize()
     {
-        return getMinIoSize(accCtx, null);
+        return getMinIoSize(null);
     }
 
     /**
@@ -250,13 +241,11 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
      *
      * @param accCtx Access context for accessing the volume definition's properties
      * @return Value of the DRBD option for {@value InternalApiConsts#KEY_DRBD_BLOCK_SIZE}
-     * @throws AccessDeniedException If access to the volume definition's properties is denied
      */
-    public @Nullable Long getMinIoSize(AccessContext accCtx, @Nullable Long dfltMinIoSize)
-        throws AccessDeniedException
+    public @Nullable Long getMinIoSize(@Nullable Long dfltMinIoSize)
     {
         @Nullable Long minIoSize = dfltMinIoSize;
-        final Props localProps = getProps(accCtx);
+        final Props localProps = getProps();
         final @Nullable String valueStr = localProps.getProp(
             InternalApiConsts.KEY_DRBD_BLOCK_SIZE,
             ApiConsts.NAMESPC_DRBD_DISK_OPTIONS
@@ -282,13 +271,12 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
      *
      * @param minIoSize the block-size value to set
      * @param accCtx Access context for accessing the volume definition's properties
-     * @throws AccessDeniedException If access to the volume definition's properties is denied
      * @throws DatabaseException if a database operation fails
      */
-    public void setMinIoSize(final long minIoSize, AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void setMinIoSize(final long minIoSize)
+        throws DatabaseException
     {
-        final Props localProps = getProps(accCtx);
+        final Props localProps = getProps();
         final long safeMinIoSize = MathUtils.bounds(
             BlockSizeConsts.MIN_PHY_IO_SIZE,
             minIoSize,
@@ -329,19 +317,16 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
         return vlmDfnKey;
     }
 
-    public long getVolumeSize(AccessContext accCtx)
-        throws AccessDeniedException
+    public long getVolumeSize()
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return volumeSize.get();
     }
 
-    public Long setVolumeSize(AccessContext accCtx, long newVolumeSize)
-        throws AccessDeniedException, DatabaseException, MinSizeException, MaxSizeException
+    public Long setVolumeSize(long newVolumeSize)
+        throws DatabaseException, MinSizeException, MaxSizeException
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         checkVolumeSize(newVolumeSize, layerStorage);
         return volumeSize.set(newVolumeSize);
     }
@@ -352,35 +337,31 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
         return flags;
     }
 
-    public void putVolume(AccessContext accCtx, Volume volume) throws AccessDeniedException
+    public void putVolume(Volume volume)
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         volumes.put(Resource.getStringId(volume.getAbsResource()), volume);
     }
 
-    public void removeVolume(AccessContext accCtx, Volume volume) throws AccessDeniedException
+    public void removeVolume(Volume volume)
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         volumes.remove(Resource.getStringId(volume.getAbsResource()));
     }
 
-    public Iterator<Volume> iterateVolumes(AccessContext accCtx) throws AccessDeniedException
+    public Iterator<Volume> iterateVolumes()
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return volumes.values().iterator();
     }
 
-    public Stream<Volume> streamVolumes(AccessContext accCtx) throws AccessDeniedException
+    public Stream<Volume> streamVolumes()
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return volumes.values().stream();
     }
 
-    public void setCryptKey(AccessContext accCtx, String key) throws AccessDeniedException, DatabaseException
+    public void setCryptKey(String key) throws DatabaseException
     {
         checkDeleted();
         if (!accCtx.subjectId.equals(Identity.SYSTEM_ID))
@@ -390,7 +371,7 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
         cryptKey.set(key);
     }
 
-    public String getCryptKey(AccessContext accCtx) throws AccessDeniedException
+    public String getCryptKey()
     {
         checkDeleted();
         if (!accCtx.subjectId.equals(Identity.SYSTEM_ID))
@@ -402,11 +383,9 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
 
 
     @SuppressWarnings("unchecked")
-    public <T extends VlmDfnLayerObject> T setLayerData(AccessContext accCtx, T vlmDfnLayerData)
-        throws AccessDeniedException
+    public <T extends VlmDfnLayerObject> T setLayerData(T vlmDfnLayerData)
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
         return (T) layerStorage.put(
             new PairNonNull<>(
                 vlmDfnLayerData.getLayerKind(),
@@ -417,13 +396,10 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
 
     @SuppressWarnings("unchecked")
     public <T extends VlmDfnLayerObject> Map<String, T> getLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         Map<String, T> ret = new TreeMap<>();
         for (Entry<PairNonNull<DeviceLayerKind, String>, VlmDfnLayerObject> entry : layerStorage.entrySet())
@@ -439,56 +415,50 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
 
     @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     public <T extends VlmDfnLayerObject> @Nullable T getLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind,
         String rscNameSuffix
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         return (T) layerStorage.get(new PairNonNull<>(kind, rscNameSuffix));
     }
 
-    public void removeLayerData(AccessContext accCtx, DeviceLayerKind kind, String rscNameSuffix)
-        throws AccessDeniedException, DatabaseException
+    public void removeLayerData(DeviceLayerKind kind, String rscNameSuffix)
+        throws DatabaseException
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.USE);
         layerStorage.remove(new PairNonNull<>(kind, rscNameSuffix)).delete();
     }
 
-    public void markDeleted(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void markDeleted()
+        throws DatabaseException
     {
         checkDeleted();
-        resourceDfn.getObjProt().requireAccess(accCtx, AccessType.CONTROL);
-        getFlags().enableFlags(accCtx, VolumeDefinition.Flags.DELETE);
+        getFlags().enableFlags(VolumeDefinition.Flags.DELETE);
     }
 
-    public void uninitializeDrbd(AccessContext apiCtxRef) throws AccessDeniedException, DatabaseException
+    public void uninitializeDrbd() throws DatabaseException
     {
         checkDeleted();
         vlmDfnProps.removeProp(InternalApiConsts.KEY_LINSTOR_DRBD_INITIAL_UPTODATE_ON);
-        flags.disableFlags(apiCtxRef, Flags.DRBD_INITIALIZED);
+        flags.disableFlags(Flags.DRBD_INITIALIZED);
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            resourceDfn.getObjProt().requireAccess(accCtx, AccessType.CONTROL);
 
-            resourceDfn.removeVolumeDefinition(accCtx, this);
+            resourceDfn.removeVolumeDefinition(this);
 
             // preventing ConcurrentModificationException
             List<Volume> vlms = new ArrayList<>(volumes.values());
             for (Volume vlm : vlms)
             {
-                vlm.delete(accCtx);
+                vlm.delete();
             }
 
             vlmDfnProps.delete();
@@ -505,7 +475,7 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
         }
     }
 
-    public VolumeDefinitionApi getApiData(AccessContext accCtx) throws AccessDeniedException
+    public VolumeDefinitionApi getApiData()
     {
         checkDeleted();
         List<Pair<String, VlmDfnLayerDataApi>> layerData = new ArrayList<>();
@@ -520,7 +490,7 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
          */
 
         TreeSet<PairNonNull<DeviceLayerKind, String>> sortedLayerStack = new TreeSet<>();
-        for (DeviceLayerKind kind : resourceDfn.getLayerStack(accCtx))
+        for (DeviceLayerKind kind : resourceDfn.getLayerStack())
         {
             sortedLayerStack.add(new PairNonNull<>(kind, ""));
         }
@@ -533,7 +503,7 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
             layerData.add(
                 new Pair<>(
                     pair.objA.name(),
-                    vlmDfnLayerObject == null ? null : vlmDfnLayerObject.getApiData(accCtx)
+                    vlmDfnLayerObject == null ? null : vlmDfnLayerObject.getApiData()
                 )
             );
         }
@@ -541,9 +511,9 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
         return new VlmDfnPojo(
             getUuid(),
             getVolumeNumber().value,
-            getVolumeSize(accCtx),
-            getFlags().getFlagsBits(accCtx),
-            getProps(accCtx).cloneMap(),
+            getVolumeSize(),
+            getFlags().getFlagsBits(),
+            getProps().cloneMap(),
             layerData
         );
     }
@@ -738,11 +708,5 @@ public class VolumeDefinition extends AbsCoreObj<VolumeDefinition> implements Pr
         {
             return FlagsHelper.fromStringList(Flags.class, listFlags);
         }
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        return resourceDfn.getObjProt();
     }
 }

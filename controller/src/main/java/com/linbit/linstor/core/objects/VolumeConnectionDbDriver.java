@@ -5,7 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -17,9 +16,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeConnectionCtrlDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.utils.Pair;
@@ -53,7 +49,6 @@ public final class VolumeConnectionDbDriver
 
     @Inject
     public VolumeConnectionDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -62,7 +57,7 @@ public final class VolumeConnectionDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.VOLUME_CONNECTIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.VOLUME_CONNECTIONS, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -70,18 +65,18 @@ public final class VolumeConnectionDbDriver
         setColumnSetter(UUID, vc -> vc.getUuid().toString());
         setColumnSetter(
             NODE_NAME_SRC,
-            vc -> vc.getSourceVolume(dbCtxRef).getAbsResource().getNode().getName().value
+            vc -> vc.getSourceVolume().getAbsResource().getNode().getName().value
         );
         setColumnSetter(
             NODE_NAME_DST,
-            vc -> vc.getTargetVolume(dbCtxRef).getAbsResource().getNode().getName().value
+            vc -> vc.getTargetVolume().getAbsResource().getNode().getName().value
         );
         setColumnSetter(
             RESOURCE_NAME,
-            vc -> vc.getSourceVolume(dbCtxRef).getAbsResource().getResourceDefinition().getName().value
+            vc -> vc.getSourceVolume().getAbsResource().getResourceDefinition().getName().value
         );
 
-        setColumnSetter(VLM_NR, vc -> vc.getSourceVolume(dbCtxRef).getVolumeDefinition().getVolumeNumber().value);
+        setColumnSetter(VLM_NR, vc -> vc.getSourceVolume().getVolumeDefinition().getVolumeNumber().value);
 
         setColumnSetter(SNAPSHOT_NAME, ignored -> DFLT_SNAP_NAME_FOR_RSC);
     }
@@ -125,11 +120,11 @@ public final class VolumeConnectionDbDriver
     }
 
     @Override
-    protected String getId(VolumeConnection vc) throws AccessDeniedException
+    protected String getId(VolumeConnection vc)
     {
-        Volume srcVlm = vc.getSourceVolume(dbCtx);
+        Volume srcVlm = vc.getSourceVolume();
         return "(SourceNode=" + srcVlm.getAbsResource().getNode().getName().displayValue +
-            " TargetNode=" + vc.getTargetVolume(dbCtx).getAbsResource().getNode().getName().displayValue +
+            " TargetNode=" + vc.getTargetVolume().getAbsResource().getNode().getName().displayValue +
             " ResName=" + srcVlm.getResourceDefinition().getName().displayValue +
             " VolNr=" + srcVlm.getVolumeDefinition().getVolumeNumber().value + ")";
     }

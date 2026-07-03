@@ -9,9 +9,6 @@ import com.linbit.linstor.api.prop.Property;
 import com.linbit.linstor.core.cfg.StltConfig;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
 import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 
 import javax.net.ssl.SSLException;
@@ -41,19 +38,16 @@ public class PeerREST implements Peer
         }
     }
 
-    private AccessContext accessContext;
     private final ExtToolsManager extToolsMgr;
     private @Nullable String authenticatedUser;
 
     public PeerREST(
         String peerIdRef,
-        String userAgentRef,
-        AccessContext defaultCtx
+        String userAgentRef
     )
     {
         peerId = peerIdRef;
         userAgent = userAgentRef;
-        accessContext = defaultCtx;
         extToolsMgr = new ExtToolsManager();
     }
 
@@ -99,10 +93,8 @@ public class PeerREST implements Peer
     }
 
     @Override
-    public void setAccessContext(AccessContext privilegedCtx, AccessContext newAccCtx) throws AccessDeniedException
+    public void setAccessContext(AccessContext newAccCtx)
     {
-        privilegedCtx.getEffectivePrivs().requirePrivileges(Privilege.PRIV_SYS_ALL);
-        accessContext = newAccCtx;
     }
 
     @Override

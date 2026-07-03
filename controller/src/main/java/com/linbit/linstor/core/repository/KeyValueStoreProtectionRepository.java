@@ -4,10 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.KeyValueStoreName;
 import com.linbit.linstor.core.objects.KeyValueStore;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -22,7 +18,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class KeyValueStoreProtectionRepository implements KeyValueStoreRepository
 {
     private final CoreModule.KeyValueStoreMap kvsMap;
-    private ObjectProtection kvsMapObjProt;
 
     // can't initialize objProt in constructor because of chicken-egg-problem
     @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
@@ -32,66 +27,47 @@ public class KeyValueStoreProtectionRepository implements KeyValueStoreRepositor
         kvsMap = kvsMapRef;
     }
 
-    public void setObjectProtection(ObjectProtection kvsMapObjProtRef)
+    public void setObjectProtection()
     {
         if (kvsMapObjProt != null)
         {
             throw new IllegalStateException("Object protection already set");
         }
-        kvsMapObjProt = kvsMapObjProtRef;
     }
 
     @Override
-    public ObjectProtection getObjProt()
+    public void requireAccess(AccessType requested)
     {
         checkProtSet();
-        return kvsMapObjProt;
-    }
-
-    @Override
-    public void requireAccess(AccessContext accCtx, AccessType requested)
-        throws AccessDeniedException
-    {
-        checkProtSet();
-        kvsMapObjProt.requireAccess(accCtx, requested);
     }
 
     @Override
     public @Nullable KeyValueStore get(
-        AccessContext accCtx,
         KeyValueStoreName kvsName
     )
-        throws AccessDeniedException
     {
         checkProtSet();
-        kvsMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return kvsMap.get(kvsName);
     }
 
     @Override
-    public void put(AccessContext accCtx, KeyValueStoreName kvsName, KeyValueStore kvs)
-        throws AccessDeniedException
+    public void put(KeyValueStoreName kvsName, KeyValueStore kvs)
     {
         checkProtSet();
-        kvsMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         kvsMap.put(kvsName, kvs);
     }
 
     @Override
-    public void remove(AccessContext accCtx, KeyValueStoreName kvsName)
-        throws AccessDeniedException
+    public void remove(KeyValueStoreName kvsName)
     {
         checkProtSet();
-        kvsMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         kvsMap.remove(kvsName);
     }
 
     @Override
-    public CoreModule.KeyValueStoreMap getMapForView(AccessContext accCtx)
-        throws AccessDeniedException
+    public CoreModule.KeyValueStoreMap getMapForView()
     {
         checkProtSet();
-        kvsMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return kvsMap;
     }
 

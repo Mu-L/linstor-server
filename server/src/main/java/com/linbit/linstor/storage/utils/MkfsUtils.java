@@ -15,8 +15,6 @@ import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -98,11 +96,11 @@ public class MkfsUtils
         return Optional.ofNullable(filesys);
     }
 
-    public static boolean needsToCreateFs(Resource rsc, AccessContext wrkCtx)
-        throws InvalidKeyException, AccessDeniedException
+    public static boolean needsToCreateFs(Resource rsc)
+        throws InvalidKeyException
     {
         boolean ret = false;
-        AbsRscLayerObject<Resource> rscData = rsc.getLayerData(wrkCtx);
+        AbsRscLayerObject<Resource> rscData = rsc.getLayerData();
         for (VlmProviderObject<Resource> vlmData : rscData.getVlmLayerObjects().values())
         {
             if (vlmData.checkFileSystem())
@@ -112,11 +110,11 @@ public class MkfsUtils
                 ResourceDefinition rscDfn = vlm.getResourceDefinition();
                 ResourceGroup rscGrp = rscDfn.getResourceGroup();
                 PriorityProps prioProps = new PriorityProps(
-                    rsc.getProps(wrkCtx),
-                    vlmDfn.getProps(wrkCtx),
-                    rscGrp.getVolumeGroupProps(wrkCtx, vlmDfn.getVolumeNumber()),
-                    rscDfn.getProps(wrkCtx),
-                    rscGrp.getProps(wrkCtx)
+                    rsc.getProps(),
+                    vlmDfn.getProps(),
+                    rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+                    rscDfn.getProps(),
+                    rscGrp.getProps()
                 );
 
                 if (prioProps.getProp(ApiConsts.KEY_FS_TYPE, ApiConsts.NAMESPC_FILESYSTEM) != null)
@@ -132,12 +130,11 @@ public class MkfsUtils
     public static void makeFileSystemOnMarked(
         ErrorReporter errorReporter,
         ExtCmdFactory extCmdFactory,
-        AccessContext wrkCtx,
         Resource rsc
     )
-        throws StorageException, AccessDeniedException, InvalidKeyException
+        throws StorageException, InvalidKeyException
     {
-        AbsRscLayerObject<Resource> rscData = rsc.getLayerData(wrkCtx);
+        AbsRscLayerObject<Resource> rscData = rsc.getLayerData();
         for (VlmProviderObject<Resource> vlmData : rscData.getVlmLayerObjects().values())
         {
             if (vlmData.checkFileSystem())
@@ -147,7 +144,7 @@ public class MkfsUtils
 
                 // A volume being deleted may already have lost its backing device, so never create a
                 // file system on it.
-                if (((Volume) vlm).getFlags().isSomeSet(wrkCtx, Volume.Flags.DELETE, Volume.Flags.DRBD_DELETE))
+                if (((Volume) vlm).getFlags().isSomeSet(Volume.Flags.DELETE, Volume.Flags.DRBD_DELETE))
                 {
                     continue;
                 }
@@ -156,17 +153,17 @@ public class MkfsUtils
                 ResourceDefinition rscDfn = vlm.getResourceDefinition();
                 ResourceGroup rscGrp = rscDfn.getResourceGroup();
                 PriorityProps prioProps = new PriorityProps(
-                    rsc.getProps(wrkCtx),
-                    vlmDfn.getProps(wrkCtx),
-                    rscGrp.getVolumeGroupProps(wrkCtx, vlmDfn.getVolumeNumber()),
-                    rscDfn.getProps(wrkCtx),
-                    rscGrp.getProps(wrkCtx)
+                    rsc.getProps(),
+                    vlmDfn.getProps(),
+                    rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+                    rscDfn.getProps(),
+                    rscGrp.getProps()
                 );
 
                 final @Nullable String fsType = prioProps.getProp(ApiConsts.KEY_FS_TYPE, ApiConsts.NAMESPC_FILESYSTEM);
                 if (fsType != null)
                 {
-                    VlmProviderObject<Resource> vlmProviderObject = rsc.getLayerData(wrkCtx).getVlmProviderObject(
+                    VlmProviderObject<Resource> vlmProviderObject = rsc.getLayerData().getVlmProviderObject(
                         vlmDfn.getVolumeNumber()
                     );
                     final @Nullable String devicePath = vlmProviderObject.getDevicePath();

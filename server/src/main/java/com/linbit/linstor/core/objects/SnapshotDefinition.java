@@ -18,16 +18,10 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
@@ -57,7 +51,7 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implements ProtectedObject
+public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition>
 {
     public interface InitMaps
     {
@@ -65,7 +59,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
         Map<VolumeNumber, SnapshotVolumeDefinition> getSnapshotVolumeDefinitionMap();
     }
 
-    private final ObjectProtection objProt;
 
     // Reference to the resource definition
     private final ResourceDefinition resourceDfn;
@@ -96,7 +89,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
 
     public SnapshotDefinition(
         UUID objIdRef,
-        ObjectProtection objProtRef,
         ResourceDefinition resourceDfnRef,
         SnapshotName snapshotNameRef,
         long initFlags,
@@ -112,7 +104,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
     {
         super(objIdRef, transObjFactory, transMgrProviderRef);
         ErrorCheck.ctorNotNull(SnapshotDefinition.class, ObjectProtection.class, objProtRef);
-        objProt = objProtRef;
         resourceDfn = resourceDfnRef;
         snapshotName = snapshotNameRef;
         dbDriver = dbDriverRef;
@@ -166,13 +157,6 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
         );
     }
 
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
-    }
-
     public ResourceDefinition getResourceDefinition()
     {
         checkDeleted();
@@ -192,71 +176,54 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
     }
 
     public @Nullable SnapshotVolumeDefinition getSnapshotVolumeDefinition(
-        AccessContext accCtx,
         VolumeNumber volumeNumber
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         return snapshotVolumeDefinitionMap.get(volumeNumber);
     }
 
     public void addSnapshotVolumeDefinition(
-        AccessContext accCtx,
         SnapshotVolumeDefinition snapshotVolumeDefinition
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.USE);
         snapshotVolumeDefinitionMap.put(snapshotVolumeDefinition.getVolumeNumber(), snapshotVolumeDefinition);
     }
 
     public void removeSnapshotVolumeDefinition(
-        AccessContext accCtx,
         VolumeNumber volumeNumber
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.USE);
         snapshotVolumeDefinitionMap.remove(volumeNumber);
     }
 
-    public Collection<SnapshotVolumeDefinition> getAllSnapshotVolumeDefinitions(AccessContext accCtx)
-        throws AccessDeniedException
+    public Collection<SnapshotVolumeDefinition> getAllSnapshotVolumeDefinitions()
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         return snapshotVolumeDefinitionMap.values();
     }
 
-    public @Nullable Snapshot getSnapshot(AccessContext accCtx, NodeName clNodeName)
-        throws AccessDeniedException
+    public @Nullable Snapshot getSnapshot(NodeName clNodeName)
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         return snapshotMap.get(clNodeName);
     }
 
-    public Collection<Snapshot> getAllSnapshots(AccessContext accCtx)
-        throws AccessDeniedException
+    public Collection<Snapshot> getAllSnapshots()
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         return snapshotMap.values();
     }
 
-    public Collection<Snapshot> getAllNotDeletingSnapshots(AccessContext accCtx)
-        throws AccessDeniedException
+    public Collection<Snapshot> getAllNotDeletingSnapshots()
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         TreeSet<Snapshot> ret = new TreeSet<>();
         for (Snapshot snap : snapshotMap.values())
         {
-            if (!snap.isDeleted() && snap.getFlags().isUnset(accCtx, Snapshot.Flags.DELETE))
+            if (!snap.isDeleted() && snap.getFlags().isUnset(Snapshot.Flags.DELETE))
             {
                 ret.add(snap);
             }
@@ -264,42 +231,33 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
         return ret;
     }
 
-    public void addSnapshot(AccessContext accCtx, Snapshot snapshotRef)
-        throws AccessDeniedException
+    public void addSnapshot(Snapshot snapshotRef)
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.USE);
         snapshotMap.put(snapshotRef.getNodeName(), snapshotRef);
     }
 
-    public void removeSnapshot(AccessContext accCtx, Snapshot snapshotRef)
-        throws AccessDeniedException
+    public void removeSnapshot(Snapshot snapshotRef)
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.USE);
         snapshotMap.remove(snapshotRef.getNodeName());
     }
 
-    public Props getSnapDfnProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getSnapDfnProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, resourceDfn.getObjProt(), snaptDfnProps);
+        return snaptDfnProps;
     }
 
-    public ReadOnlyProps getRscDfnProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public ReadOnlyProps getRscDfnProps()
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         return rscDfnRoProps;
     }
 
-    public Props getRscDfnPropsForChange(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getRscDfnPropsForChange()
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.CHANGE);
         return rscDfnProps;
     }
 
@@ -309,34 +267,32 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
         return flags;
     }
 
-    public void markDeleted(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void markDeleted()
+        throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.USE);
-        getFlags().enableFlags(accCtx, Flags.DELETE);
+        getFlags().enableFlags(Flags.DELETE);
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            requireAccess(accCtx, AccessType.CONTROL);
 
             if (!snapshotMap.isEmpty())
             {
                 throw new ImplementationError("Cannot delete snapshot definition which contains snapshots");
             }
 
-            resourceDfn.removeSnapshotDfn(accCtx, snapshotName);
+            resourceDfn.removeSnapshotDfn(snapshotName);
 
             // Shallow copy the volume collection because calling delete results in elements being removed from it
             Collection<SnapshotVolumeDefinition> snapshotVolumeDefinitions =
                 new ArrayList<>(snapshotVolumeDefinitionMap.values());
             for (SnapshotVolumeDefinition snapshotVolumeDefinition : snapshotVolumeDefinitions)
             {
-                snapshotVolumeDefinition.delete(accCtx);
+                snapshotVolumeDefinition.delete();
             }
 
             snaptDfnProps.delete();
@@ -347,7 +303,7 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
                 rscDfnLayerObject.delete();
             }
 
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
             dbDriver.delete(this);
@@ -356,20 +312,18 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
         }
     }
 
-    public void setInCreation(AccessContext accCtx, boolean inCreationRef)
-        throws DatabaseException, AccessDeniedException
+    public void setInCreation(boolean inCreationRef)
+        throws DatabaseException
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.CONTROL);
         inCreation.set(inCreationRef);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends RscDfnLayerObject> T setLayerData(AccessContext accCtx, T rscDfnLayerData)
-        throws AccessDeniedException, DatabaseException
+    public <T extends RscDfnLayerObject> T setLayerData(T rscDfnLayerData)
+        throws DatabaseException
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.USE);
         return (T) layerStorage.put(
             new PairNonNull<>(
                 rscDfnLayerData.getLayerKind(),
@@ -384,14 +338,11 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
      */
     @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     public <T extends RscDfnLayerObject> @Nullable T getLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind,
         String rscNameSuffixRef
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.USE);
         return (T) layerStorage.get(new PairNonNull<>(kind, rscNameSuffixRef));
     }
 
@@ -402,13 +353,10 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
      */
     @SuppressWarnings("unchecked")
     public <T extends RscDfnLayerObject> Map<String, T> getLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.USE);
 
         Map<String, T> ret = new TreeMap<>();
         for (Entry<PairNonNull<DeviceLayerKind, String>, RscDfnLayerObject> entry : layerStorage.entrySet())
@@ -423,60 +371,51 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
     }
 
     public void removeLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind,
         String rscNameSuffixRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.USE);
         layerStorage.remove(new PairNonNull<>(kind, rscNameSuffixRef)).delete();
         for (SnapshotVolumeDefinition snapVlmDfn : snapshotVolumeDefinitionMap.values())
         {
-            snapVlmDfn.removeLayerData(accCtx, kind, rscNameSuffixRef);
+            snapVlmDfn.removeLayerData(kind, rscNameSuffixRef);
         }
     }
 
-    public void setLayerStack(AccessContext accCtx, List<DeviceLayerKind> list)
-        throws AccessDeniedException
+    public void setLayerStack(List<DeviceLayerKind> list)
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.CHANGE);
         layerStack.clear();
         layerStack.addAll(list);
     }
 
-    public List<DeviceLayerKind> getLayerStack(AccessContext accCtx)
-        throws AccessDeniedException
+    public List<DeviceLayerKind> getLayerStack()
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.CHANGE);
         return layerStack;
     }
 
-    private List<SnapshotApi> getSnapshotApis(AccessContext accCtx)
-        throws AccessDeniedException
+    private List<SnapshotApi> getSnapshotApis()
     {
         checkDeleted();
         List<SnapshotApi> snapshotApis = new ArrayList<>();
         for (Snapshot snap : snapshotMap.values())
         {
-            snapshotApis.add(snap.getApiData(accCtx, 0L, 0L));
+            snapshotApis.add(snap.getApiData(0L, 0L));
         }
         return snapshotApis;
     }
 
-    public SnapshotDefinitionApi getApiData(AccessContext accCtx, boolean withSnapshots)
-        throws AccessDeniedException
+    public SnapshotDefinitionApi getApiData(boolean withSnapshots)
     {
         checkDeleted();
-        requireAccess(accCtx, AccessType.VIEW);
         List<SnapshotVolumeDefinitionApi> snapshotVlmDfns = new ArrayList<>();
 
         for (SnapshotVolumeDefinition snapshotVolumeDefinition : snapshotVolumeDefinitionMap.values())
         {
-            snapshotVlmDfns.add(snapshotVolumeDefinition.getApiData(accCtx));
+            snapshotVlmDfns.add(snapshotVolumeDefinition.getApiData());
         }
 
         /*
@@ -497,35 +436,34 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
             layerData.add(
                 new Pair<>(
                     pair.objA.name(),
-                    rscDfnLayerObject == null ? null : rscDfnLayerObject.getApiData(accCtx)
+                    rscDfnLayerObject == null ? null : rscDfnLayerObject.getApiData()
                 )
             );
         }
 
         return new SnapshotDfnPojo(
-            resourceDfn.getApiData(accCtx),
+            resourceDfn.getApiData(),
             objId,
             snapshotName.getDisplayName(),
             snapshotVlmDfns,
-            flags.getFlagsBits(accCtx),
+            flags.getFlagsBits(),
             snaptDfnProps.cloneMap(),
             rscDfnProps.cloneMap(),
             layerData,
-            withSnapshots ? getSnapshotApis(accCtx) : Collections.emptyList()
+            withSnapshots ? getSnapshotApis() : Collections.emptyList()
         );
     }
 
-    public SnapshotDefinitionListItemApi getListItemApiData(AccessContext accCtx)
-        throws AccessDeniedException
+    public SnapshotDefinitionListItemApi getListItemApiData()
     {
         checkDeleted();
         return new SnapshotDfnListItemPojo(
-            getApiData(accCtx, true),
+            getApiData(true),
             snapshotMap.values().stream()
                 .map(Snapshot::getNodeName)
                 .map(NodeName::getDisplayName)
                 .collect(Collectors.toList()),
-            getSnapshotApis(accCtx)
+            getSnapshotApis()
         );
     }
 
@@ -666,11 +604,9 @@ public class SnapshotDefinition extends AbsCoreObj<SnapshotDefinition> implement
         return resourceDfn.getName();
     }
 
-    private void requireAccess(AccessContext accCtx, AccessType accType)
-        throws AccessDeniedException
+    private void requireAccess(AccessType accType)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, accType);
     }
 
     public enum Flags implements com.linbit.linstor.stateflags.Flags

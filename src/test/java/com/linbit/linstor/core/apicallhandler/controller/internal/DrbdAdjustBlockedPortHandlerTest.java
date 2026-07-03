@@ -11,7 +11,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.locks.LockGuardFactory;
 
 import javax.inject.Provider;
@@ -49,7 +48,7 @@ public class DrbdAdjustBlockedPortHandlerTest
         Provider<CtrlSatelliteUpdateCaller> updateCallerProvider = mock(Provider.class);
 
         handler = new DrbdAdjustBlockedPortHandler(
-            errorReporter, apiCtx, scopeRunner, lockGuardFactory, ctrlTransactionHelper, updateCallerProvider
+            errorReporter, scopeRunner, lockGuardFactory, ctrlTransactionHelper, updateCallerProvider
         );
     }
 

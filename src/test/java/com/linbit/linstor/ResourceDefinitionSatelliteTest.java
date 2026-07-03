@@ -18,10 +18,6 @@ import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.SatelliteDbModule;
 import com.linbit.linstor.logging.LoggingModule;
 import com.linbit.linstor.logging.StdErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.DummySecurityInitializer;
-import com.linbit.linstor.security.TestApiModule;
-import com.linbit.linstor.security.TestSecurityModule;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.transaction.manager.SatelliteTransactionMgr;
 import com.linbit.linstor.transaction.manager.SatelliteTransactionMgrModule;
@@ -79,7 +75,7 @@ public class ResourceDefinitionSatelliteTest
         Injector injector = Guice.createInjector(
             new GuiceConfigModule(),
             new LoggingModule(errorReporter),
-            new TestSecurityModule(SYS_CTX),
+            new TestSecurityModule(),
             new CoreModule(),
             new SatelliteDbModule(),
             new SatelliteTransactionMgrModule(),
@@ -106,7 +102,6 @@ public class ResourceDefinitionSatelliteTest
     public void testDirtyParent() throws Exception
     {
         ResourceDefinition rscDfn = resourceDefinitionFactory.getInstanceSatellite(
-            SYS_CTX,
             resDfnUuid,
             resourceGroupFactory.getInstanceSatellite(
                 UUID.randomUUID(),
@@ -129,10 +124,9 @@ public class ResourceDefinitionSatelliteTest
             resName,
             null
         );
-        rscDfn.getProps(SYS_CTX).setProp("test", "make this rscDfn dirty");
+        rscDfn.getProps().setProp("test", "make this rscDfn dirty");
 
         VolumeDefinition vlmDfn = volumeDefinitionFactory.getInstanceSatellite(
-            SYS_CTX,
             java.util.UUID.randomUUID(),
             rscDfn,
             new VolumeNumber(0),
@@ -148,7 +142,6 @@ public class ResourceDefinitionSatelliteTest
     public void testReplaceActiveTransaction() throws Exception
     {
         ResourceDefinition rscDfn = resourceDefinitionFactory.getInstanceSatellite(
-            SYS_CTX,
             resDfnUuid,
             resourceGroupFactory.getInstanceSatellite(
                 UUID.randomUUID(),
@@ -171,10 +164,10 @@ public class ResourceDefinitionSatelliteTest
             resName,
             null
         );
-        rscDfn.getProps(SYS_CTX).setProp("test", "make this rscDfn dirty");
+        rscDfn.getProps().setProp("test", "make this rscDfn dirty");
         // do not commit
 
         SatelliteTransactionMgr transMgrOther = new SatelliteTransactionMgr();
-        rscDfn.getProps(SYS_CTX).setConnection(transMgrOther); // throws ImplementationError
+        rscDfn.getProps().setConnection(transMgrOther); // throws ImplementationError
     }
 }

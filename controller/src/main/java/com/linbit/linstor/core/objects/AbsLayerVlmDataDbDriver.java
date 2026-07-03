@@ -14,8 +14,6 @@ import com.linbit.linstor.dbdrivers.DatabaseTable;
 import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -66,17 +64,16 @@ public abstract class AbsLayerVlmDataDbDriver<
     }
 
     AbsLayerVlmDataDbDriver(
-        AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         @Nullable DatabaseTable tableRef,
         DbEngine dbEngineRef
     )
     {
-        super(dbCtxRef, errorReporterRef, tableRef, dbEngineRef);
+        super(errorReporterRef, tableRef, dbEngineRef);
     }
 
     @Override
-    protected String getId(VLM_DATA vlmDataRef) throws AccessDeniedException
+    protected String getId(VLM_DATA vlmDataRef)
     {
         return "(" + vlmDataRef.getLayerKind().name() +
             ", LayerRscId=" + vlmDataRef.getRscLayerObject().getRscLayerId() +

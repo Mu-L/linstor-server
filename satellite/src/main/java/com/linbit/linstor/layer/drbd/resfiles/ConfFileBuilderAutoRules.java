@@ -4,8 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmData;
 
@@ -15,15 +13,13 @@ public class ConfFileBuilderAutoRules
 {
     private final HashMap<String, AutoRule> autoRules = new HashMap<>();
 
-    public ConfFileBuilderAutoRules(AccessContext accCtx, DrbdVlmData<Resource> drbdVlmData)
-        throws AccessDeniedException
+    public ConfFileBuilderAutoRules(DrbdVlmData<Resource> drbdVlmData)
     {
         appendRules();
-        appendRules(accCtx, drbdVlmData);
+        appendRules(drbdVlmData);
     }
 
-    public ConfFileBuilderAutoRules(AccessContext accCtx, DrbdRscData<Resource> drbdRscData)
-        throws AccessDeniedException
+    public ConfFileBuilderAutoRules(DrbdRscData<Resource> drbdRscData)
     {
         appendRules();
     }
@@ -32,13 +28,13 @@ public class ConfFileBuilderAutoRules
     {
     }
 
-    private void appendRules(AccessContext accCtxRef, DrbdVlmData<Resource> drbdVlmDataRef) throws AccessDeniedException
+    private void appendRules(DrbdVlmData<Resource> drbdVlmDataRef)
     {
         autoRules.put(
             ApiConsts.NAMESPC_DRBD_DISK_OPTIONS + "/rs-discard-granularity",
             new AutoRule(
                 ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_AUTO_RS_DISCARD_GRANULARITY,
-                drbdVlmDataRef.getVolume().getVolumeDefinition().getProps(accCtxRef),
+                drbdVlmDataRef.getVolume().getVolumeDefinition().getProps(),
                 false
             )
         );
@@ -46,7 +42,7 @@ public class ConfFileBuilderAutoRules
             ApiConsts.NAMESPC_DRBD_DISK_OPTIONS + "/discard-granularity",
             new AutoRule(
                 ApiConsts.NAMESPC_LINSTOR_DRBD + "/" + ApiConsts.KEY_DRBD_AUTO_DISCARD_GRANULARITY,
-                drbdVlmDataRef.getVolume().getVolumeDefinition().getProps(accCtxRef),
+                drbdVlmDataRef.getVolume().getVolumeDefinition().getProps(),
                 false
             )
         );

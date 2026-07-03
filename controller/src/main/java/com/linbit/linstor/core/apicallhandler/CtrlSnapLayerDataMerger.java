@@ -5,7 +5,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
 import com.linbit.linstor.api.interfaces.VlmLayerDataApi;
 import com.linbit.linstor.api.pojo.BCacheRscPojo;
@@ -30,8 +29,6 @@ import com.linbit.linstor.core.objects.SnapshotVolume;
 import com.linbit.linstor.core.objects.SnapshotVolumeDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheRscData;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheVlmData;
 import com.linbit.linstor.storage.data.adapter.cache.CacheRscData;
@@ -58,21 +55,19 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
 {
     @Inject
     public CtrlSnapLayerDataMerger(
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef
     )
     {
-        super(apiCtxRef, layerDataFactoryRef);
+        super(layerDataFactoryRef);
     }
 
     @Override
     protected DrbdRscDfnData<Snapshot> mergeOrCreateDrbdRscDfnData(Snapshot snap, DrbdRscDfnPojo drbdRscDfnPojoRef)
-        throws IllegalArgumentException, DatabaseException, AccessDeniedException
+        throws IllegalArgumentException, DatabaseException
     {
         // nothing to merge
         return snap.getSnapshotDefinition()
             .getLayerData(
-                apiCtx,
                 DeviceLayerKind.DRBD,
                 drbdRscDfnPojoRef.getRscNameSuffix()
             );
@@ -85,7 +80,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         AbsRscLayerObject<Snapshot> parentRef,
         DrbdRscPojo drbdRscPojoRef,
         DrbdRscDfnData<Snapshot> drbdRscDfnDataRef
-    ) throws DatabaseException, ValueOutOfRangeException, AccessDeniedException
+    ) throws DatabaseException, ValueOutOfRangeException
     {
         throw new ImplementationError("Received unknown drbd snapshot from satellite");
     }
@@ -95,14 +90,14 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         AbsRscLayerObject<Snapshot> parentRef,
         DrbdRscPojo drbdRscPojoRef,
         DrbdRscData<Snapshot> drbdRscDataRef
-    ) throws AccessDeniedException, DatabaseException
+    ) throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
     protected void removeDrbdVlm(DrbdRscData<Snapshot> drbdRscDataRef, VolumeNumber vlmNrRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -111,12 +106,12 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
     protected DrbdVlmDfnData<Snapshot> mergeOrCreateDrbdVlmDfnData(
         AbsVolume<Snapshot> absVlmRef,
         DrbdVlmDfnPojo drbdVlmDfnPojoRef
-    ) throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // nothing to merge
         SnapshotVolumeDefinition vlmDfn = ((SnapshotVolume) absVlmRef).getSnapshotVolumeDefinition();
-        return vlmDfn.getLayerData(apiCtx, DeviceLayerKind.DRBD, drbdVlmDfnPojoRef.getRscNameSuffix());
+        return vlmDfn.getLayerData(DeviceLayerKind.DRBD, drbdVlmDfnPojoRef.getRscNameSuffix());
     }
 
     @Override
@@ -126,7 +121,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         DrbdVlmPojo vlmPojoRef,
         VolumeNumber vlmNrRef,
         DrbdVlmDfnData<Snapshot> drbdVlmDfnDataRef
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         DrbdVlmData<Snapshot> drbdVlmData = snapDataRef.getVlmLayerObjects().get(vlmNrRef);
 
@@ -139,7 +134,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         Snapshot rscRef,
         AbsRscLayerObject<Snapshot> parentRef,
         LuksRscPojo luksRscPojoRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         throw new ImplementationError("Received unknown luks snapshot from satellite");
     }
@@ -149,14 +144,13 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         AbsRscLayerObject<Snapshot> parentRef,
         LuksRscPojo luksRscPojoRef,
         LuksRscData<Snapshot> luksRscDataRef
-    ) throws AccessDeniedException, DatabaseException
+    ) throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
-    protected void removeLuksVlm(LuksRscData<Snapshot> luksRscDataRef, VolumeNumber vlmNrRef) throws DatabaseException,
-        AccessDeniedException
+    protected void removeLuksVlm(LuksRscData<Snapshot> luksRscDataRef, VolumeNumber vlmNrRef) throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -176,7 +170,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         Snapshot rscRef,
         AbsRscLayerObject<Snapshot> parentRef,
         StorageRscPojo storRscPojoRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         throw new ImplementationError("Received unknown storage snapshot from satellite");
     }
@@ -186,14 +180,14 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         AbsRscLayerObject<Snapshot> parentRef,
         StorageRscPojo storRscPojoRef,
         StorageRscData<Snapshot> storRscDataRef
-    ) throws AccessDeniedException, DatabaseException
+    ) throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
     protected void removeStorageVlm(StorageRscData<Snapshot> storRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -334,7 +328,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
 
     @Override
     protected void setStorPool(VlmProviderObject<Snapshot> vlmDataRef, StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // ignored
     }
@@ -351,7 +345,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         StorageRscData<Snapshot> storRscDataRef,
         VlmLayerDataApi vlmPojoRef,
         StorPool storPoolRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         throw new ImplementationError("Received unknown EBS snapshot from satellite");
     }
@@ -368,7 +362,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         Snapshot rscRef,
         AbsRscLayerObject<Snapshot> parentRef,
         NvmeRscPojo nvmeRscPojoRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         throw new ImplementationError("Received unknown nvme snapshot from satellite");
     }
@@ -378,14 +372,13 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         AbsRscLayerObject<Snapshot> parentRef,
         NvmeRscPojo nvmeRscPojoRef,
         NvmeRscData<Snapshot> nvmeRscDataRef
-    ) throws AccessDeniedException, DatabaseException
+    ) throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
-    protected void removeNvmeVlm(NvmeRscData<Snapshot> nvmeRscDataRef, VolumeNumber vlmNrRef) throws DatabaseException,
-        AccessDeniedException
+    protected void removeNvmeVlm(NvmeRscData<Snapshot> nvmeRscDataRef, VolumeNumber vlmNrRef) throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -411,7 +404,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         Snapshot rscRef,
         AbsRscLayerObject<Snapshot> parentRef,
         WritecacheRscPojo writecacheRscPojoRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         throw new ImplementationError("Received unknown writecache snapshot from satellite");
     }
@@ -421,14 +414,14 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         AbsRscLayerObject<Snapshot> parentRef,
         WritecacheRscPojo writecacheRscPojoRef,
         WritecacheRscData<Snapshot> writecacheRscDataRef
-    ) throws AccessDeniedException, DatabaseException
+    ) throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
     protected void removeWritecacheVlm(WritecacheRscData<Snapshot> writecacheRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -439,7 +432,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         WritecacheRscData<Snapshot> writecacheRscDataRef,
         WritecacheVlmPojo vlmPojoRef,
         VolumeNumber vlmNrRef
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         throw new ImplementationError("Missing writecache volume from satellite");
     }
@@ -456,7 +449,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         Snapshot rscRef,
         AbsRscLayerObject<Snapshot> parentRef,
         CacheRscPojo cacheRscPojoRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         throw new ImplementationError("Received unknown cache snapshot from satellite");
     }
@@ -466,14 +459,14 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         AbsRscLayerObject<Snapshot> parentRef,
         CacheRscPojo cacheRscPojoRef,
         CacheRscData<Snapshot> cacheRscDataRef
-    ) throws AccessDeniedException, DatabaseException
+    ) throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
     protected void removeCacheVlm(CacheRscData<Snapshot> cacheRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -484,7 +477,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         CacheRscData<Snapshot> cacheRscDataRef,
         CacheVlmPojo vlmPojoRef,
         VolumeNumber vlmNrRef
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         throw new ImplementationError("Missing cache volume from satellite");
     }
@@ -501,7 +494,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         Snapshot rscRef,
         AbsRscLayerObject<Snapshot> parentRef,
         BCacheRscPojo bcacheRscPojoRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         throw new ImplementationError("Received unknown bcache snapshot from satellite");
     }
@@ -511,14 +504,14 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         AbsRscLayerObject<Snapshot> parentRef,
         BCacheRscPojo bCacheRscPojoRef,
         BCacheRscData<Snapshot> bCacheRscDataRef
-    ) throws AccessDeniedException, DatabaseException
+    ) throws DatabaseException
     {
         // nothing to merge
     }
 
     @Override
     protected void removeBCacheVlm(BCacheRscData<Snapshot> bcacheRscDataRef, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         // ignored. A parent volume might have more volumes in one of its children than in an other one
     }
@@ -529,7 +522,7 @@ public class CtrlSnapLayerDataMerger extends AbsLayerRscDataMerger<Snapshot>
         BCacheRscData<Snapshot> writecacheRscDataRef,
         BCacheVlmPojo vlmPojoRef,
         VolumeNumber vlmNrRef
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         throw new ImplementationError("Missing bcache volume from satellite");
     }

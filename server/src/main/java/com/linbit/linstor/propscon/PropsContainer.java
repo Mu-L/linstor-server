@@ -16,7 +16,6 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.PropsDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.PropsDatabaseDriver.PropsDbEntry;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.AbsTransactionObject;
 import com.linbit.linstor.transaction.TransactionObject;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -417,7 +416,7 @@ public class PropsContainer extends AbsTransactionObject implements Props
 
     @Override
     public void loadAll()
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         try
         {

@@ -5,9 +5,7 @@ import com.linbit.ImplementationError;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRc.RcEntry;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -18,7 +16,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsHelper.PropertyChangedListener;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.PropsChangedListenerBuilder;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -37,8 +34,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.locks.LockGuardFactory;
@@ -70,10 +65,8 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlVlmGrpApiCallHandler
 {
-    private final AccessContext apiCtx;
     private final ErrorReporter errorReporter;
     private final CtrlTransactionHelper ctrlTransactionHelper;
-    private final Provider<AccessContext> peerAccCtx;
     private final Provider<Peer> peer;
     private final VolumeGroupControllerFactory volumeGroupFactory;
     private final CtrlPropsHelper ctrlPropsHelper;
@@ -86,10 +79,8 @@ public class CtrlVlmGrpApiCallHandler
 
     @Inject
     public CtrlVlmGrpApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ErrorReporter errorReporterRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         Provider<Peer> peerRef,
         VolumeGroupControllerFactory volumeGroupControllerFactoryRef,
         CtrlPropsHelper ctrlPropsHelperRef,
@@ -101,10 +92,8 @@ public class CtrlVlmGrpApiCallHandler
         Provider<PropsChangedListenerBuilder> propsChangeListenerBuilderRef
     )
     {
-        apiCtx = apiCtxRef;
         errorReporter = errorReporterRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
-        peerAccCtx = peerAccCtxRef;
         peer = peerRef;
         volumeGroupFactory = volumeGroupControllerFactoryRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
@@ -121,9 +110,8 @@ public class CtrlVlmGrpApiCallHandler
         ResourceGroup rscGrpRef,
         List<T> vlmGrpPojoListRef
     )
-        throws AccessDeniedException
     {
-        if (!rscGrpRef.getRscDfns(peerAccCtx.get()).isEmpty())
+        if (!rscGrpRef.getRscDfns().isEmpty())
         {
             throw new ApiRcException(
                 ApiCallRcImpl.entryBuilder(
@@ -196,33 +184,22 @@ public class CtrlVlmGrpApiCallHandler
     public List<VolumeGroupApi> listVolumeGroups(String rscGrpNameRef, @Nullable Integer vlmNrRef)
     {
         List<VolumeGroupApi> ret;
-        try
+        if (vlmNrRef != null)
         {
-            if (vlmNrRef != null)
+            VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameRef, vlmNrRef, true);
+            if (vlmGrp == null)
             {
-                VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameRef, vlmNrRef, true);
-                if (vlmGrp == null)
-                {
-                    ret = Collections.emptyList();
-                }
-                else
-                {
-                    ret = Arrays.asList(vlmGrp.getApiData(peerAccCtx.get()));
-                }
+                ret = Collections.emptyList();
             }
             else
             {
-                ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
-                ret = rscGrp.getApiData(peerAccCtx.get()).getVlmGrpList();
+                ret = Arrays.asList(vlmGrp.getApiData());
             }
         }
-        catch (AccessDeniedException accDeniedExc)
+        else
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "list " + getVlmGrpDescriptionInline(rscGrpNameRef, vlmNrRef),
-                ApiConsts.FAIL_ACC_DENIED_VLM_GRP
-            );
+            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
+            ret = rscGrp.getApiData().getVlmGrpList();
         }
         return ret;
     }
@@ -293,9 +270,9 @@ public class CtrlVlmGrpApiCallHandler
             VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameStr, vlmNrInt, true);
 
             Map<String, PropertyChangedListener> propsChangedListeners = propsChangeListenerBuilder.get()
-                .buildPropsChangedListeners(peerAccCtx.get(), vlmGrp, specialPropFluxes);
+                .buildPropsChangedListeners(vlmGrp, specialPropFluxes);
 
-            Props props = vlmGrp.getProps(peerAccCtx.get());
+            Props props = vlmGrp.getProps();
             notifyStlts = ctrlPropsHelper.fillProperties(
                 apiCallRcs,
                 LinStorObject.VLM_DFN,
@@ -325,12 +302,12 @@ public class CtrlVlmGrpApiCallHandler
             for (VolumeGroup.Flags flag : pair.objA)
             {
                 notifyStlts = true;
-                vlmGrpFlags.enableFlags(apiCtx, flag);
+                vlmGrpFlags.enableFlags(flag);
             }
             for (VolumeGroup.Flags flag : pair.objB)
             {
                 notifyStlts = true;
-                vlmGrpFlags.disableFlags(apiCtx, flag);
+                vlmGrpFlags.disableFlags(flag);
             }
 
             ctrlTransactionHelper.commit();
@@ -347,7 +324,7 @@ public class CtrlVlmGrpApiCallHandler
 
             if (notifyStlts)
             {
-                for (ResourceDefinition rscDfn : rscGrp.getRscDfns(peerAccCtx.get()))
+                for (ResourceDefinition rscDfn : rscGrp.getRscDfns())
                 {
                     fluxes.add(
                         Flux.just(
@@ -357,14 +334,6 @@ public class CtrlVlmGrpApiCallHandler
                     );
                 }
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "modify " + getVlmGrpDescriptionInline(rscGrpNameStr, vlmNrInt),
-                ApiConsts.FAIL_ACC_DENIED_VLM_GRP
-            );
         }
         catch (Exception | ImplementationError exc)
         {
@@ -395,7 +364,7 @@ public class CtrlVlmGrpApiCallHandler
             VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameRef, vlmNrRef, true);
             final UUID vlmGrpUUID = vlmGrp.getUuid();
             int vlmNr = vlmGrp.getVolumeNumber().value;
-            vlmGrp.delete(peerAccCtx.get());
+            vlmGrp.delete();
 
             ctrlTransactionHelper.commit();
 
@@ -405,14 +374,6 @@ public class CtrlVlmGrpApiCallHandler
                 ApiSuccessUtils.defaultDeletedEntry(
                     vlmGrpUUID, getVlmGrpDescriptionInline(rscGrpNameRef, vlmNr)
                 )
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete " + getVlmGrpDescriptionInline(rscGrpNameRef, vlmNrRef),
-                ApiConsts.FAIL_ACC_DENIED_VLM_GRP
             );
         }
         catch (Exception | ImplementationError exc)
@@ -442,7 +403,6 @@ public class CtrlVlmGrpApiCallHandler
         try
         {
             vlmGrp = createVolumeGroup(
-                peerAccCtx.get(),
                 rscGrpRef,
                 vlmNr,
                 vlmGrpApiRef.getFlags()
@@ -476,7 +436,6 @@ public class CtrlVlmGrpApiCallHandler
     }
 
     private VolumeGroup createVolumeGroup(
-        AccessContext accCtx,
         ResourceGroup rscGrp,
         VolumeNumber vlmNr,
         long initFlags
@@ -486,18 +445,9 @@ public class CtrlVlmGrpApiCallHandler
         try
         {
             vlmGrp = volumeGroupFactory.create(
-                accCtx,
                 rscGrp,
                 vlmNr,
                 initFlags
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "create " + getVlmGrpDescriptionInline(rscGrp, vlmNr),
-                ApiConsts.FAIL_ACC_DENIED_VLM_GRP
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
@@ -527,7 +477,7 @@ public class CtrlVlmGrpApiCallHandler
         VolumeNumber vlmNr;
         try
         {
-            vlmNr = CtrlRscGrpApiCallHandler.getVlmNr(vlmGrpApi, rscGrp, apiCtx);
+            vlmNr = CtrlRscGrpApiCallHandler.getVlmNr(vlmGrpApi, rscGrp);
         }
         catch (ValueOutOfRangeException valOORangeExc)
         {
@@ -560,18 +510,7 @@ public class CtrlVlmGrpApiCallHandler
     private Props getVlmGrpProps(VolumeGroup vlmGrpRef)
     {
         Props props;
-        try
-        {
-            props = vlmGrpRef.getProps(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access the properties of " + getVlmGrpDescriptionInline(vlmGrpRef),
-                ApiConsts.FAIL_ACC_DENIED_VLM_GRP
-            );
-        }
+        props = vlmGrpRef.getProps();
         return props;
     }
 

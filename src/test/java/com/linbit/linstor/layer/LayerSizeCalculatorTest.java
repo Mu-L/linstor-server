@@ -8,7 +8,6 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -48,8 +47,8 @@ public class LayerSizeCalculatorTest extends GenericDbBase
     {
         setUpAndEnterScope();
         byte[] testMasterKey = encrHelper.generateSecret();
-        encrHelper.setPassphraseImpl("testPassphrase".getBytes(), testMasterKey, SYS_CTX);
-        @Nullable ReadOnlyProps encryptedNamespace = encrHelper.getEncryptedNamespace(SYS_CTX);
+        encrHelper.setPassphraseImpl("testPassphrase".getBytes(), testMasterKey);
+        @Nullable ReadOnlyProps encryptedNamespace = encrHelper.getEncryptedNamespace();
         if (encryptedNamespace == null)
         {
             throw new ImplementationError(
@@ -74,7 +73,7 @@ public class LayerSizeCalculatorTest extends GenericDbBase
         long expUsableSizeRef,
         long expAllocatedSizeRef
     )
-        throws AccessDeniedException, ValueOutOfRangeException
+        throws ValueOutOfRangeException
     {
         assertVlmSize(rscRef, 0, "", layerRef, expUsableSizeRef, expAllocatedSizeRef);
     }
@@ -87,10 +86,10 @@ public class LayerSizeCalculatorTest extends GenericDbBase
         long expUsableSizeRef,
         long expAllocatedSizeRef
     )
-        throws ValueOutOfRangeException, AccessDeniedException
+        throws ValueOutOfRangeException
     {
         Set<AbsRscLayerObject<Resource>> rscDataByLayerSet = LayerRscUtils.getRscDataByLayer(
-            rscRef.getLayerData(SYS_CTX),
+            rscRef.getLayerData(),
             layerRef
         );
         @Nullable AbsRscLayerObject<Resource> rscData = null;
@@ -134,7 +133,7 @@ public class LayerSizeCalculatorTest extends GenericDbBase
             StorPool storPool = spFactory.builder(nodeName, spName)
                 .setDriverKind(spKind)
                 .build();
-            storPool.getProps(SYS_CTX).map().putAll(spPropsMap);
+            storPool.getProps().map().putAll(spPropsMap);
             layerPayload.putStorageVlmPayload("", vlmNr, storPool);
             vlmFactory.builder(nodeName, rscName, vlmNr)
                 .setSize(size)

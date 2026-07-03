@@ -6,10 +6,6 @@ import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.StorPoolDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -46,12 +42,11 @@ public class StorPoolDefinitionControllerFactory
     }
 
     public StorPoolDefinition create(
-        AccessContext accCtx,
         StorPoolName storPoolName
     )
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        StorPoolDefinition storPoolDfn = storPoolDefinitionRepository.get(accCtx, storPoolName);
+        StorPoolDefinition storPoolDfn = storPoolDefinitionRepository.get(storPoolName);
 
         if (storPoolDfn != null)
         {
@@ -61,7 +56,6 @@ public class StorPoolDefinitionControllerFactory
         storPoolDfn = new StorPoolDefinition(
             UUID.randomUUID(),
             objectProtectionFactory.getInstance(
-                accCtx,
                 ObjectProtection.buildPath(storPoolName),
                 true
             ),

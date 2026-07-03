@@ -2,8 +2,6 @@ package com.linbit.linstor.layer.utils;
 
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
@@ -41,32 +39,31 @@ public class SuspendLayerUtils
         ALL_LAYERS = Collections.unmodifiableSet(set);
     }
 
-    public static <RSC extends AbsResource<RSC>> void suspendIo(AccessContext accCtxRef, RSC rscRef)
-        throws DatabaseException, AccessDeniedException
+    public static <RSC extends AbsResource<RSC>> void suspendIo(RSC rscRef)
+        throws DatabaseException
     {
-        setShouldSuspendStateRec(rscRef.getLayerData(accCtxRef), true, LAYERS_TO_SUSPEND_SUB_ROOT);
+        setShouldSuspendStateRec(rscRef.getLayerData(), true, LAYERS_TO_SUSPEND_SUB_ROOT);
     }
 
-    public static <RSC extends AbsResource<RSC>> void resumeIo(AccessContext accCtxRef, RSC rscRef)
-        throws DatabaseException, AccessDeniedException
+    public static <RSC extends AbsResource<RSC>> void resumeIo(RSC rscRef)
+        throws DatabaseException
     {
-        setShouldSuspendStateRec(rscRef.getLayerData(accCtxRef), false, ALL_LAYERS);
+        setShouldSuspendStateRec(rscRef.getLayerData(), false, ALL_LAYERS);
     }
 
     public static <RSC extends AbsResource<RSC>> void setSuspend(
-        AccessContext accCtxRef,
         RSC rscRef,
         boolean suspendRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         if (suspendRef)
         {
-            SuspendLayerUtils.suspendIo(accCtxRef, rscRef);
+            SuspendLayerUtils.suspendIo(rscRef);
         }
         else
         {
-            SuspendLayerUtils.resumeIo(accCtxRef, rscRef);
+            SuspendLayerUtils.resumeIo(rscRef);
         }
     }
 

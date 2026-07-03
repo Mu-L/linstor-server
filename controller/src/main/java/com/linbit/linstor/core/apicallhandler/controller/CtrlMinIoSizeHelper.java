@@ -8,8 +8,6 @@ import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 
@@ -32,17 +30,15 @@ public class CtrlMinIoSizeHelper
      * @param rscDfn Resource definition to check
      * @param accCtx Access context for accessing information
      * @return true if all volumes allow automatic min-io-size determination
-     * @throws AccessDeniedException If access to required information is denied
      */
-    public boolean isAutoMinIoSize(final ResourceDefinition rscDfn, final AccessContext accCtx)
-        throws AccessDeniedException
+    public boolean isAutoMinIoSize(final ResourceDefinition rscDfn)
     {
         boolean autoFlag = true;
-        Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn(accCtx);
+        Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn();
         while (vlmDfnIter.hasNext())
         {
             final VolumeDefinition vlmDfn = vlmDfnIter.next();
-            if (!isAutoMinIoSize(vlmDfn, accCtx))
+            if (!isAutoMinIoSize(vlmDfn))
             {
                 autoFlag = false;
             }
@@ -56,21 +52,19 @@ public class CtrlMinIoSizeHelper
      * @param vlmDfn Volume definition to check
      * @param accCtx Access context for accessing information
      * @return true if the volumes allows automatic min-io-size determination
-     * @throws AccessDeniedException If access to required information is denied
      */
-    public boolean isAutoMinIoSize(final VolumeDefinition vlmDfn, final AccessContext accCtx)
-        throws AccessDeniedException
+    public boolean isAutoMinIoSize(final VolumeDefinition vlmDfn)
     {
-        final ReadOnlyProps ctrlProps = sysConfRepo.getCtrlConfForView(accCtx);
+        final ReadOnlyProps ctrlProps = sysConfRepo.getCtrlConfForView();
         final ResourceDefinition rscDfn = vlmDfn.getResourceDefinition();
         final ResourceGroup rscGrp = rscDfn.getResourceGroup();
-        final Props rscDfnProps = rscDfn.getProps(accCtx);
-        final Props vlmDfnProps = vlmDfn.getProps(accCtx);
+        final Props rscDfnProps = rscDfn.getProps();
+        final Props vlmDfnProps = vlmDfn.getProps();
         final PriorityProps prioProps = new PriorityProps(
             vlmDfnProps,
             rscDfnProps,
-            rscGrp.getVolumeGroupProps(accCtx, vlmDfn.getVolumeNumber()),
-            rscGrp.getProps(accCtx),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rscGrp.getProps(),
             ctrlProps
         );
         final String autoFlagStr = prioProps.getProp(

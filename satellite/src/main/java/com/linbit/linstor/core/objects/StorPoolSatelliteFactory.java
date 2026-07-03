@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.dbdrivers.interfaces.StorPoolDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -40,7 +39,6 @@ public class StorPoolSatelliteFactory
     }
 
     public StorPool getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         Node node,
         StorPoolDefinition storPoolDef,
@@ -54,7 +52,7 @@ public class StorPoolSatelliteFactory
 
         try
         {
-            storPool = node.getStorPool(accCtx, storPoolDef.getName());
+            storPool = node.getStorPool(storPoolDef.getName());
             if (storPool == null)
             {
                 FreeSpaceTracker fsm;
@@ -81,8 +79,8 @@ public class StorPoolSatelliteFactory
                     new TreeMap<>(),
                     new TreeMap<>()
                 );
-                node.addStorPool(accCtx, storPool);
-                storPoolDef.addStorPool(accCtx, storPool);
+                node.addStorPool(storPool);
+                storPoolDef.addStorPool(storPool);
             }
         }
         catch (Exception exc)

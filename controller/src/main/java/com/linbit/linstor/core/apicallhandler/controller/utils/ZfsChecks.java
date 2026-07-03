@@ -2,14 +2,12 @@ package com.linbit.linstor.core.apicallhandler.controller.utils;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcImpl.ApiCallRcEntry;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsHelper;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscDeleteApiCallHandler;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.Resource;
@@ -22,8 +20,6 @@ import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 
@@ -39,16 +35,13 @@ import java.util.Set;
 @Singleton
 public class ZfsChecks
 {
-    private final AccessContext apiCtx;
     private final CtrlPropsHelper ctrlPropsHelper;
 
     @Inject
     public ZfsChecks(
-        @SystemContext AccessContext apiCtxRef,
         CtrlPropsHelper ctrlPropsHelperRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
     }
 
@@ -91,51 +84,43 @@ public class ZfsChecks
         {
             ResourceDefinition rscDfn = snapDfnRef.getResourceDefinition();
 
-            try
-            {
-                ZfsRollbackStrategy zfsRollbackStrategy = ZfsRollbackStrategy.getStrat(
-                    zfsRollbackStrategyFromClientRef,
-                    rscDfn,
-                    ctrlPropsHelper.getCtrlPropsForView(),
-                    apiCtx
-                );
+            ZfsRollbackStrategy zfsRollbackStrategy = ZfsRollbackStrategy.getStrat(
+                zfsRollbackStrategyFromClientRef,
+                rscDfn,
+                ctrlPropsHelper.getCtrlPropsForView()
+            );
 
-                ret = switch (zfsRollbackStrategy)
-                {
-                    case CLONE -> false; // noop, clone always works
-                    case ROLLBACK ->
-                    {
-                        if (!isMostRecentSnapshot(snapDfnRef))
-                        {
-                            throw new ApiRcException(
-                                ApiCallRcImpl.simpleEntry(
-                                    ApiConsts.FAIL_DEPENDEND_BACKUP,
-                                    "'" + snapDfnRef.getName() +
-                                        "' is not the most recent snapshot. Cannot 'zfs rollback ...' " +
-                                        "to the given snapshot!"
-                                ).setSkipErrorReport(true)
-                            );
-                        }
-                        if (isZvolAlreadyDeleted(snapDfnRef))
-                        {
-                            throw new ApiRcException(
-                                ApiCallRcImpl.simpleEntry(
-                                    ApiConsts.FAIL_DEPENDEND_BACKUP,
-                                    "'" + rscDfn.getName() +
-                                        "' was already rolled back using 'Clone' strategy. The current version of " +
-                                        "LINSTOR cannot switch to 'Rollback' strategy in this case!"
-                                ).setSkipErrorReport(true)
-                            );
-                        }
-                        yield true;
-                    }
-                    case DYNAMIC -> isMostRecentSnapshot(snapDfnRef) && !isZvolAlreadyDeleted(snapDfnRef);
-                };
-            }
-            catch (AccessDeniedException accDeniedExc)
+            ret = switch (zfsRollbackStrategy)
             {
-                throw new ImplementationError(accDeniedExc);
-            }
+                case CLONE -> false; // noop, clone always works
+                case ROLLBACK ->
+                {
+                    if (!isMostRecentSnapshot(snapDfnRef))
+                    {
+                        throw new ApiRcException(
+                            ApiCallRcImpl.simpleEntry(
+                                ApiConsts.FAIL_DEPENDEND_BACKUP,
+                                "'" + snapDfnRef.getName() +
+                                    "' is not the most recent snapshot. Cannot 'zfs rollback ...' " +
+                                    "to the given snapshot!"
+                            ).setSkipErrorReport(true)
+                        );
+                    }
+                    if (isZvolAlreadyDeleted(snapDfnRef))
+                    {
+                        throw new ApiRcException(
+                            ApiCallRcImpl.simpleEntry(
+                                ApiConsts.FAIL_DEPENDEND_BACKUP,
+                                "'" + rscDfn.getName() +
+                                    "' was already rolled back using 'Clone' strategy. The current version of " +
+                                    "LINSTOR cannot switch to 'Rollback' strategy in this case!"
+                            ).setSkipErrorReport(true)
+                        );
+                    }
+                    yield true;
+                }
+                case DYNAMIC -> isMostRecentSnapshot(snapDfnRef) && !isZvolAlreadyDeleted(snapDfnRef);
+            };
         }
         return ret;
     }
@@ -145,9 +130,9 @@ public class ZfsChecks
         try
         {
             boolean hasRenameSuffix = false;
-            for (Snapshot snapshot : snapDfnRef.getAllSnapshots(apiCtx))
+            for (Snapshot snapshot : snapDfnRef.getAllSnapshots())
             {
-                if (snapshot.getSnapProps(apiCtx)
+                if (snapshot.getSnapProps()
                     .getProp(CtrlRscDeleteApiCallHandler.PROP_KEY_ZFS_RENAME_SUFFIX) != null)
                 {
                     hasRenameSuffix = true;
@@ -156,7 +141,7 @@ public class ZfsChecks
             }
             return hasRenameSuffix;
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -165,46 +150,39 @@ public class ZfsChecks
     public boolean isZfsSnapshot(SnapshotDefinition snapDfnRef) throws ImplementationError
     {
         boolean allSnapsZfs = true;
-        try
+        for (Snapshot snap : snapDfnRef.getAllNotDeletingSnapshots())
         {
-            for (Snapshot snap : snapDfnRef.getAllNotDeletingSnapshots(apiCtx))
+            if (!isZfs(snap))
             {
-                if (!isZfs(snap))
+                allSnapsZfs = false;
+                break;
+            }
+        }
+        if (allSnapsZfs)
+        {
+            for (Resource rsc : snapDfnRef.getResourceDefinition().getNotDeletedDiskful())
+            {
+                if (!isZfs(rsc))
                 {
                     allSnapsZfs = false;
                     break;
                 }
             }
-            if (allSnapsZfs)
-            {
-                for (Resource rsc : snapDfnRef.getResourceDefinition().getNotDeletedDiskful(apiCtx))
-                {
-                    if (!isZfs(rsc))
-                    {
-                        allSnapsZfs = false;
-                        break;
-                    }
-                }
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         return allSnapsZfs;
     }
 
-    public boolean hasZfs(ResourceDefinition rscDfnRef) throws AccessDeniedException
+    public boolean hasZfs(ResourceDefinition rscDfnRef)
     {
-        return hasZfs(rscDfnRef, apiCtx);
+        return hasZfs(rscDfnRef);
     }
 
-    public static boolean hasZfs(ResourceDefinition rscDfnRef, AccessContext accCtxRef) throws AccessDeniedException
+    public static boolean hasZfs(ResourceDefinition rscDfnRef)
     {
         boolean ret = false;
-        for (Resource rsc : rscDfnRef.getDiskfulResources(accCtxRef))
+        for (Resource rsc : rscDfnRef.getDiskfulResources())
         {
-            if (isZfs(rsc, accCtxRef))
+            if (isZfs(rsc))
             {
                 ret = true;
                 break;
@@ -213,16 +191,15 @@ public class ZfsChecks
         return ret;
     }
 
-    public <RSC extends AbsResource<RSC>> boolean isZfs(RSC absRscRef) throws AccessDeniedException
+    public <RSC extends AbsResource<RSC>> boolean isZfs(RSC absRscRef)
     {
-        return isZfs(absRscRef, apiCtx);
+        return isZfs(absRscRef);
     }
 
-    public static <RSC extends AbsResource<RSC>> boolean isZfs(RSC absRscRef, AccessContext accCtx)
-        throws AccessDeniedException
+    public static <RSC extends AbsResource<RSC>> boolean isZfs(RSC absRscRef)
     {
         boolean ret = true;
-        for (StorPool sp : LayerVlmUtils.getStorPools(absRscRef, accCtx, true))
+        for (StorPool sp : LayerVlmUtils.getStorPools(absRscRef, true))
         {
             DeviceProviderKind kind = sp.getDeviceProviderKind();
             if (kind != DeviceProviderKind.ZFS && kind != DeviceProviderKind.ZFS_THIN)
@@ -244,18 +221,7 @@ public class ZfsChecks
     private long getMaxSequenceNumber(ResourceDefinition rscDfn)
     {
         long maxSequenceNumber;
-        try
-        {
-            maxSequenceNumber = SnapshotDefinitionControllerFactory.maxSequenceNumber(apiCtx, rscDfn);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check sequence numbers of " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_DFN
-            );
-        }
+        maxSequenceNumber = SnapshotDefinitionControllerFactory.maxSequenceNumber(rscDfn);
         return maxSequenceNumber;
     }
 
@@ -302,39 +268,29 @@ public class ZfsChecks
 
     public static ZfsDeleteStrategy getDeleteStrategy(
         VolumeDefinition vlmDfnRef,
-        ReadOnlyProps ctrlPropsRef,
-        AccessContext accCtxRef
+        ReadOnlyProps ctrlPropsRef
     )
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
-        return getDeleteStrategy(vlmDfnRef.getResourceDefinition(), ctrlPropsRef, accCtxRef);
+        return getDeleteStrategy(vlmDfnRef.getResourceDefinition(), ctrlPropsRef);
     }
 
     public ZfsDeleteStrategy getDeleteStrategy(ResourceDefinition rscDfnRef)
     {
-        try
-        {
-            return getDeleteStrategy(rscDfnRef, ctrlPropsHelper.getCtrlPropsForView(apiCtx), apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return getDeleteStrategy(rscDfnRef, ctrlPropsHelper.getCtrlPropsForView());
     }
 
     public static ZfsDeleteStrategy getDeleteStrategy(
         ResourceDefinition rscDfnRef,
-        ReadOnlyProps ctrlPropsRef,
-        AccessContext accCtxRef
+        ReadOnlyProps ctrlPropsRef
     )
-        throws AccessDeniedException
     {
-        ZfsDeleteStrategy strat = ZfsDeleteStrategy.getStrat(rscDfnRef, ctrlPropsRef, accCtxRef);
+        ZfsDeleteStrategy strat = ZfsDeleteStrategy.getStrat(rscDfnRef, ctrlPropsRef);
         switch (strat)
         {
             case DELETE ->
             {
-                if (!rscDfnRef.getSnapshotDfns(accCtxRef).isEmpty())
+                if (!rscDfnRef.getSnapshotDfns().isEmpty())
                 {
                     throw new ApiRcException(
                         ApiCallRcImpl.simpleEntry(
@@ -347,7 +303,7 @@ public class ZfsChecks
             }
             case DYNAMIC ->
             {
-                strat = rscDfnRef.getSnapshotDfns(accCtxRef).isEmpty() ?
+                strat = rscDfnRef.getSnapshotDfns().isEmpty() ?
                     ZfsDeleteStrategy.DELETE :
                     ZfsDeleteStrategy.RENAME;
             }
@@ -362,35 +318,27 @@ public class ZfsChecks
 
     public void ensureNoDependentSnapshots(Resource rscRef)
     {
-        try
+        if (getDeleteStrategy(rscRef.getResourceDefinition()) == ZfsDeleteStrategy.DELETE)
         {
-            if (getDeleteStrategy(rscRef.getResourceDefinition()) == ZfsDeleteStrategy.DELETE)
-            {
-                ensureNoDependentSnapshots(rscRef, apiCtx, true);
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            ensureNoDependentSnapshots(rscRef, true);
         }
     }
 
-    public static ApiCallRc ensureNoDependentSnapshots(Resource rscRef, AccessContext accCtx, boolean throwApiExc)
-        throws AccessDeniedException
+    public static ApiCallRc ensureNoDependentSnapshots(Resource rscRef, boolean throwApiExc)
     {
         ApiCallRcImpl ret = new ApiCallRcImpl();
-        if (isZfs(rscRef, accCtx))
+        if (isZfs(rscRef))
         {
-            for (SnapshotDefinition snapshotDfn : rscRef.getResourceDefinition().getSnapshotDfns(accCtx))
+            for (SnapshotDefinition snapshotDfn : rscRef.getResourceDefinition().getSnapshotDfns())
             {
-                @Nullable Snapshot snapshot = snapshotDfn.getSnapshot(accCtx, rscRef.getNode().getName());
+                @Nullable Snapshot snapshot = snapshotDfn.getSnapshot(rscRef.getNode().getName());
                 if (snapshot != null)
                 {
                     Iterator<SnapshotVolume> snapVlmIt = snapshot.iterateVolumes();
                     while (snapVlmIt.hasNext())
                     {
                         SnapshotVolume snapshotVlm = snapVlmIt.next();
-                        Set<StorPool> storPoolSet = LayerVlmUtils.getStorPoolSet(snapshotVlm, accCtx, true);
+                        Set<StorPool> storPoolSet = LayerVlmUtils.getStorPoolSet(snapshotVlm, true);
                         for (StorPool storPool : storPoolSet)
                         {
                             if (storPool.getDeviceProviderKind().isSnapshotDependent())
@@ -421,38 +369,29 @@ public class ZfsChecks
 
     public void ensureNoDependentSnapshots(VolumeDefinition vlmDfnRef)
     {
-        try
+        if (getDeleteStrategy(vlmDfnRef.getResourceDefinition()) == ZfsDeleteStrategy.DELETE)
         {
-            if (getDeleteStrategy(vlmDfnRef.getResourceDefinition()) == ZfsDeleteStrategy.DELETE)
-            {
-                ensureNoDependentSnapshots(vlmDfnRef, apiCtx, true);
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            ensureNoDependentSnapshots(vlmDfnRef, true);
         }
     }
 
     public static ApiCallRc ensureNoDependentSnapshots(
         VolumeDefinition vlmDfnRef,
-        AccessContext accCtxRef,
         boolean throwApiExcRef
     )
-        throws AccessDeniedException
     {
         ApiCallRc ret = new ApiCallRcImpl();
-        if (hasZfs(vlmDfnRef.getResourceDefinition(), accCtxRef))
+        if (hasZfs(vlmDfnRef.getResourceDefinition()))
         {
             ResourceDefinition rscDfn = vlmDfnRef.getResourceDefinition();
-            for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns(accCtxRef))
+            for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
             {
-                for (Snapshot snapshot : snapshotDfn.getAllSnapshots(accCtxRef))
+                for (Snapshot snapshot : snapshotDfn.getAllSnapshots())
                 {
                     SnapshotVolume snapshotVlm = snapshot.getVolume(vlmDfnRef.getVolumeNumber());
                     if (snapshotVlm != null)
                     {
-                        Map<String, StorPool> storPoolMap = LayerVlmUtils.getStorPoolMap(snapshotVlm, accCtxRef);
+                        Map<String, StorPool> storPoolMap = LayerVlmUtils.getStorPoolMap(snapshotVlm);
                         for (StorPool storPool : storPoolMap.values())
                         {
                             if (storPool.getDeviceProviderKind().isSnapshotDependent())

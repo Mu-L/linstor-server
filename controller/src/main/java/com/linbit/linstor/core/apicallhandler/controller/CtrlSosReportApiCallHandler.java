@@ -16,7 +16,6 @@ import com.linbit.extproc.OutputProxy.StdOutEvent;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.SosReportType;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -31,7 +30,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.ResourceList;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlBackupQueueInternalCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apis.StorPoolApi;
 import com.linbit.linstor.core.cfg.CtrlConfig;
@@ -49,8 +47,6 @@ import com.linbit.linstor.proto.responses.FileOuterClass.File;
 import com.linbit.linstor.proto.responses.MsgSosReportFilesReplyOuterClass.MsgSosReportFilesReply;
 import com.linbit.linstor.proto.responses.MsgSosReportListReplyOuterClass.FileInfo;
 import com.linbit.linstor.proto.responses.MsgSosReportListReplyOuterClass.MsgSosReportListReply;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.spacetracking.SpaceTrackingService;
 import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo;
@@ -111,7 +107,6 @@ public class CtrlSosReportApiCallHandler
 
     /** 10MiB */
     private static final long MAX_PACKET_SIZE = 10 * (1 << 20);
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final NodeRepository nodeRepository;
@@ -131,8 +126,6 @@ public class CtrlSosReportApiCallHandler
     @Inject
     public CtrlSosReportApiCallHandler(
         ErrorReporter errorReporterRef,
-        @PeerContext
-        Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         NodeRepository nodeRepositoryRef,
@@ -149,7 +142,6 @@ public class CtrlSosReportApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         nodeRepository = nodeRepositoryRef;
@@ -271,7 +263,6 @@ public class CtrlSosReportApiCallHandler
         String sosReportName,
         LocalDateTime since
     )
-        throws AccessDeniedException
     {
         Stream<Node> nodeStream = getNodeStreamForSosReport(nodes, rscs, excludeNodes);
 
@@ -309,18 +300,7 @@ public class CtrlSosReportApiCallHandler
     private @Nullable Peer getPeer(Node node)
     {
         Peer peer;
-        try
-        {
-            peer = node.getPeer(peerAccCtx.get());
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "access peer for node '" + node.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        peer = node.getPeer();
         return peer;
     }
 
@@ -340,7 +320,7 @@ public class CtrlSosReportApiCallHandler
         try
         {
             msgSosReportListReply = MsgSosReportListReply.parseDelimitedFrom(sosFileListInputStreamRef);
-            peer = getPeer(nodeRepository.get(peerAccCtx.get(), new NodeName(msgSosReportListReply.getNodeName())));
+            peer = getPeer(nodeRepository.get(new NodeName(msgSosReportListReply.getNodeName())));
         }
         catch (IOException exc)
         {
@@ -351,10 +331,6 @@ public class CtrlSosReportApiCallHandler
                 ),
                 exc
             );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(accDeniedExc, "accessing node", ApiConsts.FAIL_ACC_DENIED_NODE);
         }
         catch (InvalidNameException exc)
         {
@@ -580,7 +556,7 @@ public class CtrlSosReportApiCallHandler
         boolean includeCtrl,
         String queryParams
     )
-        throws IOException, AccessDeniedException, ChildProcessTimeoutException, ExtCmdFailedException
+        throws IOException, ChildProcessTimeoutException, ExtCmdFailedException
     {
         String fileName = errorReporter.getLogDirectory() + "/" + sosReportName + SOS_SUFFIX;
 
@@ -627,7 +603,7 @@ public class CtrlSosReportApiCallHandler
         for (Node node : nodeList)
         {
             ret = ret.concatWith(
-                node.getPeer(peerAccCtx.get()).apiCall(
+                node.getPeer().apiCall(
                     InternalApiConsts.API_REQ_SOS_REPORT_CLEANUP,
                     stltComSerializer.headerlessBuilder()
                         .cleanupSosReport(sosReportName)
@@ -1179,23 +1155,22 @@ public class CtrlSosReportApiCallHandler
     }
 
     private Stream<Node> getNodeStreamForSosReport(Set<String> nodes, Set<String> rscs, Set<String> excludeNodes)
-        throws AccessDeniedException
     {
         Set<Node> rscNodes = new HashSet<>();
         Set<String> copyRscs = rscs.stream().map(String::toLowerCase).collect(Collectors.toSet());
         if (!copyRscs.isEmpty())
         {
-            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(peerAccCtx.get()).values())
+            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
             {
                 if (copyRscs.contains(rscDfn.getName().getDisplayName().toLowerCase()))
                 {
-                    rscDfn.streamResource(peerAccCtx.get()).forEach(rsc -> rscNodes.add(rsc.getNode()));
+                    rscDfn.streamResource().forEach(rsc -> rscNodes.add(rsc.getNode()));
                 }
             }
         }
 
         Set<String> copyNodes = nodes.stream().map(String::toLowerCase).collect(Collectors.toSet());
-        Stream<Node> nodeStream = nodeRepository.getMapForView(peerAccCtx.get()).values().stream();
+        Stream<Node> nodeStream = nodeRepository.getMapForView().values().stream();
         if (!copyNodes.isEmpty() || !rscNodes.isEmpty())
         {
             nodeStream = nodeStream.filter(

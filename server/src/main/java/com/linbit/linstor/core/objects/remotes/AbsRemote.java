@@ -4,8 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.backupshipping.BackupConsts;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.objects.AbsCoreObj;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.kinds.ExtTools;
@@ -21,21 +19,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public abstract class AbsRemote extends AbsCoreObj<AbsRemote> implements Comparable<AbsRemote>, ProtectedObject
+public abstract class AbsRemote extends AbsCoreObj<AbsRemote> implements Comparable<AbsRemote>
 {
-    protected final ObjectProtection objProt;
     protected final RemoteName remoteName;
 
     protected AbsRemote(
         UUID uuidRef,
         TransactionObjectFactory transObjFactory,
         Provider<? extends TransactionMgr> transMgrProviderRef,
-        ObjectProtection objProtRef,
         RemoteName remoteNameRef
     )
     {
         super(uuidRef, transObjFactory, transMgrProviderRef);
-        objProt = objProtRef;
         remoteName = remoteNameRef;
     }
 
@@ -47,13 +42,6 @@ public abstract class AbsRemote extends AbsCoreObj<AbsRemote> implements Compara
     }
 
     public abstract StateFlags<Flags> getFlags();
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
-    }
 
     public abstract RemoteType getType();
 

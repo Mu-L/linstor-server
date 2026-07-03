@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.rest.v1.events.EventDrbdHandlerBridge;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlApiDataLoader;
@@ -33,8 +32,6 @@ import com.linbit.linstor.proto.eventdata.EventRscStateOuterClass;
 import com.linbit.linstor.proto.eventdata.EventRscStateOuterClass.EventRscState;
 import com.linbit.linstor.proto.eventdata.EventRscStateOuterClass.PeerState;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -65,7 +62,6 @@ import java.util.Set;
 public class ResourceStateEventHandler implements EventHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final SatelliteStateHelper satelliteStateHelper;
     private final ResourceStateEvent resourceStateEvent;
@@ -77,7 +73,6 @@ public class ResourceStateEventHandler implements EventHandler
 
     @Inject
     public ResourceStateEventHandler(
-        @SystemContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         SatelliteStateHelper satelliteStateHelperRef,
         ResourceStateEvent resourceStateEventRef,
@@ -89,7 +84,6 @@ public class ResourceStateEventHandler implements EventHandler
         CtrlMinIoSizeHelper ctrlMinIoSizeHelperRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         satelliteStateHelper = satelliteStateHelperRef;
         resourceStateEvent = resourceStateEventRef;
@@ -230,13 +224,13 @@ public class ResourceStateEventHandler implements EventHandler
                 StateFlags<Flags> flags = rsc.getStateFlags();
                 if (inUseRef != null && inUseRef)
                 {
-                    if (flags.isSet(apiCtx, Resource.Flags.TIE_BREAKER))
+                    if (flags.isSet(Resource.Flags.TIE_BREAKER))
                     {
-                        flags.disableFlags(apiCtx, Flags.TIE_BREAKER);
-                        flags.enableFlags(apiCtx, Resource.Flags.DRBD_DISKLESS);
+                        flags.disableFlags(Flags.TIE_BREAKER);
+                        flags.enableFlags(Resource.Flags.DRBD_DISKLESS);
                     }
                 }
-                if (flags.isSet(apiCtx, Resource.Flags.DRBD_DISKLESS))
+                if (flags.isSet(Resource.Flags.DRBD_DISKLESS))
                 {
                     autoDiskfulTask.update(rsc);
                 }
@@ -247,13 +241,13 @@ public class ResourceStateEventHandler implements EventHandler
             }
             if (rscDfn != null && Boolean.TRUE.equals(inUseRef))
             {
-                Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn(apiCtx);
+                Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn();
                 while (vlmDfnIt.hasNext())
                 {
                     VolumeDefinition vlmDfn = vlmDfnIt.next();
-                    if (ctrlMinIoSizeHelper.isAutoMinIoSize(vlmDfn, apiCtx))
+                    if (ctrlMinIoSizeHelper.isAutoMinIoSize(vlmDfn))
                     {
-                        Props vlmDfnProps = vlmDfn.getProps(apiCtx);
+                        Props vlmDfnProps = vlmDfn.getProps();
                         @Nullable String freezeValue = vlmDfnProps.getProp(
                             ApiConsts.KEY_DRBD_FREEZE_BLOCK_SIZE,
                             ApiConsts.NAMESPC_LINSTOR_DRBD
@@ -270,7 +264,7 @@ public class ResourceStateEventHandler implements EventHandler
                 }
             }
         }
-        catch (AccessDeniedException | InvalidKeyException | InvalidValueException exc)
+        catch (InvalidKeyException | InvalidValueException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -298,14 +292,14 @@ public class ResourceStateEventHandler implements EventHandler
             if (rsc != null)
             {
                 Set<AbsRscLayerObject<Resource>> drbdDataSet = LayerRscUtils.getRscDataByLayer(
-                    rsc.getLayerData(apiCtx), DeviceLayerKind.DRBD);
+                    rsc.getLayerData(), DeviceLayerKind.DRBD);
                 for (AbsRscLayerObject<Resource> rlo : drbdDataSet)
                 {
                     DrbdRscData<Resource> drbdRscData = ((DrbdRscData<Resource>) rlo);
                     drbdRscData.setPromotionScore(promotionScore);
                     if (!Objects.equals(drbdRscData.mayPromote(), mayPromote))
                     {
-                        eventDrbdHandlerBridge.triggerMayPromote(rsc.getApiData(apiCtx, null, null, null), mayPromote);
+                        eventDrbdHandlerBridge.triggerMayPromote(rsc.getApiData(null, null, null), mayPromote);
                     }
                     drbdRscData.setMayPromote(mayPromote);
                 }
@@ -314,10 +308,6 @@ public class ResourceStateEventHandler implements EventHandler
             {
                 errorReporter.logWarning("Event update for unknown resource %s on node %s", resourceName, nodeName);
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError("ApiCtx does not have enough privileges");
         }
     }
 }

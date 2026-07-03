@@ -2,15 +2,12 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.identifier.NodeName;
@@ -18,8 +15,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.repository.ResourceDefinitionProtectionRepository;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
@@ -42,7 +37,6 @@ public class CtrlRscAutoHelper
 {
     private final ErrorReporter errorReporter;
     private final CtrlApiDataLoader dataLoader;
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlRscCrtApiHelper rscCrtHelper;
     private final CtrlRscDeleteApiHelper rscDelHelper;
     private final CtrlResyncAfterHelper resyncAfterHelper;
@@ -52,7 +46,6 @@ public class CtrlRscAutoHelper
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final ResourceDefinitionProtectionRepository rscDfnRepo;
-    private final AccessContext sysCtx;
     private final CtrlTransactionHelper ctrlTxHelper;
 
     public static class AutoHelperResult
@@ -93,13 +86,11 @@ public class CtrlRscAutoHelper
         CtrlRscDfnAutoVerifyAlgoHelper autoVerifyAlgoHelperRef,
         CtrlResyncAfterHelper resyncAfterHelperRef,
         CtrlApiDataLoader dataLoaderRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlRscCrtApiHelper rscCrtHelperRef,
         CtrlRscDeleteApiHelper rscDelHelperRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
-        @SystemContext AccessContext sysCtxRef,
         ResourceDefinitionProtectionRepository rscDfnRepoRef,
         CtrlTransactionHelper ctrlTxHelperRef,
         ErrorReporter errorReporterRef
@@ -117,13 +108,11 @@ public class CtrlRscAutoHelper
             );
 
         dataLoader = dataLoaderRef;
-        peerAccCtx = peerAccCtxRef;
         rscCrtHelper = rscCrtHelperRef;
         rscDelHelper = rscDelHelperRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
-        sysCtx = sysCtxRef;
         rscDfnRepo = rscDfnRepoRef;
         resyncAfterHelper = resyncAfterHelperRef;
         errorReporter = errorReporterRef;
@@ -146,25 +135,18 @@ public class CtrlRscAutoHelper
     private Flux<ApiCallRc> manageAllInTransaction(AutoHelperContext autoCtxWithoutRscDfn)
     {
         List<Flux<ApiCallRc>> fluxList = new ArrayList<>();
-        try
+        for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
         {
-            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(sysCtx).values())
-            {
-                AutoHelperResult result = manage(
-                    new AutoHelperContext(
-                        autoCtxWithoutRscDfn.responses,
-                        autoCtxWithoutRscDfn.responseContext,
-                        rscDfn
-                    )
-                );
-                fluxList.add(result.flux);
-            }
-            ctrlTxHelper.commit();
+            AutoHelperResult result = manage(
+                new AutoHelperContext(
+                    autoCtxWithoutRscDfn.responses,
+                    autoCtxWithoutRscDfn.responseContext,
+                    rscDfn
+                )
+            );
+            fluxList.add(result.flux);
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        ctrlTxHelper.commit();
         return Flux.merge(fluxList);
     }
 
@@ -244,20 +226,9 @@ public class CtrlRscAutoHelper
     {
         @Nullable Resource ret = null;
         @Nullable Resource rsc = dataLoader.loadRsc(nodeNameRef, nameRef, false);
-        try
+        if (rsc != null && rsc.getStateFlags().isSet(Resource.Flags.TIE_BREAKER))
         {
-            if (rsc != null && rsc.getStateFlags().isSet(peerAccCtx.get(), Resource.Flags.TIE_BREAKER))
-            {
-                ret = rsc;
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "check if given resource is a tiebreaker",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
+            ret = rsc;
         }
         return ret;
     }

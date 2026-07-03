@@ -1,9 +1,7 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -12,7 +10,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller.NotConnectedHandler;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -30,8 +27,6 @@ import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.tasks.AutoSnapshotTask;
 import com.linbit.linstor.tasks.ScheduleBackupService;
@@ -74,8 +69,6 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlRscDfnTruncateApiCallHandler
 {
-    private final AccessContext apiCtx;
-    private final Provider<AccessContext> peerAccCtxProvider;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
@@ -93,8 +86,6 @@ public class CtrlRscDfnTruncateApiCallHandler
 
     @Inject
     public CtrlRscDfnTruncateApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
@@ -111,8 +102,6 @@ public class CtrlRscDfnTruncateApiCallHandler
         ResponseConverter responseConverterRef
     )
     {
-        apiCtx = apiCtxRef;
-        peerAccCtxProvider = peerAccCtxRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
@@ -187,30 +176,19 @@ public class CtrlRscDfnTruncateApiCallHandler
             AccessContext peerAccCtx = peerAccCtxProvider.get();
 
             flux = Flux.just(responses);
-            try
+            if (rscDfn.hasDiskless())
             {
-                if (rscDfn.hasDiskless(peerAccCtx))
-                {
-                    // first delete diskless resources, because DRBD raises an error if all peers with disks are
-                    // removed from a diskless resource
-                    TruncateContext truncateDisklessRscs = new TruncateContext(
-                        rscName,
-                        rsc -> rsc.isDiskless(peerAccCtx),
-                        null,
-                        this::markDisklessForDeletion,
-                        rsc -> deleteRsc(rsc, false),
-                        "Deleting diskless resources"
-                    );
-                    flux = flux.concatWith(deleteResources(truncateDisklessRscs));
-                }
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ApiAccessDeniedException(
-                    exc,
-                    "checking if resource-definition has diskless resources",
-                    ApiConsts.FAIL_ACC_DENIED_RSC_DFN
+                // first delete diskless resources, because DRBD raises an error if all peers with disks are
+                // removed from a diskless resource
+                TruncateContext truncateDisklessRscs = new TruncateContext(
+                    rscName,
+                    rsc -> rsc.isDiskless(),
+                    null,
+                    this::markDisklessForDeletion,
+                    rsc -> deleteRsc(rsc, false),
+                    "Deleting diskless resources"
                 );
+                flux = flux.concatWith(deleteResources(truncateDisklessRscs));
             }
 
             TruncateContext truncateRemainingRscs = new TruncateContext(
@@ -237,43 +215,36 @@ public class CtrlRscDfnTruncateApiCallHandler
 
     public void ensureNoRscInUse(ResourceDefinition rscDfn)
     {
-        ensureNoRscInUsePriviledged(apiCtx, rscDfn);
+        ensureNoRscInUsePriviledged(rscDfn);
     }
 
-    public static void ensureNoRscInUsePriviledged(AccessContext apiCtx, ResourceDefinition rscDfn)
+    public static void ensureNoRscInUsePriviledged(ResourceDefinition rscDfn)
     {
-        try
+        Optional<Resource> rscInUse = rscDfn.anyResourceInUse();
+        if (rscInUse.isPresent())
         {
-            Optional<Resource> rscInUse = rscDfn.anyResourceInUse(apiCtx);
-            if (rscInUse.isPresent())
-            {
-                NodeName nodeName = rscInUse.get().getNode().getName();
-                throw new ApiRcException(
-                    ApiCallRcImpl
-                        .entryBuilder(
-                            ApiConsts.FAIL_IN_USE,
-                            String.format(
-                                "Resource '%s' on node '%s' is still in use.",
-                                rscDfn.getName().displayValue,
-                                nodeName.displayValue
-                            )
+            NodeName nodeName = rscInUse.get().getNode().getName();
+            throw new ApiRcException(
+                ApiCallRcImpl
+                    .entryBuilder(
+                        ApiConsts.FAIL_IN_USE,
+                        String.format(
+                            "Resource '%s' on node '%s' is still in use.",
+                            rscDfn.getName().displayValue,
+                            nodeName.displayValue
                         )
-                        .setCause("Resource is mounted/in use.")
-                        .setCorrection(
-                            String.format(
-                                "Un-mount resource '%s' on the node '%s'.",
-                                rscDfn.getName().displayValue,
-                                nodeName.displayValue
-                            )
+                    )
+                    .setCause("Resource is mounted/in use.")
+                    .setCorrection(
+                        String.format(
+                            "Un-mount resource '%s' on the node '%s'.",
+                            rscDfn.getName().displayValue,
+                            nodeName.displayValue
                         )
-                        .setSkipErrorReport(true)
-                        .build()
-                );
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+                    )
+                    .setSkipErrorReport(true)
+                    .build()
+            );
         }
     }
 
@@ -323,25 +294,14 @@ public class CtrlRscDfnTruncateApiCallHandler
         @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(truncateCtxRef.rscName, false);
         if (rscDfn != null)
         {
-            try
+            @Nullable Flux<ApiCallRc> preMarkDeleteFlux = truncateCtxRef.preMarkForDeleteAction.accept(rscDfn);
+            if (preMarkDeleteFlux != null)
             {
-                @Nullable Flux<ApiCallRc> preMarkDeleteFlux = truncateCtxRef.preMarkForDeleteAction.accept(rscDfn);
-                if (preMarkDeleteFlux != null)
-                {
-                    flux = preMarkDeleteFlux;
-                }
-                else
-                {
-                    flux = Flux.empty();
-                }
+                flux = preMarkDeleteFlux;
             }
-            catch (AccessDeniedException exc)
+            else
             {
-                throw new ApiAccessDeniedException(
-                    exc,
-                    truncateCtxRef.scopeDescription + " preparing deletion",
-                    ApiConsts.FAIL_ACC_DENIED_RSC
-                );
+                flux = Flux.empty();
             }
         }
         else
@@ -359,7 +319,7 @@ public class CtrlRscDfnTruncateApiCallHandler
     private Flux<ApiCallRc> deleteResourcesMultiStep(
         TruncateContext truncateCtxRef,
         String subScopeDescrRef,
-        ExceptionThrowingFunction<Resource, /* Nullable */ Flux<ApiCallRc>, AccessDeniedException> actionRef,
+        ExceptionThrowingFunction<Resource, /* Nullable */ Flux<ApiCallRc>> actionRef,
         String updateStltsFormatRef,
         Flux<ApiCallRc> nextStepRef
     )
@@ -381,7 +341,7 @@ public class CtrlRscDfnTruncateApiCallHandler
     private Flux<ApiCallRc> deleteResourcesMultiStepInTx(
         TruncateContext truncateCtxRef,
         String subScopeDescrRef,
-        ExceptionThrowingFunction<Resource, /* TODO: @Nullable */ Flux<ApiCallRc>, AccessDeniedException> actionRef,
+        ExceptionThrowingFunction<Resource, /* TODO: @Nullable */ Flux<ApiCallRc>> actionRef,
         String updateStltsFormatRef,
         Flux<ApiCallRc> nextStepRef
     )
@@ -390,63 +350,52 @@ public class CtrlRscDfnTruncateApiCallHandler
         @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(truncateCtxRef.rscName, false);
         if (rscDfn != null)
         {
-            try
+            flux = Flux.empty();
+            ExceptionThrowingPredicate<Resource> predicate = truncateCtxRef.rscFilter;
+
+            // copy resources into dedicated map / collection since the actionRef might delete the resources, which
+            // would cause us here a ConcurrentModificationException
+            Map<NodeName, Resource> copy = new HashMap<>();
+
+            if (truncateCtxRef.preMarkForDeleteAction != null)
             {
-                flux = Flux.empty();
-                ExceptionThrowingPredicate<Resource, AccessDeniedException> predicate = truncateCtxRef.rscFilter;
-
-                // copy resources into dedicated map / collection since the actionRef might delete the resources, which
-                // would cause us here a ConcurrentModificationException
-                Map<NodeName, Resource> copy = new HashMap<>();
-
-                if (truncateCtxRef.preMarkForDeleteAction != null)
+                @Nullable Flux<ApiCallRc> preMarkFlux = truncateCtxRef.preMarkForDeleteAction.accept(rscDfn);
+                if (preMarkFlux != null)
                 {
-                    @Nullable Flux<ApiCallRc> preMarkFlux = truncateCtxRef.preMarkForDeleteAction.accept(rscDfn);
-                    if (preMarkFlux != null)
+                    flux = flux.concatWith(preMarkFlux);
+                }
+            }
+
+            rscDfn.copyResourceMap(copy);
+            for (Resource rsc : copy.values())
+            {
+                if (predicate.test(rsc))
+                {
+                    @Nullable Flux<ApiCallRc> actionFlux = actionRef.accept(rsc);
+                    if (actionFlux != null)
                     {
-                        flux = flux.concatWith(preMarkFlux);
+                        flux = flux.concatWith(actionFlux);
                     }
                 }
+            }
 
-                rscDfn.copyResourceMap(peerAccCtxProvider.get(), copy);
-                for (Resource rsc : copy.values())
-                {
-                    if (predicate.test(rsc))
-                    {
-                        @Nullable Flux<ApiCallRc> actionFlux = actionRef.accept(rsc);
-                        if (actionFlux != null)
-                        {
-                            flux = flux.concatWith(actionFlux);
-                        }
-                    }
-                }
+            ctrlTransactionHelper.commit();
 
-                ctrlTransactionHelper.commit();
-
-                flux = flux.concatWith(
-                    ctrlSatelliteUpdateCaller.updateSatellites(
-                        rscDfn,
-                        nodeName -> Flux.error(new ApiRcException(ResponseUtils.makeNotConnectedWarning(nodeName))),
-                        nextStepRef
-                    )
-                        .transform(
-                            updateResponses -> CtrlResponseUtils.combineResponses(
-                                errorReporter,
-                                updateResponses,
-                                truncateCtxRef.rscName,
-                                updateStltsFormatRef
-                            )
+            flux = flux.concatWith(
+                ctrlSatelliteUpdateCaller.updateSatellites(
+                    rscDfn,
+                    nodeName -> Flux.error(new ApiRcException(ResponseUtils.makeNotConnectedWarning(nodeName))),
+                    nextStepRef
+                )
+                    .transform(
+                        updateResponses -> CtrlResponseUtils.combineResponses(
+                            errorReporter,
+                            updateResponses,
+                            truncateCtxRef.rscName,
+                            updateStltsFormatRef
                         )
-                ).concatWith(nextStepRef);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ApiAccessDeniedException(
-                    exc,
-                    truncateCtxRef.scopeDescription + subScopeDescrRef,
-                    ApiConsts.FAIL_ACC_DENIED_RSC
-                );
-            }
+                    )
+            ).concatWith(nextStepRef);
         }
         else
         {
@@ -467,18 +416,14 @@ public class CtrlRscDfnTruncateApiCallHandler
         try
         {
             AccessContext peerAccCtx = peerAccCtxProvider.get();
-            rscRef.markDeleted(peerAccCtx);
+            rscRef.markDeleted();
             Iterator<Volume> volumesIterator = rscRef.iterateVolumes();
             while (volumesIterator.hasNext())
             {
                 Volume vlm = volumesIterator.next();
-                vlm.markDeleted(apiCtx);
+                vlm.markDeleted();
             }
             ResourceDataUtils.recalculateVolatileRscData(ctrlRscLayerDataFactory, rscRef);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "mark resource for deletion", ApiConsts.FAIL_ACC_DENIED_RSC);
         }
         catch (DatabaseException exc)
         {
@@ -509,61 +454,49 @@ public class CtrlRscDfnTruncateApiCallHandler
         Flux<ApiCallRc> flux = Flux.empty();
         Set<SnapshotDefinition> snapDfnsToUpdate = new HashSet<>();
         Iterator<Resource> rscIt;
-        try
+        rscIt = rscDfnRef.iterateResource();
+        while (rscIt.hasNext())
         {
-            rscIt = rscDfnRef.iterateResource(peerAccCtxProvider.get());
-            while (rscIt.hasNext())
-            {
-                Resource rsc = rscIt.next();
-                snapDfnsToUpdate.addAll(
-                    CtrlRscDeleteApiCallHandler.handleZfsRenameIfNeeded(
-                        apiCtx,
-                        rsc
-                    )
-                );
-            }
-
-            ctrlTransactionHelper.commit();
-
-            ResourceName rscName = rscDfnRef.getName();
-            NotConnectedHandler notConnectedHandler = nodeName -> Flux.error(
-                new ApiRcException(ResponseUtils.makeNotConnectedWarning(nodeName))
+            Resource rsc = rscIt.next();
+            snapDfnsToUpdate.addAll(
+                CtrlRscDeleteApiCallHandler.handleZfsRenameIfNeeded(
+                    rsc
+                )
             );
-            // TODO re really need an atomic updater...
-            for (SnapshotDefinition snapDfnToUpdate : snapDfnsToUpdate)
-            {
-                flux = flux.concatWith(
-                    ctrlSatelliteUpdateCaller.updateSatellites(snapDfnToUpdate, notConnectedHandler)
-                        .transform(
-                            updateResponses -> CtrlResponseUtils.combineResponses(
-                                errorReporter,
-                                updateResponses,
-                                rscName,
-                                "SnapshotDefinition {1} on {0} updated"
-                            )
-                        )
-                );
-            }
         }
-        catch (AccessDeniedException exc)
+
+        ctrlTransactionHelper.commit();
+
+        ResourceName rscName = rscDfnRef.getName();
+        NotConnectedHandler notConnectedHandler = nodeName -> Flux.error(
+            new ApiRcException(ResponseUtils.makeNotConnectedWarning(nodeName))
+        );
+        // TODO re really need an atomic updater...
+        for (SnapshotDefinition snapDfnToUpdate : snapDfnsToUpdate)
         {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Updating snapshot properties before deleting resources",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
+            flux = flux.concatWith(
+                ctrlSatelliteUpdateCaller.updateSatellites(snapDfnToUpdate, notConnectedHandler)
+                    .transform(
+                        updateResponses -> CtrlResponseUtils.combineResponses(
+                            errorReporter,
+                            updateResponses,
+                            rscName,
+                            "SnapshotDefinition {1} on {0} updated"
+                        )
+                    )
             );
         }
         return flux;
     }
 
-    private Flux<ApiCallRc> markRemainingForDeletion(Resource rscRef) throws AccessDeniedException
+    private Flux<ApiCallRc> markRemainingForDeletion(Resource rscRef)
     {
         Flux<ApiCallRc> flux = Flux.empty();
         StateFlags<Flags> rscFlags = rscRef.getStateFlags();
-        if (rscFlags.isSet(apiCtx, Resource.Flags.INACTIVE))
+        if (rscFlags.isSet(Resource.Flags.INACTIVE))
         {
             @Nullable Resource rscToActivate = null;
-            if (!rscFlags.isSet(apiCtx, Resource.Flags.INACTIVE_PERMANENTLY))
+            if (!rscFlags.isSet(Resource.Flags.INACTIVE_PERMANENTLY))
             {
                 rscToActivate = rscRef;
             }
@@ -571,12 +504,12 @@ public class CtrlRscDfnTruncateApiCallHandler
             for (Resource sharedRsc : sharedRscMgr.getSharedResources(rscRef))
             {
                 StateFlags<Flags> sharedRscFlags = sharedRsc.getStateFlags();
-                if (!sharedRscFlags.isSet(apiCtx, Resource.Flags.INACTIVE))
+                if (!sharedRscFlags.isSet(Resource.Flags.INACTIVE))
                 {
                     activeRsc = sharedRsc;
                     break;
                 }
-                if (!sharedRscFlags.isSet(apiCtx, Resource.Flags.INACTIVE_PERMANENTLY))
+                if (!sharedRscFlags.isSet(Resource.Flags.INACTIVE_PERMANENTLY))
                 {
                     rscToActivate = sharedRsc;
                 }
@@ -607,20 +540,20 @@ public class CtrlRscDfnTruncateApiCallHandler
     private static class TruncateContext
     {
         private final ResourceName rscName;
-        private final ExceptionThrowingPredicate<Resource, AccessDeniedException> rscFilter;
+        private final ExceptionThrowingPredicate<Resource> rscFilter;
         @SuppressWarnings("LineLength")
-        private final @Nullable ExceptionThrowingFunction<ResourceDefinition, Flux<ApiCallRc>, AccessDeniedException> preMarkForDeleteAction;
-        private final ExceptionThrowingFunction<Resource, Flux<ApiCallRc>, AccessDeniedException> markForDeleteAction;
-        private final ExceptionThrowingFunction<Resource, Flux<ApiCallRc>, AccessDeniedException> deleteAction;
+        private final @Nullable ExceptionThrowingFunction<ResourceDefinition, Flux<ApiCallRc>> preMarkForDeleteAction;
+        private final ExceptionThrowingFunction<Resource, Flux<ApiCallRc>> markForDeleteAction;
+        private final ExceptionThrowingFunction<Resource, Flux<ApiCallRc>> deleteAction;
         private final String scopeDescription;
 
         private TruncateContext(
             ResourceName rscNameRef,
-            ExceptionThrowingPredicate<Resource, AccessDeniedException> rscFilterRef,
+            ExceptionThrowingPredicate<Resource> rscFilterRef,
             @SuppressWarnings("LineLength")
-            @Nullable ExceptionThrowingFunction<ResourceDefinition, Flux<ApiCallRc>, AccessDeniedException> preMarkForDeleteActionRef,
-            ExceptionThrowingFunction<Resource, Flux<ApiCallRc>, AccessDeniedException> markForDeleteActionRef,
-            ExceptionThrowingFunction<Resource, Flux<ApiCallRc>, AccessDeniedException> deleteActionRef,
+            @Nullable ExceptionThrowingFunction<ResourceDefinition, Flux<ApiCallRc>> preMarkForDeleteActionRef,
+            ExceptionThrowingFunction<Resource, Flux<ApiCallRc>> markForDeleteActionRef,
+            ExceptionThrowingFunction<Resource, Flux<ApiCallRc>> deleteActionRef,
             String scopeDescriptionRef
         )
         {

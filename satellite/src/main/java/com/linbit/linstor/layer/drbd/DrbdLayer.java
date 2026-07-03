@@ -11,7 +11,6 @@ import com.linbit.extproc.ChildProcessHandler;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.extproc.ExtCmdFailedException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -58,8 +57,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
@@ -102,7 +99,6 @@ public class DrbdLayer implements DeviceLayer
 
     private static final long HAS_VALID_STATE_FOR_PRIMARY_TIMEOUT = 2000;
 
-    private final AccessContext workerCtx;
     private final DrbdAdm drbdUtils;
     private final DrbdResourceFileUtils drbdResFileUtils;
     private final DrbdStateStore drbdState;
@@ -127,7 +123,6 @@ public class DrbdLayer implements DeviceLayer
 
     @Inject
     public DrbdLayer(
-        @DeviceManagerContext AccessContext workerCtxRef,
         DrbdAdm drbdUtilsRef,
         DrbdResourceFileUtils drbdResFileUtilsRef,
         DrbdStateStore drbdStateRef,
@@ -142,7 +137,6 @@ public class DrbdLayer implements DeviceLayer
         WindowsFirewall windowsFirewallRef
     )
     {
-        workerCtx = workerCtxRef;
         drbdUtils = drbdUtilsRef;
         drbdResFileUtils = drbdResFileUtilsRef;
         drbdState = drbdStateRef;
@@ -168,7 +162,7 @@ public class DrbdLayer implements DeviceLayer
         Set<AbsRscLayerObject<Resource>> rscDataList,
         Set<AbsRscLayerObject<Snapshot>> affectedSnapshots
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         if (drbdSetupStatusOutput == null)
         {
@@ -235,7 +229,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     @Override
-    public boolean isDiscGranFeasible(AbsRscLayerObject<Resource> rscLayerObjectRef) throws AccessDeniedException
+    public boolean isDiscGranFeasible(AbsRscLayerObject<Resource> rscLayerObjectRef)
     {
         return !Platform.isWindows() && !rscLayerObjectRef.getAbsResource().isDrbdDiskless(workerCtx);
     }
@@ -245,7 +239,7 @@ public class DrbdLayer implements DeviceLayer
         AbsRscLayerObject<Resource> rscLayerData,
         ApiCallRcImpl apiCallRc
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException
+        throws StorageException, ResourceException, VolumeException, DatabaseException
     {
         DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) rscLayerData;
 
@@ -304,7 +298,6 @@ public class DrbdLayer implements DeviceLayer
         final DrbdRscData<Resource> drbdRscData,
         final Map<String, String> rscPropsMap
     )
-        throws AccessDeniedException
     {
         final ResourceName rscName = rsc.getKey().getResourceName();
         boolean isDeleting = rsc.getStateFlags()
@@ -430,7 +423,6 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private boolean shouldDrbdDeviceBeDeleted(DrbdRscData<Resource> drbdRscData)
-        throws AccessDeniedException
     {
         boolean ret = drbdRscData.getRscDfnLayerObject().isDown();
         if (!ret)
@@ -502,7 +494,7 @@ public class DrbdLayer implements DeviceLayer
         DrbdRscData<Resource> drbdRscData,
         ApiCallRcImpl apiCallRc
     )
-        throws AccessDeniedException, StorageException, ResourceException, VolumeException, DatabaseException
+        throws StorageException, ResourceException, VolumeException, DatabaseException
     {
         boolean isDiskless = drbdRscData.getAbsResource().isDrbdDiskless(workerCtx);
         StateFlags<Flags> rscFlags = drbdRscData.getAbsResource().getStateFlags();
@@ -538,7 +530,7 @@ public class DrbdLayer implements DeviceLayer
      *
      */
     private void deleteDrbd(DrbdRscData<Resource> drbdRscData, ApiCallRcImpl apiCallRc) throws
-        StorageException, AccessDeniedException, DatabaseException
+        StorageException, DatabaseException
     {
         String suffixedRscName = drbdRscData.getSuffixedResourceName();
         try
@@ -620,7 +612,7 @@ public class DrbdLayer implements DeviceLayer
         boolean childAlreadyProcessed,
         @Nullable String drbdSetupStatus
     )
-        throws AccessDeniedException, StorageException, DatabaseException, ResourceException, VolumeException,
+        throws StorageException, DatabaseException, ResourceException, VolumeException,
         AbortLayerProcessingException
     {
         boolean contProcess = true;
@@ -958,7 +950,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private void runPostInitializationIfNeeded(DrbdRscData<Resource> drbdRscDataRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         List<Integer> initializedVlmNrList = new ArrayList<>();
         for (DrbdVlmData<Resource> drbdVlmData : drbdRscDataRef.getVlmLayerObjects().values())
@@ -1074,7 +1066,7 @@ public class DrbdLayer implements DeviceLayer
             );
     }
 
-    private void setDevicePaths(DrbdRscData<Resource> drbdRscData) throws AccessDeniedException, DatabaseException
+    private void setDevicePaths(DrbdRscData<Resource> drbdRscData) throws DatabaseException
     {
         // set device paths
         for (DrbdVlmData<Resource> drbdVlmData : drbdRscData.getVlmLayerObjects().values())
@@ -1100,7 +1092,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private void recoverAfterSkipdisk(DrbdRscData<Resource> drbdRscData)
-        throws ExtCmdFailedException, AccessDeniedException, DatabaseException, InvalidKeyException
+        throws ExtCmdFailedException, DatabaseException, InvalidKeyException
     {
         Props rscProps = drbdRscData.getAbsResource().getProps(workerCtx);
         String ids = rscProps
@@ -1120,7 +1112,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private void forgetPeersCleanup(DrbdRscData<Resource> drbdRscData, String ids)
-        throws ExtCmdFailedException, AccessDeniedException
+        throws ExtCmdFailedException
     {
         List<String> nodeIds = new ArrayList<>();
         if (ids != null && !ids.isEmpty())
@@ -1163,7 +1155,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private boolean needsNewMetaData(DrbdVlmData<Resource> drbdVlmData, @Nullable String drbdSetupStatusOut)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         boolean isRscUp = drbdSetupStatusOut != null ?
             drbdSetupStatusOut.contains(drbdVlmData.getRscLayerObject().getSuffixedResourceName() + " role:") :
@@ -1174,26 +1166,26 @@ public class DrbdLayer implements DeviceLayer
             !isRscUp;
     }
 
-    private boolean areBothResizeFlagsSet(DrbdVlmData<Resource> drbdVlmData) throws AccessDeniedException
+    private boolean areBothResizeFlagsSet(DrbdVlmData<Resource> drbdVlmData)
     {
         StateFlags<Volume.Flags> vlmFlags = ((Volume) drbdVlmData.getVolume()).getFlags();
         return vlmFlags.isSet(workerCtx, Volume.Flags.RESIZE, Volume.Flags.DRBD_RESIZE);
     }
 
-    private boolean isNeitherResizeFlagsSet(DrbdVlmData<Resource> drbdVlmData) throws AccessDeniedException
+    private boolean isNeitherResizeFlagsSet(DrbdVlmData<Resource> drbdVlmData)
     {
         StateFlags<Volume.Flags> vlmFlags = ((Volume) drbdVlmData.getVolume()).getFlags();
         return vlmFlags.isUnset(workerCtx, Volume.Flags.RESIZE, Volume.Flags.DRBD_RESIZE);
     }
 
 
-    private boolean isFlagSet(DrbdVlmData<Resource> drbdVlmData, Volume.Flags... flagsRef) throws AccessDeniedException
+    private boolean isFlagSet(DrbdVlmData<Resource> drbdVlmData, Volume.Flags... flagsRef)
     {
         StateFlags<Volume.Flags> vlmFlags = ((Volume) drbdVlmData.getVolume()).getFlags();
         return vlmFlags.isSet(workerCtx, flagsRef);
     }
 
-    private boolean needsResize(DrbdVlmData<Resource> drbdVlmData) throws AccessDeniedException, StorageException
+    private boolean needsResize(DrbdVlmData<Resource> drbdVlmData) throws StorageException
     {
         // A resize should not be called on a resize without a disk
         // there was a bug in pre 0.9.2 versions where diskless would be chosen for the resize command
@@ -1246,7 +1238,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private List<DrbdVlmData<Resource>> detachVolumesIfNecessary(DrbdRscData<Resource> drbdRscData)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         List<DrbdVlmData<Resource>> checkMetaData = new ArrayList<>();
         Resource rsc = drbdRscData.getAbsResource();
@@ -1330,7 +1322,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private void shrinkVolumesIfNecessary(DrbdRscData<Resource> drbdRscData)
-        throws AccessDeniedException, StorageException, ResourceException
+        throws StorageException, ResourceException
     {
         try
         {
@@ -1420,7 +1412,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private boolean hasMetaData(DrbdVlmData<Resource> drbdVlmData)
-        throws VolumeException, AccessDeniedException
+        throws VolumeException
     {
         boolean externalMd = hasExternalMd(drbdVlmData);
         String metaDiskPath = externalMd ? drbdVlmData.getMetaDiskPath() : drbdVlmData.getDataDevice();
@@ -1500,7 +1492,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private void createMetaData(DrbdVlmData<Resource> drbdVlmData)
-        throws AccessDeniedException, StorageException, ImplementationError, VolumeException
+        throws StorageException, ImplementationError, VolumeException
     {
         try
         {
@@ -1638,7 +1630,7 @@ public class DrbdLayer implements DeviceLayer
         }
     }
 
-    private boolean hasLocalStltWonUpToDateRace(DrbdVlmData<Resource> drbdVlmDataRef) throws AccessDeniedException
+    private boolean hasLocalStltWonUpToDateRace(DrbdVlmData<Resource> drbdVlmDataRef)
     {
         boolean ret = false;
         VolumeDefinition vlmDfn = drbdVlmDataRef.getVolume().getVolumeDefinition();
@@ -1651,7 +1643,7 @@ public class DrbdLayer implements DeviceLayer
         return ret;
     }
 
-    private String getNodeNameForUpTodate(VolumeDefinition vlmDfn) throws AccessDeniedException
+    private String getNodeNameForUpTodate(VolumeDefinition vlmDfn)
     {
         @Nullable String val = vlmDfn.getProps(workerCtx)
             .getProp(InternalApiConsts.KEY_LINSTOR_DRBD_INITIAL_UPTODATE_ON);
@@ -1665,7 +1657,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private String getCurrentGiFromVlmDfnProp(DrbdVlmData<Resource> drbdVlmData)
-        throws AccessDeniedException, ImplementationError, StorageException
+        throws ImplementationError, StorageException
     {
         String currentGi = null;
         try
@@ -1718,7 +1710,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private void updateResourceToCurrentDrbdState(DrbdRscData<Resource> drbdRscData)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         try
         {
@@ -1912,7 +1904,6 @@ public class DrbdLayer implements DeviceLayer
     }
 
     private void fillResourceState(DrbdRscData<Resource> drbdRscData)
-        throws AccessDeniedException
     {
         Resource localResource = drbdRscData.getAbsResource();
 
@@ -1951,7 +1942,7 @@ public class DrbdLayer implements DeviceLayer
                     notGeneratedList.add(drbdRscData.getResourceName().displayValue.toLowerCase());
                 }
             }
-            catch (AccessDeniedException | StorageException exc)
+            catch (StorageException exc)
             {
                 errorReporter.reportError(exc);
                 notGeneratedList.add(drbdRscData.getResourceName().displayValue.toLowerCase());
@@ -1982,7 +1973,7 @@ public class DrbdLayer implements DeviceLayer
     }
 
     @Override
-    public boolean isDeleteFlagSet(AbsRscLayerObject<?> rscDataRef) throws AccessDeniedException
+    public boolean isDeleteFlagSet(AbsRscLayerObject<?> rscDataRef)
     {
         if (!(rscDataRef instanceof DrbdRscData))
         {
@@ -2117,7 +2108,7 @@ public class DrbdLayer implements DeviceLayer
         {
             throw new StorageException("clone DRBD last known block device file failed.", ioExc);
         }
-        catch (ExtCmdFailedException | AccessDeniedException exc)
+        catch (ExtCmdFailedException exc)
         {
             throw new StorageException("drbdmeta check-resize failed", exc);
         }

@@ -8,8 +8,6 @@ import com.linbit.SizeSpecParser;
 import com.linbit.linstor.LinstorParsingException;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
@@ -25,9 +23,6 @@ import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.utils.NullableUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.storage.kinds.ExtTools;
@@ -61,23 +56,17 @@ public class StorPoolFilter
 {
     private static final SizeSpec DFLT_MIN_FREE_SPACE = new SizeSpec.Percent(10f);
 
-    private final AccessContext apiAccCtx;
-    private final Provider<AccessContext> peerAccCtx;
     private final StorPoolDefinitionMap storPoolDfnMap;
     private final ErrorReporter errorReporter;
     private final CtrlPropsHelper ctrlPropsHelper;
 
     @Inject
     StorPoolFilter(
-        @SystemContext AccessContext apiAccCtxRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         StorPoolDefinitionMap storPoolDfnMapRef,
         ErrorReporter errorReporterRef,
         CtrlPropsHelper ctrlPropsHelperRef
     )
     {
-        apiAccCtx = apiAccCtxRef;
-        peerAccCtx = peerAccCtxRef;
         storPoolDfnMap = storPoolDfnMapRef;
         errorReporter = errorReporterRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
@@ -95,36 +84,29 @@ public class StorPoolFilter
     public ArrayList<StorPool> listAvailableStorPools(boolean diskful)
     {
         ArrayList<StorPool> ret = new ArrayList<>();
-        try
+        AccessContext peerCtx = peerAccCtx.get();
+        for (StorPoolDefinition storPoolDfn : storPoolDfnMap.values())
         {
-            AccessContext peerCtx = peerAccCtx.get();
-            for (StorPoolDefinition storPoolDfn : storPoolDfnMap.values())
+            // check storPoolDfn access
+            if (storPoolDfn.getObjProt().queryAccess().hasAccess(AccessType.USE))
             {
-                // check storPoolDfn access
-                if (storPoolDfn.getObjProt().queryAccess(peerCtx).hasAccess(AccessType.USE))
+                Iterator<StorPool> storPoolsIt = storPoolDfn.iterateStorPools();
+                while (storPoolsIt.hasNext())
                 {
-                    Iterator<StorPool> storPoolsIt = storPoolDfn.iterateStorPools(apiAccCtx);
-                    while (storPoolsIt.hasNext())
-                    {
-                        StorPool storPool = storPoolsIt.next();
+                    StorPool storPool = storPoolsIt.next();
 
-                        if (
-                            storPool.getDeviceProviderKind().hasBackingDevice() == diskful &&
-                                // have USE access
-                                storPool.getNode().getObjProt().queryAccess(peerCtx).hasAccess(AccessType.USE) &&
-                                // peer is online
-                                storPool.getNode().getPeer(apiAccCtx).isOnline()
-                        )
-                        {
-                            ret.add(storPool);
-                        }
+                    if (
+                        storPool.getDeviceProviderKind().hasBackingDevice() == diskful &&
+                            // have USE access
+                            storPool.getNode().getObjProt().queryAccess().hasAccess(AccessType.USE) &&
+                            // peer is online
+                            storPool.getNode().getPeer().isOnline()
+                    )
+                    {
+                        ret.add(storPool);
                     }
                 }
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
         }
         return ret;
     }
@@ -155,7 +137,6 @@ public class StorPoolFilter
         final boolean canChangeMinIoSize,
         @Nullable final Long minIoSize
     )
-        throws AccessDeniedException
     {
         List<String> skipAlreadyPlacedOnNodeNamesCheck = NullableUtils.mapNullable(
             selectFilter.skipAlreadyPlacedOnNodeNamesCheck(),
@@ -173,7 +154,7 @@ public class StorPoolFilter
             List<StorPool> filteredStorPools = new ArrayList<>();
             for (StorPool entry : availableStorPools)
             {
-                final long poolMinIoSize = entry.getMinIoSize(apiAccCtx);
+                final long poolMinIoSize = entry.getMinIoSize();
                 if (poolMinIoSize <= minIoSize)
                 {
                     filteredStorPools.add(entry);
@@ -196,16 +177,16 @@ public class StorPoolFilter
         ArrayList<ReadOnlyProps> alreadyDeployedNodesProps = new ArrayList<>();
         if (rscDfnRef != null && !skipAlreadyPlacedOnAllNodesCheck)
         {
-            Iterator<Resource> rscIt = rscDfnRef.iterateResource(apiAccCtx);
+            Iterator<Resource> rscIt = rscDfnRef.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
                 Node node = rsc.getNode();
                 if (!skipAlreadyPlacedOnNodeNamesCheck.contains(node.getName().value) &&
-                    rsc.getStateFlags().isUnset(apiAccCtx, Resource.Flags.EVACUATE, Resource.Flags.EVICTED) &&
-                    node.getFlags().isUnset(apiAccCtx, Node.Flags.EVACUATE, Node.Flags.EVICTED))
+                    rsc.getStateFlags().isUnset(Resource.Flags.EVACUATE, Resource.Flags.EVICTED) &&
+                    node.getFlags().isUnset(Node.Flags.EVACUATE, Node.Flags.EVICTED))
                 {
-                    alreadyDeployedNodesProps.add(node.getProps(apiAccCtx));
+                    alreadyDeployedNodesProps.add(node.getProps());
                 }
             }
         }
@@ -333,7 +314,7 @@ public class StorPoolFilter
             Boolean nodeMatches = nodeMatchesMap.get(node);
             if (nodeMatches == null)
             {
-                nodeMatches = !node.getFlags().isSet(apiAccCtx, Node.Flags.DELETE);
+                nodeMatches = !node.getFlags().isSet(Node.Flags.DELETE);
                 if (!nodeMatches)
                 {
                     errorReporter.logTrace(
@@ -342,7 +323,7 @@ public class StorPoolFilter
                         filterNodeNameList
                     );
                 }
-                nodeMatches = !node.getFlags().isSet(apiAccCtx, Node.Flags.EVACUATE);
+                nodeMatches = !node.getFlags().isSet(Node.Flags.EVACUATE);
                 if (!nodeMatches)
                 {
                     errorReporter.logTrace(
@@ -352,7 +333,7 @@ public class StorPoolFilter
                     );
                 }
 
-                ReadOnlyProps nodeProps = node.getProps(apiAccCtx);
+                ReadOnlyProps nodeProps = node.getProps();
                 if (nodeMatches && filterNodeNameList != null && !filterNodeNameList.isEmpty())
                 {
                     boolean nodeNameFound = false;
@@ -456,7 +437,7 @@ public class StorPoolFilter
 
                 if (nodeMatches && filterLayerList != null && !filterLayerList.isEmpty())
                 {
-                    ExtToolsManager extToolsManager = node.getPeer(apiAccCtx).getExtToolsManager();
+                    ExtToolsManager extToolsManager = node.getPeer().getExtToolsManager();
                     Set<DeviceLayerKind> supportedLayers = extToolsManager.getSupportedLayers();
                     for (DeviceLayerKind layer : filterLayerList)
                     {
@@ -492,7 +473,7 @@ public class StorPoolFilter
                 }
                 if (nodeMatches && requiredVersion != null)
                 {
-                    ExtToolsManager extToolsMgr = node.getPeer(apiAccCtx).getExtToolsManager();
+                    ExtToolsManager extToolsMgr = node.getPeer().getExtToolsManager();
                     for (Entry<ExtTools, ExtToolsInfo.Version> entry : requiredVersion.entrySet())
                     {
                         ExtTools extTool = entry.getKey();
@@ -523,7 +504,6 @@ public class StorPoolFilter
                 {
                     long freeCapacity = FreeCapacityAutoPoolSelectorUtils
                         .getFreeCapacityCurrentEstimationPrivileged(
-                            apiAccCtx,
                             null,
                             sp,
                             ctrlPropsHelper.getCtrlPropsForView(),
@@ -604,7 +584,7 @@ public class StorPoolFilter
 
                 if (storPoolMatches)
                 {
-                    String allowAutoPlace = sp.getProps(apiAccCtx).getProp(ApiConsts.KEY_AUTOPLACE_ALLOW_TARGET);
+                    String allowAutoPlace = sp.getProps().getProp(ApiConsts.KEY_AUTOPLACE_ALLOW_TARGET);
                     if (allowAutoPlace != null && allowAutoPlace.equalsIgnoreCase("false"))
                     {
                         errorReporter.logTrace(
@@ -635,15 +615,15 @@ public class StorPoolFilter
         return filteredList;
     }
 
-    private long getMinFreeSpace(StorPool spRef, @Nullable ResourceDefinition rscDfnRef) throws AccessDeniedException
+    private long getMinFreeSpace(StorPool spRef, @Nullable ResourceDefinition rscDfnRef)
     {
-        PriorityProps prioProps = new PriorityProps(spRef.getProps(apiAccCtx));
+        PriorityProps prioProps = new PriorityProps(spRef.getProps());
         if (rscDfnRef != null)
         {
-            prioProps.addProps(rscDfnRef.getProps(apiAccCtx));
-            prioProps.addProps(rscDfnRef.getResourceGroup().getProps(apiAccCtx));
+            prioProps.addProps(rscDfnRef.getProps());
+            prioProps.addProps(rscDfnRef.getResourceGroup().getProps());
         }
-        prioProps.addProps(spRef.getNode().getProps(apiAccCtx));
+        prioProps.addProps(spRef.getNode().getProps());
         prioProps.addProps(ctrlPropsHelper.getCtrlPropsForView());
 
         @Nullable String minFreeSpaceStr = prioProps.getProp(Autoplacer.MIN_FREE_SPACE_PROP);
@@ -658,7 +638,6 @@ public class StorPoolFilter
             {
                 errorReporter.reportError(
                     exc,
-                    apiAccCtx,
                     null,
                     "Failed to parse '" + minFreeSpaceStr + "'. Defaulting to 10% minFreeSpace"
                 );
@@ -667,7 +646,7 @@ public class StorPoolFilter
         return switch (sizeSpec)
         {
             case SizeSpec.Percent(float num) -> {
-                Optional<Long> totalCapacity = spRef.getFreeSpaceTracker().getTotalCapacity(apiAccCtx);
+                Optional<Long> totalCapacity = spRef.getFreeSpaceTracker().getTotalCapacity();
                 long cap = totalCapacity.orElse(0L);
                 yield (long) Math.ceil(cap / 100f * num);
             }
@@ -683,7 +662,6 @@ public class StorPoolFilter
         Node node,
         String nodeDisplayValue
     )
-        throws AccessDeniedException
     {
         boolean ret = true;
         Predicate<String> containedInList;
@@ -722,11 +700,11 @@ public class StorPoolFilter
         if (skipAlreadyPlacedOnAllNodesCheck ||
             !skipAlreadyPlacedOnNodeNamesCheck.contains(nodeDisplayValue.toUpperCase()))
         {
-            Iterator<Resource> iterateResources = node.iterateResources(apiAccCtx);
+            Iterator<Resource> iterateResources = node.iterateResources();
             while (ret && iterateResources.hasNext())
             {
                 Resource rsc = iterateResources.next();
-                if (!rsc.getStateFlags().isSet(apiAccCtx, Resource.Flags.DELETE))
+                if (!rsc.getStateFlags().isSet(Resource.Flags.DELETE))
                 {
                     String rscName = rsc.getResourceDefinition().getName().displayValue;
 

@@ -6,7 +6,6 @@ import java.util.Map;
 
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.VersionInfoProvider;
-import com.linbit.linstor.security.AccessContext;
 
 /**
  * Displays the version of the Controller or Satellite
@@ -35,7 +34,6 @@ public class CmdDisplayVersion extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     ) throws Exception
     {

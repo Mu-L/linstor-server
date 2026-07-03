@@ -4,7 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.dbdrivers.interfaces.updater.CollectionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.MapDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.stateflags.StateFlagsBits;
@@ -153,7 +152,6 @@ public class TransactionObjectFactory
      * Flags
      */
     public <PARENT, FLAG extends Enum<FLAG> & Flags> StateFlags<FLAG> createStateFlagsImpl(
-        ObjectProtection objProt,
         PARENT parentObj,
         Class<FLAG> enumType,
         StateFlagsPersistence<PARENT> stateFlagPersistence,

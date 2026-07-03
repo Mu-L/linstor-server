@@ -6,7 +6,6 @@ import com.linbit.crypto.LengthPadding;
 import com.linbit.crypto.SecretGenerator;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -40,8 +39,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.utils.Base64;
 
@@ -79,7 +76,6 @@ public class EncryptionHelper
     private final CtrlStltSerializer ctrlStltSrzl;
     private final NodesMap nodesMap;
     private final ResourceDefinitionMap rscDfnMap;
-    private final AccessContext apiCtx;
     private final Provider<CtrlRscLayerDataFactory> rscLayerDataFactoryProvider;
     private final CtrlSatelliteUpdateCaller ctrlstltUpdateCaller;
     private final RemoteMap remoteMap;
@@ -107,7 +103,6 @@ public class EncryptionHelper
         CtrlStltSerializer ctrlStltSrzlRef,
         NodesMap nodesMapRef,
         ResourceDefinitionMap rscDfnMapRef,
-        @ApiContext AccessContext apiCtxRef,
         Provider<CtrlRscLayerDataFactory> rscLayerDataFactoryProviderRef,
         CtrlSatelliteUpdateCaller ctrlstltUpdateCallerRef,
         RemoteMap remoteMapRef,
@@ -130,13 +125,12 @@ public class EncryptionHelper
         ctrlSecObj = ctrlSecObjRef;
         ctrlStltSrzl = ctrlStltSrzlRef;
         nodesMap = nodesMapRef;
-        apiCtx = apiCtxRef;
         errorReporter = errorReporterRef;
     }
 
-    public @Nullable ReadOnlyProps getEncryptedNamespace(AccessContext peerAccCtxRef) throws AccessDeniedException
+    public @Nullable ReadOnlyProps getEncryptedNamespace()
     {
-        return systemConfRepository.getCtrlConfForView(peerAccCtxRef).getNamespace(NAMESPACE_ENCRYPTED);
+        return systemConfRepository.getCtrlConfForView().getNamespace(NAMESPACE_ENCRYPTED);
     }
 
     public byte[] generateSecret()
@@ -149,9 +143,9 @@ public class EncryptionHelper
         return secretGen.generateSecretString(size);
     }
 
-    public boolean passphraseExists(AccessContext peerAccCtxRef) throws AccessDeniedException
+    public boolean passphraseExists()
     {
-        ReadOnlyProps namespace = getEncryptedNamespace(peerAccCtxRef);
+        ReadOnlyProps namespace = getEncryptedNamespace();
 
         boolean exists = false;
         if (namespace != null)
@@ -167,10 +161,10 @@ public class EncryptionHelper
         return exists;
     }
 
-    public void setPassphraseImpl(byte[] newPassphrase, byte[] masterKey, AccessContext peerAccCtxRef)
-        throws InvalidKeyException, InvalidValueException, AccessDeniedException, DatabaseException, LinStorException
+    public void setPassphraseImpl(byte[] newPassphrase, byte[] masterKey)
+        throws InvalidKeyException, InvalidValueException, DatabaseException, LinStorException
     {
-        Props ctrlConf = systemConfRepository.getCtrlConfForChange(peerAccCtxRef);
+        Props ctrlConf = systemConfRepository.getCtrlConfForChange();
 
         // Add length padding to the master key, encrypt with the new passphrase and a generated salt,
         // and store the encrypted key, the salt and a hash of the length padded key in the database
@@ -272,26 +266,19 @@ public class EncryptionHelper
             for (Node node : nodesMap.values())
             {
                 Peer peer;
-                try
-                {
-                    peer = node.getPeer(apiCtx);
-                    peer.sendMessage(
-                        ctrlStltSrzl.onewayBuilder(InternalApiConsts.API_CRYPT_KEY)
-                            .cryptKey(
-                                cryptKey,
-                                cryptHash,
-                                cryptSalt,
-                                encKey,
-                                peer.getFullSyncId(),
-                                peer.getNextSerializerId()
-                            )
-                            .build()
-                    );
-                }
-                catch (AccessDeniedException exc)
-                {
-                    throw new ImplementationError(exc);
-                }
+                peer = node.getPeer();
+                peer.sendMessage(
+                    ctrlStltSrzl.onewayBuilder(InternalApiConsts.API_CRYPT_KEY)
+                        .cryptKey(
+                            cryptKey,
+                            cryptHash,
+                            cryptSalt,
+                            encKey,
+                            peer.getFullSyncId(),
+                            peer.getNextSerializerId()
+                        )
+                        .build()
+                );
             }
         }
         if (!allSetBefore)
@@ -303,7 +290,7 @@ public class EncryptionHelper
 
                 for (ResourceDefinition rscDfn : rscDfnMap.values())
                 {
-                    Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
+                    Iterator<Resource> rscIt = rscDfn.iterateResource();
                     while (rscIt.hasNext())
                     {
                         Resource rsc = rscIt.next();
@@ -339,21 +326,19 @@ public class EncryptionHelper
                     if (remote instanceof EbsRemote ebsRemote)
                     {
                         ebsRemote.setDecryptedAccessKey(
-                            apiCtx,
                             new String(
                                 decryptionHelper.decrypt(
                                     cryptKey,
-                                    ebsRemote.getEncryptedAccessKey(apiCtx)
+                                    ebsRemote.getEncryptedAccessKey()
                                 ),
                                 StandardCharsets.UTF_8
                             )
                         );
                         ebsRemote.setDecryptedSecretKey(
-                            apiCtx,
                             new String(
                                 decryptionHelper.decrypt(
                                     cryptKey,
-                                    ebsRemote.getEncryptedSecretKey(apiCtx)
+                                    ebsRemote.getEncryptedSecretKey()
                                 ),
                                 StandardCharsets.UTF_8
                             )
@@ -365,10 +350,6 @@ public class EncryptionHelper
                 {
                     ebsStatusMgr.pollAsync();
                 }
-            }
-            catch (AccessDeniedException implErr)
-            {
-                throw new ImplementationError(implErr);
             }
             catch (DatabaseException dbExc)
             {

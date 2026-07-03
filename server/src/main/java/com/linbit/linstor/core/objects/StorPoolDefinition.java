@@ -9,14 +9,8 @@ import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.StorPoolDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.transaction.TransactionMap;
 import com.linbit.linstor.transaction.TransactionObject;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -33,7 +27,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-public class StorPoolDefinition extends AbsCoreObj<StorPoolDefinition> implements ProtectedObject
+public class StorPoolDefinition extends AbsCoreObj<StorPoolDefinition>
 {
     public interface InitMaps
     {
@@ -41,14 +35,12 @@ public class StorPoolDefinition extends AbsCoreObj<StorPoolDefinition> implement
     }
 
     private final StorPoolName name;
-    private final ObjectProtection objProt;
     private final StorPoolDefinitionDatabaseDriver dbDriver;
     private final TransactionMap<StorPoolDefinition, NodeName, StorPool> storPools;
     private final Props props;
 
     StorPoolDefinition(
         UUID id,
-        ObjectProtection objProtRef,
         StorPoolName nameRef,
         StorPoolDefinitionDatabaseDriver dbDriverRef,
         PropsContainerFactory propsContainerFactory,
@@ -60,7 +52,6 @@ public class StorPoolDefinition extends AbsCoreObj<StorPoolDefinition> implement
     {
         super(id, transObjFactory, transMgrProviderRef);
 
-        objProt = objProtRef;
         name = nameRef;
         dbDriver = dbDriverRef;
         storPools = transObjFactory.createTransactionMap(this, storPoolsMapRef, null);
@@ -80,90 +71,76 @@ public class StorPoolDefinition extends AbsCoreObj<StorPoolDefinition> implement
         activateTransMgr();
     }
 
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
-    }
-
     public StorPoolName getName()
     {
         checkDeleted();
         return name;
     }
 
-    public Iterator<StorPool> iterateStorPools(AccessContext accCtx)
-        throws AccessDeniedException
+    public Iterator<StorPool> iterateStorPools()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return storPools.values().iterator();
     }
 
-    public Stream<StorPool> streamStorPools(AccessContext accCtx) throws AccessDeniedException
+    public Stream<StorPool> streamStorPools()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return storPools.values().stream();
     }
 
-    public void addStorPool(AccessContext accCtx, StorPool storPoolData) throws AccessDeniedException
+    public void addStorPool(StorPool storPoolData)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         storPools.put(storPoolData.getNode().getName(), storPoolData);
     }
 
-    public void removeStorPool(AccessContext accCtx, StorPool storPoolData) throws AccessDeniedException
+    public void removeStorPool(StorPool storPoolData)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         storPools.remove(storPoolData.getNode().getName());
     }
 
-    public @Nullable StorPool getStorPool(AccessContext accCtx, NodeName nodeName) throws AccessDeniedException
+    public @Nullable StorPool getStorPool(NodeName nodeName)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return storPools.get(nodeName);
     }
 
-    public Props getProps(AccessContext accCtx) throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, objProt, props);
+        return props;
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
             // preventing ConcurrentModificationException
             Collection<StorPool> values = new ArrayList<>(storPools.values());
             for (StorPool storPool : values)
             {
-                storPool.delete(accCtx);
+                storPool.delete();
             }
 
             props.delete();
 
             activateTransMgr();
-            objProt.delete(accCtx);
+            objProt.delete();
             dbDriver.delete(this);
 
             deleted.set(Boolean.TRUE);
         }
     }
 
-    public StorPoolDefinitionApi getApiData(AccessContext accCtx) throws AccessDeniedException
+    public StorPoolDefinitionApi getApiData()
     {
         checkDeleted();
-        return new StorPoolDfnPojo(getUuid(), getName().getDisplayName(), getProps(accCtx).cloneMap());
+        return new StorPoolDfnPojo(getUuid(), getName().getDisplayName(), getProps().cloneMap());
     }
 
     @Override

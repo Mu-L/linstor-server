@@ -151,8 +151,6 @@ import com.linbit.linstor.proto.responses.MsgRspDrbdReactorExecOuterClass.MsgRsp
 import com.linbit.linstor.proto.responses.MsgSosReportFilesReplyOuterClass.MsgSosReportFilesReply;
 import com.linbit.linstor.proto.responses.MsgSosReportListReplyOuterClass.FileInfo;
 import com.linbit.linstor.proto.responses.MsgSosReportListReplyOuterClass.MsgSosReportListReply;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -181,25 +179,21 @@ import com.google.protobuf.ByteString;
 public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSerializerBuilder
 {
     protected final ErrorReporter errorReporter;
-    protected final AccessContext serializerCtx;
     protected final ByteArrayOutputStream baos;
     private boolean exceptionoccurred;
 
     public ProtoCommonSerializerBuilder(
         final ErrorReporter errReporterRef,
-        final AccessContext serializerCtxRef,
         @Nullable String msgContent,
         @Nullable Long apiCallId,
         boolean isAnswer
     )
     {
         this.errorReporter = errReporterRef;
-        this.serializerCtx = serializerCtxRef;
 
         baos = new ByteArrayOutputStream();
         exceptionoccurred = false;
         if (msgContent != null || apiCallId != null)
-
         {
             try
             {
@@ -1082,25 +1076,22 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static NodeOuterClass.Node serializeNode(
-        AccessContext accCtx,
         Node node,
         boolean includeOptionalFieldsRef
     )
-        throws AccessDeniedException
     {
-        Map<String, String> nodeProps = node.getProps(accCtx).map();
+        Map<String, String> nodeProps = node.getProps().map();
         NodeOuterClass.Node.Builder nodeBuilder = NodeOuterClass.Node.newBuilder()
             .setUuid(ProtoUuidUtils.serialize(node.getUuid()))
             .setName(node.getName().displayValue)
-            .setType(node.getNodeType(accCtx).name());
+            .setType(node.getNodeType().name());
         if (includeOptionalFieldsRef)
         {
             nodeBuilder
                 .putAllProps(nodeProps)
                 .addAllNetInterfaces(
                     serializeNetInterfaces(
-                        accCtx,
-                        node.streamNetInterfaces(accCtx).collect(Collectors.toList())
+                        node.streamNetInterfaces().collect(Collectors.toList())
                     )
                 );
         }
@@ -1108,31 +1099,27 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static List<NetInterfaceOuterClass.NetInterface> serializeNetInterfaces(
-        AccessContext accCtx,
         List<NetInterface> netIfs
     )
-        throws AccessDeniedException
     {
         List<NetInterfaceOuterClass.NetInterface> protoNetIfList = new ArrayList<>(netIfs.size());
         for (NetInterface netIf : netIfs)
         {
-            protoNetIfList.add(serializeNetInterface(accCtx, netIf));
+            protoNetIfList.add(serializeNetInterface(netIf));
         }
         return protoNetIfList;
     }
 
     public static NetInterfaceOuterClass.NetInterface serializeNetInterface(
-        AccessContext accCtx,
         NetInterface netIf
     )
-        throws AccessDeniedException
     {
         NetInterfaceOuterClass.NetInterface.Builder builder = NetInterfaceOuterClass.NetInterface.newBuilder()
             .setUuid(ProtoUuidUtils.serialize(netIf.getUuid()))
             .setName(netIf.getName().displayValue)
-            .setAddress(netIf.getAddress(accCtx).getAddress());
-        @Nullable TcpPortNumber stltConnPort = netIf.getStltConnPort(accCtx);
-        @Nullable EncryptionType stltConnEncryptionType = netIf.getStltConnEncryptionType(accCtx);
+            .setAddress(netIf.getAddress().getAddress());
+        @Nullable TcpPortNumber stltConnPort = netIf.getStltConnPort();
+        @Nullable EncryptionType stltConnEncryptionType = netIf.getStltConnEncryptionType();
         if (stltConnPort != null && stltConnEncryptionType != null)
         {
             builder.setStltConn(
@@ -1145,10 +1132,9 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
         return builder.build();
     }
 
-    public static RscGrp serializeResourceGroup(AccessContext accCtx, ResourceGroup rscGrp)
-        throws AccessDeniedException
+    public static RscGrp serializeResourceGroup(ResourceGroup rscGrp)
     {
-        return serializeResourceGroup(rscGrp.getApiData(accCtx));
+        return serializeResourceGroup(rscGrp.getApiData());
     }
 
     public static RscGrp serializeResourceGroup(ResourceGroupApi rscGrpApi)
@@ -1190,12 +1176,10 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static RscDfnOuterClass.RscDfn serializeResourceDefinition(
-        AccessContext accCtx,
         ResourceDefinition rscDfn
     )
-        throws AccessDeniedException
     {
-        return serializeResourceDefinition(rscDfn.getApiData(accCtx));
+        return serializeResourceDefinition(rscDfn.getApiData());
     }
 
     public static List<RscDfnOuterClass.RscDfn> serializeResourceDefinitions(
@@ -1230,26 +1214,22 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static List<VlmDfnOuterClass.VlmDfn> serializeVolumeDefinition(
-        List<VolumeDefinition> vlmDfnList,
-        AccessContext accCtx
+        List<VolumeDefinition> vlmDfnList
     )
-        throws AccessDeniedException
     {
         List<VlmDfnOuterClass.VlmDfn> protoVlmDfnList = new ArrayList<>(vlmDfnList.size());
         for (VolumeDefinition vlmDfn : vlmDfnList)
         {
-            protoVlmDfnList.add(serializeVolumeDefinition(vlmDfn, accCtx));
+            protoVlmDfnList.add(serializeVolumeDefinition(vlmDfn));
         }
         return protoVlmDfnList;
     }
 
     public static VlmDfnOuterClass.VlmDfn serializeVolumeDefinition(
-        VolumeDefinition vlmDfn,
-        AccessContext accCtx
+        VolumeDefinition vlmDfn
     )
-        throws AccessDeniedException
     {
-        return serializeVolumeDefinition(vlmDfn.getApiData(accCtx));
+        return serializeVolumeDefinition(vlmDfn.getApiData());
     }
 
     public static List<VlmDfnOuterClass.VlmDfn> serializeVolumeDefinition(
@@ -1282,11 +1262,9 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static RscOuterClass.Rsc serializeResource(
-        AccessContext accCtx,
         Resource rsc,
         boolean includeOptionalFielsRef
     )
-        throws AccessDeniedException
     {
         return RscOuterClass.Rsc.newBuilder()
             .setUuid(ProtoUuidUtils.serialize(rsc.getUuid()))
@@ -1294,11 +1272,11 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
             .setNodeUuid(ProtoUuidUtils.serialize(rsc.getNode().getUuid()))
             .setNodeName(rsc.getNode().getName().displayValue)
             .setRscDfnUuid(ProtoUuidUtils.serialize(rsc.getResourceDefinition().getUuid()))
-            .putAllProps(rsc.getProps(accCtx).map())
-            .addAllRscFlags(Resource.Flags.toStringList(rsc.getStateFlags().getFlagsBits(accCtx)))
-            .addAllVlms(serializeVolumeList(accCtx, rsc.streamVolumes().collect(Collectors.toList())))
+            .putAllProps(rsc.getProps().map())
+            .addAllRscFlags(Resource.Flags.toStringList(rsc.getStateFlags().getFlagsBits()))
+            .addAllVlms(serializeVolumeList(rsc.streamVolumes().collect(Collectors.toList())))
             .setLayerObject(
-                LayerObjectSerializer.serializeLayerObject(rsc.getLayerData(accCtx), accCtx, includeOptionalFielsRef)
+                LayerObjectSerializer.serializeLayerObject(rsc.getLayerData(), includeOptionalFielsRef)
             )
             .build();
     }
@@ -1327,46 +1305,42 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static List<RscConnOuterClass.RscConn> serializeResourceConnections(
-        AccessContext accCtx,
         List<ResourceConnection> rscConList
     )
-        throws AccessDeniedException
     {
         List<RscConnOuterClass.RscConn> list = new ArrayList<>();
 
         for (ResourceConnection rscConn : rscConList)
         {
-            list.add(serializeResourceConnection(accCtx, rscConn));
+            list.add(serializeResourceConnection(rscConn));
         }
         return list;
     }
 
     public static RscConnOuterClass.RscConn serializeResourceConnection(
-        AccessContext accCtx,
         ResourceConnection rscConn
     )
-        throws AccessDeniedException
     {
         RscConn.Builder builder = RscConn.newBuilder()
             .setRscConnUuid(ProtoUuidUtils.serialize(rscConn.getUuid()))
-            .setNodeName1(rscConn.getSourceResource(accCtx).getNode().getName().displayValue)
-            .setNodeName2(rscConn.getTargetResource(accCtx).getNode().getName().displayValue)
-            .setRscName(rscConn.getSourceResource(accCtx).getResourceDefinition().getName().displayValue)
-            .setRsc1Uuid(ProtoUuidUtils.serialize(rscConn.getSourceResource(accCtx).getUuid()))
-            .setRsc2Uuid(ProtoUuidUtils.serialize(rscConn.getTargetResource(accCtx).getUuid()))
-            .putAllRscConnProps(rscConn.getProps(accCtx).map())
+            .setNodeName1(rscConn.getSourceResource().getNode().getName().displayValue)
+            .setNodeName2(rscConn.getTargetResource().getNode().getName().displayValue)
+            .setRscName(rscConn.getSourceResource().getResourceDefinition().getName().displayValue)
+            .setRsc1Uuid(ProtoUuidUtils.serialize(rscConn.getSourceResource().getUuid()))
+            .setRsc2Uuid(ProtoUuidUtils.serialize(rscConn.getTargetResource().getUuid()))
+            .putAllRscConnProps(rscConn.getProps().map())
             .addAllRscConnFlags(
                 FlagsHelper.toStringList(
                     ResourceConnection.Flags.class,
-                    rscConn.getStateFlags().getFlagsBits(accCtx)
+                    rscConn.getStateFlags().getFlagsBits()
                 )
             );
-        @Nullable TcpPortNumber drbdProxyPortSource = rscConn.getDrbdProxyPortSource(accCtx);
+        @Nullable TcpPortNumber drbdProxyPortSource = rscConn.getDrbdProxyPortSource();
         if (drbdProxyPortSource != null)
         {
             builder.setDrbdProxyPortSource(drbdProxyPortSource.value);
         }
-        @Nullable TcpPortNumber drbdProxyPortTarget = rscConn.getDrbdProxyPortTarget(accCtx);
+        @Nullable TcpPortNumber drbdProxyPortTarget = rscConn.getDrbdProxyPortTarget();
         if (drbdProxyPortTarget != null)
         {
             builder.setDrbdProxyPortTarget(drbdProxyPortTarget.value);
@@ -1375,36 +1349,34 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static StorPoolOuterClass.StorPool serializeStorPool(
-        AccessContext accCtx,
         StorPool storPool
     )
-        throws AccessDeniedException
     {
         // TODO try to call something like the following
-        // return serializeStorPool(storPool.getApiData(null, null, accCtx, null, null))
+        // return serializeStorPool(storPool.getApiData(null, null, null, null))
         StorPoolOuterClass.StorPool.Builder builder = StorPoolOuterClass.StorPool.newBuilder()
             .setStorPoolUuid(ProtoUuidUtils.serialize(storPool.getUuid()))
             .setNodeUuid(ProtoUuidUtils.serialize(storPool.getNode().getUuid()))
             .setNodeName(storPool.getNode().getName().displayValue)
-            .setStorPoolDfnUuid(ProtoUuidUtils.serialize(storPool.getDefinition(accCtx).getUuid()))
+            .setStorPoolDfnUuid(ProtoUuidUtils.serialize(storPool.getDefinition().getUuid()))
             .setStorPoolName(storPool.getName().displayValue)
             .setProviderKind(asProviderType(storPool.getDeviceProviderKind()))
-            .putAllProps(storPool.getProps(accCtx).map())
-            .putAllStorPoolDfnProps(storPool.getDefinition(accCtx).getProps(accCtx).map())
+            .putAllProps(storPool.getProps().map())
+            .putAllStorPoolDfnProps(storPool.getDefinition().getProps().map())
             .putAllStaticTraits(storPool.getDeviceProviderKind().getStorageDriverKind().getStaticTraits())
             .setIsPmem(storPool.isPmem())
-            .setOversubscriptionRatio(storPool.getOversubscriptionRatio(accCtx, null))
+            .setOversubscriptionRatio(storPool.getOversubscriptionRatio(null))
             // no need to serialize storPool.
             .setIsExternalLocking(storPool.isExternalLocking());
         FreeSpaceTracker freeSpaceTracker = storPool.getFreeSpaceTracker();
-        if (freeSpaceTracker.getTotalCapacity(accCtx).isPresent())
+        if (freeSpaceTracker.getTotalCapacity().isPresent())
         {
             builder.setFreeSpace(
                 StorPoolFreeSpace.newBuilder()
                     .setStorPoolName(storPool.getName().displayValue)
                     .setStorPoolUuid(ProtoUuidUtils.serialize(storPool.getUuid()))
-                    .setFreeCapacity(freeSpaceTracker.getFreeCapacityLastUpdated(accCtx).get())
-                    .setTotalCapacity(freeSpaceTracker.getTotalCapacity(accCtx).get())
+                    .setFreeCapacity(freeSpaceTracker.getFreeCapacityLastUpdated().get())
+                    .setTotalCapacity(freeSpaceTracker.getTotalCapacity().get())
                     .build()
             );
         }
@@ -1476,15 +1448,13 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static StorPoolDfnOuterClass.StorPoolDfn serializeStorPoolDfn(
-        AccessContext accCtx,
         StorPoolDefinition storPoolDfn
     )
-        throws AccessDeniedException
     {
         return StorPoolDfnOuterClass.StorPoolDfn.newBuilder()
             .setStorPoolName(storPoolDfn.getName().displayValue)
             .setUuid(ProtoUuidUtils.serialize(storPoolDfn.getUuid()))
-            .putAllProps(storPoolDfn.getProps(accCtx).map())
+            .putAllProps(storPoolDfn.getProps().map())
             .build();
     }
 
@@ -1500,20 +1470,17 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
     }
 
     public static Iterable<? extends Vlm> serializeVolumeList(
-        AccessContext accCtxRef,
         Collection<Volume> volumesRef
     )
-        throws AccessDeniedException
     {
         List<VolumeApi> vlmApiList = new ArrayList<>(volumesRef.size());
         for (Volume vlm : volumesRef)
         {
             vlmApiList.add(
                 vlm.getApiData(
-                    vlm.isAllocatedSizeSet(accCtxRef) ?
-                        vlm.getAllocatedSize(accCtxRef) :
-                        null,
-                    accCtxRef
+                    vlm.isAllocatedSizeSet() ?
+                        vlm.getAllocatedSize() :
+                        null
                 )
             );
         }
@@ -1704,12 +1671,10 @@ public class ProtoCommonSerializerBuilder implements CommonSerializer.CommonSeri
 
         public static RscLayerDataOuterClass.RscLayerData serializeLayerObject(
             AbsRscLayerObject<?> layerData,
-            AccessContext accCtx,
             boolean includeOptionalFieldsRef
         )
-            throws AccessDeniedException
         {
-            return serializeLayerObject(layerData.asPojo(accCtx), includeOptionalFieldsRef);
+            return serializeLayerObject(layerData.asPojo(), includeOptionalFieldsRef);
         }
 
         public static RscLayerDataOuterClass.RscLayerData serializeLayerObject(

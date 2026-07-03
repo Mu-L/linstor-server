@@ -6,7 +6,6 @@ import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinStorRuntimeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -14,7 +13,6 @@ import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.api.rest.v1.config.GrizzlyHttpService;
 import com.linbit.linstor.api.rest.v1.serializer.JsonGenTypes;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.objects.AuthToken;
@@ -29,8 +27,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.utils.PairNonNull;
 import com.linbit.utils.StringUtils;
@@ -77,7 +73,6 @@ public class CtrlAuthHandler
     private final NodeRepository nodeRepository;
     private final CtrlStltSerializer ctrlStltSerializer;
     private final Map<ServiceName, SystemService> systemServicesMap;
-    private final AccessContext sysCtx;
 
     @Inject
     public CtrlAuthHandler(
@@ -90,8 +85,7 @@ public class CtrlAuthHandler
         SystemConfRepository systemConfRepositoryRef,
         NodeRepository nodeRepositoryRef,
         CtrlStltSerializer ctrlStltSerializerRef,
-        Map<ServiceName, SystemService> systemServicesMapRef,
-        @SystemContext AccessContext sysCtxRef
+        Map<ServiceName, SystemService> systemServicesMapRef
     )
     {
         errorReporter = errorReporterRef;
@@ -104,7 +98,6 @@ public class CtrlAuthHandler
         nodeRepository = nodeRepositoryRef;
         ctrlStltSerializer = ctrlStltSerializerRef;
         systemServicesMap = systemServicesMapRef;
-        sysCtx = sysCtxRef;
     }
 
     public Flux<ApiCallRc> createToken(String description, @Nullable String expiresAtStr, @Nullable String ipFilter)
@@ -132,7 +125,7 @@ public class CtrlAuthHandler
         try
         {
             @Nullable String autoHttps = systemConfRepository
-                .getCtrlConfForView(sysCtx)
+                .getCtrlConfForView()
                 .getProp(ApiConsts.KEY_AUTO_HTTPS, ApiConsts.NAMESPC_REST);
             return Boolean.parseBoolean(autoHttps);
         }
@@ -151,7 +144,7 @@ public class CtrlAuthHandler
         try
         {
             String tokenAuthEnabled = systemConfRepository
-                .getCtrlConfForView(sysCtx)
+                .getCtrlConfForView()
                 .getPropWithDefault(ApiConsts.KEY_TOKEN_AUTH_ENABLED, ApiConsts.NAMESPC_AUTH, "false");
 
             if (!StringUtils.propTrueOrYes(tokenAuthEnabled))
@@ -161,7 +154,6 @@ public class CtrlAuthHandler
 
                 // Enable token authentication
                 systemConfRepository.setCtrlProp(
-                    sysCtx,
                     ApiConsts.KEY_TOKEN_AUTH_ENABLED,
                     "true",
                     ApiConsts.NAMESPC_AUTH
@@ -170,7 +162,6 @@ public class CtrlAuthHandler
                 if (!noHttps)
                 {
                     systemConfRepository.setCtrlProp(
-                        sysCtx,
                         ApiConsts.KEY_AUTO_HTTPS,
                         "true",
                         ApiConsts.NAMESPC_REST
@@ -234,11 +225,6 @@ public class CtrlAuthHandler
                 }
             }
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc, "initialize token authentication", ApiConsts.FAIL_ACC_DENIED_COMMAND);
-        }
         catch (LinStorDataAlreadyExistsException exc)
         {
             throw new ApiRcException(
@@ -289,21 +275,21 @@ public class CtrlAuthHandler
     }
 
     private void createAndSendSatelliteTokens()
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        for (Node node : nodeRepository.getMapForView(sysCtx).values())
+        for (Node node : nodeRepository.getMapForView().values())
         {
-            Node.Type nodeType = node.getNodeType(sysCtx);
+            Node.Type nodeType = node.getNodeType();
             if (nodeType != Node.Type.CONTROLLER &&
                 nodeType != Node.Type.AUXILIARY &&
-                !node.getFlags().isSet(sysCtx, Node.Flags.DELETE))
+                !node.getFlags().isSet(Node.Flags.DELETE))
             {
                 String nodeName = node.getName().displayValue;
                 @Nullable String ipFilter = null;
-                @Nullable NetInterface activeStltConn = node.getActiveStltConn(sysCtx);
+                @Nullable NetInterface activeStltConn = node.getActiveStltConn();
                 if (activeStltConn != null)
                 {
-                    ipFilter = activeStltConn.getAddress(sysCtx).getAddress();
+                    ipFilter = activeStltConn.getAddress().getAddress();
                 }
 
                 PairNonNull<String, AuthToken> createPair =
@@ -338,10 +324,10 @@ public class CtrlAuthHandler
 
             // Create a new token for this satellite
             @Nullable String ipFilter = null;
-            @Nullable NetInterface activeStltConn = node.getActiveStltConn(sysCtx);
+            @Nullable NetInterface activeStltConn = node.getActiveStltConn();
             if (activeStltConn != null)
             {
-                ipFilter = activeStltConn.getAddress(sysCtx).getAddress();
+                ipFilter = activeStltConn.getAddress().getAddress();
             }
 
             PairNonNull<String, AuthToken> createPair =
@@ -349,7 +335,7 @@ public class CtrlAuthHandler
             ctrlTransactionHelper.commit();
             sendAuthTokenToSatellite(node, createPair.objA);
         }
-        catch (AccessDeniedException | DatabaseException | LinStorDataAlreadyExistsException exc)
+        catch (DatabaseException | LinStorDataAlreadyExistsException exc)
         {
             errorReporter.reportError(exc);
         }
@@ -357,25 +343,17 @@ public class CtrlAuthHandler
 
     public boolean isTokenAuthEnabled()
     {
-        try
-        {
-            String tokenAuthEnabled = systemConfRepository
-                .getCtrlConfForView(sysCtx)
-                .getPropWithDefault(ApiConsts.KEY_TOKEN_AUTH_ENABLED, ApiConsts.NAMESPC_AUTH, "false");
-            return StringUtils.propTrueOrYes(tokenAuthEnabled);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc, "check token auth status", ApiConsts.FAIL_ACC_DENIED_COMMAND);
-        }
+        String tokenAuthEnabled = systemConfRepository
+            .getCtrlConfForView()
+            .getPropWithDefault(ApiConsts.KEY_TOKEN_AUTH_ENABLED, ApiConsts.NAMESPC_AUTH, "false");
+        return StringUtils.propTrueOrYes(tokenAuthEnabled);
     }
 
     void sendAuthTokenToSatellite(Node node, String rawToken)
     {
         try
         {
-            @Nullable Peer peer = node.getPeer(sysCtx);
+            @Nullable Peer peer = node.getPeer();
             if (peer != null && peer.isOnline())
             {
                 byte[] msg = ctrlStltSerializer

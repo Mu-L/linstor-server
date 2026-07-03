@@ -2,8 +2,6 @@ package com.linbit.linstor.interfaces;
 
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.util.UUID;
 
@@ -20,5 +18,5 @@ public interface NodeInfo
 
     NodeName getName();
 
-    ReadOnlyProps getReadOnlyProps(AccessContext accCtxRef) throws AccessDeniedException;
+    ReadOnlyProps getReadOnlyProps();
 }

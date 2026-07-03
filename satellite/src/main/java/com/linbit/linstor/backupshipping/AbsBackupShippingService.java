@@ -27,8 +27,6 @@ import com.linbit.linstor.core.objects.remotes.S3Remote;
 import com.linbit.linstor.core.objects.remotes.StltRemote;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
@@ -65,7 +63,6 @@ public abstract class AbsBackupShippingService implements SystemService
     private final Set<PairNonNull<Snapshot, RemoteName>> startedShippments;
     private final Map<PairNonNull<Snapshot, RemoteName>, List<String>> finishedShipments;
     protected final ThreadGroup threadGroup;
-    protected final AccessContext accCtx;
     protected final RemoteMap remoteMap;
     protected final LockGuardFactory lockGuardFactory;
 
@@ -85,7 +82,6 @@ public abstract class AbsBackupShippingService implements SystemService
         ExtCmdFactory extCmdFactoryRef,
         ControllerPeerConnector controllerPeerConnectorRef,
         CtrlStltSerializer interComSerializerRef,
-        AccessContext accCtxRef,
         StltSecurityObjects stltSecObjRef,
         StltConfigAccessor stltConfigAccessorRef,
         StltConnTracker stltConnTracker,
@@ -98,7 +94,6 @@ public abstract class AbsBackupShippingService implements SystemService
         extCmdFactory = extCmdFactoryRef;
         controllerPeerConnector = controllerPeerConnectorRef;
         interComSerializer = interComSerializerRef;
-        accCtx = accCtxRef;
         stltSecObj = stltSecObjRef;
         stltConfigAccessor = stltConfigAccessorRef;
         remoteMap = remoteMapRef;
@@ -212,7 +207,7 @@ public abstract class AbsBackupShippingService implements SystemService
         AbsStorageVlmData<Snapshot> basedOnSnapVlmData,
         AbsStorageVlmData<Snapshot> snapVlmData,
         String s3orLinRemoteName
-    ) throws StorageException, InvalidNameException, InvalidKeyException, AccessDeniedException
+    ) throws StorageException, InvalidNameException, InvalidKeyException
     {
         if (RscLayerSuffixes.shouldSuffixBeShipped(rscNameSuffixRef))
         {
@@ -221,12 +216,12 @@ public abstract class AbsBackupShippingService implements SystemService
             synchronized (snap)
             {
                 String s3orStltRemoteName = snap.getSnapshotDefinition()
-                    .getSnapDfnProps(accCtx)
+                    .getSnapDfnProps()
                     .getProp(InternalApiConsts.KEY_BACKUP_TARGET_REMOTE, namespc);
                 String s3Suffix = stltConfigAccessor.getReadonlyProps()
                     .getProp(ApiConsts.KEY_BACKUP_S3_SUFFIX, ApiConsts.NAMESPC_BACKUP_SHIPPING);
                 String backupTimeRaw = ((SnapshotVolume) snapVlmData.getVolume()).getSnapshotDefinition()
-                    .getSnapDfnProps(accCtx)
+                    .getSnapDfnProps()
                     .getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, namespc);
                 LocalDateTime backupTime = TimeUtils.millisToDate(Long.parseLong(backupTimeRaw));
 
@@ -248,7 +243,7 @@ public abstract class AbsBackupShippingService implements SystemService
                 }
                 else if (s3orStltRemote instanceof StltRemote stltRemote)
                 {
-                    @Nullable String ip = stltRemote.getIp(accCtx);
+                    @Nullable String ip = stltRemote.getIp();
                     startDaemon = ip != null && !ip.isBlank();
                 }
                 else
@@ -296,7 +291,7 @@ public abstract class AbsBackupShippingService implements SystemService
     public void restoreBackup(
         String cmdRef,
         AbsStorageVlmData<Snapshot> snapVlmData
-    ) throws StorageException, AccessDeniedException, InvalidKeyException, InvalidNameException
+    ) throws StorageException, InvalidKeyException, InvalidNameException
     {
         if (RscLayerSuffixes.shouldSuffixBeShipped(snapVlmData.getRscLayerObject().getResourceNameSuffix()))
         {
@@ -306,7 +301,7 @@ public abstract class AbsBackupShippingService implements SystemService
             {
                 String remoteName = snapVlm.getSnapshot()
                     .getSnapshotDefinition()
-                    .getSnapDfnProps(accCtx)
+                    .getSnapDfnProps()
                     .getProp(
                         InternalApiConsts.KEY_BACKUP_SRC_REMOTE,
                         BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC
@@ -317,7 +312,7 @@ public abstract class AbsBackupShippingService implements SystemService
                 Integer port = null;
                 if (remote instanceof StltRemote stltRemote)
                 {
-                    port = stltRemote.getPorts(accCtx)
+                    port = stltRemote.getPorts()
                         .get(snapVlmData.getVlmNr() + snapVlmData.getRscLayerObject().getResourceNameSuffix());
                 }
 
@@ -431,7 +426,7 @@ public abstract class AbsBackupShippingService implements SystemService
         @Nullable AbsStorageVlmData<Snapshot> basedOnSnapVlmData,
         AbsStorageVlmData<Snapshot> snapVlmData
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         ensureRemoteType(s3orStltRemote);
 
@@ -446,7 +441,7 @@ public abstract class AbsBackupShippingService implements SystemService
                 ShippingInfo info = shippingInfoMap.computeIfAbsent(shipKey, key -> new ShippingInfo());
                 if (s3orStltRemote instanceof StltRemote stltRemote)
                 {
-                    @Nullable Integer port = stltRemote.getPorts(accCtx)
+                    @Nullable Integer port = stltRemote.getPorts()
                         .get(snapVlmData.getVlmNr() + snapVlmData.getRscLayerObject().getResourceNameSuffix());
                     if (port != null)
                     {
@@ -487,7 +482,7 @@ public abstract class AbsBackupShippingService implements SystemService
                     String s3Suffix = stltConfigAccessor.getReadonlyProps()
                         .getProp(ApiConsts.KEY_BACKUP_S3_SUFFIX, ApiConsts.NAMESPC_BACKUP_SHIPPING);
                     String backupTimeRaw = ((SnapshotVolume) snapVlmData.getVolume()).getSnapshotDefinition()
-                        .getSnapDfnProps(accCtx)
+                        .getSnapDfnProps()
                         .getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, namespc);
                     LocalDateTime backupTime = TimeUtils.millisToDate(Long.parseLong(backupTimeRaw));
 
@@ -502,10 +497,10 @@ public abstract class AbsBackupShippingService implements SystemService
                     {
                         Snapshot basedOnSnap = basedOnSnapVlmData.getRscLayerObject().getAbsResource();
                         String basedOnSnapSuffix = basedOnSnap.getSnapshotDefinition()
-                            .getSnapDfnProps(accCtx)
+                            .getSnapDfnProps()
                             .getProp(ApiConsts.KEY_BACKUP_S3_SUFFIX, namespc);
                         String basedOnBackupTimeRaw = basedOnSnap.getSnapshotDefinition()
-                            .getSnapDfnProps(accCtx)
+                            .getSnapDfnProps()
                             .getProp(InternalApiConsts.KEY_BACKUP_START_TIMESTAMP, namespc);
                         LocalDateTime basedOnBackupTime = TimeUtils.millisToDate(Long.parseLong(basedOnBackupTimeRaw));
 
@@ -517,7 +512,7 @@ public abstract class AbsBackupShippingService implements SystemService
                         ).toString();
                     }
                 }
-                catch (InvalidKeyException | AccessDeniedException exc)
+                catch (InvalidKeyException exc)
                 {
                     throw new ImplementationError(exc);
                 }
@@ -637,12 +632,12 @@ public abstract class AbsBackupShippingService implements SystemService
                                 namespc = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + s3orLinRemoteName;
                             }
                             String simpleBackupName = snap.getSnapshotDefinition()
-                                .getSnapDfnProps(accCtx)
+                                .getSnapDfnProps()
                                 .getProp(InternalApiConsts.KEY_BACKUP_TO_RESTORE, namespc);
                             finishedShipments.computeIfAbsent(shipKey, ignored -> new ArrayList<>())
                                 .add(simpleBackupName);
                         }
-                        catch (InvalidKeyException | AccessDeniedException exc)
+                        catch (InvalidKeyException exc)
                         {
                             throw new ImplementationError(exc);
                         }
@@ -717,7 +712,7 @@ public abstract class AbsBackupShippingService implements SystemService
                         break;
                     }
                     StateFlags<Flags> snapDfnFlags = snapDfn.getFlags();
-                    if (snapDfnFlags.isSet(accCtx, SnapshotDefinition.Flags.SUCCESSFUL))
+                    if (snapDfnFlags.isSet(SnapshotDefinition.Flags.SUCCESSFUL))
                     {
                         success = true;
                         break;
@@ -725,31 +720,26 @@ public abstract class AbsBackupShippingService implements SystemService
                     boolean shipmentFailed = BackupShippingUtils.hasShippingStatus(
                         snapDfn,
                         null,
-                        InternalApiConsts.VALUE_PREPARE_ABORT,
-                        accCtx
+                        InternalApiConsts.VALUE_PREPARE_ABORT
                     );
                     shipmentFailed |= BackupShippingUtils.hasShippingStatus(
                         snapDfn,
                         null,
-                        InternalApiConsts.VALUE_ABORTING,
-                        accCtx
+                        InternalApiConsts.VALUE_ABORTING
                     );
                     shipmentFailed |= BackupShippingUtils.hasShippingStatus(
                         snapDfn,
                         null,
-                        InternalApiConsts.VALUE_ABORTED,
-                        accCtx
+                        InternalApiConsts.VALUE_ABORTED
                     );
                     shipmentFailed |= BackupShippingUtils.hasShippingStatus(
                         snapDfn,
                         null,
-                        InternalApiConsts.VALUE_FAILED,
-                        accCtx
+                        InternalApiConsts.VALUE_FAILED
                     );
                     if (
-                        snap.getFlags().isSet(accCtx, Snapshot.Flags.DELETE) ||
+                        snap.getFlags().isSet(Snapshot.Flags.DELETE) ||
                             snapDfnFlags.isSomeSet(
-                                accCtx,
                                 SnapshotDefinition.Flags.DELETE,
                                 SnapshotDefinition.Flags.FAILED_DEPLOYMENT,
                                 SnapshotDefinition.Flags.FAILED_DISCONNECT
@@ -770,15 +760,11 @@ public abstract class AbsBackupShippingService implements SystemService
         {
             errorReporter.reportError(exc);
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
         return success;
     }
 
     protected String fillPojo(Snapshot snap, String basedOnMetaName, ShippingInfo info)
-        throws AccessDeniedException, IOException, ParseException
+        throws IOException, ParseException
     {
         Map<Integer, List<BackupMetaInfoPojo>> backupsRef = new TreeMap<>();
         for (SnapVlmDataInfo snapInfo : info.snapVlmDataInfoMap.values())
@@ -798,7 +784,6 @@ public abstract class AbsBackupShippingService implements SystemService
         }
 
         return BackupShippingUtils.fillPojo(
-            accCtx,
             snap,
             stltConfigAccessor.getReadonlyProps(),
             stltSecObj.getEncKey(),
@@ -866,11 +851,11 @@ public abstract class AbsBackupShippingService implements SystemService
                 snapVlmDataRef.getVolume()
                     .getAbsResource()
                     .getSnapshotDefinition()
-                    .getSnapDfnProps(accCtx)
+                    .getSnapDfnProps()
                     .getProp(InternalApiConsts.KEY_BACKUP_TO_RESTORE, namespc)
             );
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -999,19 +984,19 @@ public abstract class AbsBackupShippingService implements SystemService
     );
 
     protected abstract String getBackupNameForRestore(AbsStorageVlmData<Snapshot> snapVlmDataRef)
-        throws InvalidKeyException, AccessDeniedException;
+        throws InvalidKeyException;
 
     protected abstract String getCommandSending(
         String cmdRef,
         AbsRemote remoteRef,
         AbsStorageVlmData<Snapshot> snapVlmDataRef
-    ) throws AccessDeniedException;
+    );
 
     protected abstract String getCommandReceiving(
         String cmdRef,
         AbsRemote remoteRef,
         AbsStorageVlmData<Snapshot> snapVlmDataRef
-    ) throws AccessDeniedException;
+    );
 
     protected abstract boolean preCtrlNotifyBackupShipped(
         boolean successRef,

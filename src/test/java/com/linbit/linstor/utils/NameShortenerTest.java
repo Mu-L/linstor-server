@@ -11,8 +11,6 @@ import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.dbdrivers.SatellitePropDriver;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.linstor.transaction.manager.SatelliteTransactionMgr;
 
 import java.util.Map;
@@ -231,13 +229,13 @@ public class NameShortenerTest
     }
 
     private VolumeDefinition getVlmDfn(String rscNameStr, int vlmNr)
-        throws AccessDeniedException, ValueOutOfRangeException, Throwable
+        throws ValueOutOfRangeException, Throwable
     {
         return getVlmDfn(getRscDfn(rscNameStr), vlmNr);
     }
 
     private VolumeDefinition getVlmDfn(ResourceDefinition rscDfn, int vlmNr)
-        throws AccessDeniedException, ValueOutOfRangeException, Throwable
+        throws ValueOutOfRangeException, Throwable
     {
         VolumeDefinition vlmDfn = rscDfn.getVolumeDfn(TestAccessContextProvider.SYS_CTX, new VolumeNumber(0));
         if (vlmDfn == null)

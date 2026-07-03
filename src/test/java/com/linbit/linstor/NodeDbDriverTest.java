@@ -30,7 +30,6 @@ import com.linbit.linstor.layer.LayerPayload.DrbdRscPayload;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.security.GenericDbBase;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
@@ -89,7 +88,6 @@ public class NodeDbDriverTest extends GenericDbBase
     @Inject
     @Named(LinStor.CONTROLLER_PROPS) ReadOnlyProps ctrlConfRef;
     private java.util.UUID uuid;
-    private ObjectProtection objProt;
     private long initialFlags;
     private Node.Type initialType;
     private Node node;
@@ -103,7 +101,7 @@ public class NodeDbDriverTest extends GenericDbBase
     @Before
     public void setUp() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext(SYS_CTX);
+        seedDefaultPeerRule.setDefaultPeerAccessContext();
         super.setUpAndEnterScope();
         assertEquals(
             "NODES table's column count has changed. Update tests accordingly!",
@@ -114,7 +112,6 @@ public class NodeDbDriverTest extends GenericDbBase
 
         uuid = randomUUID();
         objProt = objectProtectionFactory.getInstance(
-            SYS_CTX,
             ObjectProtection.buildPath(nodeName),
             true
         );
@@ -134,7 +131,7 @@ public class NodeDbDriverTest extends GenericDbBase
             transMgrProvider
         );
 
-        dfltRscGrp = createDefaultResourceGroup(SYS_CTX);
+        dfltRscGrp = createDefaultResourceGroup();
     }
 
     @Test
@@ -162,7 +159,6 @@ public class NodeDbDriverTest extends GenericDbBase
     public void testPersistGetInstance() throws Exception
     {
         nodeFactory.create(
-            SYS_CTX,
             nodeName,
             null,
             null
@@ -203,7 +199,6 @@ public class NodeDbDriverTest extends GenericDbBase
         stmt.close();
 
         ObjectProtection loadedObjProt = objectProtectionFactory.getInstance(
-            SYS_CTX,
             ObjectProtection.buildPath(nodeName),
             true
         );
@@ -228,7 +223,7 @@ public class NodeDbDriverTest extends GenericDbBase
         assertFalse(nodeIt.hasNext());
 
         assertNotNull(loaded);
-        loaded.getFlags().enableFlags(SYS_CTX, Node.Flags.DELETE);
+        loaded.getFlags().enableFlags(Node.Flags.DELETE);
         commit();
 
         PreparedStatement stmt = getConnection().prepareStatement(SELECT_ALL_NODES);
@@ -331,19 +326,17 @@ public class NodeDbDriverTest extends GenericDbBase
         {
             // node1
             Node node1 = nodeFactory.create(
-                SYS_CTX,
                 nodeName,
                 Node.Type.COMBINED,
                 new Node.Flags[] {Node.Flags.QIGNORE}
             );
-            node1.getProps(SYS_CTX).setProp(node1TestKey, node1TestValue);
+            node1.getProps().setProp(node1TestKey, node1TestValue);
             node1Uuid = node1.getUuid();
 
             nodesMap.put(node1.getName(), node1);
 
             // node1's netIface
             NetInterface netIf = netInterfaceFactory.create(
-                SYS_CTX,
                 node1,
                 netName,
                 new LsIpAddress(netHost),
@@ -354,7 +347,6 @@ public class NodeDbDriverTest extends GenericDbBase
 
             // node2
             Node node2 = nodeFactory.create(
-                SYS_CTX,
                 nodeName2,
                 Node.Type.COMBINED,
                 null
@@ -368,7 +360,6 @@ public class NodeDbDriverTest extends GenericDbBase
             drbdRscDfn.sharedSecret = "secret";
             drbdRscDfn.transportType = transportType;
             ResourceDefinition resDfn = resourceDefinitionFactory.create(
-                SYS_CTX,
                 resName,
                 null,
                 new ResourceDefinition.Flags[]
@@ -379,26 +370,24 @@ public class NodeDbDriverTest extends GenericDbBase
                 payload,
                 dfltRscGrp
             );
-            resDfn.getProps(SYS_CTX).setProp(resDfnTestKey, resDfnTestValue);
+            resDfn.getProps().setProp(resDfnTestKey, resDfnTestValue);
             resDfnUuid = resDfn.getUuid();
 
             rscDfnMap.put(resDfn.getName(), resDfn);
 
             // volDfn
             VolumeDefinition volDfn = volumeDefinitionFactory.create(
-                SYS_CTX,
                 resDfn,
                 volDfnNr,
                 volDfnMinorNr,
                 volDfnSize,
                 new VolumeDefinition.Flags[] {VolumeDefinition.Flags.DELETE}
             );
-            volDfn.getProps(SYS_CTX).setProp(volDfnTestKey, volDfnTestValue);
+            volDfn.getProps().setProp(volDfnTestKey, volDfnTestValue);
             volDfnUuid = volDfn.getUuid();
 
             // storPoolDfn
             StorPoolDefinition storPoolDfn = storPoolDefinitionFactory.create(
-                SYS_CTX,
                 poolName
             );
             storPoolDfnUuid = storPoolDfn.getUuid();
@@ -407,25 +396,23 @@ public class NodeDbDriverTest extends GenericDbBase
 
             // node1 storPool
             StorPool storPool1 = storPoolFactory.create(
-                SYS_CTX,
                 node1,
                 storPoolDfn,
                 storPoolDriver1,
                 getFreeSpaceMgr(storPoolDfn, node1),
                 false
             );
-            storPool1.getProps(SYS_CTX).setProp(storPool1TestKey, storPool1TestValue);
+            storPool1.getProps().setProp(storPool1TestKey, storPool1TestValue);
 
             // node2 storPool
             StorPool storPool2 = storPoolFactory.create(
-                SYS_CTX,
                 node2,
                 storPoolDfn,
                 storPoolDriver2,
                 getFreeSpaceMgr(storPoolDfn, node2),
                 false
             );
-            storPool2.getProps(SYS_CTX).setProp(storPool2TestKey, storPool2TestValue);
+            storPool2.getProps().setProp(storPool2TestKey, storPool2TestValue);
 
             // node1 res
             LayerPayload payload1 = new LayerPayload();
@@ -433,7 +420,6 @@ public class NodeDbDriverTest extends GenericDbBase
             drbdRsc1.nodeId = node1Id;
             drbdRsc1.tcpPorts = resPorts;
             Resource res1 = resourceFactory.create(
-                SYS_CTX,
                 resDfn,
                 node1,
                 payload1,
@@ -443,13 +429,12 @@ public class NodeDbDriverTest extends GenericDbBase
                 },
                 Collections.emptyList()
             );
-            res1.getProps(SYS_CTX).setProp(res1TestKey, res1TestValue);
+            res1.getProps().setProp(res1TestKey, res1TestValue);
             res1Uuid = res1.getUuid();
 
             // node1 vol
             payload1.putStorageVlmPayload("", volDfn.getVolumeNumber().value, storPool1);
             Volume vol1 = volumeFactory.create(
-                SYS_CTX,
                 res1,
                 volDfn,
                 new Volume.Flags[]
@@ -459,7 +444,7 @@ public class NodeDbDriverTest extends GenericDbBase
                 Collections.emptyMap(),
                 null
             );
-            vol1.getProps(SYS_CTX).setProp(vol1TestKey, vol1TestValue);
+            vol1.getProps().setProp(vol1TestKey, vol1TestValue);
             vol1Uuid = vol1.getUuid();
 
             // node2 res
@@ -468,7 +453,6 @@ public class NodeDbDriverTest extends GenericDbBase
             drbdRsc2.nodeId = node2Id;
             drbdRsc2.tcpPorts = resPorts;
             Resource res2 = resourceFactory.create(
-                SYS_CTX,
                 resDfn,
                 node2,
                 payload2,
@@ -478,13 +462,12 @@ public class NodeDbDriverTest extends GenericDbBase
                 },
                 Collections.emptyList()
             );
-            res2.getProps(SYS_CTX).setProp(res2TestKey, res2TestValue);
+            res2.getProps().setProp(res2TestKey, res2TestValue);
             res2Uuid = res2.getUuid();
 
             // node2 vol
             payload2.putStorageVlmPayload("", volDfn.getVolumeNumber().value, storPool2);
             Volume vol2 = volumeFactory.create(
-                SYS_CTX,
                 res2,
                 volDfn,
                 new Volume.Flags[]
@@ -494,52 +477,49 @@ public class NodeDbDriverTest extends GenericDbBase
                 Collections.emptyMap(),
                 null
             );
-            vol2.getProps(SYS_CTX).setProp(vol2TestKey, vol2TestValue);
+            vol2.getProps().setProp(vol2TestKey, vol2TestValue);
             vol2Uuid = vol2.getUuid();
 
             // nodeCon node1 <-> node2
             NodeConnection nodeCon = nodeConnectionFactory.create(
-                SYS_CTX,
                 node1,
                 node2
             );
-            nodeCon.getProps(SYS_CTX).setProp(nodeConTestKey, nodeConTestValue);
+            nodeCon.getProps().setProp(nodeConTestKey, nodeConTestValue);
             nodeConUuid = nodeCon.getUuid();
 
             // resCon res1 <-> res2
             ResourceConnection resCon = resourceConnectionFactory.create(
-                SYS_CTX,
                 res1,
                 res2,
                 null
             );
-            resCon.getProps(SYS_CTX).setProp(resConTestKey, resConTestValue);
+            resCon.getProps().setProp(resConTestKey, resConTestValue);
             resConUuid = resCon.getUuid();
 
             // volCon vol1 <-> vol2
             VolumeConnection volCon = volumeConnectionFactory.create(
-                SYS_CTX,
                 vol1,
                 vol2
             );
-            volCon.getProps(SYS_CTX).setProp(volConTestKey, volConTestValue);
+            volCon.getProps().setProp(volConTestKey, volConTestValue);
             volConUuid = volCon.getUuid();
 
             commit();
         }
 
-        Node loadedNode = nodeRepository.get(SYS_CTX, nodeName);
-        Node loadedNode2 = nodeRepository.get(SYS_CTX, nodeName2);
+        Node loadedNode = nodeRepository.get(nodeName);
+        Node loadedNode2 = nodeRepository.get(nodeName2);
 
         assertNotNull(loadedNode);
 
-        assertEquals(Node.Flags.QIGNORE.flagValue, loadedNode.getFlags().getFlagsBits(SYS_CTX));
+        assertEquals(Node.Flags.QIGNORE.flagValue, loadedNode.getFlags().getFlagsBits());
         assertEquals(nodeName, loadedNode.getName()); // NodeName class implements equals
         {
-            NetInterface netIf = loadedNode.getNetInterface(SYS_CTX, netName);
+            NetInterface netIf = loadedNode.getNetInterface(netName);
             assertNotNull(netIf);
             {
-                LsIpAddress address = netIf.getAddress(SYS_CTX);
+                LsIpAddress address = netIf.getAddress();
                 assertNotNull(address);
                 assertEquals(netHost, address.getAddress());
             }
@@ -548,38 +528,38 @@ public class NodeDbDriverTest extends GenericDbBase
             assertEquals(netIfUuid, netIf.getUuid());
         }
 
-        assertEquals(Node.Type.COMBINED, loadedNode.getNodeType(SYS_CTX));
+        assertEquals(Node.Type.COMBINED, loadedNode.getNodeType());
         assertNotNull(loadedNode.getObjProt());
         {
-            Props nodeProps = loadedNode.getProps(SYS_CTX);
+            Props nodeProps = loadedNode.getProps();
             assertNotNull(nodeProps);
             assertEquals(node1TestValue, nodeProps.getProp(node1TestKey));
             assertEquals(1, nodeProps.size());
         }
         {
-            Resource res = loadedNode.getResource(SYS_CTX, resName);
+            Resource res = loadedNode.getResource(resName);
             assertNotNull(res);
             assertEquals(loadedNode, res.getNode());
             {
                 ResourceDefinition resDfn = res.getResourceDefinition();
                 assertNotNull(resDfn);
-                assertEquals(ResourceDefinition.Flags.DELETE.flagValue, resDfn.getFlags().getFlagsBits(SYS_CTX));
+                assertEquals(ResourceDefinition.Flags.DELETE.flagValue, resDfn.getFlags().getFlagsBits());
                 assertEquals(resName, resDfn.getName());
                 assertNotNull(resDfn.getObjProt());
                 {
-                    Props resDfnProps = resDfn.getProps(SYS_CTX);
+                    Props resDfnProps = resDfn.getProps();
                     assertNotNull(resDfnProps);
 
                     assertEquals(resDfnTestValue, resDfnProps.getProp(resDfnTestKey));
                     assertEquals(1, resDfnProps.size());
                 }
-                assertEquals(res, resDfn.getResource(SYS_CTX, nodeName));
+                assertEquals(res, resDfn.getResource(nodeName));
                 assertEquals(resDfnUuid, resDfn.getUuid());
-                assertEquals(res.getVolume(volDfnNr).getVolumeDefinition(), resDfn.getVolumeDfn(SYS_CTX, volDfnNr));
+                assertEquals(res.getVolume(volDfnNr).getVolumeDefinition(), resDfn.getVolumeDfn(volDfnNr));
             }
             assertNotNull(res.getObjProt());
             {
-                Props resProps = res.getProps(SYS_CTX);
+                Props resProps = res.getProps();
                 assertNotNull(resProps);
 
                 assertEquals(res1TestValue, resProps.getProp(res1TestKey));
@@ -588,15 +568,15 @@ public class NodeDbDriverTest extends GenericDbBase
             {
                 StateFlags<Resource.Flags> resStateFlags = res.getStateFlags();
                 assertNotNull(resStateFlags);
-                assertTrue(resStateFlags.isSet(SYS_CTX, Resource.Flags.CLEAN));
-                assertFalse(resStateFlags.isSet(SYS_CTX, Resource.Flags.DELETE));
+                assertTrue(resStateFlags.isSet(Resource.Flags.CLEAN));
+                assertFalse(resStateFlags.isSet(Resource.Flags.DELETE));
             }
             assertEquals(res1Uuid, res.getUuid());
             {
                 Volume vol = res.getVolume(volDfnNr);
                 assertNotNull(vol);
                 {
-                    Props volProps = vol.getProps(SYS_CTX);
+                    Props volProps = vol.getProps();
                     assertNotNull(volProps);
                     assertEquals(vol1TestValue, volProps.getProp(vol1TestKey));
                     assertEquals(1, volProps.size());
@@ -606,9 +586,9 @@ public class NodeDbDriverTest extends GenericDbBase
                 assertEquals(vol1Uuid, vol.getUuid());
                 {
                     VolumeDefinition volDfn = vol.getVolumeDefinition();
-                    assertTrue(volDfn.getFlags().isSet(SYS_CTX, VolumeDefinition.Flags.DELETE));
+                    assertTrue(volDfn.getFlags().isSet(VolumeDefinition.Flags.DELETE));
                     {
-                        Props volDfnProps = volDfn.getProps(SYS_CTX);
+                        Props volDfnProps = volDfn.getProps();
                         assertNotNull(volDfnProps);
                         assertEquals(volDfnTestValue, volDfnProps.getProp(volDfnTestKey));
                         String dfltLvmExtentSize = "4096"; // from the storPool1
@@ -628,38 +608,38 @@ public class NodeDbDriverTest extends GenericDbBase
                     assertEquals(res.getResourceDefinition(), volDfn.getResourceDefinition());
                     assertEquals(volDfnUuid, volDfn.getUuid());
                     assertEquals(volDfnNr, volDfn.getVolumeNumber());
-                    assertEquals(volDfnSize, volDfn.getVolumeSize(SYS_CTX));
+                    assertEquals(volDfnSize, volDfn.getVolumeSize());
                 }
                 {
-                    Volume vol2 = loadedNode2.getResource(SYS_CTX, resName).getVolume(volDfnNr);
+                    Volume vol2 = loadedNode2.getResource(resName).getVolume(volDfnNr);
                     assertEquals(vol2Uuid, vol2.getUuid());
                     assertNotNull(vol2);
 
-                    VolumeConnection volCon = vol.getVolumeConnection(SYS_CTX, vol2);
+                    VolumeConnection volCon = vol.getVolumeConnection(vol2);
                     assertNotNull(volCon);
 
-                    assertEquals(vol, volCon.getSourceVolume(SYS_CTX));
-                    assertEquals(vol2, volCon.getTargetVolume(SYS_CTX));
+                    assertEquals(vol, volCon.getSourceVolume());
+                    assertEquals(vol2, volCon.getTargetVolume());
                     assertEquals(volConUuid, volCon.getUuid());
 
-                    Props volConProps = volCon.getProps(SYS_CTX);
+                    Props volConProps = volCon.getProps();
                     assertNotNull(volConProps);
                     assertEquals(volConTestValue, volConProps.getProp(volConTestKey));
                     assertEquals(1, volConProps.size());
                 }
             }
             {
-                Resource res2 = loadedNode2.getResource(SYS_CTX, resName);
+                Resource res2 = loadedNode2.getResource(resName);
                 assertNotNull(res2);
                 assertEquals(res2Uuid, res2.getUuid());
-                ResourceConnection resCon = res.getAbsResourceConnection(SYS_CTX, res2);
+                ResourceConnection resCon = res.getAbsResourceConnection(res2);
                 assertNotNull(resCon);
 
-                assertEquals(res, resCon.getSourceResource(SYS_CTX));
-                assertEquals(res2, resCon.getTargetResource(SYS_CTX));
+                assertEquals(res, resCon.getSourceResource());
+                assertEquals(res2, resCon.getTargetResource());
                 assertEquals(resConUuid, resCon.getUuid());
 
-                Props resConProps = resCon.getProps(SYS_CTX);
+                Props resConProps = resCon.getProps();
                 assertNotNull(resConProps);
                 assertEquals(resConTestValue, resConProps.getProp(resConTestKey));
                 assertEquals(1, resConProps.size());
@@ -667,10 +647,10 @@ public class NodeDbDriverTest extends GenericDbBase
         }
 
         {
-            StorPool storPool = loadedNode.getStorPool(SYS_CTX, poolName);
+            StorPool storPool = loadedNode.getStorPool(poolName);
             assertNotNull(storPool);
             {
-                Props storPoolConfig = storPool.getProps(SYS_CTX);
+                Props storPoolConfig = storPool.getProps();
                 assertNotNull(storPoolConfig);
                 assertEquals(storPool1TestValue, storPoolConfig.getProp(storPool1TestKey));
                 String dfltLvmExtentSize = "4096"; // due to LVM
@@ -684,7 +664,7 @@ public class NodeDbDriverTest extends GenericDbBase
                 assertEquals(2, storPoolConfig.size());
             }
             {
-                StorPoolDefinition storPoolDefinition = storPool.getDefinition(SYS_CTX);
+                StorPoolDefinition storPoolDefinition = storPool.getDefinition();
                 assertNotNull(storPoolDefinition);
                 assertEquals(poolName, storPoolDefinition.getName());
                 assertNotNull(storPoolDefinition.getObjProt());
@@ -700,14 +680,14 @@ public class NodeDbDriverTest extends GenericDbBase
         }
         assertEquals(node1Uuid, loadedNode.getUuid());
 
-        NodeConnection nodeCon = loadedNode.getNodeConnection(SYS_CTX, loadedNode2);
+        NodeConnection nodeCon = loadedNode.getNodeConnection(loadedNode2);
         assertNotNull(nodeCon);
 
-        assertEquals(loadedNode, nodeCon.getSourceNode(SYS_CTX));
-        assertEquals(loadedNode2, nodeCon.getTargetNode(SYS_CTX));
+        assertEquals(loadedNode, nodeCon.getSourceNode());
+        assertEquals(loadedNode2, nodeCon.getTargetNode());
         assertEquals(nodeConUuid, nodeCon.getUuid());
 
-        Props nodeConProps = nodeCon.getProps(SYS_CTX);
+        Props nodeConProps = nodeCon.getProps();
         assertNotNull(nodeConProps);
         assertEquals(nodeConTestValue, nodeConProps.getProp(nodeConTestKey));
         assertEquals(1, nodeConProps.size());
@@ -739,7 +719,6 @@ public class NodeDbDriverTest extends GenericDbBase
         dbDriver.create(node);
         NodeName nodeName2 = new NodeName("NodeName2");
         Node node2 = nodeFactory.create(
-            SYS_CTX,
             nodeName2,
             Node.Type.CONTROLLER,
             null
@@ -761,12 +740,12 @@ public class NodeDbDriverTest extends GenericDbBase
         }
         assertEquals(node.getName().value, loadedNode0.getName().value);
         assertEquals(node.getName().displayValue, loadedNode0.getName().displayValue);
-        assertEquals(node.getNodeType(SYS_CTX), loadedNode0.getNodeType(SYS_CTX));
+        assertEquals(node.getNodeType(), loadedNode0.getNodeType());
         assertEquals(node.getUuid(), loadedNode0.getUuid());
 
         assertEquals(node2.getName().value, loadedNode1.getName().value);
         assertEquals(node2.getName().displayValue, loadedNode1.getName().displayValue);
-        assertEquals(node2.getNodeType(SYS_CTX), loadedNode1.getNodeType(SYS_CTX));
+        assertEquals(node2.getNodeType(), loadedNode1.getNodeType());
         assertEquals(node2.getUuid(), loadedNode1.getUuid());
     }
 
@@ -776,7 +755,7 @@ public class NodeDbDriverTest extends GenericDbBase
         dbDriver.create(node);
         nodesMap.put(nodeName, node);
 
-        nodeFactory.create(SYS_CTX, nodeName, initialType, null);
+        nodeFactory.create(nodeName, initialType, null);
     }
 
 }

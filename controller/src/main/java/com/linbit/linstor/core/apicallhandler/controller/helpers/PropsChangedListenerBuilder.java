@@ -25,8 +25,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.utils.ExceptionThrowingSupplier;
 
@@ -78,14 +76,13 @@ public class PropsChangedListenerBuilder
 
     // controller
     public Map<String, PropertyChangedListener> buildPropsChangedListeners(
-        AccessContext accCtx,
         List<Flux<ApiCallRc>> fluxes
     )
     {
         Builder builder = new Builder(fluxes);
-        builder.setCurrentPropSupplier(() -> systemConfRepository.getCtrlConfForChange(accCtx));
-        builder.setRscDfnListSupplier(() -> rscDfnProtRepo.getMapForView(accCtx).values());
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier(accCtx));
+        builder.setCurrentPropSupplier(() -> systemConfRepository.getCtrlConfForChange());
+        builder.setRscDfnListSupplier(() -> rscDfnProtRepo.getMapForView().values());
+        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addDrbdOptionsDiskDiscardGranularity();
@@ -96,15 +93,14 @@ public class PropsChangedListenerBuilder
 
     // rscGrp
     public Map<String, PropertyChangedListener> buildPropsChangedListeners(
-        AccessContext accCtx,
         ResourceGroup rscGrp,
         List<Flux<ApiCallRc>> fluxes
     )
     {
         Builder builder = new Builder(fluxes);
-        builder.setCurrentPropSupplier(() -> rscGrp.getProps(accCtx));
-        builder.setRscDfnListSupplier(() -> LinstorIteratorUtils.getRscDfns(accCtx, rscGrp));
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier(accCtx));
+        builder.setCurrentPropSupplier(() -> rscGrp.getProps());
+        builder.setRscDfnListSupplier(() -> LinstorIteratorUtils.getRscDfns(rscGrp));
+        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addDrbdOptionsDiskDiscardGranularity();
@@ -115,15 +111,14 @@ public class PropsChangedListenerBuilder
 
     // vlmGrp
     public Map<String, PropertyChangedListener> buildPropsChangedListeners(
-        AccessContext accCtx,
         VolumeGroup vlmGrp,
         List<Flux<ApiCallRc>> fluxes
     )
     {
         Builder builder = new Builder(fluxes);
-        builder.setCurrentPropSupplier(() -> vlmGrp.getProps(accCtx));
-        builder.setRscDfnListSupplier(() -> LinstorIteratorUtils.getRscDfns(accCtx, vlmGrp));
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier(accCtx));
+        builder.setCurrentPropSupplier(() -> vlmGrp.getProps());
+        builder.setRscDfnListSupplier(() -> LinstorIteratorUtils.getRscDfns(vlmGrp));
+        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addLuksAllowDiscards();
@@ -133,15 +128,14 @@ public class PropsChangedListenerBuilder
 
     // rscDfn
     public Map<String, PropertyChangedListener> buildPropsChangedListeners(
-        AccessContext accCtx,
         ResourceDefinition rscDfn,
         List<Flux<ApiCallRc>> fluxes
     )
     {
         Builder builder = new Builder(fluxes);
-        builder.setCurrentPropSupplier(() -> rscDfn.getProps(accCtx));
+        builder.setCurrentPropSupplier(() -> rscDfn.getProps());
         builder.setRscDfnListSupplier(() -> Collections.singletonList(rscDfn));
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier(accCtx));
+        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addDrbdOptionsDiskDiscardGranularity();
@@ -152,15 +146,14 @@ public class PropsChangedListenerBuilder
 
     // vlmDfn
     public Map<String, PropertyChangedListener> buildPropsChangedListeners(
-        AccessContext accCtx,
         VolumeDefinition vlmDfn,
         List<Flux<ApiCallRc>> fluxes
     )
     {
         Builder builder = new Builder(fluxes);
-        builder.setCurrentPropSupplier(() -> vlmDfn.getProps(accCtx));
+        builder.setCurrentPropSupplier(() -> vlmDfn.getProps());
         builder.setRscDfnListSupplier(() -> Collections.singletonList(vlmDfn.getResourceDefinition()));
-        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier(accCtx));
+        builder.setRscListSupplier(builder.buildRscListSupplierFromRscDfnSupplier());
 
         builder.addDrbdOptionsDiskRsDiscardGranularity();
         builder.addLuksAllowDiscards();
@@ -170,27 +163,25 @@ public class PropsChangedListenerBuilder
 
     // node
     public Map<String, PropertyChangedListener> buildPropsChangedListeners(
-        AccessContext accCtx,
         Node nodeRef,
         List<Flux<ApiCallRc>> fluxes
     )
     {
         Builder builder = new Builder(fluxes);
-        builder.setCurrentPropSupplier(() -> nodeRef.getProps(accCtx));
+        builder.setCurrentPropSupplier(() -> nodeRef.getProps());
         // rscDfnListSupplier is (currently) not needed
-        // builder.setRscDfnListSupplier(() -> getRscDfnsByStorPool(accCtx, storPoolRef));
-        builder.setRscListSupplier(() -> getRscsBy(accCtx, nodeRef));
+        // builder.setRscDfnListSupplier(() -> getRscDfnsByStorPool(storPoolRef));
+        builder.setRscListSupplier(() -> getRscsBy(nodeRef));
 
         builder.addSkipDisk();
         builder.addLuksAllowDiscards();
         return builder.propsChangedListeners;
     }
 
-    private Collection<Resource> getRscsBy(AccessContext accCtxRef, Node nodeRef)
-        throws AccessDeniedException
+    private Collection<Resource> getRscsBy(Node nodeRef)
     {
         Collection<Resource> ret = new LinkedHashSet<>();
-        Iterator<Resource> rscIt = nodeRef.iterateResources(accCtxRef);
+        Iterator<Resource> rscIt = nodeRef.iterateResources();
         while (rscIt.hasNext())
         {
             ret.add(rscIt.next());
@@ -200,27 +191,25 @@ public class PropsChangedListenerBuilder
 
     // storPool
     public Map<String, PropertyChangedListener> buildPropsChangedListeners(
-        AccessContext accCtx,
         StorPool storPoolRef,
         List<Flux<ApiCallRc>> fluxes
     )
     {
         Builder builder = new Builder(fluxes);
-        builder.setCurrentPropSupplier(() -> storPoolRef.getProps(accCtx));
+        builder.setCurrentPropSupplier(() -> storPoolRef.getProps());
         // rscDfnListSupplier is (currently) not needed
-        // builder.setRscDfnListSupplier(() -> getRscDfnsByStorPool(accCtx, storPoolRef));
-        builder.setRscListSupplier(() -> getRscsBy(accCtx, storPoolRef));
+        // builder.setRscDfnListSupplier(() -> getRscDfnsByStorPool(storPoolRef));
+        builder.setRscListSupplier(() -> getRscsBy(storPoolRef));
 
         builder.addSkipDisk();
         builder.addLuksAllowDiscards();
         return builder.propsChangedListeners;
     }
 
-    private Collection<Resource> getRscsBy(AccessContext accCtxRef, StorPool storPoolRef)
-        throws AccessDeniedException
+    private Collection<Resource> getRscsBy(StorPool storPoolRef)
     {
         Collection<Resource> ret = new LinkedHashSet<>();
-        for (VlmProviderObject<Resource> vlmData : storPoolRef.getVolumes(accCtxRef))
+        for (VlmProviderObject<Resource> vlmData : storPoolRef.getVolumes())
         {
             ret.add(vlmData.getRscLayerObject().getAbsResource());
         }
@@ -229,13 +218,12 @@ public class PropsChangedListenerBuilder
 
     // rsc
     public Map<String, PropertyChangedListener> buildPropsChangedListeners(
-        AccessContext accCtx,
         Resource rscRef,
         List<Flux<ApiCallRc>> fluxes
     )
     {
         Builder builder = new Builder(fluxes);
-        builder.setCurrentPropSupplier(() -> rscRef.getProps(accCtx));
+        builder.setCurrentPropSupplier(() -> rscRef.getProps());
         builder.setRscDfnListSupplier(() -> Collections.singletonList(rscRef.getResourceDefinition()));
         builder.setRscListSupplier(() -> Collections.singleton(rscRef));
 
@@ -249,43 +237,42 @@ public class PropsChangedListenerBuilder
         private final List<Flux<ApiCallRc>> fluxes;
         private final Map<String, PropertyChangedListener> propsChangedListeners = new HashMap<>();
 
-        private @Nullable ExceptionThrowingSupplier<Props, AccessDeniedException> currentPropSupplier;
-        private @Nullable ExceptionThrowingSupplier<Collection<ResourceDefinition>, AccessDeniedException> rscDfnsSupplier;
-        private @Nullable ExceptionThrowingSupplier<Collection<Resource>, AccessDeniedException> rscsSupplier;
+        private @Nullable ExceptionThrowingSupplier<Props> currentPropSupplier;
+        private @Nullable ExceptionThrowingSupplier<Collection<ResourceDefinition>> rscDfnsSupplier;
+        private @Nullable ExceptionThrowingSupplier<Collection<Resource>> rscsSupplier;
 
         Builder(List<Flux<ApiCallRc>> fluxesRef)
         {
             fluxes = fluxesRef;
         }
 
-        void setCurrentPropSupplier(ExceptionThrowingSupplier<Props, AccessDeniedException> currentPropSupplierRef)
+        void setCurrentPropSupplier(ExceptionThrowingSupplier<Props> currentPropSupplierRef)
         {
             currentPropSupplier = currentPropSupplierRef;
         }
 
         void setRscDfnListSupplier(
-            ExceptionThrowingSupplier<Collection<ResourceDefinition>, AccessDeniedException> rscDfnsSupplierRef
+            ExceptionThrowingSupplier<Collection<ResourceDefinition>> rscDfnsSupplierRef
         )
         {
             rscDfnsSupplier = rscDfnsSupplierRef;
         }
 
         void setRscListSupplier(
-            ExceptionThrowingSupplier<Collection<Resource>, AccessDeniedException> rscsSupplierRef
+            ExceptionThrowingSupplier<Collection<Resource>> rscsSupplierRef
         )
         {
             rscsSupplier = rscsSupplierRef;
         }
 
-        ExceptionThrowingSupplier<Collection<Resource>, AccessDeniedException> buildRscListSupplierFromRscDfnSupplier(
-            AccessContext accCtxRef
+        ExceptionThrowingSupplier<Collection<Resource>> buildRscListSupplierFromRscDfnSupplier(
         )
         {
             return () -> {
                 List<Resource> ret = new ArrayList<>();
                 for (ResourceDefinition rscDfn : rscDfnsSupplier.supply())
                 {
-                    Iterator<Resource> iterateResource = rscDfn.iterateResource(accCtxRef);
+                    Iterator<Resource> iterateResource = rscDfn.iterateResource();
                     while (iterateResource.hasNext())
                     {
                         ret.add(iterateResource.next());

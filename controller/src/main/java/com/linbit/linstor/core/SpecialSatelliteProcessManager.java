@@ -3,7 +3,6 @@ package com.linbit.linstor.core;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.LinStorRuntimeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.CoreModule.NodesMap;
@@ -14,8 +13,6 @@ import com.linbit.linstor.core.cfg.LinstorConfig;
 import com.linbit.linstor.core.objects.NetInterface;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.utils.FileUtils;
 
 import javax.inject.Inject;
@@ -51,7 +48,6 @@ public class SpecialSatelliteProcessManager
 
     private final NodesMap nodesMap;
     private final ErrorReporter errorReporter;
-    private final AccessContext sysCtx;
     private final CtrlConfig ctrlConf;
 
     private final transient Map<String, Process> childSatellites;
@@ -61,13 +57,11 @@ public class SpecialSatelliteProcessManager
     public SpecialSatelliteProcessManager(
         CoreModule.NodesMap nodesMapRef,
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext initCtxRef,
         CtrlConfig ctrlConfRef
     )
     {
         nodesMap = nodesMapRef;
         errorReporter = errorReporterRef;
-        sysCtx = initCtxRef;
         ctrlConf = ctrlConfRef;
         childSatellites = new HashMap<>();
         childPorts = new HashMap<>();
@@ -83,17 +77,7 @@ public class SpecialSatelliteProcessManager
     private Node.Type getNodeType(Node node)
     {
         Node.Type type;
-        try
-        {
-            type = node.getNodeType(sysCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(
-                "System context has not enough privileges",
-                exc
-            );
-        }
+        type = node.getNodeType();
         return type;
     }
 
@@ -107,7 +91,6 @@ public class SpecialSatelliteProcessManager
         {
             errorReporter.reportError(
                 exc,
-                sysCtx,
                 null,
                 "Could not start necessary special target node due to IO error"
             );
@@ -158,30 +141,23 @@ public class SpecialSatelliteProcessManager
     public void startLocalSatelliteProcess(Node node) throws IOException, PortAlreadyInUseException
     {
         Iterator<NetInterface> netIfIt;
-        try
+        netIfIt = node.iterateNetInterfaces();
+        Integer port = null;
+        while (netIfIt.hasNext())
         {
-            netIfIt = node.iterateNetInterfaces(sysCtx);
-            Integer port = null;
-            while (netIfIt.hasNext())
+            NetInterface netIf = netIfIt.next();
+            if (port != null)
             {
-                NetInterface netIf = netIfIt.next();
-                if (port != null)
-                {
-                    throw new ImplementationError("Special target node has more than one network interface!");
-                }
-                port = netIf.getStltConnPort(sysCtx).value;
+                throw new ImplementationError("Special target node has more than one network interface!");
             }
-            if (port == null)
-            {
-                throw new ImplementationError("Special target node has no network interfaces");
-            }
+            port = netIf.getStltConnPort().value;
+        }
+        if (port == null)
+        {
+            throw new ImplementationError("Special target node has no network interfaces");
+        }
 
-            startLocalSatelliteProcess(node.getName().displayValue, port, node.getNodeType(sysCtx));
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError("System context has not enough privileges", exc);
-        }
+        startLocalSatelliteProcess(node.getName().displayValue, port, node.getNodeType());
     }
 
     /**

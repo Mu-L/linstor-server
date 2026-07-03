@@ -1,15 +1,12 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -26,18 +23,15 @@ import reactor.core.publisher.Flux;
 public class CtrlSatelliteConnectionNotifier
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final Set<CtrlSatelliteConnectionListener> satelliteConnectionListeners;
 
     @Inject
     CtrlSatelliteConnectionNotifier(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         Set<CtrlSatelliteConnectionListener> satelliteConnectionListenersRef
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         satelliteConnectionListeners = satelliteConnectionListenersRef;
     }
 
@@ -57,22 +51,15 @@ public class CtrlSatelliteConnectionNotifier
     public Flux<?> checkResourceDefinitionConnected(ResourceDefinition rscDfn, ResponseContext context)
     {
         boolean allOnline = true;
-        try
+        Iterator<Resource> rscIter = rscDfn.iterateResource();
+        while (rscIter.hasNext())
         {
-            Iterator<Resource> rscIter = rscDfn.iterateResource(apiCtx);
-            while (rscIter.hasNext())
+            Resource rsc = rscIter.next();
+            if (rsc.getNode().getPeer().getConnectionStatus() != ApiConsts.ConnectionStatus.ONLINE)
             {
-                Resource rsc = rscIter.next();
-                if (rsc.getNode().getPeer(apiCtx).getConnectionStatus() != ApiConsts.ConnectionStatus.ONLINE)
-                {
-                    allOnline = false;
-                    break;
-                }
+                allOnline = false;
+                break;
             }
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ImplementationError(accExc);
         }
 
         return allOnline ?
@@ -130,7 +117,6 @@ public class CtrlSatelliteConnectionNotifier
     @FunctionalInterface
     private interface ConnectionListenerCallable
     {
-        Collection<Flux<ApiCallRc>> call(CtrlSatelliteConnectionListener connectionListener)
-            throws AccessDeniedException;
+        Collection<Flux<ApiCallRc>> call(CtrlSatelliteConnectionListener connectionListener);
     }
 }

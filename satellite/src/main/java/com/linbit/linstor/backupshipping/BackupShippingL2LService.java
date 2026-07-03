@@ -5,7 +5,6 @@ import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.ControllerPeerConnector;
@@ -19,8 +18,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote.RemoteType;
 import com.linbit.linstor.core.objects.remotes.StltRemote;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
 import com.linbit.locks.LockGuardFactory;
 
@@ -42,7 +39,6 @@ public class BackupShippingL2LService extends AbsBackupShippingService
         ExtCmdFactory extCmdFactoryRef,
         ControllerPeerConnector controllerPeerConnectorRef,
         CtrlStltSerializer interComSerializerRef,
-        @SystemContext AccessContext accCtxRef,
         StltSecurityObjects stltSecObjRef,
         StltConfigAccessor stltConfigAccessorRef,
         StltConnTracker stltConnTrackerRef,
@@ -57,7 +53,6 @@ public class BackupShippingL2LService extends AbsBackupShippingService
             extCmdFactoryRef,
             controllerPeerConnectorRef,
             interComSerializerRef,
-            accCtxRef,
             stltSecObjRef,
             stltConfigAccessorRef,
             stltConnTrackerRef,
@@ -68,11 +63,10 @@ public class BackupShippingL2LService extends AbsBackupShippingService
 
     @Override
     protected String getCommandReceiving(String cmdRef, AbsRemote remoteRef, AbsStorageVlmData<Snapshot> snapVlmDataRef)
-        throws AccessDeniedException
     {
         StltRemote stltRemote = (StltRemote) remoteRef;
-        Map<String, Integer> ports = stltRemote.getPorts(accCtx);
-        boolean useZstd = stltRemote.useZstd(accCtx);
+        Map<String, Integer> ports = stltRemote.getPorts();
+        boolean useZstd = stltRemote.useZstd();
 
         StringBuilder cmdBuilder = new StringBuilder()
             .append("set -o pipefail; ")
@@ -91,12 +85,11 @@ public class BackupShippingL2LService extends AbsBackupShippingService
 
     @Override
     protected String getCommandSending(String cmdRef, AbsRemote remoteRef, AbsStorageVlmData<Snapshot> snapVlmDataRef)
-        throws AccessDeniedException
     {
         StltRemote stltRemote = (StltRemote) remoteRef;
 
-        boolean useZstd = stltRemote.useZstd(accCtx);
-        Map<String, Integer> ports = stltRemote.getPorts(accCtx);
+        boolean useZstd = stltRemote.useZstd();
+        Map<String, Integer> ports = stltRemote.getPorts();
 
         StringBuilder cmdBuilder = new StringBuilder()
             .append("set -o pipefail; ")
@@ -108,7 +101,7 @@ public class BackupShippingL2LService extends AbsBackupShippingService
         }
         // "pv -s 100m -bnr -i 0.1 | " +
         cmdBuilder.append("socat STDIN TCP:")
-            .append(stltRemote.getIp(accCtx))
+            .append(stltRemote.getIp())
             .append(":")
             .append(ports.get(snapVlmDataRef.getVlmNr() + snapVlmDataRef.getRscLayerObject().getResourceNameSuffix()));
 
@@ -145,29 +138,22 @@ public class BackupShippingL2LService extends AbsBackupShippingService
         {
             Snapshot snapshot = snapVlmDataRef.getRscLayerObject().getAbsResource();
             PriorityProps prioProps;
-            try
+            prioProps = new PriorityProps(
+                snapshot.getNode().getProps(),
+                snapshot.getResourceDefinition().getProps(),
+                snapshot.getResourceDefinition().getResourceGroup().getProps(),
+                stltConfigAccessor.getReadonlyProps(ApiConsts.NAMESPC_BACKUP_SHIPPING)
+            );
+            Long timeout = Long.parseLong(
+                prioProps.getProp(
+                    ApiConsts.KEY_RECV_TIMEOUT_IN_MS,
+                    ApiConsts.NAMESPC_BACKUP_SHIPPING,
+                    DFLT_RESTORE_TIMEOUT_IN_MS
+                )
+            );
+            if (timeout >= 0)
             {
-                prioProps = new PriorityProps(
-                    snapshot.getNode().getProps(accCtx),
-                    snapshot.getResourceDefinition().getProps(accCtx),
-                    snapshot.getResourceDefinition().getResourceGroup().getProps(accCtx),
-                    stltConfigAccessor.getReadonlyProps(ApiConsts.NAMESPC_BACKUP_SHIPPING)
-                );
-                Long timeout = Long.parseLong(
-                    prioProps.getProp(
-                        ApiConsts.KEY_RECV_TIMEOUT_IN_MS,
-                        ApiConsts.NAMESPC_BACKUP_SHIPPING,
-                        DFLT_RESTORE_TIMEOUT_IN_MS
-                    )
-                );
-                if (timeout >= 0)
-                {
-                    restoreTimeoutMs = timeout;
-                }
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
+                restoreTimeoutMs = timeout;
             }
         }
         return restoreTimeoutMs;
@@ -175,7 +161,7 @@ public class BackupShippingL2LService extends AbsBackupShippingService
 
     @Override
     protected String getBackupNameForRestore(AbsStorageVlmData<Snapshot> snapVlmDataRef)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return snapVlmDataRef.getIdentifier();
     }
@@ -200,10 +186,10 @@ public class BackupShippingL2LService extends AbsBackupShippingService
         {
             try
             {
-                if (BackupShippingUtils.isBackupTarget(snap.getSnapshotDefinition(), snap.getNode(), accCtx))
+                if (BackupShippingUtils.isBackupTarget(snap.getSnapshotDefinition(), snap.getNode()))
                 {
                     remoteName = snap.getSnapshotDefinition()
-                        .getSnapDfnProps(accCtx)
+                        .getSnapDfnProps()
                         .getProp(
                             InternalApiConsts.KEY_BACKUP_SRC_REMOTE,
                             BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC
@@ -221,7 +207,7 @@ public class BackupShippingL2LService extends AbsBackupShippingService
                     return;
                 }
             }
-            catch (InvalidKeyException | AccessDeniedException exc)
+            catch (InvalidKeyException exc)
             {
                 throw new ImplementationError(exc);
             }

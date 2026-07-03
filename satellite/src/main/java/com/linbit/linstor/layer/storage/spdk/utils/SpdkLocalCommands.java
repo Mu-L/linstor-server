@@ -7,7 +7,6 @@ import com.linbit.extproc.ExtCmd.OutputData;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.layer.storage.spdk.SpdkCommands;
 import com.linbit.linstor.layer.storage.utils.RetryIfDeviceBusy;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.utils.Commands;
 import com.linbit.linstor.storage.utils.Commands.RetryHandler;
@@ -241,7 +240,7 @@ public class SpdkLocalCommands implements SpdkCommands<OutputData>
 
     @Override
     public OutputData restoreSnapshot(String fullQualifiedSnapName, String newVlmId)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return restoreSnapshot(extCmdFactory.create(), fullQualifiedSnapName, newVlmId);
     }
@@ -269,7 +268,7 @@ public class SpdkLocalCommands implements SpdkCommands<OutputData>
     }
 
     @Override
-    public OutputData decoupleParent(String fullQualifiedIdentifierRef) throws StorageException, AccessDeniedException
+    public OutputData decoupleParent(String fullQualifiedIdentifierRef) throws StorageException
     {
         return decoupleParent(extCmdFactory.create(), fullQualifiedIdentifierRef);
     }
@@ -296,7 +295,7 @@ public class SpdkLocalCommands implements SpdkCommands<OutputData>
 
     @Override
     public OutputData clone(String fullQualSnapNameRef, String lvTargetIdRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return clone(extCmdFactory.create(), fullQualSnapNameRef, lvTargetIdRef);
     }
@@ -507,7 +506,7 @@ public class SpdkLocalCommands implements SpdkCommands<OutputData>
     }
 
     @Override
-    public OutputData nvmSubsystemCreate(String subsystemName) throws StorageException, AccessDeniedException
+    public OutputData nvmSubsystemCreate(String subsystemName) throws StorageException
     {
         return genericExecutor(
             extCmdFactory.create(),
@@ -531,7 +530,7 @@ public class SpdkLocalCommands implements SpdkCommands<OutputData>
         String addressType,
         String port
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return genericExecutor(
             extCmdFactory.create(),
@@ -552,7 +551,7 @@ public class SpdkLocalCommands implements SpdkCommands<OutputData>
 
     @Override
     public OutputData nvmfSubsystemAddNs(String subsystemNameRef, String spdkPath)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return genericExecutor(
             extCmdFactory.create(),
@@ -586,7 +585,7 @@ public class SpdkLocalCommands implements SpdkCommands<OutputData>
 
     @Override
     public OutputData nvmfSubsystemRemoveNamespace(String subsystemName, int namespaceNr)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return genericExecutor(
             extCmdFactory.create(),

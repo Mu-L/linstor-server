@@ -6,11 +6,6 @@ import com.linbit.linstor.api.pojo.ExternalFilePojo;
 import com.linbit.linstor.core.identifier.ExternalFileName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ExternalFileDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.transaction.TransactionList;
@@ -28,7 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-public class ExternalFile extends AbsCoreObj<ExternalFile> implements ProtectedObject
+public class ExternalFile extends AbsCoreObj<ExternalFile>
 {
     // File name (not the path, more like a short descriptive name for linstor)
     private final ExternalFileName fileName;
@@ -41,13 +36,11 @@ public class ExternalFile extends AbsCoreObj<ExternalFile> implements ProtectedO
     private final TransactionList<ExternalFile, String> altSuffixes;
     private final TransactionSimpleObject<ExternalFile, Boolean> alreadyWritten; // stlt only
 
-    private final ObjectProtection objProt;
     private final ExternalFileDatabaseDriver dbDriver;
 
 
     ExternalFile(
         UUID uuidRef,
-        ObjectProtection objProtRef,
         ExternalFileName extFileNameRef,
         long initFlagsRef,
         byte[] contentRef,
@@ -62,7 +55,6 @@ public class ExternalFile extends AbsCoreObj<ExternalFile> implements ProtectedO
         ErrorCheck.ctorNotNull(ExternalFile.class, ExternalFileName.class, extFileNameRef);
         ErrorCheck.ctorNotNull(ExternalFile.class, byte[].class, contentRef);
 
-        objProt = objProtRef;
         fileName = extFileNameRef;
         dbDriver = dbDriverRef;
 
@@ -136,30 +128,27 @@ public class ExternalFile extends AbsCoreObj<ExternalFile> implements ProtectedO
         return flags;
     }
 
-    public byte[] getContentCheckSum(AccessContext accCtx) throws AccessDeniedException
+    public byte[] getContentCheckSum()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return contentCheckSum.get();
     }
 
-    public String getContentCheckSumHex(AccessContext accCtx) throws AccessDeniedException
+    public String getContentCheckSumHex()
     {
-        return ByteUtils.bytesToHex(getContentCheckSum(accCtx));
+        return ByteUtils.bytesToHex(getContentCheckSum());
     }
 
-    public List<String> getAltSuffixes(AccessContext accCtx) throws AccessDeniedException
+    public List<String> getAltSuffixes()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return altSuffixes;
     }
 
-    public void setAltSuffixes(AccessContext accCtx, List<String> altSuffixesRef)
-        throws AccessDeniedException, DatabaseException
+    public void setAltSuffixes(List<String> altSuffixesRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         altSuffixes.clear();
         altSuffixes.addAll(altSuffixesRef);
     }
@@ -182,42 +171,30 @@ public class ExternalFile extends AbsCoreObj<ExternalFile> implements ProtectedO
         return alreadyWritten.get();
     }
 
-    public byte[] getContent(AccessContext accCtx) throws AccessDeniedException
+    public byte[] getContent()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return content.get();
     }
 
-    public void setContent(AccessContext accCtx, byte[] contentRef) throws DatabaseException, AccessDeniedException
+    public void setContent(byte[] contentRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         byte[] checksum = ByteUtils.checksumSha256(contentRef);
         content.set(contentRef);
         contentCheckSum.set(checksum);
     }
 
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
-    }
-
     public ExternalFilePojo getApiData(
-        AccessContext accCtx,
         @Nullable Long fullSyncId,
         @Nullable Long updateId
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return new ExternalFilePojo(
             objId,
             fileName.extFileName,
-            flags.getFlagsBits(accCtx),
+            flags.getFlagsBits(),
             content.get(),
             contentCheckSum.get(),
             new ArrayList<>(altSuffixes),
@@ -227,13 +204,12 @@ public class ExternalFile extends AbsCoreObj<ExternalFile> implements ProtectedO
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
             dbDriver.delete(this);

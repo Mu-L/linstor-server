@@ -9,8 +9,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,7 +20,7 @@ public class CtrlExternalFilesHelper
     }
 
     public static void deployPath(Props propsRef, ExternalFile extFileRef)
-        throws InvalidKeyException, DatabaseException, InvalidValueException, AccessDeniedException
+        throws InvalidKeyException, DatabaseException, InvalidValueException
     {
         propsRef.setProp(
             InternalApiConsts.NAMESPC_FILES + "/" + extFileRef.getName().extFileName,
@@ -31,7 +29,7 @@ public class CtrlExternalFilesHelper
     }
 
     // public static void undeployPath(Props writableProps, ExternalFile extFile)
-    // throws InvalidKeyException, DatabaseException, InvalidValueException, AccessDeniedException
+    // throws InvalidKeyException, DatabaseException, InvalidValueException
     // {
     // writableProps.setProp(
     // InternalApiConsts.NAMESPC_FILES + "/" + extFile.getName().extFileName,
@@ -40,7 +38,7 @@ public class CtrlExternalFilesHelper
     // }
 
     public static String removePath(Props writableProps, ExternalFile extFile)
-        throws InvalidKeyException, DatabaseException, AccessDeniedException
+        throws InvalidKeyException, DatabaseException
     {
         return writableProps.removeProp(
             InternalApiConsts.NAMESPC_FILES + "/" + extFile.getName().extFileName
@@ -49,12 +47,10 @@ public class CtrlExternalFilesHelper
 
     public static boolean isPathWhitelisted(
         ExternalFileName extFileName,
-        Node node,
-        AccessContext accCtx
+        Node node
     )
-        throws AccessDeniedException
     {
         Path extFilePath = Paths.get(extFileName.extFileName).normalize();
-        return node.getPeer(accCtx).getStltConfig().getWhitelistedExternalFilePaths().contains(extFilePath.getParent());
+        return node.getPeer().getStltConfig().getWhitelistedExternalFilePaths().contains(extFilePath.getParent());
     }
 }

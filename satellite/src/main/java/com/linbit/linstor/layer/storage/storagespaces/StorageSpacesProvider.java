@@ -19,7 +19,6 @@ import com.linbit.linstor.layer.storage.AbsStorageProvider;
 import com.linbit.linstor.layer.storage.utils.WmiHelper;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.StorageSpacesInfo;
@@ -82,7 +81,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
 
     @Override
     protected void updateStates(List<StorageSpacesData<Resource>> vlmDataList, List<StorageSpacesData<Snapshot>> snapVlmDataList)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         List<StorageSpacesData<?>> combinedList = new ArrayList<>();
         combinedList.addAll(vlmDataList);
@@ -140,7 +139,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
 
     @SuppressWarnings({ "unchecked" })
     protected void updateInfo(StorageSpacesData<?> vlmDataRef, @Nullable StorageSpacesInfo info)
-        throws DatabaseException, AccessDeniedException, StorageException
+        throws DatabaseException, StorageException
     {
         if (info == null)
         {
@@ -168,7 +167,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
 
     @Override
     protected void createLvImpl(StorageSpacesData<Resource> vlmData)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
             /* The partition must be exactly the required size (even if
              * it could be larger), so that DRBD can connect to others.
@@ -195,7 +194,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
 
     @Override
     protected void resizeLvImpl(StorageSpacesData<Resource> vlmData)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
             /* The partition must be exactly the required size (even if
              * it could be larger), so that DRBD can connect to others.
@@ -215,7 +214,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
 
     @Override
     protected void deleteLvImpl(StorageSpacesData<Resource> vlmData, String oldLvmId)
-        throws StorageException, DatabaseException, AccessDeniedException
+        throws StorageException, DatabaseException
     {
         WmiHelper.run(extCmdFactory, new String[] { "virtual-disk", "delete", vlmData.getIdentifier() });
 
@@ -278,7 +277,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
     }
 
     private Map<String, StorageSpacesInfo> getInfoFromWMIHelper(String pattern)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         Map<String, StorageSpacesInfo> map = new HashMap<>();
         OutputData res;
@@ -338,7 +337,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
     }
 
     private void updateInfoListCache()
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         if (rebuildCache)
         {
@@ -369,7 +368,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
         List<StorageSpacesData<Resource>> vlmDataList,
         List<StorageSpacesData<Snapshot>> snapVlms
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         updateInfoListCache();
         return infoListCache;
@@ -388,7 +387,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
             {
                 updateInfoListCache();
             }
-            catch (StorageException | AccessDeniedException exc)
+            catch (StorageException exc)
             {
                 errorReporter.logWarning("Couldn't update info cache, exception is " + exc);
             }
@@ -431,11 +430,11 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
         try
         {
             name = StringUtils.split(DeviceLayerUtils.getNamespaceStorDriver(
-                    storPool.getProps(storDriverAccCtx)
+                    storPool.getProps()
                 )
                 .getProp(StorageConstants.CONFIG_LVM_VOLUME_GROUP_KEY), "/")[0];
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -449,9 +448,9 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPoolRef) throws AccessDeniedException, StorageException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPoolRef) throws StorageException
     {
-        ReadOnlyProps props = storPoolRef.getReadOnlyProps(storDriverAccCtx);
+        ReadOnlyProps props = storPoolRef.getReadOnlyProps();
         String poolName = props.getProp("StorPoolName", "StorDriver");
         OutputData res;
         Long totalSize;
@@ -486,14 +485,14 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
 
     @Override
     public @Nullable LocalPropsChangePojo checkConfig(StorPoolInfo storPool)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return null;
     }
 
     @Override
     public @Nullable LocalPropsChangePojo update(StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         return null;
     }
@@ -519,7 +518,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
         {
             updateInfo(vlmData, info);
         }
-        catch (DatabaseException | AccessDeniedException exc)
+        catch (DatabaseException exc)
         {
             throw new StorageException("Unable to update info",
                     "Unable to update info",
@@ -533,7 +532,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
 
     @Override
     protected void deactivateLvImpl(StorageSpacesData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("deactivateLvImpl not implemented",
             "deactivateLvImpl not implemented",
@@ -548,7 +547,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
     protected void createSnapshotForCloneImpl(
         StorageSpacesData<Resource> vlmData,
         String cloneRscName)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         throw new StorageException("createLvWithCopyImpl not implemented",
             "createLvWithCopyImpl not implemented",
@@ -601,7 +600,7 @@ public class StorageSpacesProvider extends AbsStorageProvider<StorageSpacesInfo,
 
     @Override
     public Map<ReadOnlyVlmProviderInfo, Long> fetchAllocatedSizes(List<ReadOnlyVlmProviderInfo> vlmDataListRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return fetchOrigAllocatedSizes(vlmDataListRef);
     }

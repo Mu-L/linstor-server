@@ -3,7 +3,6 @@ package com.linbit.linstor.propscon;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.dbdrivers.SatellitePropDriver;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.manager.SatelliteTransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 

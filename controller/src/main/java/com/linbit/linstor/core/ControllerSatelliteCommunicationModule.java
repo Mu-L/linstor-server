@@ -1,15 +1,9 @@
 package com.linbit.linstor.core;
 
-import com.linbit.linstor.annotation.SatelliteConnectorContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.apicallhandler.controller.FreeCapacityFetcher;
 import com.linbit.linstor.core.apicallhandler.controller.FreeCapacityFetcherProto;
 import com.linbit.linstor.core.apicallhandler.controller.VlmAllocatedFetcher;
 import com.linbit.linstor.core.apicallhandler.controller.VlmAllocatedFetcherProto;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
-import com.linbit.linstor.security.PrivilegeSet;
 
 import javax.inject.Singleton;
 
@@ -28,9 +22,7 @@ public class ControllerSatelliteCommunicationModule extends AbstractModule
 
     @Provides
     @Singleton
-    @SatelliteConnectorContext
-    public AccessContext satelliteConnector(@SystemContext AccessContext initCtx)
-        throws AccessDeniedException
+    public AccessContext satelliteConnector(AccessContext initCtx)
     {
         AccessContext connectorCtx = initCtx.clone();
         PrivilegeSet connEffPriv = connectorCtx.getEffectivePrivs();

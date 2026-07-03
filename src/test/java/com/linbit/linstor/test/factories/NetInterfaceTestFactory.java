@@ -13,9 +13,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.types.LsIpAddress;
 import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.utils.Pair;
 
 import javax.inject.Inject;
@@ -87,7 +84,7 @@ public class NetInterfaceTestFactory
     }
 
     public NetInterface get(String nodeName, String netIfName, boolean createIfNotExists)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         NetInterface netIf = netIfMap.get(new Pair<>(nodeName.toUpperCase(), netIfName.toUpperCase()));
         if (netIf == null && createIfNotExists)
@@ -97,7 +94,7 @@ public class NetInterfaceTestFactory
         return netIf;
     }
 
-    public NetInterfaceTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public NetInterfaceTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -122,13 +119,13 @@ public class NetInterfaceTestFactory
     }
 
     public NetInterface create(Node node, String netIfName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         return builder(node.getName().displayValue, netIfName).build();
     }
 
     public NetInterface create(String nodeName, String netIfName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+        throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
     {
         return builder(nodeName, netIfName).build();
     }
@@ -145,7 +142,6 @@ public class NetInterfaceTestFactory
 
     public class NetInterfaceBuilder
     {
-        private AccessContext accCtx;
         private String nodeName;
         private String netIfName;
         private LsIpAddress addr;
@@ -157,15 +153,13 @@ public class NetInterfaceTestFactory
             nodeName = nodeNameRef;
             netIfName = netIfNameRef;
 
-            accCtx = dfltAccCtx;
             addr = dfltAddrSupplier.get();
             port = dfltPortSupplier.get();
             encrType = dfltEncrType;
         }
 
-        public NetInterfaceBuilder setAccCtx(AccessContext accCtxRef)
+        public NetInterfaceBuilder setAccCtx()
         {
-            accCtx = accCtxRef;
             return this;
         }
 
@@ -200,9 +194,9 @@ public class NetInterfaceTestFactory
         }
 
         public NetInterface build()
-            throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, InvalidNameException
+            throws DatabaseException, LinStorDataAlreadyExistsException, InvalidNameException
         {
-            NetInterface netIf = netIfFact.create(accCtx, nodeFact.get(nodeName, true), new NetInterfaceName(netIfName), addr, port, encrType);
+            NetInterface netIf = netIfFact.create(nodeFact.get(nodeName, true), new NetInterfaceName(netIfName), addr, port, encrType);
             netIfMap.put(new Pair<>(nodeName.toUpperCase(), netIfName.toUpperCase()), netIf);
             return netIf;
         }

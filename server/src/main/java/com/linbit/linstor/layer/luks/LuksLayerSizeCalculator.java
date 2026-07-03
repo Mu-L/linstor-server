@@ -21,7 +21,6 @@ import com.linbit.linstor.layer.AbsLayerSizeCalculator;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.data.adapter.luks.LuksVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -67,7 +66,7 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
 
     @Override
     protected void updateAllocatedSizeFromUsableSizeImpl(LuksVlmData<?> luksDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         long luksHeaderSize = getLuksHeaderSize(luksDataRef);
         long grossSize = luksDataRef.getUsableSize() + luksHeaderSize;
@@ -88,7 +87,7 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
 
     @Override
     protected void updateUsableSizeFromAllocatedSizeImpl(LuksVlmData<?> luksDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         long luksHeaderSize = getLuksHeaderSize(luksDataRef);
         long grossSize = luksDataRef.getAllocatedSize();
@@ -110,12 +109,12 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
     }
 
     private long getLuksHeaderSize(VlmProviderObject<?> vlmDataRef)
-        throws AccessDeniedException, InvalidSizeException
+        throws InvalidSizeException
     {
         @Nullable Peer peer = vlmDataRef.getRscLayerObject()
             .getAbsResource()
             .getNode()
-            .getPeer(sysCtx);
+            .getPeer();
         if (peer == null)
         {
             throw new InvalidSizeException(
@@ -181,7 +180,7 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
      *  <li>Round up headerSize to alignment (1 MiB or device's optimal_io_size)</li>
      * </ol>
      */
-    private long calcLuks2HeaderSize(VlmProviderObject<?> vlmDataRef) throws AccessDeniedException
+    private long calcLuks2HeaderSize(VlmProviderObject<?> vlmDataRef)
     {
         PriorityProps prioProps = getPrioProps(vlmDataRef);
 
@@ -248,7 +247,7 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
      * <p>Currently this method does NOT take <code>/sys/block/&lt;dev>/alignment_offset</code> into account.</p>
      *
      */
-    private long getAlignment(VlmProviderObject<?> vlmDataRef, List<String> userOptions) throws AccessDeniedException
+    private long getAlignment(VlmProviderObject<?> vlmDataRef, List<String> userOptions)
     {
         @Nullable Long cryptsetupAlignPayloadInBytes = getLongOptionValue(
             userOptions,
@@ -270,13 +269,13 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
         return alignment;
     }
 
-    private long getMaxOptIoSize(VlmProviderObject<?> vlmDataRef) throws InvalidKeyException, AccessDeniedException
+    private long getMaxOptIoSize(VlmProviderObject<?> vlmDataRef) throws InvalidKeyException
     {
         long ret = 0;
-        Set<StorPool> storPoolSet = LayerVlmUtils.getStorPoolSet(vlmDataRef, sysCtx);
+        Set<StorPool> storPoolSet = LayerVlmUtils.getStorPoolSet(vlmDataRef);
         for (StorPool sp : storPoolSet)
         {
-            @Nullable String strValue = sp.getProps(sysCtx)
+            @Nullable String strValue = sp.getProps()
                 .getProp(
                     StorageConstants.BLK_DEV_OPT_IO_SIZE,
                     StorageConstants.NAMESPACE_INTERNAL
@@ -409,7 +408,7 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
         return val;
     }
 
-    private PriorityProps getPrioProps(VlmProviderObject<?> vlmDataRef) throws AccessDeniedException
+    private PriorityProps getPrioProps(VlmProviderObject<?> vlmDataRef)
     {
         final AbsVolume<?> vlm = vlmDataRef.getVolume();
         final AbsResource<?> rsc = vlm.getAbsResource();
@@ -421,29 +420,29 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
         final ReadOnlyProps rscProps;
         if (vlm instanceof Volume volume)
         {
-            vlmProps = volume.getProps(sysCtx);
-            rscProps = ((Resource) rsc).getProps(sysCtx);
+            vlmProps = volume.getProps();
+            rscProps = ((Resource) rsc).getProps();
         }
         else
         {
-            vlmProps = ((SnapshotVolume) vlm).getVlmProps(sysCtx);
-            rscProps = ((Snapshot) rsc).getRscProps(sysCtx);
+            vlmProps = ((SnapshotVolume) vlm).getVlmProps();
+            rscProps = ((Snapshot) rsc).getRscProps();
         }
 
         final PriorityProps prioProps = new PriorityProps(
             vlmProps,
             rscProps
         );
-        for (StorPool storPool : LayerVlmUtils.getStorPoolSet(vlmDataRef, sysCtx))
+        for (StorPool storPool : LayerVlmUtils.getStorPoolSet(vlmDataRef))
         {
-            prioProps.addProps(storPool.getProps(sysCtx));
+            prioProps.addProps(storPool.getProps());
         }
         prioProps.addProps(
-            rsc.getNode().getProps(sysCtx),
-            vlmDfn.getProps(sysCtx),
-            rscDfn.getProps(sysCtx),
-            rscGrp.getVolumeGroupProps(sysCtx, vlmDfn.getVolumeNumber()),
-            rscGrp.getProps(sysCtx),
+            rsc.getNode().getProps(),
+            vlmDfn.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rscGrp.getProps(),
             stltProps
         );
         return prioProps;

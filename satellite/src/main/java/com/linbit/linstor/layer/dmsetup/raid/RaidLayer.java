@@ -67,14 +67,14 @@ package com.linbit.linstor.layer.dmsetup.raid;
 //
 //    @Override
 //    public void prepare(Set<Resource> rscList, Set<Snapshot> affectedSnapshots)
-//        throws StorageException, AccessDeniedException, SQLException
+//        throws StorageException, SQLException
 //    {
 //        // TODO Auto-generated method stub
 //        throw new ImplementationError("Not implemented yet");
 //    }
 //
 //    @Override
-//    public void updateGrossSize(Volume vlm) throws AccessDeniedException, SQLException
+//    public void updateGrossSize(Volume vlm) throws SQLException
 //    {
 //        // TODO Auto-generated method stub
 //        throw new ImplementationError("Not implemented yet");
@@ -84,7 +84,7 @@ package com.linbit.linstor.layer.dmsetup.raid;
 //    public void process(
 //        Resource rsc, RscLayerObject rscLayerData, String rscNameSuffix, Collection<Snapshot> snapshots,
 //        ApiCallRcImpl apiCallRc
-//    ) throws StorageException, ResourceException, VolumeException, AccessDeniedException, SQLException
+//    ) throws StorageException, ResourceException, VolumeException, SQLException
 //    {
 //        // TODO Auto-generated method stub
 //        throw new ImplementationError("Not implemented yet");

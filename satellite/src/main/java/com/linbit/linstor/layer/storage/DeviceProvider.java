@@ -14,7 +14,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.layer.DeviceLayer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -39,13 +38,13 @@ public interface DeviceProvider
     void clearCache() throws StorageException;
 
     void prepare(List<VlmProviderObject<Resource>> vlmDataList, List<VlmProviderObject<Snapshot>> snapVlms)
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     void processVolumes(List<VlmProviderObject<Resource>> vlmDataList, ApiCallRcImpl apiCallRc)
-        throws AccessDeniedException, DatabaseException, StorageException;
+        throws DatabaseException, StorageException;
 
     void processSnapshotVolumes(List<VlmProviderObject<Snapshot>> snapVlmDataList, ApiCallRcImpl apiCallRc)
-        throws AccessDeniedException, DatabaseException, StorageException;
+        throws DatabaseException, StorageException;
 
     /**
      * Returns space information for the given storage pool.
@@ -54,7 +53,7 @@ public interface DeviceProvider
      * of the given storage pool
      *
      */
-    SpaceInfo getSpaceInfo(StorPoolInfo roStorPoolRef) throws AccessDeniedException, StorageException;
+    SpaceInfo getSpaceInfo(StorPoolInfo roStorPoolRef) throws StorageException;
 
     /**
      * Checks if the given {@link StorPool} has a valid configuration for all involved {@link DeviceLayer}s.
@@ -62,15 +61,15 @@ public interface DeviceProvider
      *
      *
      */
-    LocalPropsChangePojo checkConfig(StorPoolInfo storPool) throws StorageException, AccessDeniedException;
+    LocalPropsChangePojo checkConfig(StorPoolInfo storPool) throws StorageException;
 
     LocalPropsChangePojo setLocalNodeProps(ReadOnlyProps localNodePropsRef)
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 
     Collection<StorPool> getChangedStorPools();
 
     void updateAllocatedSize(VlmProviderObject<Resource> vlmObj)
-        throws AccessDeniedException, DatabaseException, StorageException;
+        throws DatabaseException, StorageException;
 
     /**
      * Used to determine properties of the storage pool, i.e. if the storage pool is ontop of a pmem device
@@ -78,12 +77,12 @@ public interface DeviceProvider
      */
     @Nullable
     LocalPropsChangePojo update(StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException, StorageException;
+        throws DatabaseException, StorageException;
 
     DeviceProviderKind getDeviceProviderKind();
 
     Map<ReadOnlyVlmProviderInfo, Long> fetchAllocatedSizes(List<ReadOnlyVlmProviderInfo> vlmDataListRef)
-        throws StorageException, AccessDeniedException;
+        throws StorageException;
 
     default Map<ReadOnlyVlmProviderInfo, Long> fetchOrigAllocatedSizes(List<ReadOnlyVlmProviderInfo> vlmDataListRef)
         throws StorageException
@@ -97,7 +96,7 @@ public interface DeviceProvider
     }
 
     default void openForClone(VlmProviderObject<?> vlm, @Nullable String clonename, boolean readOnly)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("openForClone not suppported.");
     }

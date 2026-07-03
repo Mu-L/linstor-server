@@ -29,7 +29,6 @@ import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -124,13 +123,13 @@ public class RscAutoPlaceApiTest extends ApiTestBase
     @Override
     public void setUp() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext(BOB_ACC_CTX);
+        seedDefaultPeerRule.setDefaultPeerAccessContext();
         super.setUp();
-        dfltRscGrp = createDefaultResourceGroup(BOB_ACC_CTX);
+        dfltRscGrp = createDefaultResourceGroup();
         createRscDfn(TEST_RSC_NAME);
         MINOR_GEN.set(MINOR_NR_MIN);
 
-        Mockito.when(mockPeer.getAccessContext()).thenReturn(BOB_ACC_CTX);
+        Mockito.when(mockPeer.getAccessContext()).thenReturn();
 
         Mockito.when(freeCapacityFetcher.fetchThinFreeCapacities(any())).thenReturn(Mono.just(Collections.emptyMap()));
 
@@ -842,11 +841,11 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         for (int idx1 = 0; idx1 < deployedNodes.size(); idx1++)
         {
             Node firstNode = deployedNodes.get(idx1);
-            Props firstProps = firstNode.getProps(SYS_CTX);
+            Props firstProps = firstNode.getProps();
             for (int idx2 = idx1 + 1; idx2 < deployedNodes.size(); idx2++)
             {
                 Node secondNode = deployedNodes.get(idx2);
-                Props secondProps = secondNode.getProps(SYS_CTX);
+                Props secondProps = secondNode.getProps();
 
                 assertNotEquals(firstProps.getProp("Aux/A"), secondProps.getProp("Aux/A"));
                 assertNotEquals(firstProps.getProp("Aux/B"), secondProps.getProp("Aux/B"));
@@ -923,7 +922,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         }
         for (Node node : deployedNodes)
         {
-            String dc = node.getProps(SYS_CTX).getProp("Aux/DC");
+            String dc = node.getProps().getProp("Aux/DC");
             selectedDcs.put(dc, selectedDcs.get(dc) + 1);
         }
 
@@ -1009,7 +1008,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         }
         for (Node node : deployedNodes)
         {
-            String dc = node.getProps(SYS_CTX).getProp("Aux/DC");
+            String dc = node.getProps().getProp("Aux/DC");
             selectedDcs.put(dc, selectedDcs.get(dc) + 1);
         }
 
@@ -1089,7 +1088,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         }
         for (Node node : deployedNodes)
         {
-            String dc = node.getProps(SYS_CTX).getProp("Aux/DC");
+            String dc = node.getProps().getProp("Aux/DC");
             selectedDcs.put(dc, selectedDcs.get(dc) + 1);
         }
 
@@ -1168,7 +1167,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         Map<String, Integer> selectedDcs = new TreeMap<>();
         for (Node node : deployedNodes)
         {
-            String dc = node.getProps(SYS_CTX).getProp("Aux/DC");
+            String dc = node.getProps().getProp("Aux/DC");
             @Nullable Integer count = selectedDcs.get(dc);
             selectedDcs.put(dc, count == null ? 1 : count + 1);
         }
@@ -1242,7 +1241,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         Map<String, Integer> selectedDcs = new TreeMap<>();
         for (Node node : deployedNodes)
         {
-            String dc = node.getProps(SYS_CTX).getProp("Aux/DC");
+            String dc = node.getProps().getProp("Aux/DC");
             @Nullable Integer count = selectedDcs.get(dc);
             selectedDcs.put(dc, count == null ? 1 : count + 1);
         }
@@ -1316,7 +1315,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         Map<String, Integer> selectedDcs = new TreeMap<>();
         for (Node node : deployedNodes)
         {
-            String dc = node.getProps(SYS_CTX).getProp("Aux/DC");
+            String dc = node.getProps().getProp("Aux/DC");
             @Nullable Integer count = selectedDcs.get(dc);
             selectedDcs.put(dc, count == null ? 1 : count + 1);
         }
@@ -1386,7 +1385,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         Map<String, Integer> selectedDcs = new TreeMap<>();
         for (Node node : deployedNodes)
         {
-            String dc = node.getProps(SYS_CTX).getProp("Aux/DC");
+            String dc = node.getProps().getProp("Aux/DC");
             @Nullable Integer count = selectedDcs.get(dc);
             selectedDcs.put(dc, count == null ? 1 : count + 1);
         }
@@ -1647,7 +1646,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
                         .getStateFlags()
                         .isSet(GenericDbBase.SYS_CTX, Resource.Flags.DRBD_DISKLESS);
                 }
-                catch (AccessDeniedException | InvalidNameException exc)
+                catch (InvalidNameException exc)
                 {
                     throw new RuntimeException(exc);
                 }
@@ -1769,7 +1768,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
                         .getStateFlags()
                         .isSet(GenericDbBase.SYS_CTX, Resource.Flags.DRBD_DISKLESS);
                 }
-                catch (AccessDeniedException | InvalidNameException exc)
+                catch (InvalidNameException exc)
                 {
                     throw new RuntimeException(exc);
                 }
@@ -1842,7 +1841,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
             "stor",
             nodesMap.get(new NodeName("stlt1"))
                 .getResource(GenericDbBase.SYS_CTX, rscName)
-                .getLayerData(SYS_CTX) // drbd layer
+                .getLayerData() // drbd layer
                 .getSingleChild() // storage layer
                 .getVlmProviderObject(new VolumeNumber(0))
                 .getStorPool()
@@ -1853,7 +1852,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
             "stor",
             nodesMap.get(new NodeName("stlt2"))
                 .getResource(GenericDbBase.SYS_CTX, rscName)
-                .getLayerData(SYS_CTX) // drbd layer
+                .getLayerData() // drbd layer
                 .getSingleChild() // storage layer
                 .getVlmProviderObject(new VolumeNumber(0))
                 .getStorPool()
@@ -1864,7 +1863,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
             "stor2",
             nodesMap.get(new NodeName("stlt3"))
                 .getResource(GenericDbBase.SYS_CTX, rscName)
-                .getLayerData(SYS_CTX) // drbd layer
+                .getLayerData() // drbd layer
                 .getSingleChild() // storage layer
                 .getVlmProviderObject(new VolumeNumber(0))
                 .getStorPool()
@@ -1875,7 +1874,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
             "stor2",
             nodesMap.get(new NodeName("stlt4"))
                 .getResource(GenericDbBase.SYS_CTX, rscName)
-                .getLayerData(SYS_CTX) // drbd layer
+                .getLayerData() // drbd layer
                 .getSingleChild() // storage layer
                 .getVlmProviderObject(new VolumeNumber(0))
                 .getStorPool()
@@ -2103,11 +2102,11 @@ public class RscAutoPlaceApiTest extends ApiTestBase
          */
 
         @Nullable Level logLevel = errorReporter.getCurrentLogLevel();
-        errorReporter.setLogLevel(SYS_CTX, Level.TRACE, Level.TRACE);
+        errorReporter.setLogLevel(Level.TRACE, Level.TRACE);
         long start = System.currentTimeMillis();
         evaluateTest(call);
         System.out.println((System.currentTimeMillis() - start));
-        errorReporter.setLogLevel(SYS_CTX, logLevel, logLevel);
+        errorReporter.setLogLevel(logLevel, logLevel);
 
         List<Node> deployedNodes = nodesMap.values().stream()
             .flatMap(this::streamResources)
@@ -2387,19 +2386,19 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         Resource rsc3 = deployedRscs.get(2);
 
         // expect NO proxy between stlt1 <-> stlt2
-        assertNull(rsc1.getAbsResourceConnection(SYS_CTX, rsc2));
+        assertNull(rsc1.getAbsResourceConnection(rsc2));
 
         // expect proxy between stlt1 <-> stlt3
-        ResourceConnection rscCon13 = rsc1.getAbsResourceConnection(SYS_CTX, rsc3);
+        ResourceConnection rscCon13 = rsc1.getAbsResourceConnection(rsc3);
         assertNotNull(rscCon13);
-        assertNotNull(rscCon13.getDrbdProxyPortSource(SYS_CTX));
-        assertTrue(rscCon13.getStateFlags().isSet(SYS_CTX, ResourceConnection.Flags.LOCAL_DRBD_PROXY));
+        assertNotNull(rscCon13.getDrbdProxyPortSource());
+        assertTrue(rscCon13.getStateFlags().isSet(ResourceConnection.Flags.LOCAL_DRBD_PROXY));
 
         // expect proxy between stlt2 <-> stlt3
-        ResourceConnection rscCon23 = rsc2.getAbsResourceConnection(SYS_CTX, rsc3);
+        ResourceConnection rscCon23 = rsc2.getAbsResourceConnection(rsc3);
         assertNotNull(rscCon23);
-        assertNotNull(rscCon23.getDrbdProxyPortSource(SYS_CTX));
-        assertTrue(rscCon23.getStateFlags().isSet(SYS_CTX, ResourceConnection.Flags.LOCAL_DRBD_PROXY));
+        assertNotNull(rscCon23.getDrbdProxyPortSource());
+        assertTrue(rscCon23.getStateFlags().isSet(ResourceConnection.Flags.LOCAL_DRBD_PROXY));
     }
 
     @Test
@@ -2739,7 +2738,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
                 assertEquals(
                     storPoolName,
                     vlm.getAbsResource()
-                        .getLayerData(SYS_CTX) // drbd layer
+                        .getLayerData() // drbd layer
                         .getSingleChild() // storage layer
                         .getVlmProviderObject(vlm.getVolumeDefinition().getVolumeNumber())
                         .getStorPool()
@@ -2767,7 +2766,6 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         drbdRscDfn.sharedSecret = "NotTellingYou";
         drbdRscDfn.transportType = TransportType.IP;
         ResourceDefinition rscDfn = resourceDefinitionFactory.create(
-            BOB_ACC_CTX,
             new ResourceName(rscNameStr),
             null,
             null,
@@ -2784,14 +2782,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
     private Stream<Resource> streamResources(Node node)
     {
         Stream<Resource> ret;
-        try
-        {
-            ret = node.streamResources(GenericDbBase.SYS_CTX);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new RuntimeException(exc);
-        }
+        ret = node.streamResources(GenericDbBase.SYS_CTX);
         return ret;
     }
 
@@ -3086,20 +3077,17 @@ public class RscAutoPlaceApiTest extends ApiTestBase
 
             nodesMap.put(stlt.getName(), stlt);
             StorPoolDefinition dfltDisklessStorPoolDfn =
-                storPoolDefinitionRepository.get(SYS_CTX, DFLT_DISKLESS_STOR_POOL_NAME);
+                storPoolDefinitionRepository.get(DFLT_DISKLESS_STOR_POOL_NAME);
             if (dfltDisklessStorPoolDfn == null)
             {
                 dfltDisklessStorPoolDfn = storPoolDefinitionFactory.create(
-                    BOB_ACC_CTX,
                     DFLT_DISKLESS_STOR_POOL_NAME
                 );
             }
             FreeSpaceMgr fsm = freeSpaceMgrFactory.getInstance(
-                BOB_ACC_CTX,
                 new SharedStorPoolName(stlt.getName(), DFLT_DISKLESS_STOR_POOL_NAME)
             );
             storPoolFactory.create(
-                BOB_ACC_CTX,
                 stlt,
                 dfltDisklessStorPoolDfn,
                 DeviceProviderKind.DISKLESS,
@@ -3138,8 +3126,8 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         {
             enterScope();
             rscDfnMap.get(new ResourceName(rscNameRef))
-                .getVolumeDfn(SYS_CTX, new VolumeNumber(vlmNrRef))
-                .getProps(SYS_CTX)
+                .getVolumeDfn(new VolumeNumber(vlmNrRef))
+                .getProps()
                 .setProp(propKeyRef, propValRef);
             commitAndCleanUp(true);
             return this;
@@ -3150,7 +3138,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
         {
             enterScope();
             rscDfnMap.get(new ResourceName(rscNameRef))
-                .getProps(SYS_CTX)
+                .getProps()
                 .setProp(propKeyRef, propValRef);
             commitAndCleanUp(true);
             return this;
@@ -3221,14 +3209,7 @@ public class RscAutoPlaceApiTest extends ApiTestBase
             Mockito.when(mockedPeer.getSatelliteStateLock()).thenReturn(new ReentrantReadWriteLock());
             Mockito.when(mockedPeer.getSatelliteState()).thenReturn(null);
 
-            try
-            {
-                stltRef.setPeer(GenericDbBase.SYS_CTX, mockedPeer);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            stltRef.setPeer(GenericDbBase.SYS_CTX, mockedPeer);
 
             parent = parentRef;
             stlt = stltRef;
@@ -3288,7 +3269,6 @@ public class RscAutoPlaceApiTest extends ApiTestBase
             }
 
             FreeSpaceMgr fsm = freeSpaceMgrFactory.getInstance(
-                BOB_ACC_CTX,
                 freeSpaceMgrName == null ?
                     new SharedStorPoolName(stlt.getName(), storPoolDfn.getName()) :
                     SharedStorPoolName.restoreName(freeSpaceMgrName)
@@ -3318,8 +3298,8 @@ public class RscAutoPlaceApiTest extends ApiTestBase
             throws Exception
         {
             enterScope();
-            stlt.getStorPool(SYS_CTX, new StorPoolName(storPoolNameRef))
-                .getProps(SYS_CTX)
+            stlt.getStorPool(new StorPoolName(storPoolNameRef))
+                .getProps()
                 .setProp(propKeyRef, propKeyVal);
             commitAndCleanUp(true);
             return this;

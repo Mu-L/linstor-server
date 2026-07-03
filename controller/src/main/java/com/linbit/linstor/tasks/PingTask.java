@@ -2,12 +2,9 @@ package com.linbit.linstor.tasks;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.TaskScheduleService.Task;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
@@ -33,19 +30,16 @@ public class PingTask implements Task
     private final HashSet<Peer> peerSet = new HashSet<>();
     private final ErrorReporter errorReporter;
     private final ReconnectorTask reconnector;
-    private final AccessContext sysCtx;
     private final LockGuardFactory lockGuardFactory;
 
     @Inject
     public PingTask(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext sysCtxRef,
         ReconnectorTask reconnectorRef,
         LockGuardFactory lockGuardFactoryRef
     )
     {
         errorReporter = errorReporterRef;
-        sysCtx = sysCtxRef;
         reconnector = reconnectorRef;
         lockGuardFactory = lockGuardFactoryRef;
 
@@ -182,7 +176,7 @@ public class PingTask implements Task
                 Node node = peer.getNode();
                 if (!node.isDeleted())
                 {
-                    nodesCurrentPeer = node.getPeer(sysCtx);
+                    nodesCurrentPeer = node.getPeer();
                 }
                 else
                 {
@@ -190,10 +184,6 @@ public class PingTask implements Task
                 }
                 ret.put(peer, nodesCurrentPeer);
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
         }
         return ret;
     }

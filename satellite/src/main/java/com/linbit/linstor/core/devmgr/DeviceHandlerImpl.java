@@ -7,7 +7,6 @@ import com.linbit.exceptions.InvalidSizeException;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcImpl.EntryBuilder;
@@ -55,8 +54,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.LsBlkEntry;
 import com.linbit.linstor.storage.StorageException;
@@ -96,7 +93,6 @@ public class DeviceHandlerImpl implements DeviceHandler
     private static final int LSBLK_DISC_GRAN_RETRY_COUNT = 10;
     private static final long LSBLK_DISC_GRAN_RETRY_TIMEOUT_IN_MS = 100;
 
-    private final AccessContext wrkCtx;
     private final ErrorReporter errorReporter;
     private final Provider<NotificationListener> notificationListenerProvider;
 
@@ -121,7 +117,6 @@ public class DeviceHandlerImpl implements DeviceHandler
 
     @Inject
     public DeviceHandlerImpl(
-        @DeviceManagerContext AccessContext wrkCtxRef,
         ErrorReporter errorReporterRef,
         ControllerPeerConnector controllerPeerConnectorRef,
         CtrlStltSerializer interComSerializerRef,
@@ -139,7 +134,6 @@ public class DeviceHandlerImpl implements DeviceHandler
         CloneService cloneServiceRef
     )
     {
-        wrkCtx = wrkCtxRef;
         errorReporter = errorReporterRef;
         controllerPeerConnector = controllerPeerConnectorRef;
         interComSerializer = interComSerializerRef;
@@ -182,23 +176,16 @@ public class DeviceHandlerImpl implements DeviceHandler
         {
             List<Snapshot> nonDeletingSnapshots = new ArrayList<>();
             List<Snapshot> deletingSnapshots = new ArrayList<>();
-            try
+            for (Snapshot snap : snapsRef)
             {
-                for (Snapshot snap : snapsRef)
+                if (snap.getFlags().isSet(Snapshot.Flags.DELETE))
                 {
-                    if (snap.getFlags().isSet(wrkCtx, Snapshot.Flags.DELETE))
-                    {
-                        deletingSnapshots.add(snap);
-                    }
-                    else
-                    {
-                        nonDeletingSnapshots.add(snap);
-                    }
+                    deletingSnapshots.add(snap);
                 }
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
+                else
+                {
+                    nonDeletingSnapshots.add(snap);
+                }
             }
 
             List<Resource> rscListNotifyApplied = new ArrayList<>();
@@ -277,27 +264,20 @@ public class DeviceHandlerImpl implements DeviceHandler
     )
     {
         Map<DeviceLayer, Set<AbsRscLayerObject<RSC>>> ret = new HashMap<>();
-        try
+        for (RSC absRsc : allResources)
         {
-            for (RSC absRsc : allResources)
+            AbsRscLayerObject<RSC> rootRscData = absRsc.getLayerData();
+
+            ArrayDeque<AbsRscLayerObject<RSC>> toProcess = new ArrayDeque<>();
+            toProcess.add(rootRscData);
+            while (!toProcess.isEmpty())
             {
-                AbsRscLayerObject<RSC> rootRscData = absRsc.getLayerData(wrkCtx);
+                AbsRscLayerObject<RSC> rscData = toProcess.poll();
+                toProcess.addAll(rscData.getChildren());
 
-                ArrayDeque<AbsRscLayerObject<RSC>> toProcess = new ArrayDeque<>();
-                toProcess.add(rootRscData);
-                while (!toProcess.isEmpty())
-                {
-                    AbsRscLayerObject<RSC> rscData = toProcess.poll();
-                    toProcess.addAll(rscData.getChildren());
-
-                    DeviceLayer devLayer = layerFactory.getDeviceLayer(rscData.getLayerKind());
-                    ret.computeIfAbsent(devLayer, ignored -> new HashSet<>()).add(rscData);
-                }
+                DeviceLayer devLayer = layerFactory.getDeviceLayer(rscData.getLayerKind());
+                ret.computeIfAbsent(devLayer, ignored -> new HashSet<>()).add(rscData);
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
         }
         return ret;
     }
@@ -310,10 +290,10 @@ public class DeviceHandlerImpl implements DeviceHandler
         {
             try
             {
-                AbsRscLayerObject<Resource> rscData = rsc.getLayerData(wrkCtx);
+                AbsRscLayerObject<Resource> rscData = rsc.getLayerData();
                 for (VlmProviderObject<Resource> vlmData : rscData.getVlmLayerObjects().values())
                 {
-                    layerSizeHelper.calculateSize(wrkCtx, vlmData);
+                    layerSizeHelper.calculateSize(vlmData);
                 }
                 rscs.add(rsc);
             }
@@ -325,10 +305,6 @@ public class DeviceHandlerImpl implements DeviceHandler
                         exc
                     )
                 );
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
             }
         }
         return rscs;
@@ -389,18 +365,18 @@ public class DeviceHandlerImpl implements DeviceHandler
                 try
                 {
 
-                    AbsRscLayerObject<Resource> rscLayerObject = rsc.getLayerData(wrkCtx);
+                    AbsRscLayerObject<Resource> rscLayerObject = rsc.getLayerData();
                     processResource(rscLayerObject, apiCallRc);
 
                     StateFlags<Flags> rscFlags = rsc.getStateFlags();
-                    if (rscFlags.isUnset(wrkCtx, Flags.DELETE) &&
-                        rscFlags.isUnset(wrkCtx, Flags.DRBD_DELETE) &&
-                        rscFlags.isUnset(wrkCtx, Flags.INACTIVE) &&
-                        rsc.getResourceDefinition().getFlags().isUnset(wrkCtx, ResourceDefinition.Flags.CLONING))
+                    if (rscFlags.isUnset(Flags.DELETE) &&
+                        rscFlags.isUnset(Flags.DRBD_DELETE) &&
+                        rscFlags.isUnset(Flags.INACTIVE) &&
+                        rsc.getResourceDefinition().getFlags().isUnset(ResourceDefinition.Flags.CLONING))
                     {
                         if (rscLayerObject.getLayerKind().isLocalOnly())
                         {
-                            MkfsUtils.makeFileSystemOnMarked(errorReporter, extCmdFactory, wrkCtx, rsc);
+                            MkfsUtils.makeFileSystemOnMarked(errorReporter, extCmdFactory, rsc);
                         }
                         updateDiscGran(rscLayerObject);
                     }
@@ -413,7 +389,7 @@ public class DeviceHandlerImpl implements DeviceHandler
                      * This also means that we only send the resourceApplied messages
                      * at the very end
                      */
-                    if (rscFlags.isSet(wrkCtx, Resource.Flags.DELETE))
+                    if (rscFlags.isSet(Resource.Flags.DELETE))
                     {
                         rscListNotifyDelete.add(rsc);
                         Iterator<Volume> iterateVolumes = rsc.iterateVolumes();
@@ -433,7 +409,7 @@ public class DeviceHandlerImpl implements DeviceHandler
                         while (iterateVolumes.hasNext())
                         {
                             Volume vlm = iterateVolumes.next();
-                            if (vlm.getFlags().isSet(wrkCtx, Volume.Flags.DELETE))
+                            if (vlm.getFlags().isSet(Volume.Flags.DELETE))
                             {
                                 // verify if all VlmProviderObject were deleted correctly
                                 ensureAllVlmDataDeleted(rscLayerObject, vlm.getVolumeDefinition().getVolumeNumber());
@@ -451,15 +427,15 @@ public class DeviceHandlerImpl implements DeviceHandler
 
                     // give the layer the opportunity to send a "resource ready" event
                     @Nullable AbsRscLayerObject<Resource> firstNonIgnoredRscData = getFirstRscDataToExecuteForDataPath(
-                        rsc.getLayerData(wrkCtx)
+                        rsc.getLayerData()
                     );
                     if (firstNonIgnoredRscData == null)
                     {
-                        Set<LayerIgnoreReason> ignoreReasons = rsc.getLayerData(wrkCtx).getIgnoreReasons();
+                        Set<LayerIgnoreReason> ignoreReasons = rsc.getLayerData().getIgnoreReasons();
                         errorReporter.logDebug(
                             "Not calling resourceFinished for any layer as the resource '%s' is completely ignored. " +
                                 "Topmost reason%s: %s",
-                            rsc.getLayerData(wrkCtx).getSuffixedResourceName(),
+                            rsc.getLayerData().getSuffixedResourceName(),
                             ignoreReasons.size() > 1 ? "s" : "",
                             LayerIgnoreReason.getDescriptions(ignoreReasons)
                         );
@@ -471,7 +447,7 @@ public class DeviceHandlerImpl implements DeviceHandler
 
                     if (Platform.isLinux())
                     {
-                        if (rscFlags.isUnset(wrkCtx, Resource.Flags.DELETE, Flags.DRBD_DELETE))
+                        if (rscFlags.isUnset(Resource.Flags.DELETE, Flags.DRBD_DELETE))
                         {
                             sysFsHandler.update(rsc, apiCallRc);
                         }
@@ -481,7 +457,7 @@ public class DeviceHandlerImpl implements DeviceHandler
                         }
                     }
                 }
-                catch (AccessDeniedException | DatabaseException exc)
+                catch (DatabaseException exc)
                 {
                     throw new ImplementationError(exc);
                 }
@@ -626,7 +602,6 @@ public class DeviceHandlerImpl implements DeviceHandler
     private <RSC extends AbsResource<RSC>> @Nullable AbsRscLayerObject<RSC> getFirstRscDataToExecuteForDataPath(
         AbsRscLayerObject<RSC> rscData
     )
-        throws AccessDeniedException
     {
         @Nullable AbsRscLayerObject<RSC> curRscData = rscData;
         final boolean shouldAbsRscBeDeleted = isAbsRscDeleteFlagSet(curRscData);
@@ -641,7 +616,6 @@ public class DeviceHandlerImpl implements DeviceHandler
         AbsRscLayerObject<RSC> curRscData,
         final boolean shouldAbsRscBeDeleted
     )
-        throws AccessDeniedException
     {
         boolean processResource = true;
         if (curRscData.isSuspended() != null && curRscData.isSuspended())
@@ -677,23 +651,21 @@ public class DeviceHandlerImpl implements DeviceHandler
     }
 
     private <RSC extends AbsResource<RSC>> boolean isAbsRscDeleteFlagSet(AbsRscLayerObject<RSC> rscDataRef)
-        throws AccessDeniedException
     {
         final boolean ret;
         final RSC absRsc = rscDataRef.getAbsResource();
         if (absRsc instanceof Resource resource)
         {
-            ret = resource.getStateFlags().isSet(wrkCtx, Resource.Flags.DELETE);
+            ret = resource.getStateFlags().isSet(Resource.Flags.DELETE);
         }
         else
         {
-            ret = ((Snapshot) absRsc).getFlags().isSet(wrkCtx, Snapshot.Flags.DELETE);
+            ret = ((Snapshot) absRsc).getFlags().isSet(Snapshot.Flags.DELETE);
         }
         return ret;
     }
 
     private <RSC extends AbsResource<RSC>> boolean hasLayerSpecificDeleteFlagSet(AbsRscLayerObject<RSC> rscDataRef)
-        throws AccessDeniedException
     {
         return layerFactory.getDeviceLayer(rscDataRef.getLayerKind()).isDeleteFlagSet(rscDataRef);
     }
@@ -701,7 +673,6 @@ public class DeviceHandlerImpl implements DeviceHandler
     private <RSC extends AbsResource<RSC>> boolean shouldExceptionBeIgnored(
         AbsRscLayerObject<RSC> rscLayerDataRef
     )
-        throws AccessDeniedException
     {
         boolean ret;
         Set<LayerIgnoreReason> ignoreReasons = rscLayerDataRef.getIgnoreReasons();
@@ -769,7 +740,7 @@ public class DeviceHandlerImpl implements DeviceHandler
             SnapshotDefinition snapDfn = snap.getSnapshotDefinition();
             try
             {
-                @Nullable Resource rsc = snap.getResourceDefinition().getResource(wrkCtx, snap.getNodeName());
+                @Nullable Resource rsc = snap.getResourceDefinition().getResource(snap.getNodeName());
                 apiCallRc = failedRscs.get(rsc);
                 boolean process;
                 if (apiCallRc == null)
@@ -787,9 +758,9 @@ public class DeviceHandlerImpl implements DeviceHandler
                 }
                 if (process)
                 {
-                    processSnapshot(snap.getLayerData(wrkCtx), apiCallRc);
+                    processSnapshot(snap.getLayerData(), apiCallRc);
 
-                    if (snap.getFlags().isSet(wrkCtx, Snapshot.Flags.DELETE))
+                    if (snap.getFlags().isSet(Snapshot.Flags.DELETE))
                     {
                         snapListNotifyDelete.add(snap);
                         // snapshot.delete is done by the deviceManager
@@ -798,16 +769,15 @@ public class DeviceHandlerImpl implements DeviceHandler
                     {
                         // start the backup-shipping-daemons if necessary
                         snapListNotifyApplied.add(snap);
-                        boolean isBackupTarget = BackupShippingUtils.isBackupTarget(snapDfn, snap.getNode(), wrkCtx);
+                        boolean isBackupTarget = BackupShippingUtils.isBackupTarget(snapDfn, snap.getNode());
                         boolean hasShippingStatus = BackupShippingUtils.hasShippingStatus(
                             snapDfn,
                             null,
-                            InternalApiConsts.VALUE_SHIPPING,
-                            wrkCtx
+                            InternalApiConsts.VALUE_SHIPPING
                         );
                         if (isBackupTarget && hasShippingStatus)
                         {
-                            @Nullable String srcRemoteName = snapDfn.getSnapDfnProps(wrkCtx)
+                            @Nullable String srcRemoteName = snapDfn.getSnapDfnProps()
                                 .getProp(
                                     InternalApiConsts.KEY_BACKUP_SRC_REMOTE,
                                     BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC
@@ -819,7 +789,7 @@ public class DeviceHandlerImpl implements DeviceHandler
                         }
                         else
                         {
-                            ReadOnlyProps srcProps = snapDfn.getSnapDfnProps(wrkCtx)
+                            ReadOnlyProps srcProps = snapDfn.getSnapDfnProps()
                                 .getNamespaceOrEmpty(BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC);
                             Iterator<String> namespcIter = srcProps.iterateNamespaces();
                             while (namespcIter.hasNext())
@@ -833,8 +803,7 @@ public class DeviceHandlerImpl implements DeviceHandler
                                     BackupShippingUtils.hasShippingStatus(
                                         snapDfn,
                                         remoteName,
-                                        InternalApiConsts.VALUE_SHIPPING,
-                                        wrkCtx
+                                        InternalApiConsts.VALUE_SHIPPING
                                     )
                                 )
                                 {
@@ -845,7 +814,7 @@ public class DeviceHandlerImpl implements DeviceHandler
                     }
                 }
             }
-            catch (AccessDeniedException | DatabaseException exc)
+            catch (DatabaseException exc)
             {
                 throw new ImplementationError(exc);
             }
@@ -900,21 +869,21 @@ public class DeviceHandlerImpl implements DeviceHandler
         }
     }
 
-    private boolean isCloneVolume(Volume vlm) throws AccessDeniedException
+    private boolean isCloneVolume(Volume vlm)
     {
         StateFlags<Volume.Flags> vlmFlags = vlm.getFlags();
-        return vlmFlags.isSet(wrkCtx, Volume.Flags.CLONING_START) &&
-            !vlmFlags.isSet(wrkCtx, Volume.Flags.CLONING_FINISHED);
+        return vlmFlags.isSet(Volume.Flags.CLONING_START) &&
+            !vlmFlags.isSet(Volume.Flags.CLONING_FINISHED);
     }
 
     protected final Resource getResource(Resource anyRsc, String rscName)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         @Nullable Resource rsc;
         try
         {
             ResourceName tmpName = new ResourceName(rscName);
-            rsc = anyRsc.getNode().getResource(wrkCtx, tmpName);
+            rsc = anyRsc.getNode().getResource(tmpName);
             if (rsc == null)
             {
                 throw new StorageException("Couldn't find resource: " + rscName);
@@ -937,18 +906,18 @@ public class DeviceHandlerImpl implements DeviceHandler
             try
             {
                 final ResourceDefinition rscDfn = rsc.getResourceDefinition();
-                final Props rscDfnProps = rscDfn.getProps(wrkCtx);
+                final Props rscDfnProps = rscDfn.getProps();
                 final @Nullable String srcRscName = rscDfnProps.getProp(InternalApiConsts.KEY_CLONED_FROM);
-                final boolean isRscDeleting = rsc.getStateFlags().isSet(wrkCtx, Resource.Flags.DELETE) ||
-                    rscDfn.getFlags().isSet(wrkCtx, ResourceDefinition.Flags.DELETE);
+                final boolean isRscDeleting = rsc.getStateFlags().isSet(Resource.Flags.DELETE) ||
+                    rscDfn.getFlags().isSet(ResourceDefinition.Flags.DELETE);
                 if (!isRscDeleting && srcRscName != null && anyVlmInCloningState(rsc))
                 {
                     final Resource srcRsc = getResource(rsc, srcRscName);
-                    final AbsRscLayerObject<Resource> srcRootLayerObj = srcRsc.getLayerData(wrkCtx);
+                    final AbsRscLayerObject<Resource> srcRootLayerObj = srcRsc.getLayerData();
 
                     Map<VlmProviderObject<Resource>, VlmProviderObject<Resource>> devicesToClone = getDevicesToClone(
                         srcRootLayerObj,
-                        rsc.getLayerData(wrkCtx)
+                        rsc.getLayerData()
                     );
 
                     startClone(devicesToClone);
@@ -960,8 +929,8 @@ public class DeviceHandlerImpl implements DeviceHandler
                     Volume vlm = vlmsIt.next();
                     StateFlags<Volume.Flags> vlmFlags = vlm.getFlags();
                     if (isRscDeleting ||
-                        vlmFlags.isSet(wrkCtx, Volume.Flags.DELETE) ||
-                        vlmFlags.isSet(wrkCtx, Volume.Flags.CLONING_FINISHED))
+                        vlmFlags.isSet(Volume.Flags.DELETE) ||
+                        vlmFlags.isSet(Volume.Flags.CLONING_FINISHED))
                     {
                         cloneService.removeClone(
                             vlm.getResourceDefinition().getName(),
@@ -973,14 +942,14 @@ public class DeviceHandlerImpl implements DeviceHandler
             {
                 handleException(rsc, exc);
             }
-            catch (AccessDeniedException | DatabaseException exc)
+            catch (DatabaseException exc)
             {
                 throw new ImplementationError(exc);
             }
         }
     }
 
-    private boolean anyVlmInCloningState(Resource rscRef) throws AccessDeniedException
+    private boolean anyVlmInCloningState(Resource rscRef)
     {
         boolean ret = false;
         final Iterator<Volume> vlmsIt = rscRef.iterateVolumes();
@@ -1123,12 +1092,12 @@ public class DeviceHandlerImpl implements DeviceHandler
             VlmProviderObject<Resource> targetVlmData,
             Set<CloneStrategy> srcStrat,
             Set<CloneStrategy> tgtStrat
-        ) throws AccessDeniedException
+        )
     {
         if (srcStrat.contains(CloneStrategy.ZFS_COPY) && tgtStrat.contains(CloneStrategy.ZFS_COPY))
         {
             @Nullable String useZfsClone = targetVlmData.getRscLayerObject().getAbsResource().getResourceDefinition()
-                .getProps(wrkCtx).getProp(InternalApiConsts.KEY_USE_ZFS_CLONE);
+                .getProps().getProp(InternalApiConsts.KEY_USE_ZFS_CLONE);
             // zfs clone only works if on the same storage pool
             if (StringUtils.propTrueOrYes(useZfsClone) &&
                 sourceVlmData.getStorPool().equals(targetVlmData.getStorPool()))
@@ -1160,7 +1129,7 @@ public class DeviceHandlerImpl implements DeviceHandler
     }
 
     private void startClone(Map<VlmProviderObject<Resource>, VlmProviderObject<Resource>> devicesToCloneRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         for (var cloneEntry : devicesToCloneRef.entrySet())
         {
@@ -1322,7 +1291,7 @@ public class DeviceHandlerImpl implements DeviceHandler
             );
             success = true;
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -1362,7 +1331,6 @@ public class DeviceHandlerImpl implements DeviceHandler
     private <RSC extends AbsResource<RSC>> Set<AbsRscLayerObject<RSC>> filterNonIgnored(
         Set<AbsRscLayerObject<RSC>> dataSetRef
     )
-        throws AccessDeniedException
     {
         Set<AbsRscLayerObject<RSC>> ret = new HashSet<>();
         for (AbsRscLayerObject<RSC> data : dataSetRef)
@@ -1395,15 +1363,8 @@ public class DeviceHandlerImpl implements DeviceHandler
             DeviceLayer rootLayer = layerFactory.getDeviceLayer(layerData.getLayerKind());
             if (!layerData.hasFailed())
             {
-                try
-                {
-                    resourceReadySent = rootLayer.resourceFinished(layerData);
-                    layerData = layerData.getChildBySuffix(RscLayerSuffixes.SUFFIX_DATA);
-                }
-                catch (AccessDeniedException exc)
-                {
-                    throw new ImplementationError(exc);
-                }
+                resourceReadySent = rootLayer.resourceFinished(layerData);
+                layerData = layerData.getChildBySuffix(RscLayerSuffixes.SUFFIX_DATA);
             }
             else
             {
@@ -1436,7 +1397,7 @@ public class DeviceHandlerImpl implements DeviceHandler
 
     @Override
     public void processResource(AbsRscLayerObject<Resource> rscLayerDataRef, ApiCallRcImpl apiCallRcRef)
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException,
+        throws StorageException, ResourceException, VolumeException, DatabaseException,
         AbortLayerProcessingException
     {
         processGeneric(
@@ -1452,7 +1413,7 @@ public class DeviceHandlerImpl implements DeviceHandler
 
     @Override
     public void processSnapshot(AbsRscLayerObject<Snapshot> snapLayerDataRef, ApiCallRcImpl apiCallRcRef)
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException
+        throws StorageException, ResourceException, VolumeException, DatabaseException
     {
         processGeneric(
             snapLayerDataRef,
@@ -1472,7 +1433,7 @@ public class DeviceHandlerImpl implements DeviceHandler
         ProcessInterface<RSC> procFctRef,
         Function<AbsRscLayerObject<RSC>, String> dataDescrFct
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException,
+        throws StorageException, ResourceException, VolumeException, DatabaseException,
         AbortLayerProcessingException
     {
         boolean processedChildren = false;
@@ -1545,26 +1506,19 @@ public class DeviceHandlerImpl implements DeviceHandler
     public void fullSyncApplied(Node localNode) throws StorageException
     {
         fullSyncApplied.set(true);
-        try
-        {
-            localNodeProps = localNode.getProps(wrkCtx);
-            localNodePropsChanged(localNodeProps);
+        localNodeProps = localNode.getProps();
+        localNodePropsChanged(localNodeProps);
 
-            extFileHandler.clear();
-            extFileHandler.rebuildExtFilesToRscDfnMaps(localNode);
+        extFileHandler.clear();
+        extFileHandler.rebuildExtFilesToRscDfnMaps(localNode);
 
-            backupShippingManager.killAllShipping();
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        backupShippingManager.killAllShipping();
     }
 
     // FIXME: this method also needs to be called when the localnode's properties change, not just
     // (as currently) when a fullSync was applied
     @Override
-    public void localNodePropsChanged(Props newLocalNodeProps) throws StorageException, AccessDeniedException
+    public void localNodePropsChanged(Props newLocalNodeProps) throws StorageException
     {
         LocalPropsChangePojo collectedChanged = new LocalPropsChangePojo();
 
@@ -1638,7 +1592,7 @@ public class DeviceHandlerImpl implements DeviceHandler
                 );
             }
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -1661,31 +1615,27 @@ public class DeviceHandlerImpl implements DeviceHandler
             {
                 errorReporter.logError("Failed to query freespace or capacity of storPool " + storPool.getName());
             }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
         }
         notificationListenerProvider.get().notifyFreeSpacesChanged(freeSpaces);
     }
 
     private void updateDeviceSymlinks(Volume vlmRef)
-        throws AccessDeniedException, StorageException, DatabaseException, InvalidKeyException, InvalidValueException
+        throws StorageException, DatabaseException, InvalidKeyException, InvalidValueException
     {
         List<String> prefixedList = new ArrayList<>();
 
-        if (!vlmRef.getAbsResource().getStateFlags().isSet(wrkCtx, Resource.Flags.INACTIVE))
+        if (!vlmRef.getAbsResource().getStateFlags().isSet(Resource.Flags.INACTIVE))
         {
             // if resource is inactive, prefixedList stays empty. this will effectively clear the volume props-namespace
             // of the symlinks
 
             VlmProviderObject<Resource> vlmProviderObject = vlmRef.getAbsResource()
-                .getLayerData(wrkCtx)
+                .getLayerData()
                 .getVlmProviderObject(vlmRef.getVolumeNumber());
 
             @Nullable TreeSet<String> symlinks = null;
-            if (!vlmRef.getFlags().isSet(wrkCtx, Volume.Flags.CLONING) &&
-                !vlmRef.getFlags().isSet(wrkCtx, Volume.Flags.DRBD_DELETE))
+            if (!vlmRef.getFlags().isSet(Volume.Flags.CLONING) &&
+                !vlmRef.getFlags().isSet(Volume.Flags.DRBD_DELETE))
             {
                 symlinks = udevHandler.getSymlinks(vlmProviderObject.getDevicePath());
             }
@@ -1707,7 +1657,7 @@ public class DeviceHandlerImpl implements DeviceHandler
             }
         }
 
-        Props vlmProps = vlmRef.getProps(wrkCtx);
+        Props vlmProps = vlmRef.getProps();
         @Nullable Props symlinkProps = vlmProps.getNamespace(ApiConsts.NAMESPC_STLT_DEV_SYMLINKS);
         if (symlinkProps != null)
         {
@@ -1721,7 +1671,7 @@ public class DeviceHandlerImpl implements DeviceHandler
     }
 
     private void updateDiscGran(AbsRscLayerObject<Resource> rscLayerObjectRef)
-        throws DatabaseException, StorageException, AccessDeniedException
+        throws DatabaseException, StorageException
     {
         if (!Platform.isWindows() && rscLayerObjectRef != null)
         {
@@ -1790,8 +1740,7 @@ public class DeviceHandlerImpl implements DeviceHandler
     private interface ProcessInterface<RSC extends AbsResource<RSC>>
     {
         boolean process(DeviceLayer layer, AbsRscLayerObject<RSC> layerData, ApiCallRcImpl apiCallRc)
-            throws StorageException, ResourceException, VolumeException, AccessDeniedException,
-            DatabaseException, AbortLayerProcessingException;
+            throws StorageException, ResourceException, VolumeException, DatabaseException, AbortLayerProcessingException;
     }
 
 
@@ -1806,7 +1755,7 @@ public class DeviceHandlerImpl implements DeviceHandler
         VlmProviderObject<?> vlmData,
         @Nullable String targetRscNameRef
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         final AbsRscLayerObject<?> rscData = vlmData.getRscLayerObject();
         final DeviceLayer curLayer = layerFactory.getDeviceLayer(rscData.getLayerKind());

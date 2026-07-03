@@ -24,7 +24,6 @@ import com.linbit.linstor.core.apis.NodeApi;
 import com.linbit.linstor.core.apis.SatelliteConfigApi;
 import com.linbit.linstor.core.cfg.StltConfig;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.proto.requests.MsgReqDrbdReactorExecOuterClass.DrbdReactorCommand;
 
 import javax.inject.Inject;

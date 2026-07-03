@@ -4,7 +4,6 @@ import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
 
 import java.nio.file.Path;
 
@@ -43,7 +42,6 @@ public class EmptyErrorReporter implements ErrorReporter
     public String reportError(
         Level logLevel,
         Throwable errorInfo,
-        AccessContext accCtx,
         Peer client,
         String contextInfo
     )
@@ -93,7 +91,7 @@ public class EmptyErrorReporter implements ErrorReporter
     }
 
     @Override
-    public String reportError(Throwable errorInfo, AccessContext accCtx, Peer client, String contextInfo)
+    public String reportError(Throwable errorInfo, Peer client, String contextInfo)
     {
         if (printStacktraces)
         {
@@ -106,7 +104,6 @@ public class EmptyErrorReporter implements ErrorReporter
     public String reportProblem(
         Level logLevel,
         LinStorException errorInfo,
-        AccessContext accCtx,
         Peer client,
         String contextInfo
     )

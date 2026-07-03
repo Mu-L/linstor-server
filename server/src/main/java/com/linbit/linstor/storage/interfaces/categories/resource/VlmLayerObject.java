@@ -4,8 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 
 public interface VlmLayerObject<RSC extends AbsResource<RSC>>
@@ -54,7 +52,7 @@ public interface VlmLayerObject<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    default void setStorPool(AccessContext accCtx, StorPool storPoolRef) throws DatabaseException, AccessDeniedException
+    default void setStorPool(StorPool storPoolRef) throws DatabaseException
     {
         // no-op, see getStorPool()
     }

@@ -5,13 +5,11 @@ import com.linbit.InvalidNameException;
 import com.linbit.SizeSpecParser;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.api.prop.WhitelistProps;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.NetInterfaceName;
@@ -33,8 +31,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -54,45 +50,41 @@ import java.util.Set;
 public class CtrlPropsHelper
 {
     private final WhitelistProps propsWhiteList;
-    private final Provider<AccessContext> peerAccCtx;
     private final SystemConfRepository systemConfRepository;
 
     @Inject
     public CtrlPropsHelper(
         WhitelistProps propsWhiteListRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         SystemConfRepository systemConfRepositoryRef
     )
     {
         propsWhiteList = propsWhiteListRef;
-        peerAccCtx = peerAccCtxRef;
         systemConfRepository = systemConfRepositoryRef;
     }
 
-    public void checkPrefNic(AccessContext accessContext, Node node, String prefNic, long maskObj)
-        throws AccessDeniedException, InvalidNameException
+    public void checkPrefNic(Node node, String prefNic, long maskObj)
+        throws InvalidNameException
     {
-        checkSpecialNic(accessContext, node, prefNic, maskObj, false);
+        checkSpecialNic(node, prefNic, maskObj, false);
     }
 
-    public void checkPrefOutsideAddress(AccessContext accessContext, Node node, String outsideAddress, long maskObj)
-        throws AccessDeniedException, InvalidNameException
+    public void checkPrefOutsideAddress(Node node, String outsideAddress, long maskObj)
+        throws InvalidNameException
     {
-        checkSpecialNic(accessContext, node, outsideAddress, maskObj, true);
+        checkSpecialNic(node, outsideAddress, maskObj, true);
     }
 
     private void checkSpecialNic(
-        AccessContext accessContext,
         Node node,
         String specialNic,
         long maskObj,
         boolean allowEmptyString
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         if (specialNic != null && !(specialNic.isEmpty() && allowEmptyString))
         {
-            if (node.getNetInterface(accessContext, new NetInterfaceName(specialNic)) == null)
+            if (node.getNetInterface(new NetInterfaceName(specialNic)) == null)
             {
                 throw new ApiRcException(
                     ApiCallRcImpl.simpleEntry(
@@ -107,380 +99,202 @@ public class CtrlPropsHelper
 
     public ReadOnlyProps getCtrlPropsForView()
     {
-        return getCtrlPropsForView(peerAccCtx.get());
+        return getCtrlPropsForView();
     }
 
-    public ReadOnlyProps getCtrlPropsForView(AccessContext accessContextRef)
+    public ReadOnlyProps getCtrlPropsForView()
     {
-        try
-        {
-            return systemConfRepository.getCtrlConfForView(accessContextRef);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access controller properties",
-                ApiConsts.FAIL_ACC_DENIED_CTRL_CFG
-            );
-        }
+        return systemConfRepository.getCtrlConfForView();
     }
 
     public Props getCtrlPropsForChange()
     {
-        return getCtrlPropsForChange(peerAccCtx.get());
+        return getCtrlPropsForChange();
     }
 
-    public Props getCtrlPropsForChange(AccessContext accessContextRef)
+    public Props getCtrlPropsForChange()
     {
-        try
-        {
-            return systemConfRepository.getCtrlConfForChange(accessContextRef);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access controller properties",
-                ApiConsts.FAIL_ACC_DENIED_CTRL_CFG
-            );
-        }
+        return systemConfRepository.getCtrlConfForChange();
     }
 
     public ReadOnlyProps getStltPropsForView()
     {
-        return getStltPropsForView(peerAccCtx.get());
+        return getStltPropsForView();
     }
 
-    public ReadOnlyProps getStltPropsForView(AccessContext accessContextRef)
+    public ReadOnlyProps getStltPropsForView()
     {
-        try
-        {
-            return systemConfRepository.getStltConfForView(accessContextRef);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access satellite properties",
-                ApiConsts.FAIL_ACC_DENIED_CTRL_CFG
-            );
-        }
+        return systemConfRepository.getStltConfForView();
     }
 
     public Props getProps(Node node)
     {
-        return getProps(peerAccCtx.get(), node);
+        return getProps(node);
     }
 
-    public Props getProps(AccessContext accCtx, Node node)
+    public Props getProps(Node node)
     {
         Props props;
-        try
-        {
-            props = node.getProps(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for node '" + node.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        props = node.getProps();
         return props;
     }
 
     public Props getProps(StorPool storPool)
     {
-        return getProps(peerAccCtx.get(), storPool);
+        return getProps(storPool);
     }
 
-    public Props getProps(AccessContext accCtx, StorPool storPool)
+    public Props getProps(StorPool storPool)
     {
         Props props;
-        try
-        {
-            props = storPool.getProps(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties of storage pool '" + storPool.getName().displayValue +
-                    "' on node '" + storPool.getNode().getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL
-            );
-        }
+        props = storPool.getProps();
         return props;
     }
 
     public Props getProps(ResourceDefinition rscDfn)
     {
-        return getProps(peerAccCtx.get(), rscDfn);
+        return getProps(rscDfn);
     }
 
-    public Props getProps(AccessContext accCtx, ResourceDefinition rscDfn)
+    public Props getProps(ResourceDefinition rscDfn)
     {
         Props props;
-        try
-        {
-            props = rscDfn.getProps(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for resource definition '" + rscDfn.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
+        props = rscDfn.getProps();
         return props;
     }
 
     public Props getProps(ResourceGroup rscGrp)
     {
-        return getProps(peerAccCtx.get(), rscGrp);
+        return getProps(rscGrp);
     }
 
-    public Props getProps(AccessContext accCtx, ResourceGroup rscGrp)
+    public Props getProps(ResourceGroup rscGrp)
     {
         Props props;
-        try
-        {
-            props = rscGrp.getProps(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for resource group '" + rscGrp.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
-            );
-        }
+        props = rscGrp.getProps();
         return props;
     }
 
     public Props getProps(VolumeDefinition vlmDfn)
     {
-        return getProps(peerAccCtx.get(), vlmDfn);
+        return getProps(vlmDfn);
     }
 
-    public Props getProps(AccessContext accCtx, VolumeDefinition vlmDfn)
+    public Props getProps(VolumeDefinition vlmDfn)
     {
         Props props;
-        try
-        {
-            props = vlmDfn.getProps(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for volume definition with number '" + vlmDfn.getVolumeNumber().value + "' " +
-                    "on resource definition '" + vlmDfn.getResourceDefinition().getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
-        }
+        props = vlmDfn.getProps();
         return props;
     }
 
     public Props getProps(Resource rsc)
     {
-        return getProps(peerAccCtx.get(), rsc);
+        return getProps(rsc);
     }
 
-    public Props getProps(AccessContext accCtx, Resource rsc)
+    public Props getProps(Resource rsc)
     {
         Props props;
-        try
-        {
-            props = rsc.getProps(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for resource '" + rsc.getResourceDefinition().getName().displayValue + "' on node '" +
-                    rsc.getNode().getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        props = rsc.getProps();
         return props;
     }
 
     public Props getProps(Volume vlm)
     {
-        return getProps(peerAccCtx.get(), vlm);
+        return getProps(vlm);
     }
 
-    public Props getProps(AccessContext accCtx, Volume vlm)
+    public Props getProps(Volume vlm)
     {
         Props props;
-        try
-        {
-            props = vlm.getProps(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for volume with number '" + vlm.getVolumeDefinition().getVolumeNumber().value +
-                    "' on resource '" + vlm.getResourceDefinition().getName().displayValue + "' " +
-                    "on node '" + vlm.getAbsResource().getNode().getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_VLM
-            );
-        }
+        props = vlm.getProps();
         return props;
     }
 
     public Props getProps(KeyValueStore kvs)
     {
-        return getProps(peerAccCtx.get(), kvs);
+        return getProps(kvs);
     }
 
-    public Props getProps(AccessContext accCtx, KeyValueStore kvs)
+    public Props getProps(KeyValueStore kvs)
     {
         Props props;
-        try
-        {
-            props = kvs.getProps(accCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                    accDeniedExc,
-                    "access properties for keyValueStore '" + kvs.getName().displayValue + "'",
-                    ApiConsts.FAIL_ACC_DENIED_KVS
-            );
-        }
+        props = kvs.getProps();
         return props;
     }
 
     public Props getProps(SnapshotDefinition snapDfn, boolean rscDfnProps)
     {
-        return getProps(peerAccCtx.get(), snapDfn, rscDfnProps);
+        return getProps(snapDfn, rscDfnProps);
     }
 
-    public Props getProps(AccessContext accCtx, SnapshotDefinition snapDfn, boolean rscDfnProps)
+    public Props getProps(SnapshotDefinition snapDfn, boolean rscDfnProps)
     {
         Props props;
-        try
+        if (rscDfnProps)
         {
-            if (rscDfnProps)
-            {
-                props = snapDfn.getRscDfnPropsForChange(accCtx);
-            }
-            else
-            {
-                props = snapDfn.getSnapDfnProps(accCtx);
-            }
+            props = snapDfn.getRscDfnPropsForChange();
         }
-        catch (AccessDeniedException accDeniedExc)
+        else
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for snapshot definition, resource name: '" +
-                    snapDfn.getResourceName().displayValue + "', snapshot name: '" +
-                    snapDfn.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_SNAP_DFN
-            );
+            props = snapDfn.getSnapDfnProps();
         }
         return props;
     }
 
     public Props getProps(SnapshotVolumeDefinition snapVlmDfn, boolean vlmDfnProps)
     {
-        return getProps(peerAccCtx.get(), snapVlmDfn, vlmDfnProps);
+        return getProps(snapVlmDfn, vlmDfnProps);
     }
 
-    public Props getProps(AccessContext accCtx, SnapshotVolumeDefinition snapVlmDfn, boolean vlmDfnProps)
+    public Props getProps(SnapshotVolumeDefinition snapVlmDfn, boolean vlmDfnProps)
     {
         Props props;
-        try
+        if (vlmDfnProps)
         {
-            if (vlmDfnProps)
-            {
-                props = snapVlmDfn.getVlmDfnPropsForChange(accCtx);
-            }
-            else
-            {
-                props = snapVlmDfn.getSnapVlmDfnProps(accCtx);
-            }
+            props = snapVlmDfn.getVlmDfnPropsForChange();
         }
-        catch (AccessDeniedException accDeniedExc)
+        else
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for snapshot definition, resource name: '" +
-                    snapVlmDfn.getResourceName().displayValue + "', snapshot name: '" +
-                    snapVlmDfn.getSnapshotName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_SNAP_DFN
-            );
+            props = snapVlmDfn.getSnapVlmDfnProps();
         }
         return props;
     }
 
     public Props getProps(Snapshot snap, boolean rscProps)
     {
-        return getProps(peerAccCtx.get(), snap, rscProps);
+        return getProps(snap, rscProps);
     }
 
-    public Props getProps(AccessContext accCtx, Snapshot snap, boolean rscProps)
+    public Props getProps(Snapshot snap, boolean rscProps)
     {
         Props props;
-        try
+        if (rscProps)
         {
-            if (rscProps)
-            {
-                props = snap.getRscPropsForChange(accCtx);
-            }
-            else
-            {
-                props = snap.getSnapProps(accCtx);
-            }
+            props = snap.getRscPropsForChange();
         }
-        catch (AccessDeniedException accDeniedExc)
+        else
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for snapshot definition, resource name: '" +
-                    snap.getResourceName().displayValue + "', snapshot name: '" +
-                    snap.getSnapshotName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_SNAP_DFN
-            );
+            props = snap.getSnapProps();
         }
         return props;
     }
 
     public Props getProps(SnapshotVolume snapVlm, boolean vlmProps)
     {
-        return getProps(peerAccCtx.get(), snapVlm, vlmProps);
+        return getProps(snapVlm, vlmProps);
     }
 
-    public Props getProps(AccessContext accCtx, SnapshotVolume snapVlm, boolean vlmProps)
+    public Props getProps(SnapshotVolume snapVlm, boolean vlmProps)
     {
         Props props;
-        try
+        if (vlmProps)
         {
-            if (vlmProps)
-            {
-                props = snapVlm.getVlmPropsForChange(accCtx);
-            }
-            else
-            {
-                props = snapVlm.getSnapVlmProps(accCtx);
-            }
+            props = snapVlm.getVlmPropsForChange();
         }
-        catch (AccessDeniedException accDeniedExc)
+        else
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties for snapshot definition, resource name: '" +
-                    snapVlm.getResourceName().displayValue + "', snapshot name: '" +
-                    snapVlm.getSnapshotName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_SNAP_DFN
-            );
+            props = snapVlm.getSnapVlmProps();
         }
         return props;
     }
@@ -591,14 +405,6 @@ public class CtrlPropsHelper
                         SizeSpecParser.ensureParsableWithPercent(normalized);
                     }
                 }
-                catch (AccessDeniedException exc)
-                {
-                    throw new ApiAccessDeniedException(
-                        exc,
-                        "insert property '" + key + "'",
-                        failAccDeniedRc
-                    );
-                }
                 catch (InvalidKeyException exc)
                 {
                     if (key.startsWith(ApiConsts.NAMESPC_AUXILIARY + "/"))
@@ -675,7 +481,7 @@ public class CtrlPropsHelper
         Collection<String> deletePropKeys,
         Collection<String> deleteNamespaces
     )
-        throws AccessDeniedException, InvalidKeyException, InvalidValueException, DatabaseException
+        throws InvalidKeyException, InvalidValueException, DatabaseException
     {
         for (Map.Entry<String, String> entry : overrideProps.entrySet())
         {
@@ -691,7 +497,7 @@ public class CtrlPropsHelper
         Collection<String> deletePropKeys,
         Collection<String> deleteNamespaces
     )
-        throws InvalidKeyException, AccessDeniedException, DatabaseException
+        throws InvalidKeyException, DatabaseException
     {
         return remove(
             apiCallRc,
@@ -712,7 +518,7 @@ public class CtrlPropsHelper
         Collection<String> deleteNamespaces,
         List<String> ignoredKeysRef
     )
-        throws InvalidKeyException, AccessDeniedException, DatabaseException
+        throws InvalidKeyException, DatabaseException
     {
         return remove(
             apiCallRc,
@@ -741,7 +547,7 @@ public class CtrlPropsHelper
         List<String> ignoredKeysRef,
         Map<String, PropertyChangedListener> propsChangedListenersRef
     )
-        throws AccessDeniedException, InvalidKeyException, DatabaseException
+        throws InvalidKeyException, DatabaseException
     {
         boolean propsModified = false;
         ArrayList<String> ignoredKeys = new ArrayList<>(ignoredKeysRef);
@@ -822,7 +628,7 @@ public class CtrlPropsHelper
         Collection<String> deletePropKeys,
         Collection<String> deleteNamespaces
     )
-        throws InvalidKeyException, AccessDeniedException, DatabaseException
+        throws InvalidKeyException, DatabaseException
     {
         for (String key : deletePropKeys)
         {
@@ -884,7 +690,6 @@ public class CtrlPropsHelper
         /**
          * The newValue after normalization, or null if property was deleted
          */
-        void changed(String key, @Nullable String newValue, @Nullable String oldValue) throws AccessDeniedException,
-            DatabaseException;
+        void changed(String key, @Nullable String newValue, @Nullable String oldValue) throws DatabaseException;
     }
 }

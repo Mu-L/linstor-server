@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -36,7 +35,6 @@ public class SnapshotSatelliteFactory
     }
 
     public Snapshot getInstanceSatellite(
-        AccessContext accCtx,
         UUID snapshotUuid,
         Node node,
         SnapshotDefinition snapshotDfn,
@@ -47,7 +45,7 @@ public class SnapshotSatelliteFactory
         Snapshot snapshot;
         try
         {
-            snapshot = snapshotDfn.getSnapshot(accCtx, node.getName());
+            snapshot = snapshotDfn.getSnapshot(node.getName());
             if (snapshot == null)
             {
                 snapshot = new Snapshot(
@@ -62,7 +60,7 @@ public class SnapshotSatelliteFactory
                     new TreeMap<>(),
                     null
                 );
-                snapshotDfn.addSnapshot(accCtx, snapshot);
+                snapshotDfn.addSnapshot(snapshot);
             }
         }
         catch (Exception exc)

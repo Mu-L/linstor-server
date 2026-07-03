@@ -9,9 +9,7 @@ import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.VolumeNumberAlloc;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcImpl.ApiCallRcEntry;
@@ -37,7 +35,6 @@ import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelpe
 import com.linbit.linstor.core.apicallhandler.controller.helpers.PropsChangedListenerBuilder;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDefinitionUtils;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
@@ -70,9 +67,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -121,8 +115,6 @@ public class CtrlRscGrpApiCallHandler
     private final LockGuardFactory lockGuardFactory;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
-    private final AccessContext apiCtx;
     private final ResourceGroupRepository resourceGroupRepository;
     private final ResourceGroupControllerFactory rscGrpFactory;
     private final CtrlPropsHelper ctrlPropsHelper;
@@ -147,12 +139,10 @@ public class CtrlRscGrpApiCallHandler
 
     @Inject
     public CtrlRscGrpApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ErrorReporter errorReporterRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ResourceGroupRepository rscGrpRepoRef,
         ResourceGroupControllerFactory rscGrpFactoryRef,
         CtrlPropsHelper ctrlPropsHelperRef,
@@ -180,8 +170,6 @@ public class CtrlRscGrpApiCallHandler
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
-        apiCtx = apiCtxRef;
         resourceGroupRepository = rscGrpRepoRef;
         rscGrpFactory = rscGrpFactoryRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
@@ -212,16 +200,16 @@ public class CtrlRscGrpApiCallHandler
 
         try
         {
-            resourceGroupRepository.getMapForView(peerAccCtx.get()).values().stream()
+            resourceGroupRepository.getMapForView().values().stream()
                 .filter(rscGrp -> RegexMatcher.matchesAny(rscGrpsFilter, rscGrp.getName().displayValue))
                 .forEach(rscGrp ->
                     {
                         try
                         {
-                            final ReadOnlyProps props = rscGrp.getProps(peerAccCtx.get());
+                            final ReadOnlyProps props = rscGrp.getProps();
                             if (props.contains(propFilters))
                             {
-                                ret.add(rscGrp.getApiData(peerAccCtx.get()));
+                                ret.add(rscGrp.getApiData());
                             }
                         }
                         catch (AccessDeniedException accDeniedExc)
@@ -277,7 +265,7 @@ public class CtrlRscGrpApiCallHandler
                 responses,
                 LinStorObject.RSC_DFN,
                 rscGrpPojoRef.getProps(),
-                rscGrp.getProps(peerAccCtx.get()),
+                rscGrp.getProps(),
                 ApiConsts.FAIL_ACC_DENIED_RSC_GRP,
                 prefixesIgnoringWhitelistCheck
             );
@@ -288,7 +276,7 @@ public class CtrlRscGrpApiCallHandler
                 rscGrpPojoRef.getVlmGrpList()
             );
 
-            resourceGroupRepository.put(apiCtx, rscGrp);
+            resourceGroupRepository.put(rscGrp);
 
             ctrlTransactionHelper.commit();
 
@@ -355,24 +343,23 @@ public class CtrlRscGrpApiCallHandler
     }
 
     private void addUnknownStoragePoolWarning(ResourceGroup rscGrpRef, ApiCallRcImpl responsesRef)
-        throws AccessDeniedException
     {
         List<String> spNameDiskfulButDisklessExpectedList = new ArrayList<>();
         List<String> spNameDisklessButDiskfulExpectedList = new ArrayList<>();
         List<String> unknownSpNameList = new ArrayList<>();
 
-        StorPoolDefinitionMap spdMap = spdRepo.getMapForView(apiCtx);
+        StorPoolDefinitionMap spdMap = spdRepo.getMapForView();
         AutoSelectorConfig autoPlaceConfig = rscGrpRef.getAutoPlaceConfig();
         for (boolean diskfulExpected : new Boolean[] {true, false})
         {
             List<String> storPoolNamesToCheck;
             if (diskfulExpected)
             {
-                storPoolNamesToCheck = autoPlaceConfig.getStorPoolNameList(apiCtx);
+                storPoolNamesToCheck = autoPlaceConfig.getStorPoolNameList();
             }
             else
             {
-                storPoolNamesToCheck = autoPlaceConfig.getStorPoolDisklessNameList(apiCtx);
+                storPoolNamesToCheck = autoPlaceConfig.getStorPoolDisklessNameList();
             }
             for (String spnameToCheck : storPoolNamesToCheck)
             {
@@ -388,7 +375,7 @@ public class CtrlRscGrpApiCallHandler
                 if (spdfn != null)
                 {
                     if (
-                        !spdfn.streamStorPools(apiCtx)
+                        !spdfn.streamStorPools()
                             .anyMatch(sp -> sp.getDeviceProviderKind().hasBackingDevice() == diskfulExpected)
                     )
                     {
@@ -546,7 +533,7 @@ public class CtrlRscGrpApiCallHandler
             AccessContext peerCtx = peerAccCtx.get();
             if (descriptionRef != null)
             {
-                rscGrpData.setDescription(peerCtx, descriptionRef);
+                rscGrpData.setDescription(descriptionRef);
             }
 
             checkProps(overrideProps);
@@ -558,9 +545,9 @@ public class CtrlRscGrpApiCallHandler
 
                 List<Flux<ApiCallRc>> specialPropFluxes = new ArrayList<>();
                 Map<String, PropertyChangedListener> propsChangedListeners = propsChangeListenerBuilder.get()
-                    .buildPropsChangedListeners(peerCtx, rscGrpData, specialPropFluxes);
+                    .buildPropsChangedListeners(rscGrpData, specialPropFluxes);
 
-                Props rscGrpProps = rscGrpData.getProps(peerCtx);
+                Props rscGrpProps = rscGrpData.getProps();
                 notifyStlts = ctrlPropsHelper.fillProperties(
                     apiCallRcs,
                     LinStorObject.RSC_DFN,
@@ -595,12 +582,11 @@ public class CtrlRscGrpApiCallHandler
                 if (newReplicaCount != null)
                 {
                     notifyStlts = true;
-                    for (ResourceDefinition rscDfn : rscGrpData.getRscDfns(peerCtx))
+                    for (ResourceDefinition rscDfn : rscGrpData.getRscDfns())
                     {
                         long rscCount = ResourceDefinitionUtils.getResourceCount(
-                            apiCtx,
                             rscDfn,
-                            rsc -> !rsc.getStateFlags().isSet(apiCtx, Resource.Flags.TIE_BREAKER)
+                            rsc -> !rsc.getStateFlags().isSet(Resource.Flags.TIE_BREAKER)
                         );
                         if (rscCount < newReplicaCount)
                         {
@@ -636,7 +622,7 @@ public class CtrlRscGrpApiCallHandler
 
             if (peerSlotsRef != null)
             {
-                rscGrpData.setPeerSlots(peerCtx, peerSlotsRef);
+                rscGrpData.setPeerSlots(peerSlotsRef);
             }
 
             ctrlTransactionHelper.commit();
@@ -655,7 +641,7 @@ public class CtrlRscGrpApiCallHandler
                 // since there is no need to update every single resource(-definition) when we know that only the RG
                 // changed.
                 List<Flux<ApiCallRc>> updateStltFluxList = new ArrayList<>();
-                for (ResourceDefinition rscDfn : rscGrpData.getRscDfns(peerCtx))
+                for (ResourceDefinition rscDfn : rscGrpData.getRscDfns())
                 {
                     updateStltFluxList.add(
                         ctrlSatelliteUpdateCaller.updateSatellites(rscDfn, Flux.empty())
@@ -688,7 +674,6 @@ public class CtrlRscGrpApiCallHandler
         Set<String> deletePropKeys,
         Set<String> deletePropNamespacesRef
     )
-        throws AccessDeniedException
     {
         Flux<ApiCallRc> retFlux = Flux.empty();
         String autoDiskfulKey = ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_AUTO_DISKFUL;
@@ -707,14 +692,13 @@ public class CtrlRscGrpApiCallHandler
                 overrideProps,
                 deletePropKeys,
                 deletePropNamespacesRef,
-                rscGrp.getRscDfns(peerAccCtx.get()),
-                peerAccCtx.get(),
-                systemConfRepository.getStltConfForView(peerAccCtx.get()),
+                rscGrp.getRscDfns(),
+                systemConfRepository.getStltConfForView(),
                 false
             )
         );
 
-        for (ResourceDefinition rscDfn : rscGrp.getRscDfns(peerAccCtx.get()))
+        for (ResourceDefinition rscDfn : rscGrp.getRscDfns())
         {
             ResponseContext context = CtrlRscDfnApiCallHandler.makeResourceDefinitionContext(
                 ApiOperation.makeModifyOperation(),
@@ -740,7 +724,7 @@ public class CtrlRscGrpApiCallHandler
             if (overrideProps.containsKey(autoTiebreakerKey) || deletePropKeys.contains(autoTiebreakerKey)
                 || drbdQuorumChanged)
             {
-                CtrlRscAutoQuorumHelper.removeQuorumPropIfSetByLinstor(rscDfn, peerAccCtx.get());
+                CtrlRscAutoQuorumHelper.removeQuorumPropIfSetByLinstor(rscDfn);
                 ApiCallRcImpl responses = new ApiCallRcImpl();
                 CtrlRscAutoHelper.AutoHelperContext autoHelperCtx = new CtrlRscAutoHelper.AutoHelperContext(
                     responses, context, rscDfn);
@@ -780,7 +764,7 @@ public class CtrlRscGrpApiCallHandler
                 );
             }
 
-            if (rscGrpData.hasResourceDefinitions(apiCtx))
+            if (rscGrpData.hasResourceDefinitions())
             {
                 throw new ApiRcException(
                     ApiCallRcImpl.simpleEntry(
@@ -797,7 +781,7 @@ public class CtrlRscGrpApiCallHandler
             String rscGrpDisplayValue = rscGrpName.displayValue;
             deleteResourceGroup(rscGrpData);
 
-            resourceGroupRepository.remove(apiCtx, rscGrpName);
+            resourceGroupRepository.remove(rscGrpName);
 
             ctrlTransactionHelper.commit();
 
@@ -835,21 +819,6 @@ public class CtrlRscGrpApiCallHandler
 
     private void requireRscGrpMapChangeAccess()
     {
-        try
-        {
-            resourceGroupRepository.requireAccess(
-                peerAccCtx.get(),
-                AccessType.CHANGE
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "change any resource groups",
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
-            );
-        }
     }
 
     private static void validateStorPoolNames(@Nullable List<String> storPoolNameList)
@@ -901,7 +870,6 @@ public class CtrlRscGrpApiCallHandler
                 disklessOnRemaining = autoSelectFilter.getDisklessOnRemaining();
             }
             rscGrp = rscGrpFactory.create(
-                peerAccCtx.get(),
                 LinstorParsingUtils.asRscGrpName(rscGrpPojoRef.getName()),
                 rscGrpPojoRef.getDescription(),
                 layerStackList,
@@ -917,14 +885,6 @@ public class CtrlRscGrpApiCallHandler
                 providerList,
                 disklessOnRemaining,
                 rscGrpPojoRef.getPeerSlots()
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register the " + getRscGrpDescriptionInline(rscGrpPojoRef.getName()),
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
             );
         }
         catch (DatabaseException dbExc)
@@ -946,15 +906,7 @@ public class CtrlRscGrpApiCallHandler
     {
         try
         {
-            rscGrpData.delete(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete " + getRscGrpDescriptionInline(rscGrpData),
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
-            );
+            rscGrpData.delete();
         }
         catch (DatabaseException dbExc)
         {
@@ -1054,7 +1006,7 @@ public class CtrlRscGrpApiCallHandler
 
             List<VolumeDefinitionWithCreationPayload> vlmDfnCrtList = new ArrayList<>();
 
-            List<VolumeGroup> vlmGrps = rscGrp.getVolumeGroups(peerCtx);
+            List<VolumeGroup> vlmGrps = rscGrp.getVolumeGroups();
 
             // if resource-group doesn't have any volume groups automatically switch on partial mode
             if (vlmGrps.isEmpty() && !partialRef)
@@ -1090,7 +1042,7 @@ public class CtrlRscGrpApiCallHandler
                     {
                         VolumeGroup vlmGrp = vlmGrps.get(idx);
                         vlmNr = vlmGrp.getVolumeNumber().value;
-                        flags = vlmGrp.getFlags().getFlagsBits(peerCtx);
+                        flags = vlmGrp.getFlags().getFlagsBits();
                     }
 
                     long vlmSize = vlmSizesRef.get(idx);
@@ -1127,7 +1079,7 @@ public class CtrlRscGrpApiCallHandler
             LayerPayload layerPayload = new LayerPayload();
             layerPayload.getDrbdRscDfn().peerSlotsNewResource = peerSlotsRef != null ?
                 peerSlotsRef :
-                rscGrp.getPeerSlots(peerCtx);
+                rscGrp.getPeerSlots();
             ResourceDefinition rscDfn = ctrlRscDfnApiCallHandler.createResourceDefinition(
                 rscDfnNameRef,
                 rscDfnExtNameRef,
@@ -1200,18 +1152,9 @@ public class CtrlRscGrpApiCallHandler
                     Collections.emptySet(),
                     Collections.emptySet(),
                     Collections.singletonList(rscDfn),
-                    peerAccCtx.get(),
-                    systemConfRepository.getStltConfForView(peerAccCtx.get()),
+                    systemConfRepository.getStltConfForView(),
                     true
                 )
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "spawn new resource definition from " + getRscGrpDescriptionInline(rscGrpNameRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
             );
         }
         catch (LinStorException exc)
@@ -1316,22 +1259,11 @@ public class CtrlRscGrpApiCallHandler
     )
     {
         Flux<ApiCallRcWith<QuerySizeInfoResponsePojo>> flux;
-        try
-        {
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(querySizeInfoReqRef.getRscGrpName(), true);
-            AutoSelectFilterPojo autoSelectFilterData = querySizeInfoReqRef.getAutoSelectFilterData();
-            flux = Flux.just(
-                querySizeInfoImpl(thinFreeCapacities, rscGrp, autoSelectFilterData)
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "querying size info for " + getRscGrpDescriptionInline(querySizeInfoReqRef.getRscGrpName()),
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
-            );
-        }
+        ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(querySizeInfoReqRef.getRscGrpName(), true);
+        AutoSelectFilterPojo autoSelectFilterData = querySizeInfoReqRef.getAutoSelectFilterData();
+        flux = Flux.just(
+            querySizeInfoImpl(thinFreeCapacities, rscGrp, autoSelectFilterData)
+        );
         return flux;
     }
 
@@ -1340,7 +1272,6 @@ public class CtrlRscGrpApiCallHandler
         ResourceGroup rscGrp,
         AutoSelectFilterPojo autoSelectFilterData
     )
-        throws AccessDeniedException
     {
         ApiCallRcWith<QuerySizeInfoResponsePojo> result;
         AutoSelectorConfig selectFilter = rscGrp.getAutoPlaceConfig();
@@ -1396,36 +1327,25 @@ public class CtrlRscGrpApiCallHandler
     {
         ApiCallRcImpl apiCallRcOuterImpl = new ApiCallRcImpl();
         Map<String, QueryAllSizeInfoResponsePojo.QueryAllSizeInfoResponseEntryPojo> map = new TreeMap<>();
-        try
+        requireRscGrpMapChangeAccess();
+        AutoSelectFilterPojo autoSelectFilterData = queryAllSizeInfoReqRef.getAutoSelectFilterData();
+        for (ResourceGroup rscGrp : resourceGroupRepository.getMapForView().values())
         {
-            requireRscGrpMapChangeAccess();
-            AutoSelectFilterPojo autoSelectFilterData = queryAllSizeInfoReqRef.getAutoSelectFilterData();
-            for (ResourceGroup rscGrp : resourceGroupRepository.getMapForView(peerAccCtx.get()).values())
-            {
-                ApiCallRcWith<QuerySizeInfoResponsePojo> result = querySizeInfoImpl(
-                    thinFreeCapacitiesRef,
-                    rscGrp,
-                    autoSelectFilterData
-                );
-                ApiCallRcImpl apiCallRcInnerImpl = new ApiCallRcImpl();
+            ApiCallRcWith<QuerySizeInfoResponsePojo> result = querySizeInfoImpl(
+                thinFreeCapacitiesRef,
+                rscGrp,
+                autoSelectFilterData
+            );
+            ApiCallRcImpl apiCallRcInnerImpl = new ApiCallRcImpl();
 
-                QuerySizeInfoResponsePojo querySizeInfoResponsePojo = result.extractApiCallRc(apiCallRcInnerImpl);
+            QuerySizeInfoResponsePojo querySizeInfoResponsePojo = result.extractApiCallRc(apiCallRcInnerImpl);
 
-                map.put(
-                    rscGrp.getName().displayValue,
-                    new QueryAllSizeInfoResponsePojo.QueryAllSizeInfoResponseEntryPojo(
-                        querySizeInfoResponsePojo,
-                        apiCallRcInnerImpl
-                    )
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "querying all size info",
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
+            map.put(
+                rscGrp.getName().displayValue,
+                new QueryAllSizeInfoResponsePojo.QueryAllSizeInfoResponseEntryPojo(
+                    querySizeInfoResponsePojo,
+                    apiCallRcInnerImpl
+                )
             );
         }
         QueryAllSizeInfoResponsePojo response = new QueryAllSizeInfoResponsePojo(map, apiCallRcOuterImpl);
@@ -1520,27 +1440,16 @@ public class CtrlRscGrpApiCallHandler
     )
     {
         Flux<ApiCallRc> ret = Flux.empty();
-        try
+        for (ResourceGroup rg : resourceGroupRepository.getMapForView().values())
         {
-            for (ResourceGroup rg : resourceGroupRepository.getMapForView(peerAccCtx.get()).values())
-            {
-                ret = ret.concatWith(
-                    adjustInTransaction(
-                        rg.getName().displayValue,
-                        adjustAutoSelectFilterRef,
-                        copyAllSnapsRef,
-                        snapNamesToCopyRef,
-                        contextRef
-                    )
-                );
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "iterate through resource groups",
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
+            ret = ret.concatWith(
+                adjustInTransaction(
+                    rg.getName().displayValue,
+                    adjustAutoSelectFilterRef,
+                    copyAllSnapsRef,
+                    snapNamesToCopyRef,
+                    contextRef
+                )
             );
         }
         return ret;
@@ -1555,48 +1464,37 @@ public class CtrlRscGrpApiCallHandler
     )
     {
         List<Flux<ApiCallRc>> fluxList = new ArrayList<>();
-        try
-        {
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
+        ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
 
-            AutoSelectorConfig rgAutoPlaceConfig = rscGrp.getAutoPlaceConfig();
-            AutoSelectFilterPojo autoPlaceConfig = AutoSelectFilterPojo.merge(
-                adjustAutoSelectFilterRef,
-                rgAutoPlaceConfig.getApiData()
-            );
+        AutoSelectorConfig rgAutoPlaceConfig = rscGrp.getAutoPlaceConfig();
+        AutoSelectFilterPojo autoPlaceConfig = AutoSelectFilterPojo.merge(
+            adjustAutoSelectFilterRef,
+            rgAutoPlaceConfig.getApiData()
+        );
 
-            for (ResourceDefinition rscDfn : rscGrp.getRscDfns(peerAccCtx.get()))
-            {
-                fluxList.add(
-                    ctrlRscAutoPlaceApiCallHandler.autoPlaceInTransaction(
-                        rscDfn.getName().displayValue,
-                        autoPlaceConfig,
-                        copyAllSnapsRef,
-                        snapNamesToCopyRef,
-                        contextRef
-                    )
-                );
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
+        for (ResourceDefinition rscDfn : rscGrp.getRscDfns())
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access resource group " + getRscGrpDescriptionInline(rscGrpNameRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC_GRP
+            fluxList.add(
+                ctrlRscAutoPlaceApiCallHandler.autoPlaceInTransaction(
+                    rscDfn.getName().displayValue,
+                    autoPlaceConfig,
+                    copyAllSnapsRef,
+                    snapNamesToCopyRef,
+                    contextRef
+                )
             );
         }
         return Flux.merge(fluxList);
     }
 
-    static VolumeNumber getVlmNr(VolumeGroupApi vlmGrpApi, ResourceGroup rscGrp, AccessContext accCtx)
+    static VolumeNumber getVlmNr(VolumeGroupApi vlmGrpApi, ResourceGroup rscGrp)
         throws LinStorException, ValueOutOfRangeException
     {
         VolumeNumber vlmNr;
         Integer vlmNrRaw = vlmGrpApi.getVolumeNr();
         if (vlmNrRaw == null)
         {
-            vlmNr = getGeneratedVlmNr(rscGrp, accCtx);
+            vlmNr = getGeneratedVlmNr(rscGrp);
         }
         else
         {
@@ -1605,7 +1503,7 @@ public class CtrlRscGrpApiCallHandler
         return vlmNr;
     }
 
-    static VolumeNumber getGeneratedVlmNr(ResourceGroup rscGrp, AccessContext accCtx)
+    static VolumeNumber getGeneratedVlmNr(ResourceGroup rscGrp)
         throws ImplementationError, LinStorException
     {
         VolumeNumber vlmNr;
@@ -1613,7 +1511,7 @@ public class CtrlRscGrpApiCallHandler
         {
             // Avoid using volume numbers that are already in use by active volumes.
 
-            int[] occupiedVlmNrs = rscGrp.streamVolumeGroups(accCtx)
+            int[] occupiedVlmNrs = rscGrp.streamVolumeGroups()
                 .map(VolumeGroup::getVolumeNumber)
                 .mapToInt(VolumeNumber::getValue)
                 .sorted()
@@ -1621,13 +1519,6 @@ public class CtrlRscGrpApiCallHandler
                 .toArray();
 
             vlmNr = VolumeNumberAlloc.getFreeVolumeNumber(occupiedVlmNrs);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(
-                "ApiCtx does not have enough privileges to iterate vlmDfns",
-                accDeniedExc
-            );
         }
         catch (ExhaustedPoolException exhausedPoolExc)
         {

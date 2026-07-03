@@ -17,16 +17,10 @@ import com.linbit.linstor.dbdrivers.interfaces.ResourceDefinitionDatabaseDriver;
 import com.linbit.linstor.layer.storage.BlockSizeConsts;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
@@ -65,7 +59,7 @@ import java.util.stream.Stream;
  *
  * @author Robert Altnoeder &lt;robert.altnoeder@linbit.com&gt;
  */
-public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implements ProtectedObject
+public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
 {
     public interface InitMaps
     {
@@ -93,7 +87,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
     private final StateFlags<Flags> flags;
 
     // Object access controls
-    private final ObjectProtection objProt;
 
     // Properties container for this resource definition
     private final Props rscDfnProps;
@@ -108,7 +101,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
 
     ResourceDefinition(
         UUID objIdRef,
-        ObjectProtection objProtRef,
         ResourceName resName,
         @Nullable byte[] extName,
         long initialFlags,
@@ -130,7 +122,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         ErrorCheck.ctorNotNull(ResourceDefinition.class, ResourceName.class, resName);
         ErrorCheck.ctorNotNull(ResourceDefinition.class, ObjectProtection.class, objProtRef);
         ErrorCheck.ctorNotNull(ResourceDefinition.class, ResourceGroup.class, rscGrpRef);
-        objProt = objProtRef;
         resourceName = resName;
         externalName = extName;
         dbDriver = dbDriverRef;
@@ -184,75 +175,62 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         return externalName;
     }
 
-    public Props getProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, objProt, rscDfnProps);
+        return rscDfnProps;
     }
 
     /**
      * Sets a property for the device manager to restart the DRBD resource on each resource of this resource definition
      *
      * @param accCtx Access context for accessing each resource's properties
-     * @throws AccessDeniedException if access to a resource's properties is denied
      * @throws DatabaseException if a database operation fails
      */
-    public void requireDrbdRestart(final AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void requireDrbdRestart()
+        throws DatabaseException
     {
-        final Iterator<Resource> rscIter = iterateResource(accCtx);
+        final Iterator<Resource> rscIter = iterateResource();
         while (rscIter.hasNext())
         {
             final Resource rsc = rscIter.next();
-            rsc.requireDrbdRestart(accCtx);
+            rsc.requireDrbdRestart();
         }
     }
 
-    public synchronized void putVolumeDefinition(AccessContext accCtx, VolumeDefinition volDfn)
-        throws AccessDeniedException
+    public synchronized void putVolumeDefinition(VolumeDefinition volDfn)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         volumeMap.put(volDfn.getVolumeNumber(), volDfn);
     }
 
-    public synchronized void removeVolumeDefinition(AccessContext accCtx, VolumeDefinition volDfn)
-        throws AccessDeniedException
+    public synchronized void removeVolumeDefinition(VolumeDefinition volDfn)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         volumeMap.remove(volDfn.getVolumeNumber());
     }
 
-    public int getVolumeDfnCount(AccessContext accCtx) throws AccessDeniedException
+    public int getVolumeDfnCount()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return volumeMap.size();
     }
 
-    public @Nullable VolumeDefinition getVolumeDfn(AccessContext accCtx, VolumeNumber volNr)
-        throws AccessDeniedException
+    public @Nullable VolumeDefinition getVolumeDfn(VolumeNumber volNr)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return volumeMap.get(volNr);
     }
 
-    public Iterator<VolumeDefinition> iterateVolumeDfn(AccessContext accCtx)
-        throws AccessDeniedException
+    public Iterator<VolumeDefinition> iterateVolumeDfn()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return volumeMap.values().iterator();
     }
 
-    public Stream<VolumeDefinition> streamVolumeDfn(AccessContext accCtx)
-        throws AccessDeniedException
+    public Stream<VolumeDefinition> streamVolumeDfn()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return volumeMap.values().stream();
     }
 
@@ -266,10 +244,8 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
      *
      * @param accCtx AccessContext for accessing resource definition, volume definition and layer information
      * @return Floor value minimum-io-size of all volume definitions, or <code>null</code> if no resources exist
-     * @throws AccessDeniedException If access to required information is denied
      */
-    public @Nullable Long getFloorVolumesMinIoSize(final AccessContext accCtx, boolean autoMinIoSizeRef)
-        throws AccessDeniedException
+    public @Nullable Long getFloorVolumesMinIoSize(boolean autoMinIoSizeRef)
     {
         @Nullable Long ret;
         if (resourceMap.isEmpty())
@@ -278,7 +254,7 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         }
         else
         {
-            if (LayerKindUtils.hasSpecialLayers(this, accCtx))
+            if (LayerKindUtils.hasSpecialLayers(this))
             {
                 ret = BlockSizeConsts.DFLT_SPECIAL_PHY_IO_SIZE;
             }
@@ -296,11 +272,11 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
                     floorMinIoSize = null;
                     dfltVlmDfnMinIoSize = null;
                 }
-                final Iterator<VolumeDefinition> vlmIter = iterateVolumeDfn(accCtx);
+                final Iterator<VolumeDefinition> vlmIter = iterateVolumeDfn();
                 while (vlmIter.hasNext())
                 {
                     final VolumeDefinition vlmDfn = vlmIter.next();
-                    final @Nullable Long vlmMinIoSize = vlmDfn.getMinIoSize(accCtx, dfltVlmDfnMinIoSize);
+                    final @Nullable Long vlmMinIoSize = vlmDfn.getMinIoSize(dfltVlmDfnMinIoSize);
                     if (vlmMinIoSize != null && (floorMinIoSize == null || vlmMinIoSize < floorMinIoSize))
                     {
                         floorMinIoSize = vlmMinIoSize;
@@ -325,54 +301,47 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         return resourceMap.size();
     }
 
-    public int getDiskfulCount(AccessContext accCtx) throws AccessDeniedException
+    public int getDiskfulCount()
     {
-        return getDiskfulResources(accCtx).size();
+        return getDiskfulResources().size();
     }
 
-    public List<Resource> getDiskfulResources(AccessContext accCtx) throws AccessDeniedException
+    public List<Resource> getDiskfulResources()
     {
         return getResourcesFilteredByFlags(
-            accCtx,
             rscFlags -> rscFlags.isUnset(
-                accCtx,
                 Resource.Flags.DRBD_DISKLESS,
                 Resource.Flags.NVME_INITIATOR
             )
         );
     }
 
-    public List<Resource> getDisklessResources(AccessContext accCtx) throws AccessDeniedException
+    public List<Resource> getDisklessResources()
     {
         return getResourcesFilteredByFlags(
-            accCtx,
             rscFlags -> rscFlags.isSomeSet(
-                accCtx,
                 Resource.Flags.DRBD_DISKLESS,
                 Resource.Flags.NVME_INITIATOR
             )
         );
     }
 
-    public int getNotDeletedDiskfulCountExcluding(AccessContext accCtxRef, Resource... rscsRef)
-        throws AccessDeniedException
+    public int getNotDeletedDiskfulCountExcluding(Resource... rscsRef)
     {
-        List<Resource> rscList = getNotDeletedDiskful(accCtxRef);
+        List<Resource> rscList = getNotDeletedDiskful();
         rscList.removeAll(Arrays.asList(rscsRef));
         return rscList.size();
     }
 
-    public int getNotDeletedDiskfulCount(AccessContext accCtx) throws AccessDeniedException
+    public int getNotDeletedDiskfulCount()
     {
-        return getNotDeletedDiskful(accCtx).size();
+        return getNotDeletedDiskful().size();
     }
 
-    public List<Resource> getNotDeletedDiskful(AccessContext accCtx) throws AccessDeniedException
+    public List<Resource> getNotDeletedDiskful()
     {
         return getResourcesFilteredByFlags(
-            accCtx,
             rscFlags -> rscFlags.isUnset(
-                accCtx,
                 Resource.Flags.DELETE,
                 Resource.Flags.DRBD_DELETE,
                 Resource.Flags.DRBD_DISKLESS,
@@ -382,14 +351,12 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
     }
 
     private List<Resource> getResourcesFilteredByFlags(
-        AccessContext accCtxRef,
-        ExceptionThrowingPredicate<StateFlags<Resource.Flags>, AccessDeniedException> flagFilter
+        ExceptionThrowingPredicate<StateFlags<Resource.Flags>> flagFilter
     )
-        throws AccessDeniedException
     {
         checkDeleted();
         var resources = new ArrayList<Resource>();
-        Iterator<Resource> rscIt = iterateResource(accCtxRef);
+        Iterator<Resource> rscIt = iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
@@ -402,101 +369,75 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         return resources;
     }
 
-    public Iterator<Resource> iterateResource(AccessContext accCtx)
-        throws AccessDeniedException
+    public Iterator<Resource> iterateResource()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return resourceMap.values().iterator();
     }
 
-    public Stream<Resource> streamResource(AccessContext accCtx)
-        throws AccessDeniedException
+    public Stream<Resource> streamResource()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return resourceMap.values().stream();
     }
 
-    public Map<NodeName, Resource> copyResourceMap(AccessContext accCtx) throws AccessDeniedException
+    public Map<NodeName, Resource> copyResourceMap()
     {
-        return copyResourceMap(accCtx, null);
+        return copyResourceMap(null);
     }
 
     public Map<NodeName, Resource> copyResourceMap(
-        AccessContext accCtx,
         @Nullable Map<NodeName, Resource> dstMap
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         Map<NodeName, Resource> targetMap = dstMap == null ? new TreeMap<>() : dstMap;
         targetMap.putAll(resourceMap);
         return targetMap;
     }
 
-    @Override
-    public ObjectProtection getObjProt()
+    public @Nullable Resource getResource(NodeName clNodeName)
     {
         checkDeleted();
-        return objProt;
-    }
-
-    public @Nullable Resource getResource(AccessContext accCtx, NodeName clNodeName)
-        throws AccessDeniedException
-    {
-        checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return resourceMap.get(clNodeName);
     }
 
-    public void addResource(AccessContext accCtx, Resource resRef) throws AccessDeniedException
+    public void addResource(Resource resRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
 
         resourceMap.put(resRef.getNode().getName(), resRef);
     }
 
-    void removeResource(AccessContext accCtx, Resource resRef) throws AccessDeniedException
+    void removeResource(Resource resRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
 
         resourceMap.remove(resRef.getNode().getName());
     }
 
-    public void addSnapshotDfn(AccessContext accCtx, SnapshotDefinition snapshotDfn)
-        throws AccessDeniedException
+    public void addSnapshotDfn(SnapshotDefinition snapshotDfn)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
 
         snapshotDfnMap.put(snapshotDfn.getName(), snapshotDfn);
     }
 
-    public @Nullable SnapshotDefinition getSnapshotDfn(AccessContext accCtx, SnapshotName snapshotName)
-        throws AccessDeniedException
+    public @Nullable SnapshotDefinition getSnapshotDfn(SnapshotName snapshotName)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return snapshotDfnMap.get(snapshotName);
     }
 
-    public Collection<SnapshotDefinition> getSnapshotDfns(AccessContext accCtx)
-        throws AccessDeniedException
+    public Collection<SnapshotDefinition> getSnapshotDfns()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return snapshotDfnMap.values();
     }
 
-    public void removeSnapshotDfn(AccessContext accCtx, SnapshotName snapshotName)
-        throws AccessDeniedException
+    public void removeSnapshotDfn(SnapshotName snapshotName)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
 
         snapshotDfnMap.remove(snapshotName);
     }
@@ -507,15 +448,14 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         return flags;
     }
 
-    public boolean hasDiskless(AccessContext accCtx) throws AccessDeniedException
+    public boolean hasDiskless()
     {
         checkDeleted();
         boolean hasDiskless = false;
-        for (Resource rsc : streamResource(accCtx).collect(Collectors.toList()))
+        for (Resource rsc : streamResource().collect(Collectors.toList()))
         {
             StateFlags<Resource.Flags> stateFlags = rsc.getStateFlags();
             hasDiskless = stateFlags.isSomeSet(
-                accCtx,
                 Resource.Flags.DRBD_DISKLESS,
                 Resource.Flags.NVME_INITIATOR,
                 Resource.Flags.EBS_INITIATOR
@@ -528,20 +468,19 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         return hasDiskless;
     }
 
-    public boolean hasDisklessNotDeleting(AccessContext accCtx) throws AccessDeniedException
+    public boolean hasDisklessNotDeleting()
     {
         checkDeleted();
         boolean hasDisklessNotDeleting = false;
-        for (Resource rsc : streamResource(accCtx).collect(Collectors.toList()))
+        for (Resource rsc : streamResource().collect(Collectors.toList()))
         {
             StateFlags<Resource.Flags> stateFlags = rsc.getStateFlags();
             boolean isDiskless = stateFlags.isSomeSet(
-                accCtx,
                 Resource.Flags.DRBD_DISKLESS,
                 Resource.Flags.NVME_INITIATOR,
                 Resource.Flags.EBS_INITIATOR
             );
-            boolean isNotDeleting = stateFlags.isUnset(accCtx, Resource.Flags.DELETE);
+            boolean isNotDeleting = stateFlags.isUnset(Resource.Flags.DELETE);
             if (isDiskless && isNotDeleting)
             {
                 hasDisklessNotDeleting = true;
@@ -551,17 +490,15 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         return hasDisklessNotDeleting;
     }
 
-    public void markDeleted(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void markDeleted() throws DatabaseException
     {
-        getFlags().enableFlags(accCtx, Flags.DELETE);
+        getFlags().enableFlags(Flags.DELETE);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends RscDfnLayerObject> T setLayerData(AccessContext accCtx, T rscDfnLayerData)
-        throws AccessDeniedException
+    public <T extends RscDfnLayerObject> T setLayerData(T rscDfnLayerData)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         return (T) layerStorage.put(
             new PairNonNull<>(
                 rscDfnLayerData.getLayerKind(),
@@ -576,14 +513,11 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
      */
     @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     public @Nullable <T extends RscDfnLayerObject> T getLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind,
         String rscNameSuffixRef
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         return (T) layerStorage.get(new PairNonNull<>(kind, rscNameSuffixRef));
     }
 
@@ -594,13 +528,10 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
      */
     @SuppressWarnings("unchecked")
     public <T extends RscDfnLayerObject> Map<String, T> getLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
 
         Map<String, T> ret = new TreeMap<>();
         for (Entry<PairNonNull<DeviceLayerKind, String>, RscDfnLayerObject> entry : layerStorage.entrySet())
@@ -615,53 +546,45 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
     }
 
     public void removeLayerData(
-        AccessContext accCtx,
         DeviceLayerKind kind,
         String rscNameSuffixRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.USE);
         layerStorage.remove(new PairNonNull<>(kind, rscNameSuffixRef)).delete();
         for (VolumeDefinition vlmDfn : volumeMap.values())
         {
-            vlmDfn.removeLayerData(accCtx, kind, rscNameSuffixRef);
+            vlmDfn.removeLayerData(kind, rscNameSuffixRef);
         }
     }
 
-    public void setLayerStack(AccessContext accCtx, List<DeviceLayerKind> list)
-        throws AccessDeniedException
+    public void setLayerStack(List<DeviceLayerKind> list)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         layerStack.clear();
         layerStack.addAll(list);
     }
 
-    public List<DeviceLayerKind> getLayerStack(AccessContext accCtx)
-        throws AccessDeniedException
+    public List<DeviceLayerKind> getLayerStack()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         return layerStack;
     }
 
-    public boolean usesLayer(AccessContext accCtxRef, DeviceLayerKind kindRef) throws AccessDeniedException
+    public boolean usesLayer(DeviceLayerKind kindRef)
     {
         checkDeleted();
-        objProt.requireAccess(accCtxRef, AccessType.VIEW);
-        return !getLayerData(accCtxRef, kindRef).isEmpty();
+        return !getLayerData(kindRef).isEmpty();
     }
 
-    public void setResourceGroup(AccessContext accCtx, ResourceGroup rscGrpRef)
-        throws AccessDeniedException, DatabaseException
+    public void setResourceGroup(ResourceGroup rscGrpRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
-        rscGrp.get().removeResourceDefinition(accCtx, this);
+        rscGrp.get().removeResourceDefinition(this);
         rscGrp.set(rscGrpRef);
-        rscGrp.get().addResourceDefinition(accCtx, this);
+        rscGrp.get().addResourceDefinition(this);
     }
 
     public ResourceGroup getResourceGroup()
@@ -671,12 +594,11 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
             if (!snapshotDfnMap.isEmpty())
             {
                 throw new ImplementationError("Cannot delete resource definition which contains snapshot definitions");
@@ -692,7 +614,7 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
             Collection<VolumeDefinition> volumeDefinitions = new ArrayList<>(volumeMap.values());
             for (VolumeDefinition volumeDefinition : volumeDefinitions)
             {
-                volumeDefinition.delete(accCtx);
+                volumeDefinition.delete();
             }
 
             rscDfnProps.delete();
@@ -702,9 +624,9 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
                 rscDfnLayerObject.delete();
             }
 
-            rscGrp.get().removeResourceDefinition(accCtx, this);
+            rscGrp.get().removeResourceDefinition(this);
 
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
             dbDriver.delete(this);
@@ -713,16 +635,15 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
         }
     }
 
-    public ResourceDefinitionApi getApiData(AccessContext accCtx)
-        throws AccessDeniedException
+    public ResourceDefinitionApi getApiData()
     {
         checkDeleted();
         ArrayList<VolumeDefinitionApi> vlmDfnList = new ArrayList<>();
-        Iterator<VolumeDefinition> vlmDfnIter = iterateVolumeDfn(accCtx);
+        Iterator<VolumeDefinition> vlmDfnIter = iterateVolumeDfn();
         while (vlmDfnIter.hasNext())
         {
             VolumeDefinition vd = vlmDfnIter.next();
-            vlmDfnList.add(vd.getApiData(accCtx));
+            vlmDfnList.add(vd.getApiData());
         }
 
         /*
@@ -747,18 +668,18 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
             layerData.add(
                 new Pair<>(
                     pair.objA.name(),
-                    rscDfnLayerObject == null ? null : rscDfnLayerObject.getApiData(accCtx)
+                    rscDfnLayerObject == null ? null : rscDfnLayerObject.getApiData()
                 )
             );
         }
 
         return new RscDfnPojo(
             getUuid(),
-            getResourceGroup().getApiData(accCtx),
+            getResourceGroup().getApiData(),
             getName().getDisplayName(),
             getExternalName(),
-            getFlags().getFlagsBits(accCtx),
-            getProps(accCtx).cloneMap(),
+            getFlags().getFlagsBits(),
+            getProps().cloneMap(),
             vlmDfnList,
             layerData
         );
@@ -772,17 +693,16 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition> implement
      *     AccessContext for checks
      * @return The first found mounted/primary resource, if none is mounted returns empty optional.
      */
-    public Optional<Resource> anyResourceInUse(AccessContext accCtx)
-        throws AccessDeniedException
+    public Optional<Resource> anyResourceInUse()
     {
         checkDeleted();
         Resource rscInUse = null;
-        Iterator<Resource> rscInUseIterator = iterateResource(accCtx);
+        Iterator<Resource> rscInUseIterator = iterateResource();
         while (rscInUseIterator.hasNext() && rscInUse == null)
         {
             Resource rsc = rscInUseIterator.next();
 
-            Peer nodePeer = rsc.getNode().getPeer(accCtx);
+            Peer nodePeer = rsc.getNode().getPeer();
             if (nodePeer != null)
             {
                 @Nullable Boolean inUse = null;

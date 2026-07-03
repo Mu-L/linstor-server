@@ -2,7 +2,6 @@ package com.linbit.linstor.api.protobuf.internal;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -21,7 +20,6 @@ import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlFullSyncRe
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlFullSyncResponseApiCallHandler.FullSyncSuccessContext;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.internal.StorPoolInternalCallHandler;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
@@ -45,8 +43,6 @@ import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.proto.common.StorPoolFreeSpaceOuterClass.StorPoolFreeSpace;
 import com.linbit.linstor.proto.javainternal.s2c.MsgIntFullSyncResponseOuterClass;
 import com.linbit.linstor.proto.javainternal.s2c.MsgIntFullSyncResponseOuterClass.MsgIntFullSyncResponse;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.ProcCryptoEntry;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
@@ -86,7 +82,6 @@ public class IntFullSyncResponse implements ApiCallReactive
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlSatelliteUpdateCaller stltUpdateCaller;
-    private final AccessContext apiCtx;
     private final StorPoolInternalCallHandler storPoolApiCallHandler;
     private final CtrlFullSyncResponseApiCallHandler ctrlFullSyncApiCallHandler;
     private final Provider<Peer> satelliteProvider;
@@ -101,7 +96,6 @@ public class IntFullSyncResponse implements ApiCallReactive
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlSatelliteUpdateCaller stltUpdateCallerRef,
-        @ApiContext AccessContext apiCtxRef,
         StorPoolInternalCallHandler storPoolApiCallHandlerRef,
         CtrlFullSyncResponseApiCallHandler ctrlFullSyncApiCallHandlerRef,
         Provider<Peer> satelliteProviderRef,
@@ -115,7 +109,6 @@ public class IntFullSyncResponse implements ApiCallReactive
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         stltUpdateCaller = stltUpdateCallerRef;
-        apiCtx = apiCtxRef;
         storPoolApiCallHandler = storPoolApiCallHandlerRef;
         ctrlFullSyncApiCallHandler = ctrlFullSyncApiCallHandlerRef;
         satelliteProvider = satelliteProviderRef;
@@ -247,171 +240,164 @@ public class IntFullSyncResponse implements ApiCallReactive
             final Node satellite = satellitePeer.getNode();
             final NodeName satelliteName = satellite.getName();
             errorReporter.logDebug("updateVolumeMinIoSize: Peer \"%s\"", satelliteName.displayValue);
-            try
+            final Iterator<Resource> localRscIter = satellite.iterateResources();
+            final Set<ResourceDefinition> rscDfnsToUpdate = new HashSet<>();
+            while (localRscIter.hasNext())
             {
-                final Iterator<Resource> localRscIter = satellite.iterateResources(apiCtx);
-                final Set<ResourceDefinition> rscDfnsToUpdate = new HashSet<>();
-                while (localRscIter.hasNext())
+                final Resource localRsc = localRscIter.next();
+                final ResourceDefinition rscDfn = localRsc.getResourceDefinition();
+                final ResourceName rscName = rscDfn.getName();
+
+                final Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn();
+                while (vlmDfnIter.hasNext())
                 {
-                    final Resource localRsc = localRscIter.next();
-                    final ResourceDefinition rscDfn = localRsc.getResourceDefinition();
-                    final ResourceName rscName = rscDfn.getName();
+                    final VolumeDefinition vlmDfn = vlmDfnIter.next();
+                    final Props vlmDfnProps = vlmDfn.getProps();
 
-                    final Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn(apiCtx);
-                    while (vlmDfnIter.hasNext())
+                    final boolean minIoSizeAuto = minIoSizeHelper.isAutoMinIoSize(vlmDfn);
+                    if (minIoSizeAuto)
                     {
-                        final VolumeDefinition vlmDfn = vlmDfnIter.next();
-                        final Props vlmDfnProps = vlmDfn.getProps(apiCtx);
+                        final VolumeNumber vlmNr = vlmDfn.getVolumeNumber();
 
-                        final boolean minIoSizeAuto = minIoSizeHelper.isAutoMinIoSize(vlmDfn, apiCtx);
-                        if (minIoSizeAuto)
+                        errorReporter.logDebug(
+                            "updateVolumeMinIoSize: Peer \"%s\", Resource \"%s\", Volume %d",
+                            satelliteName.displayValue,
+                            rscName.displayValue,
+                            vlmNr.value
+                        );
+
+                        long minIoSize = BlockSizeConsts.DFLT_PHY_IO_SIZE;
+
+                        final Iterator<Resource> rscIter = rscDfn.iterateResource();
+                        while (rscIter.hasNext())
                         {
-                            final VolumeNumber vlmNr = vlmDfn.getVolumeNumber();
+                            final Resource rsc = rscIter.next();
+                            final boolean hasSpecialLayers = isResourceWithSpecialLayers(rsc);
 
-                            errorReporter.logDebug(
-                                "updateVolumeMinIoSize: Peer \"%s\", Resource \"%s\", Volume %d",
-                                satelliteName.displayValue,
-                                rscName.displayValue,
-                                vlmNr.value
-                            );
-
-                            long minIoSize = BlockSizeConsts.DFLT_PHY_IO_SIZE;
-
-                            final Iterator<Resource> rscIter = rscDfn.iterateResource(apiCtx);
-                            while (rscIter.hasNext())
+                            final @Nullable Volume vlm = rsc.getVolume(vlmNr);
+                            if (vlm != null)
                             {
-                                final Resource rsc = rscIter.next();
-                                final boolean hasSpecialLayers = isResourceWithSpecialLayers(rsc);
-
-                                final @Nullable Volume vlm = rsc.getVolume(vlmNr);
-                                if (vlm != null)
+                                final @Nullable StorPool dataStorPool = getDataStorPoolOfVolume(vlm);
+                                if (dataStorPool != null)
                                 {
-                                    final @Nullable StorPool dataStorPool = getDataStorPoolOfVolume(vlm);
-                                    if (dataStorPool != null)
+                                    final long storPoolMinIoSize = getMinIoSizeForStorPool(dataStorPool);
+                                    final long vlmMinIoSize = Math.max(
+                                        hasSpecialLayers ?
+                                            BlockSizeConsts.DFLT_SPECIAL_PHY_IO_SIZE :
+                                            BlockSizeConsts.DFLT_PHY_IO_SIZE,
+                                        storPoolMinIoSize
+                                    );
+                                    if (vlmMinIoSize > minIoSize)
                                     {
-                                        final long storPoolMinIoSize = getMinIoSizeForStorPool(dataStorPool);
-                                        final long vlmMinIoSize = Math.max(
-                                            hasSpecialLayers ?
-                                                BlockSizeConsts.DFLT_SPECIAL_PHY_IO_SIZE :
-                                                BlockSizeConsts.DFLT_PHY_IO_SIZE,
-                                            storPoolMinIoSize
-                                        );
-                                        if (vlmMinIoSize > minIoSize)
-                                        {
-                                            minIoSize = vlmMinIoSize;
-                                        }
+                                        minIoSize = vlmMinIoSize;
                                     }
-                                }
-                            }
-                            minIoSize = MathUtils.bounds(
-                                BlockSizeConsts.MIN_PHY_IO_SIZE, minIoSize, BlockSizeConsts.MAX_PHY_IO_SIZE
-                            );
-                            errorReporter.logDebug(
-                                "updateVolumeMinIoSize: Peer \"%s\", Resource \"%s\", Volume %d: minIoSize = %d",
-                                satelliteName.displayValue,
-                                rscName.displayValue,
-                                vlmNr.value,
-                                minIoSize
-                            );
-
-                            boolean updateMinIoValue = true;
-                            final @Nullable String storedPropValue = vlmDfnProps.getProp(
-                                InternalApiConsts.KEY_DRBD_BLOCK_SIZE,
-                                ApiConsts.NAMESPC_DRBD_DISK_OPTIONS
-                            );
-                            if (storedPropValue != null)
-                            {
-                                try
-                                {
-                                    final long storedMinIoSize = Long.parseLong(storedPropValue);
-                                    if (storedMinIoSize == minIoSize)
-                                    {
-                                        updateMinIoValue = false;
-                                    }
-                                }
-                                catch (NumberFormatException ignored)
-                                {
-                                }
-                            }
-
-                            if (updateMinIoValue)
-                            {
-                                try
-                                {
-                                    final String propValue = Long.toString(minIoSize);
-                                    errorReporter.logDebug(
-                                        "updateVolumeMinIoSize: Set property " +
-                                        "namespace = \"%s\", key = \"%s\", value = \"%s\"",
-                                        ApiConsts.NAMESPC_DRBD_DISK_OPTIONS,
-                                        InternalApiConsts.KEY_DRBD_BLOCK_SIZE,
-                                        propValue
-                                    );
-                                    vlmDfnProps.setProp(
-                                        InternalApiConsts.KEY_DRBD_BLOCK_SIZE,
-                                        propValue,
-                                        ApiConsts.NAMESPC_DRBD_DISK_OPTIONS
-                                    );
-
-                                    Iterator<Resource> updRscIter = rscDfn.iterateResource(apiCtx);
-                                    while (updRscIter.hasNext())
-                                    {
-                                        final Resource rsc = updRscIter.next();
-                                        final Props rscProps = rsc.getProps(apiCtx);
-                                        rscProps.setProp(
-                                            InternalApiConsts.MIN_IO_SIZE_RESTART_DRBD,
-                                            "true"
-                                        );
-                                    }
-                                    rscDfnsToUpdate.add(rscDfn);
-                                }
-                                catch (InvalidKeyException ignored)
-                                {
-                                    errorReporter.logDebug(
-                                        "updateVolumeMinIoSize: Invalid property key %s/%s",
-                                        ApiConsts.NAMESPC_DRBD_DISK_OPTIONS,
-                                        InternalApiConsts.KEY_DRBD_BLOCK_SIZE
-                                    );
-                                }
-                                catch (InvalidValueException ignored)
-                                {
-                                    errorReporter.logDebug(
-                                        "updateVolumeMinIoSize: Invalid property value %s",
-                                        Long.toString(minIoSize)
-                                    );
-                                }
-                                catch (DatabaseException dbExc)
-                                {
-                                    final String errMsg = dbExc.getMessage();
-                                    errorReporter.logDebug(
-                                        "updateVolumeMinIoSize: Database error: %s",
-                                        errMsg == null ? "Database driver did not provide an error message" : errMsg
-                                    );
                                 }
                             }
                         }
+                        minIoSize = MathUtils.bounds(
+                            BlockSizeConsts.MIN_PHY_IO_SIZE, minIoSize, BlockSizeConsts.MAX_PHY_IO_SIZE
+                        );
+                        errorReporter.logDebug(
+                            "updateVolumeMinIoSize: Peer \"%s\", Resource \"%s\", Volume %d: minIoSize = %d",
+                            satelliteName.displayValue,
+                            rscName.displayValue,
+                            vlmNr.value,
+                            minIoSize
+                        );
 
+                        boolean updateMinIoValue = true;
+                        final @Nullable String storedPropValue = vlmDfnProps.getProp(
+                            InternalApiConsts.KEY_DRBD_BLOCK_SIZE,
+                            ApiConsts.NAMESPC_DRBD_DISK_OPTIONS
+                        );
+                        if (storedPropValue != null)
+                        {
+                            try
+                            {
+                                final long storedMinIoSize = Long.parseLong(storedPropValue);
+                                if (storedMinIoSize == minIoSize)
+                                {
+                                    updateMinIoValue = false;
+                                }
+                            }
+                            catch (NumberFormatException ignored)
+                            {
+                            }
+                        }
+
+                        if (updateMinIoValue)
+                        {
+                            try
+                            {
+                                final String propValue = Long.toString(minIoSize);
+                                errorReporter.logDebug(
+                                    "updateVolumeMinIoSize: Set property " +
+                                    "namespace = \"%s\", key = \"%s\", value = \"%s\"",
+                                    ApiConsts.NAMESPC_DRBD_DISK_OPTIONS,
+                                    InternalApiConsts.KEY_DRBD_BLOCK_SIZE,
+                                    propValue
+                                );
+                                vlmDfnProps.setProp(
+                                    InternalApiConsts.KEY_DRBD_BLOCK_SIZE,
+                                    propValue,
+                                    ApiConsts.NAMESPC_DRBD_DISK_OPTIONS
+                                );
+
+                                Iterator<Resource> updRscIter = rscDfn.iterateResource();
+                                while (updRscIter.hasNext())
+                                {
+                                    final Resource rsc = updRscIter.next();
+                                    final Props rscProps = rsc.getProps();
+                                    rscProps.setProp(
+                                        InternalApiConsts.MIN_IO_SIZE_RESTART_DRBD,
+                                        "true"
+                                    );
+                                }
+                                rscDfnsToUpdate.add(rscDfn);
+                            }
+                            catch (InvalidKeyException ignored)
+                            {
+                                errorReporter.logDebug(
+                                    "updateVolumeMinIoSize: Invalid property key %s/%s",
+                                    ApiConsts.NAMESPC_DRBD_DISK_OPTIONS,
+                                    InternalApiConsts.KEY_DRBD_BLOCK_SIZE
+                                );
+                            }
+                            catch (InvalidValueException ignored)
+                            {
+                                errorReporter.logDebug(
+                                    "updateVolumeMinIoSize: Invalid property value %s",
+                                    Long.toString(minIoSize)
+                                );
+                            }
+                            catch (DatabaseException dbExc)
+                            {
+                                final String errMsg = dbExc.getMessage();
+                                errorReporter.logDebug(
+                                    "updateVolumeMinIoSize: Database error: %s",
+                                    errMsg == null ? "Database driver did not provide an error message" : errMsg
+                                );
+                            }
+                        }
                     }
-                }
-                ctrlTransactionHelper.commit();
 
-                for (ResourceDefinition rscDfnToUpdate : rscDfnsToUpdate)
-                {
-                    flux = flux.concatWith(
-                        stltUpdateCaller.updateSatellites(rscDfnToUpdate, Flux.empty())
-                            .transform(
-                                updateResponses -> CtrlResponseUtils.combineResponses(
-                                    errorReporter,
-                                    updateResponses,
-                                    rscDfnToUpdate.getName(),
-                                    "Updated 'block-size' for DRBD on Resource definition {1} on {0}"
-                            )
-                        )
-                    );
                 }
             }
-            catch (AccessDeniedException accExc)
+            ctrlTransactionHelper.commit();
+
+            for (ResourceDefinition rscDfnToUpdate : rscDfnsToUpdate)
             {
-                throw new ImplementationError("In updateVolumeMinIoSize: API access context not privileged", accExc);
+                flux = flux.concatWith(
+                    stltUpdateCaller.updateSatellites(rscDfnToUpdate, Flux.empty())
+                        .transform(
+                            updateResponses -> CtrlResponseUtils.combineResponses(
+                                errorReporter,
+                                updateResponses,
+                                rscDfnToUpdate.getName(),
+                                "Updated 'block-size' for DRBD on Resource definition {1} on {0}"
+                        )
+                    )
+                );
             }
         }
         else
@@ -435,39 +421,27 @@ public class IntFullSyncResponse implements ApiCallReactive
     {
         ApiCallRcImpl apiCallRcImpl = new ApiCallRcImpl();
         List<Flux<ApiCallRc>> autoFluxes = new ArrayList<>();
-        try
+        for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
         {
-            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(apiCtx).values())
-            {
-                autoFluxes.add(autoHelper.manage(
-                    new CtrlRscAutoHelper.AutoHelperContext(apiCallRcImpl, context, rscDfn)).getFlux());
-            }
+            autoFluxes.add(autoHelper.manage(
+                new CtrlRscAutoHelper.AutoHelperContext(apiCallRcImpl, context, rscDfn)).getFlux());
+        }
 
-            ctrlTransactionHelper.commit();
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Running auto-quorum and -tiebreaker on new node",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        ctrlTransactionHelper.commit();
         return Flux.<ApiCallRc>just(apiCallRcImpl)
             .concatWith(Flux.merge(autoFluxes));
     }
 
     private boolean isResourceWithSpecialLayers(final Resource rsc)
-        throws AccessDeniedException
     {
-        List<DeviceLayerKind> layerStack = LayerRscUtils.getLayerStack(rsc, apiCtx);
+        List<DeviceLayerKind> layerStack = LayerRscUtils.getLayerStack(rsc);
         return LayerKindUtils.hasSpecialLayers(layerStack);
     }
 
-    private long getMinIoSizeForStorPool(final StorPool storPoolObj) throws AccessDeniedException
+    private long getMinIoSizeForStorPool(final StorPool storPoolObj)
     {
         long minIoSize = BlockSizeConsts.DFLT_PHY_IO_SIZE;
-        final Props props = storPoolObj.getProps(apiCtx);
+        final Props props = storPoolObj.getProps();
         final String minIoSizeStr = props.getProp(
             StorageConstants.BLK_DEV_MIN_IO_SIZE,
             StorageConstants.NAMESPACE_INTERNAL
@@ -487,7 +461,7 @@ public class IntFullSyncResponse implements ApiCallReactive
 
     private @Nullable StorPool getDataStorPoolOfVolume(final Volume vlm)
     {
-        return LayerVlmUtils.getStorPoolMap(vlm, apiCtx)
+        return LayerVlmUtils.getStorPoolMap(vlm)
             .get(RscLayerSuffixes.SUFFIX_DATA);
     }
 }

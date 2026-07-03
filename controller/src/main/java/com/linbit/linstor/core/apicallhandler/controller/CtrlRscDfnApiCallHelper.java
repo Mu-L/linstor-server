@@ -3,11 +3,9 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.prop.Property;
 import com.linbit.linstor.api.prop.RangeProperty;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.Resource;
@@ -19,8 +17,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -51,16 +47,13 @@ public class CtrlRscDfnApiCallHelper
     private static final int DRBD_DISC_GRAN_MIN = 4 * 1024; // min 4k
     private static final int DRBD_DISC_GRAN_MAX = 1 * 1024 * 1024; // max 1M
 
-    private final Provider<AccessContext> peerAccCtx;
     private final SystemConfRepository sysConfRepo;
 
     @Inject
     public CtrlRscDfnApiCallHelper(
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         SystemConfRepository sysConfRepoRef
     )
     {
-        peerAccCtx = peerAccCtxRef;
         sysConfRepo = sysConfRepoRef;
     }
 
@@ -83,7 +76,7 @@ public class CtrlRscDfnApiCallHelper
         boolean ret = false;
         try
         {
-            final Iterator<VolumeDefinition> vlmDfnIt = rscDfnRef.iterateVolumeDfn(peerCtx);
+            final Iterator<VolumeDefinition> vlmDfnIt = rscDfnRef.iterateVolumeDfn();
             while (vlmDfnIt.hasNext())
             {
                 final VolumeDefinition vlmDfn = vlmDfnIt.next();
@@ -91,17 +84,16 @@ public class CtrlRscDfnApiCallHelper
                 if (isAutoManagingEnabled(
                     vlmDfn,
                     ApiConsts.KEY_DRBD_AUTO_RS_DISCARD_GRANULARITY,
-                    ApiConsts.NAMESPC_DRBD_OPTIONS,
-                    peerCtx
+                    ApiConsts.NAMESPC_DRBD_OPTIONS
                 ))
                 {
-                    ret |= updateRsDiscardGranProp(rscDfnRef, peerCtx, vlmDfn);
+                    ret |= updateRsDiscardGranProp(rscDfnRef, vlmDfn);
                 }
                 else
                 {
                     // unset rs-discard-granularity unless explicitly set
                     // we consider the prop to be explicitly set if the auto-* is disabled on vlmDfn level
-                    Props vlmDfnProps = vlmDfn.getProps(peerCtx);
+                    Props vlmDfnProps = vlmDfn.getProps();
                     @Nullable String autoProp = vlmDfnProps
                         .getProp(
                             ApiConsts.KEY_DRBD_AUTO_RS_DISCARD_GRANULARITY,
@@ -120,15 +112,14 @@ public class CtrlRscDfnApiCallHelper
                 if (isAutoManagingEnabled(
                     vlmDfn,
                     ApiConsts.KEY_DRBD_AUTO_DISCARD_GRANULARITY,
-                    ApiConsts.NAMESPC_LINSTOR_DRBD,
-                    peerCtx
+                    ApiConsts.NAMESPC_LINSTOR_DRBD
                 ))
                 {
-                    ret |= updateDiscardGranProp(vlmDfn, peerCtx);
+                    ret |= updateDiscardGranProp(vlmDfn);
                 }
                 else
                 {
-                    Props vlmDfnProps = vlmDfn.getProps(peerCtx);
+                    Props vlmDfnProps = vlmDfn.getProps();
                     @Nullable String autoProp = vlmDfnProps
                         .getProp(
                             ApiConsts.KEY_DRBD_AUTO_DISCARD_GRANULARITY,
@@ -147,10 +138,6 @@ public class CtrlRscDfnApiCallHelper
             }
 
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "Calculating DRBD properties", ApiConsts.FAIL_ACC_DENIED_VLM_DFN);
-        }
         catch (DatabaseException exc)
         {
             throw new ApiDatabaseException(exc);
@@ -164,24 +151,23 @@ public class CtrlRscDfnApiCallHelper
 
     private boolean updateRsDiscardGranProp(
         ResourceDefinition rscDfnRef,
-        final AccessContext peerCtx,
         final VolumeDefinition vlmDfnRef
     )
-        throws AccessDeniedException, InvalidValueException, DatabaseException
+        throws InvalidValueException, DatabaseException
     {
         boolean propChanged = false;
         final VolumeNumber vlmNr = vlmDfnRef.getVolumeNumber();
-        final Props vlmDfnProps = vlmDfnRef.getProps(peerCtx);
+        final Props vlmDfnProps = vlmDfnRef.getProps();
 
         final TreeSet<Long> discGrans = new TreeSet<>();
         List<Resource> rscs = new ArrayList<>();
-        final Iterator<Resource> rscIt = rscDfnRef.iterateResource(peerCtx);
+        final Iterator<Resource> rscIt = rscDfnRef.iterateResource();
         while (rscIt.hasNext())
         {
             final Resource rsc = rscIt.next();
             rscs.add(rsc);
             final Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-                rsc.getLayerData(peerCtx),
+                rsc.getLayerData(),
                 DeviceLayerKind.DRBD
             );
             // technically we only support zero or one DrbdRscData, but for this calculation we do not care
@@ -198,7 +184,7 @@ public class CtrlRscDfnApiCallHelper
             }
         }
 
-        Long chooseDrbdDiscGran = chooseDrbdDiscGran(peerCtx, discGrans, rscs);
+        Long chooseDrbdDiscGran = chooseDrbdDiscGran(discGrans, rscs);
 
         if (chooseDrbdDiscGran != null)
         {
@@ -220,32 +206,28 @@ public class CtrlRscDfnApiCallHelper
     private boolean isAutoManagingEnabled(
         VolumeDefinition vlmDfnRef,
         String keyRef,
-        String namespcRef,
-        AccessContext peerCtxRef
+        String namespcRef
     )
-        throws AccessDeniedException
     {
         ResourceDefinition rscDfn = vlmDfnRef.getResourceDefinition();
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         PriorityProps prioProps = new PriorityProps(
-            vlmDfnRef.getProps(peerCtxRef),
-            rscDfn.getProps(peerCtxRef),
-            rscGrp.getVolumeGroupProps(peerCtxRef, vlmDfnRef.getVolumeNumber()),
-            rscGrp.getProps(peerCtxRef),
-            sysConfRepo.getCtrlConfForView(peerCtxRef)
+            vlmDfnRef.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfnRef.getVolumeNumber()),
+            rscGrp.getProps(),
+            sysConfRepo.getCtrlConfForView()
         );
         final @Nullable String setBy = prioProps.getProp(keyRef, namespcRef);
         return setBy == null || setBy.equalsIgnoreCase(ApiConsts.VAL_TRUE);
     }
 
     private @Nullable Long chooseDrbdDiscGran(
-        AccessContext accCtxRef,
         TreeSet<Long> discGransRef,
         List<Resource> rscsRef
     )
-        throws AccessDeniedException
     {
-        long discGranMax = getMaxDiscGran(accCtxRef, rscsRef);
+        long discGranMax = getMaxDiscGran(rscsRef);
         discGransRef.remove(VlmProviderObject.UNINITIALIZED_SIZE);
 
         Long selected;
@@ -267,12 +249,12 @@ public class CtrlRscDfnApiCallHelper
         return selected;
     }
 
-    private long getMaxDiscGran(AccessContext accCtxRef, List<Resource> rscsRef) throws AccessDeniedException
+    private long getMaxDiscGran(List<Resource> rscsRef)
     {
         TreeSet<Long> maxDiscGrans = new TreeSet<>();
         for (Resource rsc : rscsRef)
         {
-            Property dynProp = rsc.getNode().getPeer(accCtxRef).getDynamicProperty(FULL_KEY_RS_DISC_GRAN);
+            Property dynProp = rsc.getNode().getPeer().getDynamicProperty(FULL_KEY_RS_DISC_GRAN);
             if (dynProp instanceof RangeProperty rangeProp)
             {
                 maxDiscGrans.add(rangeProp.getMax());
@@ -291,22 +273,21 @@ public class CtrlRscDfnApiCallHelper
     }
 
     private boolean updateDiscardGranProp(
-        final VolumeDefinition vlmDfnRef,
-        final AccessContext peerCtx
+        final VolumeDefinition vlmDfnRef
     )
-        throws AccessDeniedException, InvalidValueException, DatabaseException
+        throws InvalidValueException, DatabaseException
     {
         boolean propChanged = false;
         final VolumeNumber vlmNr = vlmDfnRef.getVolumeNumber();
-        final Props vlmDfnProps = vlmDfnRef.getProps(peerCtx);
+        final Props vlmDfnProps = vlmDfnRef.getProps();
 
         final TreeSet<Long> discGrans = new TreeSet<>();
-        final Iterator<Resource> rscIt = vlmDfnRef.getResourceDefinition().iterateResource(peerCtx);
+        final Iterator<Resource> rscIt = vlmDfnRef.getResourceDefinition().iterateResource();
         while (rscIt.hasNext())
         {
             final Resource rsc = rscIt.next();
             final Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-                rsc.getLayerData(peerCtx),
+                rsc.getLayerData(),
                 DeviceLayerKind.DRBD
             );
             for (AbsRscLayerObject<Resource> drbdRscData : drbdRscDataSet)

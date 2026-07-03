@@ -3,8 +3,6 @@ package com.linbit.linstor.tasks;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.ApiModule;
@@ -36,8 +34,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerNotConnectedException;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.utils.LayerUtils;
@@ -74,7 +70,6 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
 
     private static final HashSet<String> DO_NOT_CLEANUP_TYPES = new HashSet<>();
 
-    private final AccessContext sysCtx;
     private final ErrorReporter errorReporter;
     private final CtrlRscToggleDiskApiCallHandler toggleDisklHandler;
     private final Autoplacer autoplacer;
@@ -103,7 +98,6 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
 
     @Inject
     public AutoDiskfulTask(
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef,
         CtrlRscToggleDiskApiCallHandler toggleDisklHandlerRef,
         SystemConfRepository systemConfRepositoryRef,
@@ -119,7 +113,6 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
         CtrlRscDeleteApiCallHandler rscDeleteApiCallHandlerRef
     )
     {
-        sysCtx = sysCtxRef;
         errorReporter = errorReporterRef;
         toggleDisklHandler = toggleDisklHandlerRef;
         systemConfRepository = systemConfRepositoryRef;
@@ -148,13 +141,13 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
     {
         try
         {
-            if (LayerUtils.hasLayer(rsc.getLayerData(sysCtx), DeviceLayerKind.DRBD))
+            if (LayerUtils.hasLayer(rsc.getLayerData(), DeviceLayerKind.DRBD))
             {
-                if (rsc.getStateFlags().isSet(sysCtx, Resource.Flags.DRBD_DISKLESS))
+                if (rsc.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS))
                 {
                     @Nullable String autoDiskful = getPrioProps(rsc)
                         .getProp(ApiConsts.KEY_DRBD_AUTO_DISKFUL, ApiConsts.NAMESPC_DRBD_OPTIONS);
-                    @Nullable SatelliteResourceState rscStates = rsc.getNode().getPeer(sysCtx)
+                    @Nullable SatelliteResourceState rscStates = rsc.getNode().getPeer()
                             .getSatelliteState().getResourceStates().get(rsc.getResourceDefinition().getName());
                     @Nullable Boolean isPrimary = rscStates != null ? rscStates.isInUse() : null;
 
@@ -235,16 +228,16 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
         }
     }
 
-    private PriorityProps getPrioProps(Resource rsc) throws AccessDeniedException
+    private PriorityProps getPrioProps(Resource rsc)
     {
         return new PriorityProps(
-            rsc.getProps(sysCtx),
-            rsc.getNode().getProps(sysCtx),
-            rsc.getResourceDefinition().getProps(sysCtx),
-            rsc.getResourceDefinition().getResourceGroup().getProps(sysCtx),
+            rsc.getProps(),
+            rsc.getNode().getProps(),
+            rsc.getResourceDefinition().getProps(),
+            rsc.getResourceDefinition().getResourceGroup().getProps(),
             // TODO: we should really either unify these props or start working on the generated version...
-            systemConfRepository.getStltConfForView(sysCtx),
-            systemConfRepository.getCtrlConfForView(sysCtx)
+            systemConfRepository.getStltConfForView(),
+            systemConfRepository.getCtrlConfForView()
         );
     }
 
@@ -252,7 +245,7 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
     {
         try
         {
-            node.streamResources(sysCtx)
+            node.streamResources()
                 .forEach(this::update);
         }
         catch (AccessDeniedException exc)
@@ -265,7 +258,7 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
     {
         try
         {
-            rscDfn.streamResource(sysCtx)
+            rscDfn.streamResource()
                 .forEach(this::update);
         }
         catch (AccessDeniedException exc)
@@ -278,7 +271,7 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
     {
         try
         {
-            rscGrp.getRscDfns(sysCtx).stream().flatMap(this::streamRscsPrivileged)
+            rscGrp.getRscDfns().stream().flatMap(this::streamRscsPrivileged)
                 .forEach(this::update);
         }
         catch (AccessDeniedException exc)
@@ -294,7 +287,7 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
     {
         try
         {
-            rscDfnRepo.getMapForView(sysCtx).values().stream().flatMap(this::streamRscsPrivileged)
+            rscDfnRepo.getMapForView().values().stream().flatMap(this::streamRscsPrivileged)
                 .forEach(this::update);
         }
         catch (AccessDeniedException exc)
@@ -305,14 +298,7 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
 
     private Stream<? extends Resource> streamRscsPrivileged(ResourceDefinition rscDfn)
     {
-        try
-        {
-            return rscDfn.streamResource(sysCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return rscDfn.streamResource();
     }
 
     @Override
@@ -349,9 +335,9 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
                 Resource rsc = cfg.rsc;
                 StateFlags<Resource.Flags> rscFlags = rsc.getStateFlags();
                 if (
-                    rscFlags.isSet(sysCtx, Resource.Flags.DRBD_DISKLESS) &&
-                        !rscFlags.isSet(sysCtx, Resource.Flags.DISK_ADD_REQUESTED) &&
-                        !rscFlags.isSet(sysCtx, Resource.Flags.DISK_ADDING)
+                    rscFlags.isSet(Resource.Flags.DRBD_DISKLESS) &&
+                        !rscFlags.isSet(Resource.Flags.DISK_ADD_REQUESTED) &&
+                        !rscFlags.isSet(Resource.Flags.DISK_ADDING)
                 )
                 {
                     @Nullable Set<StorPool> autoPlace;
@@ -360,7 +346,7 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
                         ResourceDefinition rscDfn = rsc.getResourceDefinition();
                         long sizeInKib = getSize(rscDfn);
 
-                        linstorScope.seed(Key.get(AccessContext.class, PeerContext.class), sysCtx);
+                        linstorScope.seed(Key.get(AccessContext.class, PeerContext.class));
 
                         autoPlace = autoplacer.autoPlace(
                             AutoSelectFilterPojo.merge(
@@ -368,7 +354,7 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
                                     .setPlaceCount(1)
                                     .setNodeNameList(Collections.singletonList(rsc.getNode().getName().displayValue))
                                     .setSkipAlreadyPlacedOnNodeNamesCheck(
-                                        rscDfn.streamResource(sysCtx)
+                                        rscDfn.streamResource()
                                             .map(tmpRsc -> tmpRsc.getNode().getName().displayValue)
                                             .collect(Collectors.toList())
                                     )
@@ -408,9 +394,8 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
                                     ApiModule.API_CALL_NAME,
                                     "Auto diskful task for " + CtrlRscApiCallHandler.getRscDescription(rsc),
                                     AccessContext.class,
-                                    sysCtx,
                                     Peer.class,
-                                    rsc.getNode().getPeer(sysCtx)
+                                    rsc.getNode().getPeer()
                                 )
                             )
                             .subscribe();
@@ -451,7 +436,7 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
     }
 
     private Flux<ApiCallRc> removeExcessFluxInTransaction(Resource rsc)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         Flux<ApiCallRc> retFlux;
         @Nullable Resource excessRsc = getExcessRsc(rsc);
@@ -477,9 +462,8 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
                     ApiModule.API_CALL_NAME,
                     "Deleting excess " + CtrlRscApiCallHandler.getRscDescription(excessRsc),
                     AccessContext.class,
-                    sysCtx,
                     Peer.class,
-                    excessRsc.getNode().getPeer(sysCtx)
+                    excessRsc.getNode().getPeer()
                 )
             );
         }
@@ -506,22 +490,22 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
      * </ul>
      *
      */
-    private @Nullable Resource getExcessRsc(Resource rscRef) throws InvalidKeyException, AccessDeniedException
+    private @Nullable Resource getExcessRsc(Resource rscRef) throws InvalidKeyException
     {
         Set<Resource> fixedResources = new HashSet<>();
         fixedResources.add(rscRef);
 
         ResourceDefinition rscDfn = rscRef.getResourceDefinition();
-        int replicaCount = rscDfn.getResourceGroup().getAutoPlaceConfig().getReplicaCount(sysCtx);
-        if (replicaCount < rscDfn.getNotDeletedDiskfulCount(sysCtx))
+        int replicaCount = rscDfn.getResourceGroup().getAutoPlaceConfig().getReplicaCount();
+        if (replicaCount < rscDfn.getNotDeletedDiskfulCount())
         {
-            Iterator<Resource> rscIt = rscDfn.iterateResource(sysCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
                 if (!rsc.equals(rscRef))
                 {
-                    @Nullable String createdBy = rsc.getProps(sysCtx).getProp(ApiConsts.KEY_RSC_DISKFUL_BY);
+                    @Nullable String createdBy = rsc.getProps().getProp(ApiConsts.KEY_RSC_DISKFUL_BY);
                     boolean explicitlyAllowed = "true".equalsIgnoreCase(
                         getPrioProps(rsc).getProp(
                             ApiConsts.KEY_DRBD_AUTO_DISKFUL_ALLOW_CLEANUP,
@@ -539,14 +523,14 @@ public class AutoDiskfulTask implements TaskScheduleService.Task
         return autoUnplacer.unplace(rscDfn, fixedResources);
     }
 
-    private long getSize(ResourceDefinition rscDfnRef) throws AccessDeniedException
+    private long getSize(ResourceDefinition rscDfnRef)
     {
         long sum = 0;
-        Iterator<VolumeDefinition> vlmDfnIt = rscDfnRef.iterateVolumeDfn(sysCtx);
+        Iterator<VolumeDefinition> vlmDfnIt = rscDfnRef.iterateVolumeDfn();
         while (vlmDfnIt.hasNext())
         {
             VolumeDefinition vlmDfn = vlmDfnIt.next();
-            sum += vlmDfn.getVolumeSize(sysCtx);
+            sum += vlmDfn.getVolumeSize();
         }
         return sum;
     }

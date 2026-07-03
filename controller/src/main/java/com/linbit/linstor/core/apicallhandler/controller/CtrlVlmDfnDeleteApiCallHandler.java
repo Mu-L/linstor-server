@@ -2,9 +2,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -13,7 +11,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller.NotConnectedHandler;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ZfsChecks;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -34,8 +31,6 @@ import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -66,42 +61,36 @@ import reactor.core.publisher.Flux;
 public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionListener
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final LockGuardFactory lockguardFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final BackupInfoManager backupInfoMgr;
     private final CtrlResyncAfterHelper ctrlResyncAfterHelper;
     private final ZfsChecks zfsChecks;
 
     @Inject
     public CtrlVlmDfnDeleteApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         LockGuardFactory lockguardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         BackupInfoManager backupInfoMgrRef,
         CtrlResyncAfterHelper ctrlResyncAfterHelperRef,
         ErrorReporter errorReporterRef,
         ZfsChecks zfsChecksRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         lockguardFactory = lockguardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         backupInfoMgr = backupInfoMgrRef;
         ctrlResyncAfterHelper = ctrlResyncAfterHelperRef;
         errorReporter = errorReporterRef;
@@ -110,17 +99,16 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
 
     @Override
     public Collection<Flux<ApiCallRc>> resourceDefinitionConnected(ResourceDefinition rscDfn, ResponseContext context)
-        throws AccessDeniedException
     {
         List<Flux<ApiCallRc>> fluxes = new ArrayList<>();
 
-        Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn(apiCtx);
+        Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn();
         while (vlmDfnIter.hasNext())
         {
             VolumeDefinition vlmDfn = vlmDfnIter.next();
             if (
-                !rscDfn.getFlags().isSet(apiCtx, ResourceDefinition.Flags.DELETE) &&
-                vlmDfn.getFlags().isSet(apiCtx, VolumeDefinition.Flags.DELETE))
+                !rscDfn.getFlags().isSet(ResourceDefinition.Flags.DELETE) &&
+                vlmDfn.getFlags().isSet(VolumeDefinition.Flags.DELETE))
             {
                 fluxes.add(updateSatellites(rscDfn.getName(), vlmDfn.getVolumeNumber()));
             }
@@ -205,7 +193,6 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
 
             handleZfsRenameIfNeeded.addAll(
                 CtrlRscDeleteApiCallHandler.handleZfsRenameIfNeeded(
-                    apiCtx,
                     vlm.getAbsResource()
                 )
             );
@@ -330,72 +317,47 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     private Optional<Resource> anyResourceInUsePrivileged(ResourceDefinition rscDfn)
     {
         Optional<Resource> rscInUse;
-        try
-        {
-            rscInUse = rscDfn.anyResourceInUse(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        rscInUse = rscDfn.anyResourceInUse();
         return rscInUse;
     }
 
     @SuppressWarnings("UnusedMethod") // https://gitlab.at.linbit.com/linstor/linstor-server/-/issues/1317
     private void failIfDependentSnapshot(VolumeDefinition vlmDfn)
     {
-        try
+        ResourceDefinition rscDfn = vlmDfn.getResourceDefinition();
+        for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
         {
-            ResourceDefinition rscDfn = vlmDfn.getResourceDefinition();
-            for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns(peerAccCtx.get()))
+            for (Snapshot snapshot : snapshotDfn.getAllSnapshots())
             {
-                for (Snapshot snapshot : snapshotDfn.getAllSnapshots(peerAccCtx.get()))
+                @Nullable SnapshotVolume snapshotVlm = snapshot.getVolume(vlmDfn.getVolumeNumber());
+                if (snapshotVlm != null)
                 {
-                    @Nullable SnapshotVolume snapshotVlm = snapshot.getVolume(vlmDfn.getVolumeNumber());
-                    if (snapshotVlm != null)
+                    Map<String, StorPool> storPoolMap = LayerVlmUtils.getStorPoolMap(snapshotVlm);
+                    for (StorPool storPool : storPoolMap.values())
                     {
-                        Map<String, StorPool> storPoolMap = LayerVlmUtils.getStorPoolMap(snapshotVlm, peerAccCtx.get());
-                        for (StorPool storPool : storPoolMap.values())
+                        if (storPool.getDeviceProviderKind().isSnapshotDependent())
                         {
-                            if (storPool.getDeviceProviderKind().isSnapshotDependent())
-                            {
-                                throw new ApiRcException(
-                                    ApiCallRcImpl.simpleEntry(
-                                        ApiConsts.FAIL_EXISTS_SNAPSHOT,
-                                        "Volume definition " + vlmDfn.getVolumeNumber() + " of '" + rscDfn.getName() +
-                                            "' cannot be deleted because dependent snapshot '" +
-                                            snapshot.getSnapshotName() +
-                                            "' is present on node '" + snapshot.getNodeName() + "'"
-                                    )
-                                        .setSkipErrorReport(true)
-                                );
-                            }
+                            throw new ApiRcException(
+                                ApiCallRcImpl.simpleEntry(
+                                    ApiConsts.FAIL_EXISTS_SNAPSHOT,
+                                    "Volume definition " + vlmDfn.getVolumeNumber() + " of '" + rscDfn.getName() +
+                                        "' cannot be deleted because dependent snapshot '" +
+                                        snapshot.getSnapshotName() +
+                                        "' is present on node '" + snapshot.getNodeName() + "'"
+                                )
+                                    .setSkipErrorReport(true)
+                            );
                         }
                     }
                 }
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check for dependent snapshots of " + getVlmDfnDescriptionInline(vlmDfn),
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT_DFN
-            );
         }
     }
 
     private Iterator<Volume> getVolumeIteratorPrivileged(VolumeDefinition vlmDfn)
     {
         Iterator<Volume> iterator;
-        try
-        {
-            iterator = vlmDfn.iterateVolumes(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        iterator = vlmDfn.iterateVolumes();
         return iterator;
     }
 
@@ -403,15 +365,7 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlmDfn.markDeleted(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getVlmDfnDescriptionInline(vlmDfn) + " as deleted",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
+            vlmDfn.markDeleted();
         }
         catch (DatabaseException sqlExc)
         {
@@ -423,15 +377,7 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlm.markDeleted(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getVlmDescriptionInline(vlm) + " as deleted",
-                ApiConsts.FAIL_ACC_DENIED_VLM
-            );
+            vlm.markDeleted();
         }
         catch (DatabaseException sqlExc)
         {
@@ -443,11 +389,7 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlmDfn.delete(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            vlmDfn.delete();
         }
         catch (DatabaseException sqlExc)
         {

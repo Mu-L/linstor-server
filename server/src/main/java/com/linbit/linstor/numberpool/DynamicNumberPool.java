@@ -7,7 +7,6 @@ import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessDeniedException;
 
 
 /**
@@ -21,7 +20,7 @@ public interface DynamicNumberPool
         {
             reloadRange(null);
         }
-        catch (DatabaseException | AccessDeniedException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -35,7 +34,7 @@ public interface DynamicNumberPool
      * changed or could be simplified. If the parsed ranges render the same as before, no update will be
      * performed</p>
      */
-    void reloadRange(@Nullable Props propsToUpdateRef) throws DatabaseException, AccessDeniedException;
+    void reloadRange(@Nullable Props propsToUpdateRef) throws DatabaseException;
 
     default void reloadBlockedRange()
     {
@@ -43,7 +42,7 @@ public interface DynamicNumberPool
         {
             reloadBlockedRange(null);
         }
-        catch (DatabaseException | AccessDeniedException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -57,7 +56,7 @@ public interface DynamicNumberPool
      * changed or could be simplified. If the parsed blocked ranges render the same as before, no update will be
      * performed</p>
      */
-    void reloadBlockedRange(@Nullable Props propsToUpdateRef) throws DatabaseException, AccessDeniedException;
+    void reloadBlockedRange(@Nullable Props propsToUpdateRef) throws DatabaseException;
 
     void allocate(int nr)
         throws ValueInUseException;

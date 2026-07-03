@@ -11,7 +11,6 @@ import com.linbit.linstor.ControllerLinstorModule;
 import com.linbit.linstor.InitializationException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorModule;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiModule;
 import com.linbit.linstor.api.ApiType;
 import com.linbit.linstor.api.BaseApiCall;
@@ -53,11 +52,6 @@ import com.linbit.linstor.modularcrypto.ModularCryptoProvider;
 import com.linbit.linstor.netcom.NetComModule;
 import com.linbit.linstor.numberpool.DbNumberPoolInitializer;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ControllerSecurityModule;
-import com.linbit.linstor.security.Privilege;
-import com.linbit.linstor.security.SecurityModule;
 import com.linbit.linstor.systemstarter.ConnectNodesInitializer;
 import com.linbit.linstor.systemstarter.GrizzlyInitializer;
 import com.linbit.linstor.systemstarter.PassphraseInitializer;
@@ -121,7 +115,6 @@ public final class Controller
     private final ErrorReporter errorReporter;
 
     // System security context
-    private final AccessContext sysCtx;
 
     private final CoreTimer timerEventSvc;
 
@@ -173,8 +166,6 @@ public final class Controller
     @Inject
     public Controller(
         ErrorReporter errorReporterRef,
-        @SystemContext
-        AccessContext sysCtxRef,
         CoreTimer timerEventSvcRef,
         @Named(CoreModule.RECONFIGURATION_LOCK)
         ReadWriteLock reconfigurationLockRef,
@@ -208,7 +199,6 @@ public final class Controller
     )
     {
         errorReporter = errorReporterRef;
-        sysCtx = sysCtxRef;
         timerEventSvc = timerEventSvcRef;
         reconfigurationLock = reconfigurationLockRef;
         systemServicesMap = systemServicesMapRef;
@@ -274,7 +264,6 @@ public final class Controller
             try
             {
                 errorReporter.setLogLevel(
-                    initCtx,
                     Level.valueOf(logLevelStr.toUpperCase()),
                     tmpLinLevel
                 );
@@ -323,8 +312,7 @@ public final class Controller
             ConnectNodesInitializer connectNodesInitializer = new ConnectNodesInitializer(
                 errorReporter,
                 nodesMap,
-                reconnectorTask,
-                initCtx
+                reconnectorTask
             );
             GrizzlyInitializer grizzlyInit = new GrizzlyInitializer(
                 injector,
@@ -369,14 +357,6 @@ public final class Controller
 
             errorReporter.logInfo("Controller initialized");
         }
-        catch (AccessDeniedException accessExc)
-        {
-            throw new ImplementationError(
-                "The initialization security context does not have all privileges. " +
-                "Initialization failed.",
-                accessExc
-            );
-        }
         catch (SystemServiceStartException | InitializationException exc)
         {
             errorReporter.reportError(Level.ERROR, exc);
@@ -401,7 +381,7 @@ public final class Controller
             privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
             debugCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
 
-            DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(privCtx, debugCtx, null);
+            DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(debugCtx, null);
             dbgConsole.stdStreamsConsole(DebugConsoleImpl.CONSOLE_PROMPT);
             System.out.println();
 

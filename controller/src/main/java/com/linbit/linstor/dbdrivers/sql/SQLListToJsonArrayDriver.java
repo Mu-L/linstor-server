@@ -7,7 +7,6 @@ import com.linbit.linstor.dbdrivers.DatabaseTable.Column;
 import com.linbit.linstor.dbdrivers.DbEngine.DataToString;
 import com.linbit.linstor.dbdrivers.interfaces.updater.CollectionDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.ExceptionThrowingFunction;
 
 import java.sql.PreparedStatement;
@@ -21,16 +20,16 @@ class SQLListToJsonArrayDriver<DATA, LIST_TYPE> implements CollectionDatabaseDri
     private final SQLEngine sqlEngine;
     private final Column columnToUpdate;
     private final String updateStatement;
-    private final Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters;
+    private final Map<Column, ExceptionThrowingFunction<DATA, Object>> setters;
     private final DataToString<DATA> dataToString;
 
     private final DatabaseTable table;
-    private final ExceptionThrowingFunction<DATA, Object, AccessDeniedException> columnSetter;
+    private final ExceptionThrowingFunction<DATA, Object> columnSetter;
 
     SQLListToJsonArrayDriver(
         SQLEngine sqlEngineRef,
         ErrorReporter errorReporterRef,
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         Column columnToUpdateRef,
         DataToString<DATA> dataToStringRef
     )

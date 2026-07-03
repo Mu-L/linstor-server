@@ -23,8 +23,6 @@ import com.linbit.linstor.core.objects.SnapshotVolumeDefinition;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.utils.LayerUtils;
@@ -57,7 +55,6 @@ public class BackupShippingUtils
     }
 
     public static String fillPojo(
-        AccessContext accCtx,
         Snapshot snap,
         ReadOnlyProps stltProps,
         byte[] encKey,
@@ -67,11 +64,10 @@ public class BackupShippingUtils
         String basedOnMetaNameRef,
         String remoteName
     )
-        throws AccessDeniedException, JsonProcessingException, ParseException
+        throws JsonProcessingException, ParseException
     {
         return OBJECT_MAPPER.writeValueAsString(
             getBackupMetaDataPojo(
-                accCtx,
                 snap,
                 stltProps,
                 encKey,
@@ -85,7 +81,6 @@ public class BackupShippingUtils
     }
 
     public static BackupMetaDataPojo getBackupMetaDataPojo(
-        AccessContext accCtx,
         Snapshot snap,
         ReadOnlyProps stltProps,
         byte[] encKey,
@@ -95,7 +90,7 @@ public class BackupShippingUtils
         @Nullable String basedOnMetaNameRef,
         String remoteName
     )
-        throws AccessDeniedException, ParseException
+        throws ParseException
     {
         SnapshotDefinition snapDfn = snap.getSnapshotDefinition();
         ResourceDefinition rscDfn = snapDfn.getResourceDefinition();
@@ -103,7 +98,7 @@ public class BackupShippingUtils
 
         String clusterId = stltProps.getProp(LinStor.PROP_KEY_CLUSTER_ID);
 
-        String startTime = snapDfn.getSnapDfnProps(accCtx)
+        String startTime = snapDfn.getSnapDfnProps()
             .getProp(
                 InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
                 BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName
@@ -111,39 +106,39 @@ public class BackupShippingUtils
         long startTimestamp = Long.parseLong(startTime);
 
         PriorityProps rscDfnPrio = new PriorityProps(
-            snapDfn.getRscDfnProps(accCtx),
-            rscGrp.getProps(accCtx),
-            snap.getNode().getProps(accCtx),
+            snapDfn.getRscDfnProps(),
+            rscGrp.getProps(),
+            snap.getNode().getProps(),
             stltProps
         );
         Map<String, String> rscDfnPropsRef = rscDfnPrio.renderRelativeMap("");
         rscDfnPropsRef = new HashMap<>(rscDfnPropsRef);
-        long rscDfnFlagsRef = rscDfn.getFlags().getFlagsBits(accCtx);
+        long rscDfnFlagsRef = rscDfn.getFlags().getFlagsBits();
 
         Map<Integer, VlmDfnMetaPojo> vlmDfnsRef = new TreeMap<>();
-        Collection<SnapshotVolumeDefinition> vlmDfns = snapDfn.getAllSnapshotVolumeDefinitions(accCtx);
+        Collection<SnapshotVolumeDefinition> vlmDfns = snapDfn.getAllSnapshotVolumeDefinitions();
         for (SnapshotVolumeDefinition snapVlmDfn : vlmDfns)
         {
             PriorityProps vlmDfnPrio = new PriorityProps(
-                snapVlmDfn.getVlmDfnProps(accCtx),
-                rscGrp.getVolumeGroupProps(accCtx, snapVlmDfn.getVolumeNumber())
+                snapVlmDfn.getVlmDfnProps(),
+                rscGrp.getVolumeGroupProps(snapVlmDfn.getVolumeNumber())
             );
             Map<String, String> vlmDfnPropsRef = vlmDfnPrio.renderRelativeMap("");
             vlmDfnPropsRef = new TreeMap<>(vlmDfnPropsRef);
             // necessary to get the gross-size-flag, even though flags might have changed in the meantime
-            long vlmDfnFlagsRef = snapVlmDfn.getVolumeDefinition().getFlags().getFlagsBits(accCtx);
+            long vlmDfnFlagsRef = snapVlmDfn.getVolumeDefinition().getFlags().getFlagsBits();
 
             // pretend this vlmDfn was never initialized
             vlmDfnFlagsRef &= ~VolumeDefinition.Flags.DRBD_INITIALIZED.flagValue; // remove the DRBD_INITIALIZED flag
             vlmDfnPropsRef.remove(InternalApiConsts.KEY_LINSTOR_DRBD_INITIAL_UPTODATE_ON);
 
-            long sizeRef = snapVlmDfn.getVolumeSize(accCtx);
+            long sizeRef = snapVlmDfn.getVolumeSize();
             vlmDfnsRef
                 .put(
                     snapVlmDfn.getVolumeNumber().value,
                     new VlmDfnMetaPojo(
                         // wrap in new hashmap, otherwise the pojo contains the actual propsContainer
-                        new HashMap<>(snapVlmDfn.getSnapVlmDfnProps(accCtx).map()),
+                        new HashMap<>(snapVlmDfn.getSnapVlmDfnProps().map()),
                         vlmDfnPropsRef,
                         vlmDfnFlagsRef,
                         sizeRef
@@ -152,7 +147,7 @@ public class BackupShippingUtils
         }
 
         RscDfnMetaPojo rscDfnRef = new RscDfnMetaPojo(
-            getSnapDfnProps(snapDfn.getSnapDfnProps(accCtx)),
+            getSnapDfnProps(snapDfn.getSnapDfnProps()),
             rscDfnPropsRef,
             rscDfnFlagsRef,
             vlmDfnsRef
@@ -169,8 +164,8 @@ public class BackupShippingUtils
                 snapVlm.getVolumeNumber().value,
                 new VlmMetaPojo(
                     // wrap in new hashmap, otherwise the pojo contains the actual propsContainer
-                    new HashMap<>(snapVlm.getSnapVlmProps(accCtx).map()),
-                    new HashMap<>(snapVlm.getVlmProps(accCtx).map()),
+                    new HashMap<>(snapVlm.getSnapVlmProps().map()),
+                    new HashMap<>(snapVlm.getVlmProps().map()),
                     vlmFlagsRef
                 )
             );
@@ -178,15 +173,15 @@ public class BackupShippingUtils
 
         RscMetaPojo rscRef = new RscMetaPojo(
             // wrap in new hashmap, otherwise the pojo contains the actual propsContainer
-            new HashMap<>(snap.getSnapProps(accCtx).map()),
-            new HashMap<>(snap.getRscProps(accCtx).map()),
+            new HashMap<>(snap.getSnapProps().map()),
+            new HashMap<>(snap.getRscProps().map()),
             rscFlagsRef,
             vlmsRef
         );
 
         LuksLayerMetaPojo luksPojo = null;
         List<AbsRscLayerObject<Snapshot>> luksLayers = LayerUtils.getChildLayerDataByKind(
-            snap.getLayerData(accCtx),
+            snap.getLayerData(),
             DeviceLayerKind.LUKS
         );
         if (!luksLayers.isEmpty() && encKey != null && hash != null && salt != null)
@@ -198,7 +193,7 @@ public class BackupShippingUtils
             );
         }
 
-        RscLayerDataApi layersRef = snap.getLayerData(accCtx).asPojo(accCtx);
+        RscLayerDataApi layersRef = snap.getLayerData().asPojo();
 
         return new BackupMetaDataPojo(
             rscDfn.getName().displayValue,
@@ -252,11 +247,10 @@ public class BackupShippingUtils
         return (str == null) ? "" : str;
     }
 
-    public static boolean isAnyShippingInProgress(SnapshotDefinition snapDfn, AccessContext accCtx)
-        throws AccessDeniedException
+    public static boolean isAnyShippingInProgress(SnapshotDefinition snapDfn)
     {
         // first check if the snapDfn is a backup-target in progress, since this is faster
-        ReadOnlyProps snapDfnTarget = snapDfn.getSnapDfnProps(accCtx)
+        ReadOnlyProps snapDfnTarget = snapDfn.getSnapDfnProps()
             .getNamespaceOrEmpty(BACKUP_TARGET_PROPS_NAMESPC);
         @Nullable String targetStatus = snapDfnTarget
             .getProp(InternalApiConsts.KEY_SHIPPING_STATUS);
@@ -264,7 +258,7 @@ public class BackupShippingUtils
         if (!ret)
         {
             // since we don't have an in-progress target, check for any in-progress source
-            ReadOnlyProps snapDfnSource = snapDfn.getSnapDfnProps(accCtx)
+            ReadOnlyProps snapDfnSource = snapDfn.getSnapDfnProps()
                 .getNamespaceOrEmpty(BACKUP_SOURCE_PROPS_NAMESPC);
             Iterator<String> namespcIter = snapDfnSource.iterateNamespaces();
             while (namespcIter.hasNext() && !ret)
@@ -279,11 +273,10 @@ public class BackupShippingUtils
         return ret;
     }
 
-    public static boolean isAnyAbortInProgress(SnapshotDefinition snapDfn, AccessContext accCtx)
-        throws AccessDeniedException
+    public static boolean isAnyAbortInProgress(SnapshotDefinition snapDfn)
     {
         // first check if the snapDfn is a backup-target in progress, since this is faster
-        ReadOnlyProps snapDfnTarget = snapDfn.getSnapDfnProps(accCtx)
+        ReadOnlyProps snapDfnTarget = snapDfn.getSnapDfnProps()
             .getNamespaceOrEmpty(BACKUP_TARGET_PROPS_NAMESPC);
         @Nullable String targetStatus = snapDfnTarget
             .getProp(InternalApiConsts.KEY_SHIPPING_STATUS);
@@ -291,7 +284,7 @@ public class BackupShippingUtils
         if (!ret)
         {
             // since we don't have an in-progress target, check for any in-progress source
-            ReadOnlyProps snapDfnSource = snapDfn.getSnapDfnProps(accCtx)
+            ReadOnlyProps snapDfnSource = snapDfn.getSnapDfnProps()
                 .getNamespaceOrEmpty(BACKUP_SOURCE_PROPS_NAMESPC);
             Iterator<String> namespcIter = snapDfnSource.iterateNamespaces();
             while (namespcIter.hasNext() && !ret)
@@ -308,21 +301,19 @@ public class BackupShippingUtils
 
     public static @Nullable String getSourceShippingStatus(
         SnapshotDefinition snapDfn,
-        String remoteName,
-        AccessContext accCtx
-    ) throws InvalidKeyException, AccessDeniedException
+        String remoteName
+    ) throws InvalidKeyException
     {
-        return snapDfn.getSnapDfnProps(accCtx)
+        return snapDfn.getSnapDfnProps()
             .getNamespaceOrEmpty(BACKUP_SOURCE_PROPS_NAMESPC)
             .getProp(InternalApiConsts.KEY_SHIPPING_STATUS, remoteName);
     }
 
     public static @Nullable String getTargetShippingStatus(
-        SnapshotDefinition snapDfn,
-        AccessContext accCtx
-    ) throws InvalidKeyException, AccessDeniedException
+        SnapshotDefinition snapDfn
+    ) throws InvalidKeyException
     {
-        return snapDfn.getSnapDfnProps(accCtx)
+        return snapDfn.getSnapDfnProps()
             .getProp(
                 InternalApiConsts.KEY_SHIPPING_STATUS,
                 BACKUP_TARGET_PROPS_NAMESPC
@@ -331,27 +322,25 @@ public class BackupShippingUtils
 
     public static boolean isReceivingFromRemote(
         SnapshotDefinition snapDfn,
-        String remoteName,
-        AccessContext accCtx
-    ) throws InvalidKeyException, AccessDeniedException
+        String remoteName
+    ) throws InvalidKeyException
     {
-        return remoteName.equals(getBackupSrcRemote(snapDfn, accCtx));
+        return remoteName.equals(getBackupSrcRemote(snapDfn));
     }
 
-    public static boolean isBackupTarget(SnapshotDefinition snapDfn, Node nodeRef, AccessContext accCtx)
-        throws AccessDeniedException
+    public static boolean isBackupTarget(SnapshotDefinition snapDfn, Node nodeRef)
     {
-        return (hasShippingStatus(snapDfn, null, InternalApiConsts.VALUE_PREPARE_SHIPPING, accCtx) ||
-            hasShippingStatus(snapDfn, null, InternalApiConsts.VALUE_SHIPPING, accCtx) ||
-            hasShippingStatus(snapDfn, null, InternalApiConsts.VALUE_ABORTING, accCtx)) &&
-            isNodeTarget(snapDfn, nodeRef, accCtx);
+        return (hasShippingStatus(snapDfn, null, InternalApiConsts.VALUE_PREPARE_SHIPPING) ||
+            hasShippingStatus(snapDfn, null, InternalApiConsts.VALUE_SHIPPING) ||
+            hasShippingStatus(snapDfn, null, InternalApiConsts.VALUE_ABORTING)) &&
+            isNodeTarget(snapDfn, nodeRef);
     }
 
-    public static boolean isNodeTarget(SnapshotDefinition snapDfn, Node nodeRef, AccessContext accCtx)
-        throws InvalidKeyException, AccessDeniedException
+    public static boolean isNodeTarget(SnapshotDefinition snapDfn, Node nodeRef)
+        throws InvalidKeyException
     {
         return nodeRef.getName().displayValue.equalsIgnoreCase(
-            snapDfn.getSnapDfnProps(accCtx)
+            snapDfn.getSnapDfnProps()
                 .getProp(
                     InternalApiConsts.KEY_BACKUP_DST_NODE,
                     BACKUP_TARGET_PROPS_NAMESPC
@@ -363,14 +352,13 @@ public class BackupShippingUtils
         SnapshotDefinition snapDfn,
         Node nodeRef,
         String remoteNameRef,
-        boolean isS3ServiceRef,
-        AccessContext accCtx
+        boolean isS3ServiceRef
     )
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         String propKey = InternalApiConsts.KEY_BACKUP_SRC_NODE;
         return nodeRef.getName().displayValue.equalsIgnoreCase(
-            snapDfn.getSnapDfnProps(accCtx)
+            snapDfn.getSnapDfnProps()
                 .getProp(propKey, BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteNameRef)
         );
     }
@@ -382,10 +370,10 @@ public class BackupShippingUtils
      *
      *
      */
-    public static String getBackupSrcRemote(SnapshotDefinition snapDfn, AccessContext accCtx)
-        throws InvalidKeyException, AccessDeniedException
+    public static String getBackupSrcRemote(SnapshotDefinition snapDfn)
+        throws InvalidKeyException
     {
-        return snapDfn.getSnapDfnProps(accCtx)
+        return snapDfn.getSnapDfnProps()
             .getProp(
                 InternalApiConsts.KEY_BACKUP_SRC_REMOTE,
                 BACKUP_TARGET_PROPS_NAMESPC
@@ -401,10 +389,10 @@ public class BackupShippingUtils
      *
      *
      */
-    public static String getBackupDstRemote(SnapshotDefinition snapDfn, String remoteName, AccessContext accCtx)
-        throws InvalidKeyException, AccessDeniedException
+    public static String getBackupDstRemote(SnapshotDefinition snapDfn, String remoteName)
+        throws InvalidKeyException
     {
-        return snapDfn.getSnapDfnProps(accCtx)
+        return snapDfn.getSnapDfnProps()
             .getProp(
                 InternalApiConsts.KEY_BACKUP_TARGET_REMOTE,
                 BACKUP_SOURCE_PROPS_NAMESPC + "/" + remoteName
@@ -426,18 +414,17 @@ public class BackupShippingUtils
     public static boolean hasShippingStatus(
         SnapshotDefinition snapDfn,
         @Nullable String remoteName,
-        String status,
-        AccessContext accCtx
-    ) throws InvalidKeyException, AccessDeniedException
+        String status
+    ) throws InvalidKeyException
     {
         boolean ret = false;
         if (remoteName != null)
         {
-            ret = status.equals(getSourceShippingStatus(snapDfn, remoteName, accCtx));
+            ret = status.equals(getSourceShippingStatus(snapDfn, remoteName));
         }
         else
         {
-            ret = status.equals(getTargetShippingStatus(snapDfn, accCtx));
+            ret = status.equals(getTargetShippingStatus(snapDfn));
         }
         return ret;
     }

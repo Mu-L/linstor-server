@@ -2,7 +2,6 @@ package com.linbit.linstor.debug;
 
 import com.linbit.AutoIndent;
 import com.linbit.linstor.api.protobuf.ApiCallDescriptor;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 
@@ -41,7 +40,6 @@ public class CmdDisplayApis extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception

@@ -23,7 +23,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.transaction.TransactionMap;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 

@@ -10,10 +10,6 @@ import com.linbit.linstor.core.objects.SnapshotVolume;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.objects.Volume;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.utils.TreePrinter;
 import com.linbit.utils.UuidUtils;
@@ -85,12 +81,11 @@ public class CmdDisplayStorPool extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
     {
-        lister.execute(debugOut, debugErr, accCtx, parameters);
+        lister.execute(debugOut, debugErr, parameters);
     }
 
     private class StorPoolHandler implements FilteredObjectLister.ObjectHandler<StorPoolDefinition>
@@ -102,12 +97,10 @@ public class CmdDisplayStorPool extends BaseDebugCmd
         }
 
         @Override
-        public void ensureSearchAccess(final AccessContext accCtx)
-            throws AccessDeniedException
+        public void ensureSearchAccess()
         {
             if (storPoolDfnMapProt != null)
             {
-                storPoolDfnMapProt.get().requireAccess(accCtx, AccessType.VIEW);
             }
         }
 
@@ -132,13 +125,11 @@ public class CmdDisplayStorPool extends BaseDebugCmd
 
         @Override
         public void displayObjects(
-            final PrintStream output, final StorPoolDefinition storPoolDfnRef, final AccessContext accCtx
-        )
+            final PrintStream output, final StorPoolDefinition storPoolDfnRef)
         {
             try
             {
                 ObjectProtection objProt = storPoolDfnRef.getObjProt();
-                objProt.requireAccess(accCtx, AccessType.VIEW);
 
                 TreePrinter.Builder treeBuilder = TreePrinter.builder(
                     "\u001b[1;37m%-40s\u001b[0m %s",
@@ -146,7 +137,7 @@ public class CmdDisplayStorPool extends BaseDebugCmd
                     storPoolDfnRef.getUuid().toString().toUpperCase()
                 );
 
-                Iterator<StorPool> storPoolIterator = storPoolDfnRef.iterateStorPools(accCtx);
+                Iterator<StorPool> storPoolIterator = storPoolDfnRef.iterateStorPools();
                 while (storPoolIterator.hasNext())
                 {
                     StorPool storPool = storPoolIterator.next();
@@ -163,9 +154,9 @@ public class CmdDisplayStorPool extends BaseDebugCmd
                         .leaf("Driver name: %s", storPool.getDeviceProviderKind());
 
                     Collection<VlmProviderObject<Resource>> vlmLayerDataCollection = storPool
-                        .getVolumes(accCtx);
+                        .getVolumes();
                     Collection<VlmProviderObject<Snapshot>> snapVlmLayerDataCollection = storPool
-                        .getSnapVolumes(accCtx);
+                        .getSnapVolumes();
 
                     treeBuilder.branch("Volumes (count: %d)", vlmLayerDataCollection.size());
 
@@ -174,7 +165,7 @@ public class CmdDisplayStorPool extends BaseDebugCmd
                         Volume vlm = (Volume) vlmLayerData.getVolume();
                         treeBuilder
                             .branch("Volume %s", vlm.getUuid().toString().toUpperCase())
-                            .leaf("Flags: %016X", vlm.getFlags().getFlagsBits(accCtx))
+                            .leaf("Flags: %016X", vlm.getFlags().getFlagsBits())
                             .leaf("Volume number: %s", vlm.getVolumeNumber())
                             .endBranch();
                     }
@@ -205,7 +196,7 @@ public class CmdDisplayStorPool extends BaseDebugCmd
         }
 
         @Override
-        public int countObjects(final StorPoolDefinition storPoolDfnRef, final AccessContext accCtx)
+        public int countObjects(final StorPoolDefinition storPoolDfnRef)
         {
             return 1;
         }

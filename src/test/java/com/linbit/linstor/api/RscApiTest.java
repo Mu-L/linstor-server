@@ -134,7 +134,7 @@ public class RscApiTest extends ApiTestBase
             testRscDfnFlags,
             Arrays.asList(DeviceLayerKind.DRBD, DeviceLayerKind.STORAGE),
             payload,
-            createDefaultResourceGroup(BOB_ACC_CTX)
+            createDefaultResourceGroup()
         );
         rscDfnMap.put(testRscName, testRscDfn);
 
@@ -157,7 +157,7 @@ public class RscApiTest extends ApiTestBase
     @Test
     public void createRscSuccess() throws Exception
     {
-        Mockito.when(mockPeer.getAccessContext()).thenReturn(BOB_ACC_CTX);
+        Mockito.when(mockPeer.getAccessContext()).thenReturn();
         Mockito.when(mockPeer.isOnline()).thenReturn(true);
         Mockito.when(mockSatellite.getExtToolsManager()).thenReturn(mockExtToolsMgr);
         Mockito.when(mockSatellite.isOnline()).thenReturn(true);

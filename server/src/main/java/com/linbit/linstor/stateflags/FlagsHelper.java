@@ -1,7 +1,5 @@
 package com.linbit.linstor.stateflags;
 
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.PairNonNull;
 
 import java.lang.reflect.Array;
@@ -52,16 +50,14 @@ public class FlagsHelper
     @SuppressWarnings("unchecked")
     public static <E extends Enum<E> & Flags> E[] toFlagsArray(
         Class<E> enumClass,
-        StateFlags<E> flags,
-        AccessContext accCtx
+        StateFlags<E> flags
     )
-        throws AccessDeniedException
     {
         EnumSet<E> values = EnumSet.allOf(enumClass);
         List<E> setFlags = new ArrayList<>();
         for (E val : values)
         {
-            if (flags.isSet(accCtx, val))
+            if (flags.isSet(val))
             {
                 setFlags.add(val);
             }

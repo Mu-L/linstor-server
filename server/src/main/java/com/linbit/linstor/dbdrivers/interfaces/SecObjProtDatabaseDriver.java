@@ -1,10 +1,6 @@
 package com.linbit.linstor.dbdrivers.interfaces;
 
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
-import com.linbit.linstor.security.Identity;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.Role;
-import com.linbit.linstor.security.SecurityType;
 
 /**
  * Database driver for {@link ObjectProtection}.

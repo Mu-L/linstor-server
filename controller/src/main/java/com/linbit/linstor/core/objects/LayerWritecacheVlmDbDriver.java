@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -15,8 +14,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.LayerResourceIdDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.LayerWritecacheVlmDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.writecache.WritecacheRscData;
 import com.linbit.linstor.storage.data.adapter.writecache.WritecacheVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
@@ -42,7 +39,6 @@ public class LayerWritecacheVlmDbDriver
 
     @Inject
     public LayerWritecacheVlmDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         LayerResourceIdDatabaseDriver rscLayerIdDriverRef,
@@ -51,7 +47,6 @@ public class LayerWritecacheVlmDbDriver
     )
     {
         super(
-            dbCtxRef,
             errorReporterRef,
             GeneratedDatabaseTables.LAYER_WRITECACHE_VOLUMES,
             dbEngineRef
@@ -109,7 +104,7 @@ public class LayerWritecacheVlmDbDriver
         RawParameters rawRef,
         VlmParentObjects<VlmDfnLayerObject, WritecacheRscData<?>, WritecacheVlmData<?>> parentRef
     )
-        throws ValueOutOfRangeException, InvalidNameException, DatabaseException, AccessDeniedException
+        throws ValueOutOfRangeException, InvalidNameException, DatabaseException
     {
         int lri = rawRef.get(LayerWritecacheVolumes.LAYER_RESOURCE_ID);
         VolumeNumber vlmNr = rawRef.build(LayerWritecacheVolumes.VLM_NR, VolumeNumber::new);

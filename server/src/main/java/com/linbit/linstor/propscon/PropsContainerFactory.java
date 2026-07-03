@@ -5,7 +5,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.PropsDatabaseDriver;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
 import javax.inject.Inject;
@@ -31,14 +30,7 @@ public class PropsContainerFactory
     {
         PropsContainer container = create(instanceName, description, type);
 
-        try
-        {
-            container.loadAll();
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError("Access denied loading container props", exc);
-        }
+        container.loadAll();
 
         return container;
     }

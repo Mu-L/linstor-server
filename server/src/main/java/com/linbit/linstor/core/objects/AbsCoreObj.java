@@ -3,8 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.linstor.AccessToDeletedDataException;
 import com.linbit.linstor.DbgInstanceUuid;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.BaseTransactionObject;
 import com.linbit.linstor.transaction.TransactionObjectCollection;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -76,7 +74,7 @@ public abstract class AbsCoreObj<C extends AbsCoreObj<C>> extends BaseTransactio
         return toStringImpl();
     }
 
-    public abstract void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException;
+    public abstract void delete() throws DatabaseException;
 
     @Override
     public abstract int hashCode();

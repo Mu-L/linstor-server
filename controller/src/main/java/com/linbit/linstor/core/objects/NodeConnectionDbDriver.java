@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
@@ -14,9 +13,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.NodeConnectionCtrlDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.utils.Pair;
@@ -42,7 +38,6 @@ public final class NodeConnectionDbDriver
 
     @Inject
     public NodeConnectionDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -51,14 +46,14 @@ public final class NodeConnectionDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.NODE_CONNECTIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.NODE_CONNECTIONS, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
 
         setColumnSetter(UUID, nc -> nc.getUuid().toString());
-        setColumnSetter(NODE_NAME_SRC, nc -> nc.getSourceNode(dbCtxRef).getName().value);
-        setColumnSetter(NODE_NAME_DST, nc -> nc.getTargetNode(dbCtxRef).getName().value);
+        setColumnSetter(NODE_NAME_SRC, nc -> nc.getSourceNode().getName().value);
+        setColumnSetter(NODE_NAME_DST, nc -> nc.getTargetNode().getName().value);
     }
 
     @Override
@@ -83,10 +78,10 @@ public final class NodeConnectionDbDriver
     }
 
     @Override
-    protected String getId(NodeConnection nc) throws AccessDeniedException
+    protected String getId(NodeConnection nc)
     {
-        return "(SourceNode=" + nc.getSourceNode(dbCtx).getName().displayValue +
-            " TargetNode=" + nc.getTargetNode(dbCtx).getName().displayValue + ")";
+        return "(SourceNode=" + nc.getSourceNode().getName().displayValue +
+            " TargetNode=" + nc.getTargetNode().getName().displayValue + ")";
     }
 
 }

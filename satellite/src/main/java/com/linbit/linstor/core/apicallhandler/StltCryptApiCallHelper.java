@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler;
 import com.linbit.ImplementationError;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.DecryptionHelper;
@@ -21,8 +20,6 @@ import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.layer.storage.utils.SEDUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.luks.LuksVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -47,7 +44,6 @@ import java.util.TreeSet;
 @Singleton
 public class StltCryptApiCallHelper
 {
-    private final AccessContext apiCtx;
     private final Provider<TransactionMgr> transMgrProvider;
     private final StltSecurityObjects secObjs;
     private final ResourceDefinitionMap rscDfnMap;
@@ -60,7 +56,6 @@ public class StltCryptApiCallHelper
     @Inject
     StltCryptApiCallHelper(
         CoreModule.ResourceDefinitionMap rscDfnMapRef,
-        @ApiContext AccessContext apiCtxRef,
         Provider<TransactionMgr> transMgrProviderRef,
         StltSecurityObjects secObjsRef,
         DeviceManager devMgrRef,
@@ -71,7 +66,6 @@ public class StltCryptApiCallHelper
     )
     {
         rscDfnMap = rscDfnMapRef;
-        apiCtx = apiCtxRef;
         transMgrProvider = transMgrProviderRef;
         secObjs = secObjsRef;
         devMgr = devMgrRef;
@@ -81,17 +75,17 @@ public class StltCryptApiCallHelper
         extCmdFactory = extCmdFactoryRef;
     }
 
-    private Set<ResourceName> findResourcesUsingStorPool(StorPoolName storPoolName) throws AccessDeniedException
+    private Set<ResourceName> findResourcesUsingStorPool(StorPoolName storPoolName)
     {
         final Set<ResourceName> resources = new TreeSet<>();
         for (ResourceDefinition rscDfn : rscDfnMap.values())
         {
-            Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
 
-                AbsRscLayerObject<Resource> layerData = rsc.getLayerData(apiCtx);
+                AbsRscLayerObject<Resource> layerData = rsc.getLayerData();
                 List<AbsRscLayerObject<Resource>> rscDataList = LayerUtils.getChildLayerDataByKind(
                     layerData,
                     DeviceLayerKind.STORAGE
@@ -116,11 +110,11 @@ public class StltCryptApiCallHelper
     {
         final Set<ResourceName> updateResources = new TreeSet<>();
         Node localNode = controllerPeerConnector.getLocalNode();
-        Iterator<StorPool> itStorPool = localNode.iterateStorPools(apiCtx);
+        Iterator<StorPool> itStorPool = localNode.iterateStorPools();
         while (itStorPool.hasNext())
         {
             StorPool sp = itStorPool.next();
-            @Nullable Props sedNS = sp.getProps(apiCtx).getNamespace(ApiConsts.NAMESPC_SED);
+            @Nullable Props sedNS = sp.getProps().getNamespace(ApiConsts.NAMESPC_SED);
             // SED namespace contains drives as keys with their password as value
             if (sedNS != null)
             {
@@ -139,28 +133,21 @@ public class StltCryptApiCallHelper
         return updateResources;
     }
 
-    private Set<ResourceName> decryptLuksVlmKeys(final byte[] masterKey) throws AccessDeniedException
+    private Set<ResourceName> decryptLuksVlmKeys(final byte[] masterKey)
     {
         final Set<ResourceName> decryptedResources = new TreeSet<>();
-        try
+        for (ResourceDefinition rscDfn : rscDfnMap.values())
         {
-            for (ResourceDefinition rscDfn : rscDfnMap.values())
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
+            while (rscIt.hasNext())
             {
-                Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
-                while (rscIt.hasNext())
+                Resource rsc = rscIt.next();
+                boolean success = decryptLuksKey(masterKey, rsc);
+                if (success)
                 {
-                    Resource rsc = rscIt.next();
-                    boolean success = decryptLuksKey(masterKey, rsc);
-                    if (success)
-                    {
-                        decryptedResources.add(rscDfn.getName());
-                    }
+                    decryptedResources.add(rscDfn.getName());
                 }
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
         }
         return decryptedResources;
     }
@@ -169,15 +156,14 @@ public class StltCryptApiCallHelper
      * Returns true iff all LUKS keys of all volumes of the given resource could be decrypted.
      */
     private boolean decryptLuksKey(final byte[] masterKey, Resource rsc)
-        throws AccessDeniedException
     {
         boolean success = true;
-        AbsRscLayerObject<Resource> layerData = rsc.getLayerData(apiCtx);
+        AbsRscLayerObject<Resource> layerData = rsc.getLayerData();
         List<AbsRscLayerObject<Resource>> rscDataList = LayerUtils.getChildLayerDataByKind(
             layerData,
             DeviceLayerKind.LUKS
         );
-        boolean reactivate = rsc.getStateFlags().isSet(apiCtx, Resource.Flags.REACTIVATE);
+        boolean reactivate = rsc.getStateFlags().isSet(Resource.Flags.REACTIVATE);
         for (AbsRscLayerObject<Resource> rscData : rscDataList)
         {
             for (VlmProviderObject<Resource> vlmData : rscData.getVlmLayerObjects().values())
@@ -214,17 +200,17 @@ public class StltCryptApiCallHelper
      * the EBS resources in the next deviceManager run
      *
      */
-    private Collection<? extends ResourceName> getAllEBSResources() throws AccessDeniedException
+    private Collection<? extends ResourceName> getAllEBSResources()
     {
         Set<ResourceName> resourcesToProcess = new HashSet<>();
         for (ResourceDefinition rscDfn : rscDfnMap.values())
         {
-            Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
 
                 Resource rsc = rscIt.next();
-                AbsRscLayerObject<Resource> layerData = rsc.getLayerData(apiCtx);
+                AbsRscLayerObject<Resource> layerData = rsc.getLayerData();
                 // also add EBS resources to the new devMgr run
                 List<AbsRscLayerObject<Resource>> storRscData = LayerUtils.getChildLayerDataByKind(
                     layerData,

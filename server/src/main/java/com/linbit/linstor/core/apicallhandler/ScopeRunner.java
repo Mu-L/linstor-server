@@ -1,14 +1,11 @@
 package com.linbit.linstor.core.apicallhandler;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ErrorReporterContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiModule;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgrGenerator;
@@ -160,8 +157,8 @@ public class ScopeRunner
         lockGuard.lock();
         try (LinStorScope.ScopeAutoCloseable close = apiCallScope.enter())
         {
-            apiCallScope.seed(Key.get(AccessContext.class, PeerContext.class), accCtx);
-            apiCallScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class), accCtx);
+            apiCallScope.seed(Key.get(AccessContext.class, PeerContext.class));
+            apiCallScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class));
             if (peer != null)
             {
                 apiCallScope.seed(Peer.class, peer);
@@ -192,7 +189,7 @@ public class ScopeRunner
         {
             try
             {
-                rollbackIfNeeded(apiCallName, accCtx, peer, transMgr);
+                rollbackIfNeeded(apiCallName, peer, transMgr);
                 errorLog.logTrace(
                     "%s%s '%s' scope '%s' end",
                     peerDescription,
@@ -230,7 +227,6 @@ public class ScopeRunner
 
     private void rollbackIfNeeded(
         String apiCallName,
-        AccessContext accCtx,
         @Nullable Peer peer,
         @Nullable TransactionMgr transMgr
     )
@@ -248,7 +244,6 @@ public class ScopeRunner
                     errorLog.reportError(
                         Level.ERROR,
                         transExc,
-                        accCtx,
                         peer,
                         "A database error occurred while trying to rollback '" + apiCallName + "'"
                     );

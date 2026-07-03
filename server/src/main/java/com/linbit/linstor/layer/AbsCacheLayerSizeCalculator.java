@@ -5,7 +5,6 @@ import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -40,7 +39,7 @@ public abstract class AbsCacheLayerSizeCalculator<VLM_DATA extends VlmLayerObjec
     protected interface SpecialDeviceSizeCalculator<VLM_DATA extends VlmLayerObject<?>>
     {
         long calculate(VLM_DATA vlmDataRef, VlmProviderObject<?> cacheChildVlmDataRef)
-            throws AccessDeniedException, DatabaseException, InvalidSizeException;
+            throws DatabaseException, InvalidSizeException;
     }
 
     protected class CacheDeviceCalculator
@@ -109,14 +108,14 @@ public abstract class AbsCacheLayerSizeCalculator<VLM_DATA extends VlmLayerObjec
 
     @Override
     public void updateAllocatedSizeFromUsableSizeImpl(VLM_DATA vlmData)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         updateSize(vlmData, true);
     }
 
     @Override
     public void updateUsableSizeFromAllocatedSizeImpl(VLM_DATA vlmData)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         updateSize(vlmData, false);
     }
@@ -125,7 +124,7 @@ public abstract class AbsCacheLayerSizeCalculator<VLM_DATA extends VlmLayerObjec
         VLM_DATA vlmData,
         boolean fromUsable
     )
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         VlmProviderObject<?> dataChildVlmData = vlmData.getChildBySuffix(RscLayerSuffixes.SUFFIX_DATA);
 
@@ -169,7 +168,7 @@ public abstract class AbsCacheLayerSizeCalculator<VLM_DATA extends VlmLayerObjec
     }
 
     private long calculateCacheChildren(VLM_DATA vlmData)
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         long ret = 0;
         for (CacheDeviceCalculator calc : cacheDevicesSizeCalculators)
@@ -187,7 +186,7 @@ public abstract class AbsCacheLayerSizeCalculator<VLM_DATA extends VlmLayerObjec
         String propertyDefaultValueRef,
         long minimumSizeInKibRef
     )
-        throws AccessDeniedException, DatabaseException, InvalidSizeException
+        throws DatabaseException, InvalidSizeException
     {
         long ret = 0;
 

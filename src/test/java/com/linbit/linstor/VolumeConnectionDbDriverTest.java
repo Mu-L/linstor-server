@@ -19,7 +19,6 @@ import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscPayload;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
@@ -102,7 +101,7 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
     @SuppressWarnings("checkstyle:magicnumber")
     public void setUp() throws Exception
     {
-        seedDefaultPeerRule.setDefaultPeerAccessContext(SYS_CTX);
+        seedDefaultPeerRule.setDefaultPeerAccessContext();
         super.setUpAndEnterScope();
 
         assertEquals(
@@ -113,9 +112,9 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
 
         uuid = randomUUID();
 
-        nodeSrc = nodeFactory.create(SYS_CTX, sourceName, Node.Type.SATELLITE, null);
+        nodeSrc = nodeFactory.create(sourceName, Node.Type.SATELLITE, null);
         nodesMap.put(nodeSrc.getName(), nodeSrc);
-        nodeDst = nodeFactory.create(SYS_CTX, targetName, Node.Type.SATELLITE, null);
+        nodeDst = nodeFactory.create(targetName, Node.Type.SATELLITE, null);
         nodesMap.put(nodeDst.getName(), nodeDst);
 
         LayerPayload payload = new LayerPayload();
@@ -123,16 +122,15 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
         drbdRscDfn.sharedSecret = "secret";
         drbdRscDfn.transportType = TransportType.IP;
         resDfn = resourceDefinitionFactory.create(
-            SYS_CTX,
             resName,
             null,
             null,
             Arrays.asList(DeviceLayerKind.DRBD, DeviceLayerKind.STORAGE),
             payload,
-            createDefaultResourceGroup(SYS_CTX)
+            createDefaultResourceGroup()
         );
         rscDfnMap.put(resDfn.getName(), resDfn);
-        volDfn = volumeDefinitionFactory.create(SYS_CTX, resDfn, volNr, minor, volSize, null);
+        volDfn = volumeDefinitionFactory.create(resDfn, volNr, minor, volSize, null);
 
         nodeIdSrc = 13;
         nodeIdDst = 14;
@@ -145,14 +143,13 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
         DrbdRscPayload drbdRsc2 = payloadDst.getDrbdRsc();
         drbdRsc2.nodeId = nodeIdDst;
         drbdRsc2.tcpPorts = resPorts;
-        resSrc = resourceFactory.create(SYS_CTX, resDfn, nodeSrc, payloadSrc, null, Collections.emptyList());
-        resDst = resourceFactory.create(SYS_CTX, resDfn, nodeDst, payloadDst, null, Collections.emptyList());
+        resSrc = resourceFactory.create(resDfn, nodeSrc, payloadSrc, null, Collections.emptyList());
+        resDst = resourceFactory.create(resDfn, nodeDst, payloadDst, null, Collections.emptyList());
 
-        storPoolDfn = storPoolDefinitionFactory.create(SYS_CTX, storPoolName);
+        storPoolDfn = storPoolDefinitionFactory.create(storPoolName);
         storPoolDfnMap.put(storPoolDfn.getName(), storPoolDfn);
 
         storPool1 = storPoolFactory.create(
-            SYS_CTX,
             nodeSrc,
             storPoolDfn,
             DeviceProviderKind.LVM,
@@ -160,7 +157,6 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
             false
         );
         storPool2 = storPoolFactory.create(
-            SYS_CTX,
             nodeDst,
             storPoolDfn,
             DeviceProviderKind.LVM,
@@ -171,7 +167,6 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
         LayerPayload payload1 = new LayerPayload();
         payload1.putStorageVlmPayload("", volDfn.getVolumeNumber().value, storPool1);
         volSrc = volumeFactory.create(
-            SYS_CTX,
             resSrc,
             volDfn,
             null,
@@ -183,7 +178,6 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
         LayerPayload payload2 = new LayerPayload();
         payload2.putStorageVlmPayload("", volDfn.getVolumeNumber().value, storPool2);
         volDst = volumeFactory.create(
-            SYS_CTX,
             resDst,
             volDfn,
             null,
@@ -204,8 +198,7 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
             driver,
             propsContainerFactory,
             transObjFactory,
-            transMgrProvider,
-            SYS_CTX
+            transMgrProvider
         );
         driver.create(volCon);
         commit();
@@ -216,7 +209,7 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
     @Test
     public void testPersistGetInstance() throws Exception
     {
-        volumeConnectionFactory.create(SYS_CTX, volSrc, volDst);
+        volumeConnectionFactory.create(volSrc, volDst);
         commit();
 
         checkDbPersist(false);
@@ -232,8 +225,7 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
             driver,
             propsContainerFactory,
             transObjFactory,
-            transMgrProvider,
-            SYS_CTX
+            transMgrProvider
         );
         driver.create(volCon);
 
@@ -276,15 +268,13 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
             driver,
             propsContainerFactory,
             transObjFactory,
-            transMgrProvider,
-            SYS_CTX
+            transMgrProvider
         );
         driver.create(volCon);
-        volSrc.setVolumeConnection(SYS_CTX, volCon);
-        volDst.setVolumeConnection(SYS_CTX, volCon);
+        volSrc.setVolumeConnection(volCon);
+        volDst.setVolumeConnection(volCon);
 
         VolumeConnection loadedConDfn = VolumeConnection.get(
-            SYS_CTX,
             volSrc,
             volDst
         );
@@ -296,7 +286,6 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
     public void testCache() throws Exception
     {
         VolumeConnection storedInstance = volumeConnectionFactory.create(
-            SYS_CTX,
             volSrc,
             volDst
         );
@@ -304,7 +293,6 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
         // no clear-cache
 
         assertEquals(storedInstance, VolumeConnection.get(
-            SYS_CTX,
             volSrc,
             volDst
         ));
@@ -320,8 +308,7 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
             driver,
             propsContainerFactory,
             transObjFactory,
-            transMgrProvider,
-            SYS_CTX
+            transMgrProvider
         );
         driver.create(volCon);
         commit();
@@ -363,15 +350,15 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
         stmt.close();
     }
 
-    private void checkLoadedConDfn(VolumeConnection loadedConDfn, boolean checkUuid) throws AccessDeniedException
+    private void checkLoadedConDfn(VolumeConnection loadedConDfn, boolean checkUuid)
     {
         assertNotNull(loadedConDfn);
         if (checkUuid)
         {
             assertEquals(uuid, loadedConDfn.getUuid());
         }
-        Volume sourceVolume = loadedConDfn.getSourceVolume(SYS_CTX);
-        Volume targetVolume = loadedConDfn.getTargetVolume(SYS_CTX);
+        Volume sourceVolume = loadedConDfn.getSourceVolume();
+        Volume targetVolume = loadedConDfn.getTargetVolume();
 
         assertEquals(sourceName, sourceVolume.getAbsResource().getNode().getName());
         assertEquals(targetName, targetVolume.getAbsResource().getNode().getName());
@@ -384,7 +371,7 @@ public class VolumeConnectionDbDriverTest extends GenericDbBase
     @Test (expected = LinStorDataAlreadyExistsException.class)
     public void testAlreadyExists() throws Exception
     {
-        volumeConnectionFactory.create(SYS_CTX, volSrc, volDst);
-        volumeConnectionFactory.create(SYS_CTX, volSrc, volDst);
+        volumeConnectionFactory.create(volSrc, volDst);
+        volumeConnectionFactory.create(volSrc, volDst);
     }
 }

@@ -4,9 +4,7 @@ import com.linbit.ImplementationError;
 import com.linbit.SizeSpecParser;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcImpl.ApiCallRcEntry;
@@ -16,7 +14,6 @@ import com.linbit.linstor.core.CtrlAuthenticator;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
@@ -30,8 +27,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.EbsRemote;
 import com.linbit.linstor.core.types.LsIpAddress;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.tasks.ReconnectorTask;
 import com.linbit.locks.LockGuardFactory;
@@ -56,12 +51,10 @@ public class CtrlNodeCrtApiCallHandler
     public static final int FIRST_CONNECT_TIMEOUT_MILLIS = 1_000;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlNodeApiCallHandler ctrlNodeApiCallHandler;
     private final CtrlStorPoolCrtApiCallHandler ctrlStorPoolCrtHandler;
@@ -73,12 +66,10 @@ public class CtrlNodeCrtApiCallHandler
     @Inject
     public CtrlNodeCrtApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlNodeApiCallHandler ctrlNodeApiCallHandlerRef,
         CtrlStorPoolCrtApiCallHandler ctrlStorPoolCrtHandlerRef,
@@ -89,12 +80,10 @@ public class CtrlNodeCrtApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
-        peerAccCtx = peerAccCtxRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlNodeApiCallHandler = ctrlNodeApiCallHandlerRef;
         ctrlStorPoolCrtHandler = ctrlStorPoolCrtHandlerRef;
@@ -167,47 +156,36 @@ public class CtrlNodeCrtApiCallHandler
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
         Node node;
-        try
+        Node.Type nodeType = LinstorParsingUtils.asNodeType(nodeTypeStr);
+
+        checkProps(propsMap);
+
+        if (nodeType.isSpecial())
         {
-            Node.Type nodeType = LinstorParsingUtils.asNodeType(nodeTypeStr);
-
-            checkProps(propsMap);
-
-            if (nodeType.isSpecial())
-            {
-                node = ctrlNodeApiCallHandler.createSpecialSatellite(
-                    nodeNameStr,
-                    nodeTypeStr,
-                    propsMap
-                ).extractApiCallRc(responses);
-            }
-            else
-            {
-                node = ctrlNodeApiCallHandler.createNodeImpl(
-                    nodeNameStr,
-                    nodeTypeStr,
-                    netIfs,
-                    propsMap,
-                    responses,
-                    context,
-                    false,
-                    true
-                );
-            }
-
-            eventNodeHandlerBridge.triggerNodeCreate(node.getApiData(apiCtx, null, null));
-
-            flux = Flux.just(responses);
-            flux = flux.concatWith(connectNow(node));
+            node = ctrlNodeApiCallHandler.createSpecialSatellite(
+                nodeNameStr,
+                nodeTypeStr,
+                propsMap
+            ).extractApiCallRc(responses);
         }
-        catch (AccessDeniedException exc)
+        else
         {
-            throw new ApiAccessDeniedException(
-                exc,
-                "create " + getNodeDescriptionInline(nodeNameStr),
-                ApiConsts.FAIL_ACC_DENIED_NODE
+            node = ctrlNodeApiCallHandler.createNodeImpl(
+                nodeNameStr,
+                nodeTypeStr,
+                netIfs,
+                propsMap,
+                responses,
+                context,
+                false,
+                true
             );
         }
+
+        eventNodeHandlerBridge.triggerNodeCreate(node.getApiData(null, null));
+
+        flux = Flux.just(responses);
+        flux = flux.concatWith(connectNow(node));
         return flux;
     }
 
@@ -259,60 +237,47 @@ public class CtrlNodeCrtApiCallHandler
             );
         }
         Node node;
-        try
-        {
-            node = ctrlNodeApiCallHandler.createSpecialSatellite(
-                nodeNameStrRef,
-                Node.Type.EBS_TARGET.name(),
-                Collections.emptyMap()
-            ).extractApiCallRc(responses);
+        node = ctrlNodeApiCallHandler.createSpecialSatellite(
+            nodeNameStrRef,
+            Node.Type.EBS_TARGET.name(),
+            Collections.emptyMap()
+        ).extractApiCallRc(responses);
 
-            Flux<ApiCallRc> createStorPoolFlux = ctrlStorPoolCrtHandler.createStorPool(
-                nodeNameStrRef,
-                InternalApiConsts.EBS_DFTL_STOR_POOL_NAME,
-                DeviceProviderKind.EBS_TARGET,
-                null,
-                false,
-                Collections.singletonMap(
-                    ApiConsts.NAMESPC_STORAGE_DRIVER + "/" + ApiConsts.NAMESPC_EBS + "/" +
-                        ApiConsts.KEY_REMOTE,
-                    ebsRemoteNameStrRef
-                ),
-                Flux.empty()
-            );
+        Flux<ApiCallRc> createStorPoolFlux = ctrlStorPoolCrtHandler.createStorPool(
+            nodeNameStrRef,
+            InternalApiConsts.EBS_DFTL_STOR_POOL_NAME,
+            DeviceProviderKind.EBS_TARGET,
+            null,
+            false,
+            Collections.singletonMap(
+                ApiConsts.NAMESPC_STORAGE_DRIVER + "/" + ApiConsts.NAMESPC_EBS + "/" +
+                    ApiConsts.KEY_REMOTE,
+                ebsRemoteNameStrRef
+            ),
+            Flux.empty()
+        );
 
-            ctrlTransactionHelper.commit();
+        ctrlTransactionHelper.commit();
 
-            eventNodeHandlerBridge.triggerNodeCreate(node.getApiData(apiCtx, null, null));
+        eventNodeHandlerBridge.triggerNodeCreate(node.getApiData(null, null));
 
-            flux = Flux.<ApiCallRc>just(responses)
-                .log()
-                .concatWith(connectNow(node))
-                .log()
-                .concatWith(createStorPoolFlux);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "create " + getNodeDescriptionInline(nodeNameStrRef),
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        flux = Flux.<ApiCallRc>just(responses)
+            .log()
+            .concatWith(connectNow(node))
+            .log()
+            .concatWith(createStorPoolFlux);
         return flux;
     }
 
     public Flux<ApiCallRc> connectNow(Node node)
-        throws AccessDeniedException
     {
         Flux<ApiCallRc> flux;
-        Node.Type nodeType = node.getNodeType(apiCtx);
+        Node.Type nodeType = node.getNodeType();
 
         if (!Node.Type.CONTROLLER.equals(nodeType) &&
             !Node.Type.AUXILIARY.equals(nodeType))
         {
             flux = ctrlSatelliteUpdateCaller.attemptConnecting(
-                peerAccCtx.get(),
                 node,
                 FIRST_CONNECT_TIMEOUT_MILLIS
             )
@@ -325,7 +290,7 @@ public class CtrlNodeCrtApiCallHandler
                 node.getName(),
                 nodeType.name()
             );
-            node.setOfflinePeer(errorReporter, apiCtx);
+            node.setOfflinePeer(errorReporter);
             flux = Flux.empty();
         }
         return flux;
@@ -348,14 +313,7 @@ public class CtrlNodeCrtApiCallHandler
                     )
                 )
             );
-            try
-            {
-                reconnectorTask.add(node.getPeer(apiCtx), false);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            reconnectorTask.add(node.getPeer(), false);
         }
         return connectedFlux;
     }

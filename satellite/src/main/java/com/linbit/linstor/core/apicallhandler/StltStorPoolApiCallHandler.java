@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -42,8 +41,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -78,7 +75,6 @@ class StltStorPoolApiCallHandler
     }
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final DeviceManager deviceManager;
     private final CoreModule.NodesMap nodesMap;
     private final CoreModule.StorPoolDefinitionMap storPoolDfnMap;
@@ -97,7 +93,6 @@ class StltStorPoolApiCallHandler
     @Inject
     StltStorPoolApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         DeviceManager deviceManagerRef,
         CoreModule.NodesMap nodesMapRef,
         CoreModule.StorPoolDefinitionMap storPoolDfnMapRef,
@@ -115,7 +110,6 @@ class StltStorPoolApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         deviceManager = deviceManagerRef;
         nodesMap = nodesMapRef;
         storPoolDfnMap = storPoolDfnMapRef;
@@ -149,19 +143,19 @@ class StltStorPoolApiCallHandler
             @Nullable StorPoolDefinition storPoolDfn = storPoolDfnMap.get(storPoolName);
             if (storPoolDfn != null)
             {
-                @Nullable StorPool storPool = storPoolDfn.getStorPool(apiCtx, nodeName);
+                @Nullable StorPool storPool = storPoolDfn.getStorPool(nodeName);
                 if (storPool != null)
                 {
-                    storPool.delete(apiCtx);
+                    storPool.delete();
                     errorReporter.logInfo(
                         "Storage pool '" + storPoolNameStr + "' of node '" + nodeNameStr + "' deleted"
                     );
                 }
                 // storPoolDfn might still be referred by other nodes. We still need the remote storage pools
                 // since the layer-data of our peer-resources still refer to them!
-                if (!storPoolDfn.iterateStorPools(apiCtx).hasNext())
+                if (!storPoolDfn.iterateStorPools().hasNext())
                 {
-                    storPoolDfn.delete(apiCtx);
+                    storPoolDfn.delete();
                     storPoolDfnMap.remove(storPoolName);
                     errorReporter.logInfo("Storage pool definition '" + storPoolNameStr + " deleted");
                 }
@@ -201,7 +195,7 @@ class StltStorPoolApiCallHandler
             StorPool storPool;
             if (node != null)
             {
-                storPool = node.getStorPool(apiCtx, storPoolName);
+                storPool = node.getStorPool(storPoolName);
 
                 String action;
                 if (storPool != null)
@@ -210,9 +204,9 @@ class StltStorPoolApiCallHandler
                     action = "updated";
 
                     checkUuid(storPool, storPoolRaw);
-                    checkUuid(storPool.getDefinition(apiCtx), storPoolRaw);
+                    checkUuid(storPool.getDefinition(), storPoolRaw);
 
-                    Props storPoolProps = storPool.getProps(apiCtx);
+                    Props storPoolProps = storPool.getProps();
                     Map<String, String> oldSEDMap = SEDUtils.drivePasswordMap(storPoolProps.cloneMap());
                     Map<String, String> newSEDMap = SEDUtils.drivePasswordMap(storPoolRaw.getStorPoolProps());
                     for (String sedDevice : oldSEDMap.keySet())
@@ -244,7 +238,7 @@ class StltStorPoolApiCallHandler
 
                     if (storPoolChanged)
                     {
-                        Collection<VlmProviderObject<Resource>> vlmDataCol = storPool.getVolumes(apiCtx);
+                        Collection<VlmProviderObject<Resource>> vlmDataCol = storPool.getVolumes();
                         for (VlmProviderObject<Resource> vlmData : vlmDataCol)
                         {
                             ResourceDefinition rscDfn = vlmData.getVolume().getResourceDefinition();
@@ -252,7 +246,7 @@ class StltStorPoolApiCallHandler
                         }
 
                         Collection<VlmProviderObject<Snapshot>> snapVlmDataCol = storPool
-                            .getSnapVolumes(apiCtx);
+                            .getSnapVolumes();
                         for (VlmProviderObject<Snapshot> snapVlmData : snapVlmDataCol)
                         {
                             SnapshotVolume vlm = (SnapshotVolume) snapVlmData.getVolume();
@@ -268,20 +262,18 @@ class StltStorPoolApiCallHandler
                     if (storPoolDfn == null)
                     {
                         storPoolDfn = storPoolDefinitionFactory.getInstance(
-                            apiCtx,
                             storPoolRaw.getStorPoolDfnUuid(),
                             storPoolName
                         );
                         checkUuid(storPoolDfn, storPoolRaw);
 
-                        storPoolDfn.getProps(apiCtx).map().putAll(storPoolRaw.getStorPoolDfnProps());
+                        storPoolDfn.getProps().map().putAll(storPoolRaw.getStorPoolDfnProps());
 
                         storPoolDfnToRegister = storPoolDfn;
                     }
 
                     DeviceProviderKind deviceProviderKind = storPoolRaw.getDeviceProviderKind();
                     storPool = storPoolFactory.getInstanceSatellite(
-                        apiCtx,
                         storPoolRaw.getStorPoolUuid(),
                         node,
                         storPoolDfn,
@@ -292,7 +284,7 @@ class StltStorPoolApiCallHandler
                         storPoolRaw.isExternalLocking()
                     );
 
-                    storPool.getProps(apiCtx).map().putAll(storPoolRaw.getStorPoolProps());
+                    storPool.getProps().map().putAll(storPoolRaw.getStorPoolProps());
                 }
 
                 updateMinimumIoSize(storPool);
@@ -324,7 +316,7 @@ class StltStorPoolApiCallHandler
                     );
                     if (!kind.usesThinProvisioning() || isFileKind)
                     {
-                        boolean supportsSnapshots = storPool.isSnapshotSupported(apiCtx);
+                        boolean supportsSnapshots = storPool.isSnapshotSupported();
 
                         controllerPeerConnector.getControllerPeer()
                             .sendMessage(
@@ -381,7 +373,7 @@ class StltStorPoolApiCallHandler
     }
 
     private void updateMinimumIoSize(StorPool storPoolRef)
-        throws InvalidKeyException, AccessDeniedException, DatabaseException, InvalidValueException
+        throws InvalidKeyException, DatabaseException, InvalidValueException
     {
         errorReporter.logDebug("%s", "StoragePool applyChanges: Begin: Determine min-io-size");
         final DeviceProvider devProvider = deviceProviderMapper.getDeviceProviderBy(storPoolRef);
@@ -403,7 +395,7 @@ class StltStorPoolApiCallHandler
                 // Merge any changes into the storage pool properties
                 if (!propsChange.changedStorPoolProps.isEmpty())
                 {
-                    Props storPoolProps = storPoolRef.getProps(apiCtx);
+                    Props storPoolProps = storPoolRef.getProps();
                     for (
                         Map.Entry<StorPoolName, Map<String, String>> changeEntry : propsChange.changedStorPoolProps
                             .entrySet()
@@ -466,13 +458,12 @@ class StltStorPoolApiCallHandler
     }
 
     private void checkUuid(StorPool storPool, StorPoolPojo storPoolRaw)
-        throws AccessDeniedException
     {
         checkUuid(
             storPool.getUuid(),
             storPoolRaw.getStorPoolUuid(),
             "StorPool",
-            storPool.getDefinition(apiCtx).getName().displayValue,
+            storPool.getDefinition().getName().displayValue,
             storPoolRaw.getStorPoolName()
         );
     }

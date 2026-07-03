@@ -7,9 +7,7 @@ import com.linbit.exceptions.InvalidSizeException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -22,7 +20,6 @@ import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelpe
 import com.linbit.linstor.core.apicallhandler.controller.helpers.PropsChangedListenerBuilder;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.utils.SatelliteResourceStateDrbdUtils;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
@@ -49,8 +46,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -98,7 +93,6 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_EXACT_SIZE;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
@@ -106,7 +100,6 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final ReadWriteLock rscDfnMapLock;
-    private final Provider<AccessContext> peerAccCtx;
     private final BackupInfoManager backupInfoMgr;
     private final EbsStatusManagerService ebsStatusMgr;
     private final Provider<PropsChangedListenerBuilder> propsChangeListenerBuilder;
@@ -115,7 +108,6 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
 
     @Inject
     CtrlVlmDfnModifyApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
@@ -123,7 +115,6 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         @Named(CoreModule.RSC_DFN_MAP_LOCK) ReadWriteLock rscDfnMapLockRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         BackupInfoManager backupInfoMgrRef,
         EbsStatusManagerService ebsStatusMgrRef,
         Provider<PropsChangedListenerBuilder> propsChangeListenerBuilderRef,
@@ -132,7 +123,6 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         LayerSizeHelper layerSizeHelperRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
@@ -140,7 +130,6 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         rscDfnMapLock = rscDfnMapLockRef;
-        peerAccCtx = peerAccCtxRef;
         backupInfoMgr = backupInfoMgrRef;
         ebsStatusMgr = ebsStatusMgrRef;
         propsChangeListenerBuilder = propsChangeListenerBuilderRef;
@@ -151,17 +140,16 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
 
     @Override
     public Collection<Flux<ApiCallRc>> resourceDefinitionConnected(ResourceDefinition rscDfn, ResponseContext context)
-        throws AccessDeniedException
     {
         List<Flux<ApiCallRc>> fluxes = new ArrayList<>();
 
         ResourceName rscName = rscDfn.getName();
 
-        Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn(apiCtx);
+        Iterator<VolumeDefinition> vlmDfnIter = rscDfn.iterateVolumeDfn();
         while (vlmDfnIter.hasNext())
         {
             VolumeDefinition vlmDfn = vlmDfnIter.next();
-            boolean resizing = vlmDfn.getFlags().isSet(apiCtx, VolumeDefinition.Flags.RESIZE);
+            boolean resizing = vlmDfn.getFlags().isSet(VolumeDefinition.Flags.RESIZE);
             if (resizing)
             {
                 fluxes.add(updateSatellites(rscName, vlmDfn.getVolumeNumber()));
@@ -247,7 +235,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
 
         List<Flux<ApiCallRc>> specialPropFluxes = new ArrayList<>();
         Map<String, PropertyChangedListener> propsChangedListeners = propsChangeListenerBuilder.get()
-            .buildPropsChangedListeners(peerAccCtx.get(), vlmDfn, specialPropFluxes);
+            .buildPropsChangedListeners(vlmDfn, specialPropFluxes);
 
         notifyStlts = ctrlPropsHelper.fillProperties(
             responses,
@@ -270,14 +258,6 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
                 prefixesIgnoringWhitelistCheck,
                 propsChangedListeners
             ) || notifyStlts;
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Access denied to remove property",
-                ApiConsts.FAIL_ACC_DENIED_VLM
-            );
         }
         catch (DatabaseException exc)
         {
@@ -353,34 +333,23 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         Flux<ApiCallRc> updateResponses = Flux.empty();
         if (updateForResize)
         {
-            try
+            Iterator<Resource> itRsc = vlmDfn.getResourceDefinition().iterateResource();
+            while (itRsc.hasNext())
             {
-                Iterator<Resource> itRsc = vlmDfn.getResourceDefinition().iterateResource(apiCtx);
-                while (itRsc.hasNext())
+                final Resource rsc = itRsc.next();
+                if (!rsc.isDiskless() &&
+                    rsc.hasDrbd() &&
+                    !SatelliteResourceStateDrbdUtils.allVolumesUpToDate(rsc, false))
                 {
-                    final Resource rsc = itRsc.next();
-                    if (!rsc.isDiskless(apiCtx) &&
-                        rsc.hasDrbd(apiCtx) &&
-                        !SatelliteResourceStateDrbdUtils.allVolumesUpToDate(apiCtx, rsc, false))
-                    {
-                        throw new ApiRcException(
-                            ApiCallRcImpl.entryBuilder(
-                                ApiConsts.FAIL_NOT_ALL_UPTODATE,
-                                "Cannot resize volume, because we have a non-UpToDate DRBD device."
-                            )
-                                .setSkipErrorReport(true)
-                                .build()
-                        );
-                    }
+                    throw new ApiRcException(
+                        ApiCallRcImpl.entryBuilder(
+                            ApiConsts.FAIL_NOT_ALL_UPTODATE,
+                            "Cannot resize volume, because we have a non-UpToDate DRBD device."
+                        )
+                            .setSkipErrorReport(true)
+                            .build()
+                    );
                 }
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ApiAccessDeniedException(
-                    exc,
-                    "Access denied to check UpToDate",
-                    ApiConsts.FAIL_ACC_DENIED_VLM
-                );
             }
 
             /*
@@ -469,13 +438,13 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
             vlmDfnProps.setProp(ApiConsts.NAMESPC_ENCRYPTION + "/" + ApiConsts.KEY_PASSPHRASE,
                     Base64.encode(encPassphrase));
 
-            final List<Resource> rscs = vlmDfn.getResourceDefinition().streamResource(apiCtx)
+            final List<Resource> rscs = vlmDfn.getResourceDefinition().streamResource()
                 .collect(Collectors.toList());
 
             boolean passModified = false;
             for (var rsc : rscs)
             {
-                var luksRscLayerSet = LayerRscUtils.getRscDataByLayer(rsc.getLayerData(apiCtx), DeviceLayerKind.LUKS);
+                var luksRscLayerSet = LayerRscUtils.getRscDataByLayer(rsc.getLayerData(), DeviceLayerKind.LUKS);
                 if (!luksRscLayerSet.isEmpty())
                 {
                     passModified = true;
@@ -525,22 +494,15 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         boolean hasEbsResource = false;
         Iterator<Resource> rscIt;
-        try
+        rscIt = vlmDfnRef.getResourceDefinition().iterateResource();
+        while (rscIt.hasNext())
         {
-            rscIt = vlmDfnRef.getResourceDefinition().iterateResource(apiCtx);
-            while (rscIt.hasNext())
+            Resource rsc = rscIt.next();
+            if (EbsUtils.isEbs(rsc))
             {
-                Resource rsc = rscIt.next();
-                if (EbsUtils.isEbs(apiCtx, rsc))
-                {
-                    hasEbsResource = true;
-                    break;
-                }
+                hasEbsResource = true;
+                break;
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         return hasEbsResource;
     }
@@ -555,7 +517,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         {
             try
             {
-                Props props = vlmDfnRef.getProps(apiCtx);
+                Props props = vlmDfnRef.getProps();
                 String lastModStr = props.getProp(
                     InternalApiConsts.KEY_EBS_COOLDOWN_UNTIL_TIMESTAMP,
                     ApiConsts.NAMESPC_EBS
@@ -603,7 +565,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
                     ApiConsts.NAMESPC_EBS
                 );
             }
-            catch (AccessDeniedException | InvalidKeyException | InvalidValueException exc)
+            catch (InvalidKeyException | InvalidValueException exc)
             {
                 throw new ImplementationError(exc);
             }
@@ -620,56 +582,49 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
      */
     private void ensureShrinkingIsSupported(VolumeDefinition vlmDfnRef)
     {
-        try
+        Iterator<Resource> rscIt = vlmDfnRef.getResourceDefinition().iterateResource();
+        Set<DeviceLayerKind> layerKindSet = new HashSet<>();
+        Set<DeviceProviderKind> providerKindSet = new HashSet<>();
+        while (rscIt.hasNext())
         {
-            Iterator<Resource> rscIt = vlmDfnRef.getResourceDefinition().iterateResource(apiCtx);
-            Set<DeviceLayerKind> layerKindSet = new HashSet<>();
-            Set<DeviceProviderKind> providerKindSet = new HashSet<>();
-            while (rscIt.hasNext())
+            Resource rsc = rscIt.next();
+            layerKindSet.addAll(LayerRscUtils.getLayerStack(rsc));
+            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, true);
+            for (StorPool sp : storPools)
             {
-                Resource rsc = rscIt.next();
-                layerKindSet.addAll(LayerRscUtils.getLayerStack(rsc, apiCtx));
-                Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, apiCtx, true);
-                for (StorPool sp : storPools)
-                {
-                    providerKindSet.add(sp.getDeviceProviderKind());
-                }
-            }
-
-            for (DeviceLayerKind kind : layerKindSet)
-            {
-                if (!kind.isShrinkingSupported())
-                {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.entryBuilder(
-                            ApiConsts.FAIL_INVLD_VLM_SIZE,
-                            "Shrinking volumes is not supported by layer '" + kind.name() + "'. " +
-                                "Volumes can only grow in size."
-                        )
-                            .setSkipErrorReport(true)
-                            .build()
-                    );
-                }
-            }
-            for (DeviceProviderKind kind : providerKindSet)
-            {
-                if (!kind.isShrinkingSupported())
-                {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.entryBuilder(
-                            ApiConsts.FAIL_INVLD_VLM_SIZE,
-                            "Shrinking volumes is not supported by storage provider '" + kind.name() + "'. " +
-                                "Volumes can only grow in size."
-                        )
-                            .setSkipErrorReport(true)
-                            .build()
-                    );
-                }
+                providerKindSet.add(sp.getDeviceProviderKind());
             }
         }
-        catch (AccessDeniedException exc)
+
+        for (DeviceLayerKind kind : layerKindSet)
         {
-            throw new ImplementationError(exc);
+            if (!kind.isShrinkingSupported())
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.entryBuilder(
+                        ApiConsts.FAIL_INVLD_VLM_SIZE,
+                        "Shrinking volumes is not supported by layer '" + kind.name() + "'. " +
+                            "Volumes can only grow in size."
+                    )
+                        .setSkipErrorReport(true)
+                        .build()
+                );
+            }
+        }
+        for (DeviceProviderKind kind : providerKindSet)
+        {
+            if (!kind.isShrinkingSupported())
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.entryBuilder(
+                        ApiConsts.FAIL_INVLD_VLM_SIZE,
+                        "Shrinking volumes is not supported by storage provider '" + kind.name() + "'. " +
+                            "Volumes can only grow in size."
+                    )
+                        .setSkipErrorReport(true)
+                        .build()
+                );
+            }
         }
     }
 
@@ -685,48 +640,41 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
      */
     private void ensureAllStorPoolsHaveEnoughFreeSpace(VolumeDefinition vlmDfnRef, long additionalSize)
     {
-        try
+        Iterator<Resource> rscIt = vlmDfnRef.getResourceDefinition().iterateResource();
+        Set<StorPool.Key> storPoolKeySet = new TreeSet<>();
+        while (rscIt.hasNext())
         {
-            Iterator<Resource> rscIt = vlmDfnRef.getResourceDefinition().iterateResource(apiCtx);
-            Set<StorPool.Key> storPoolKeySet = new TreeSet<>();
-            while (rscIt.hasNext())
+            Resource rsc = rscIt.next();
+            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, true);
+            for (StorPool sp : storPools)
             {
-                Resource rsc = rscIt.next();
-                Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, apiCtx, true);
-                for (StorPool sp : storPools)
+                if (!sp.getDeviceProviderKind().usesThinProvisioning())
                 {
-                    if (!sp.getDeviceProviderKind().usesThinProvisioning())
+                    if (sp.getFreeSpaceTracker().getFreeCapacityLastUpdated().orElse(0L) < additionalSize)
                     {
-                        if (sp.getFreeSpaceTracker().getFreeCapacityLastUpdated(apiCtx).orElse(0L) < additionalSize)
-                        {
-                            storPoolKeySet.add(new StorPool.Key(sp));
-                        }
+                        storPoolKeySet.add(new StorPool.Key(sp));
                     }
                 }
             }
-
-            if (!storPoolKeySet.isEmpty())
-            {
-                StringBuilder sb = new StringBuilder();
-                for (StorPool.Key key : storPoolKeySet)
-                {
-                    sb.append("Node: ").append(key.getNodeName().displayValue)
-                        .append(", StorPool: ").append(key.getStorPoolName().displayValue).append("\n");
-                }
-                sb.setLength(sb.length() - 1); // cut last \n
-
-                throw new ApiRcException(
-                    ApiCallRcImpl.simpleEntry(
-                        ApiConsts.FAIL_NOT_ENOUGH_FREE_SPACE,
-                        "Cannot grow the volume definition by " + additionalSize +
-                            "KiB, as the following storage pool do not have enough free space:\n" + sb
-                    )
-                );
-            }
         }
-        catch (AccessDeniedException exc)
+
+        if (!storPoolKeySet.isEmpty())
         {
-            throw new ImplementationError(exc);
+            StringBuilder sb = new StringBuilder();
+            for (StorPool.Key key : storPoolKeySet)
+            {
+                sb.append("Node: ").append(key.getNodeName().displayValue)
+                    .append(", StorPool: ").append(key.getStorPoolName().displayValue).append("\n");
+            }
+            sb.setLength(sb.length() - 1); // cut last \n
+
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_NOT_ENOUGH_FREE_SPACE,
+                    "Cannot grow the volume definition by " + additionalSize +
+                        "KiB, as the following storage pool do not have enough free space:\n" + sb
+                )
+            );
         }
     }
 
@@ -736,30 +684,19 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
      */
     private void ensureExactSizeIsUnset(VolumeDefinition vlmDfnRef)
     {
-        try
+        ReadOnlyProps rscDfnProps = vlmDfnRef.getResourceDefinition().getProps();
+        @Nullable String exactSize = rscDfnProps.getProp(
+            ApiConsts.KEY_DRBD_EXACT_SIZE,
+            ApiConsts.NAMESPC_DRBD_OPTIONS
+        );
+        if (exactSize != null && Boolean.parseBoolean(exactSize))
         {
-            ReadOnlyProps rscDfnProps = vlmDfnRef.getResourceDefinition().getProps(peerAccCtx.get());
-            @Nullable String exactSize = rscDfnProps.getProp(
-                ApiConsts.KEY_DRBD_EXACT_SIZE,
-                ApiConsts.NAMESPC_DRBD_OPTIONS
-            );
-            if (exactSize != null && Boolean.parseBoolean(exactSize))
-            {
-                throw new ApiRcException(
-                    ApiCallRcImpl.simpleEntry(
-                        ApiConsts.FAIL_INVLD_PROP,
-                        "Volume definition must not be resized while the resource-definition has the property '' set!",
-                        true
-                    )
-                );
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Checking resource-definition if property '" + PROP_KEY_RSC_DNF_EXACT_SIZE + "' is set",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_INVLD_PROP,
+                    "Volume definition must not be resized while the resource-definition has the property '' set!",
+                    true
+                )
             );
         }
     }
@@ -790,19 +727,8 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
             Flux<ApiCallRc> nextStep = Flux.empty();
             boolean resize;
             boolean shrink;
-            try
-            {
-                shrink = vlmDfn.getFlags().isSet(peerAccCtx.get(), VolumeDefinition.Flags.RESIZE_SHRINK);
-                resize = vlmDfn.getFlags().isSet(peerAccCtx.get(), VolumeDefinition.Flags.RESIZE);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ApiAccessDeniedException(
-                    exc,
-                    "Checking for resize/shrink flag",
-                    ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-                );
-            }
+            shrink = vlmDfn.getFlags().isSet(VolumeDefinition.Flags.RESIZE_SHRINK);
+            resize = vlmDfn.getFlags().isSet(VolumeDefinition.Flags.RESIZE);
             if (resize)
             {
                 /*
@@ -872,15 +798,8 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     private boolean hasDrbd(VolumeDefinition vlmDfnRef)
     {
         boolean anyResourceHasDrbdLayer;
-        try
-        {
-            anyResourceHasDrbdLayer = vlmDfnRef.getResourceDefinition().streamResource(apiCtx)
-                .anyMatch(rsc -> rsc.hasDrbd(apiCtx));
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        anyResourceHasDrbdLayer = vlmDfnRef.getResourceDefinition().streamResource()
+            .anyMatch(rsc -> rsc.hasDrbd());
         return anyResourceHasDrbdLayer;
     }
 
@@ -982,14 +901,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     private boolean isDrbdDiskful(Volume vlm)
     {
         boolean diskless;
-        try
-        {
-            diskless = vlm.getAbsResource().isDrbdDiskless(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        diskless = vlm.getAbsResource().isDrbdDiskless();
         return !diskless;
     }
 
@@ -1038,18 +950,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     private Props getVlmDfnProps(VolumeDefinition vlmDfn)
     {
         Props props;
-        try
-        {
-            props = vlmDfn.getProps(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access the properties of " + getVlmDfnDescriptionInline(vlmDfn),
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
-        }
+        props = vlmDfn.getProps();
         return props;
     }
 
@@ -1057,15 +958,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlmDfn.getFlags().enableFlags(peerAccCtx.get(), VolumeDefinition.Flags.RESIZE);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "set volume definition resize flag",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
+            vlmDfn.getFlags().enableFlags(VolumeDefinition.Flags.RESIZE);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1077,11 +970,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlmDfn.getFlags().disableFlags(apiCtx, VolumeDefinition.Flags.RESIZE);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            vlmDfn.getFlags().disableFlags(VolumeDefinition.Flags.RESIZE);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1093,15 +982,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlm.getFlags().enableFlags(peerAccCtx.get(), Volume.Flags.RESIZE);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "set volume resize flag",
-                ApiConsts.FAIL_ACC_DENIED_VLM
-            );
+            vlm.getFlags().enableFlags(Volume.Flags.RESIZE);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1113,11 +994,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlm.getFlags().disableFlags(apiCtx, Volume.Flags.RESIZE);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            vlm.getFlags().disableFlags(Volume.Flags.RESIZE);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1129,15 +1006,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlm.getFlags().enableFlags(peerAccCtx.get(), Volume.Flags.DRBD_RESIZE);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "set volume DRBD resize flag",
-                ApiConsts.FAIL_ACC_DENIED_VLM
-            );
+            vlm.getFlags().enableFlags(Volume.Flags.DRBD_RESIZE);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1149,11 +1018,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlm.getFlags().disableFlags(apiCtx, Volume.Flags.DRBD_RESIZE);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            vlm.getFlags().disableFlags(Volume.Flags.DRBD_RESIZE);
         }
         catch (DatabaseException sqlExc)
         {
@@ -1164,18 +1029,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     private long getVlmDfnSize(VolumeDefinition vlmDfn)
     {
         long volumeSize;
-        try
-        {
-            volumeSize = vlmDfn.getVolumeSize(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access Volume definition's size",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
-        }
+        volumeSize = vlmDfn.getVolumeSize();
         return volumeSize;
     }
 
@@ -1183,28 +1037,19 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlmDfn.setVolumeSize(peerAccCtx.get(), size);
+            vlmDfn.setVolumeSize(size);
 
             // run size check to verify if we do not exceed some limit...
-            Iterator<Volume> vlmsIt = vlmDfn.iterateVolumes(apiCtx);
+            Iterator<Volume> vlmsIt = vlmDfn.iterateVolumes();
             VolumeNumber vlmNr = vlmDfn.getVolumeNumber();
             while (vlmsIt.hasNext())
             {
                 Volume vlm = vlmsIt.next();
                 layerSizeHelper.calculateSize(
-                    apiCtx,
-                    vlm.getAbsResource().getLayerData(apiCtx).getVlmProviderObject(vlmNr)
+                    vlm.getAbsResource().getLayerData().getVlmProviderObject(vlmNr)
                 );
             }
 
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "update Volume definition's size",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
         }
         catch (DatabaseException sqlExc)
         {
@@ -1238,68 +1083,28 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     private boolean hasDeployedVolumes(VolumeDefinition vlmDfn)
     {
         boolean hasVolumes;
-        try
-        {
-            hasVolumes = vlmDfn.iterateVolumes(peerAccCtx.get()).hasNext();
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access volume definition",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
-        }
+        hasVolumes = vlmDfn.iterateVolumes().hasNext();
         return hasVolumes;
     }
 
     private Iterator<Volume> iterateVolumes(VolumeDefinition vlmDfn)
     {
         Iterator<Volume> volumeIterator;
-        try
-        {
-            volumeIterator = vlmDfn.iterateVolumes(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "iterate volumes",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
-        }
+        volumeIterator = vlmDfn.iterateVolumes();
         return volumeIterator;
     }
 
     private Stream<Volume> streamVolumesPrivileged(VolumeDefinition vlmDfn)
     {
         Stream<Volume> volumeStream;
-        try
-        {
-            volumeStream = vlmDfn.streamVolumes(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        volumeStream = vlmDfn.streamVolumes();
         return volumeStream;
     }
 
     private boolean isFlagSet(VolumeDefinition vlmDfnRef, Flags flag)
     {
         boolean isFlagSet;
-        try
-        {
-            isFlagSet = vlmDfnRef.getFlags().isSet(peerAccCtx.get(), flag);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "check if a flag is set",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
-        }
+        isFlagSet = vlmDfnRef.getFlags().isSet(flag);
         return isFlagSet;
     }
 
@@ -1307,15 +1112,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlmDfnRef.getFlags().disableFlags(peerAccCtx.get(), flag);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "disabling flag",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
+            vlmDfnRef.getFlags().disableFlags(flag);
         }
         catch (DatabaseException dbExc)
         {
@@ -1327,15 +1124,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     {
         try
         {
-            vlmDfnRef.getFlags().enableFlags(peerAccCtx.get(), flag);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "enabling flag",
-                ApiConsts.FAIL_ACC_DENIED_VLM_DFN
-            );
+            vlmDfnRef.getFlags().enableFlags(flag);
         }
         catch (DatabaseException dbExc)
         {
@@ -1345,14 +1134,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
 
     private boolean isEbsPrivileged(Volume vlmRef)
     {
-        try
-        {
-            return EbsUtils.isEbs(apiCtx, vlmRef.getAbsResource());
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return EbsUtils.isEbs(vlmRef.getAbsResource());
     }
 
     private static Set<NodeName> getNodeNames(Optional<Volume> drbdResizeVlm)

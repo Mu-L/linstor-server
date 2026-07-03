@@ -5,7 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.types.TcpPortNumber;
@@ -18,9 +17,6 @@ import com.linbit.linstor.dbdrivers.interfaces.ResourceConnectionCtrlDatabaseDri
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -58,7 +54,6 @@ public final class ResourceConnectionDbDriver
 
     @Inject
     public ResourceConnectionDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -67,30 +62,30 @@ public final class ResourceConnectionDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.RESOURCE_CONNECTIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.RESOURCE_CONNECTIONS, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
 
         setColumnSetter(UUID, rc -> rc.getUuid().toString());
-        setColumnSetter(NODE_NAME_SRC, rc -> rc.getSourceResource(dbCtxRef).getNode().getName().value);
-        setColumnSetter(NODE_NAME_DST, rc -> rc.getTargetResource(dbCtxRef).getNode().getName().value);
-        setColumnSetter(RESOURCE_NAME, rc -> rc.getSourceResource(dbCtxRef).getResourceDefinition().getName().value);
-        setColumnSetter(FLAGS, rc -> rc.getStateFlags().getFlagsBits(dbCtxRef));
-        setColumnSetter(TCP_PORT_SRC, rc -> TcpPortNumber.getValueNullable(rc.getDrbdProxyPortSource(dbCtxRef)));
-        setColumnSetter(TCP_PORT_DST, rc -> TcpPortNumber.getValueNullable(rc.getDrbdProxyPortTarget(dbCtxRef)));
+        setColumnSetter(NODE_NAME_SRC, rc -> rc.getSourceResource().getNode().getName().value);
+        setColumnSetter(NODE_NAME_DST, rc -> rc.getTargetResource().getNode().getName().value);
+        setColumnSetter(RESOURCE_NAME, rc -> rc.getSourceResource().getResourceDefinition().getName().value);
+        setColumnSetter(FLAGS, rc -> rc.getStateFlags().getFlagsBits());
+        setColumnSetter(TCP_PORT_SRC, rc -> TcpPortNumber.getValueNullable(rc.getDrbdProxyPortSource()));
+        setColumnSetter(TCP_PORT_DST, rc -> TcpPortNumber.getValueNullable(rc.getDrbdProxyPortTarget()));
 
         setColumnSetter(SNAPSHOT_NAME, ignored -> DFLT_SNAP_NAME_FOR_RSC);
 
         flagsDriver = generateFlagDriver(FLAGS, ResourceConnection.Flags.class);
         drbdProxyPortSourceDriver = generateSingleColumnDriver(
             TCP_PORT_SRC,
-            rc -> Objects.toString(rc.getDrbdProxyPortSource(dbCtxRef)),
+            rc -> Objects.toString(rc.getDrbdProxyPortSource()),
             TcpPortNumber::getValueNullable
         );
         drbdProxyPortTargetDriver = generateSingleColumnDriver(
             TCP_PORT_DST,
-            rc -> Objects.toString(rc.getDrbdProxyPortTarget(dbCtxRef)),
+            rc -> Objects.toString(rc.getDrbdProxyPortTarget()),
             TcpPortNumber::getValueNullable
         );
     }
@@ -160,11 +155,11 @@ public final class ResourceConnectionDbDriver
     }
 
     @Override
-    protected String getId(ResourceConnection rc) throws AccessDeniedException
+    protected String getId(ResourceConnection rc)
     {
-        Resource sourceRsc = rc.getSourceResource(dbCtx);
+        Resource sourceRsc = rc.getSourceResource();
         return "(SourceNode=" + sourceRsc.getNode().getName().displayValue +
-            " TargetNode=" + rc.getTargetResource(dbCtx).getNode().getName().displayValue +
+            " TargetNode=" + rc.getTargetResource().getNode().getName().displayValue +
             " ResName=" + sourceRsc.getResourceDefinition().getName().displayValue + ")";
     }
 

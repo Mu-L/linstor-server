@@ -13,15 +13,10 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.transaction.TransactionObject;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -111,53 +106,45 @@ public class SnapshotVolume extends AbsVolume<Snapshot> // TODO implement Snapsh
         return snapshotVolumeDefinition;
     }
 
-    public @Nullable String getState(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable String getState()
     {
         checkDeleted();
-        getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return state;
     }
 
-    public void setState(AccessContext accCtx, String stateRef) throws AccessDeniedException, DatabaseException
+    public void setState(String stateRef) throws DatabaseException
     {
         checkDeleted();
-        getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.USE);
         state = stateRef;
     }
 
-    public Props getSnapVlmProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getSnapVlmProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, getObjProt(), snapVlmProps);
+        return snapVlmProps;
     }
 
-    public ReadOnlyProps getVlmProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public ReadOnlyProps getVlmProps()
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return vlmRoProps;
     }
 
-    public Props getVlmPropsForChange(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getVlmPropsForChange()
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         return vlmProps;
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.CONTROL);
 
-            absRsc.removeVolume(accCtx, this);
-            snapshotVolumeDefinition.removeSnapshotVolume(accCtx, this);
+            absRsc.removeVolume(this);
+            snapshotVolumeDefinition.removeSnapshotVolume(this);
 
             snapVlmProps.delete();
             vlmProps.delete();
@@ -221,8 +208,7 @@ public class SnapshotVolume extends AbsVolume<Snapshot> // TODO implement Snapsh
         return ret;
     }
 
-    public SnapshotVolumeApi getApiData(AccessContext accCtx)
-        throws AccessDeniedException
+    public SnapshotVolumeApi getApiData()
     {
         checkDeleted();
         return new SnapshotVlmPojo(
@@ -282,10 +268,10 @@ public class SnapshotVolume extends AbsVolume<Snapshot> // TODO implement Snapsh
     }
 
     @Override
-    public long getVolumeSize(AccessContext dbCtxRef) throws AccessDeniedException
+    public long getVolumeSize()
     {
         checkDeleted();
-        return getSnapshotVolumeDefinition().getVolumeSize(dbCtxRef);
+        return getSnapshotVolumeDefinition().getVolumeSize();
     }
 
     @Override
@@ -391,34 +377,23 @@ public class SnapshotVolume extends AbsVolume<Snapshot> // TODO implement Snapsh
         throw new ImplementationError("Not implemented yet");
     }
 
-    public Stream<TransactionObject> streamSnapshotVolumeConnections(AccessContext accCtxRef)
-        throws AccessDeniedException
+    public Stream<TransactionObject> streamSnapshotVolumeConnections()
     {
         throw new ImplementationError("Not implemented yet");
     }
 
-    public TransactionObject getSnapshotVolumeConnection(AccessContext accCtxRef, SnapshotVolume othervolumeRef)
-        throws AccessDeniedException
+    public TransactionObject getSnapshotVolumeConnection(SnapshotVolume othervolumeRef)
     {
         throw new ImplementationError("Not implemented yet");
     }
 
-    public void setSnapshotVolumeConnection(AccessContext accCtxRef, TransactionObject volumeConnectionRef)
-        throws AccessDeniedException
+    public void setSnapshotVolumeConnection(TransactionObject volumeConnectionRef)
     {
         throw new ImplementationError("Not implemented yet");
     }
 
-    public void removeSnapshotVolumeConnection(AccessContext accCtxRef, TransactionObject volumeConnectionRef)
-        throws AccessDeniedException
+    public void removeSnapshotVolumeConnection(TransactionObject volumeConnectionRef)
     {
         throw new ImplementationError("Not implemented yet");
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return getResourceDefinition().getObjProt();
     }
 }

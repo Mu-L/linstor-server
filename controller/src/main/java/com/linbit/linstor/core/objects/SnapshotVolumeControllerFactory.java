@@ -7,9 +7,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.SnapshotVolumeDatabaseDriver;
 import com.linbit.linstor.layer.snapshot.CtrlSnapLayerDataFactory;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -45,14 +42,12 @@ public class SnapshotVolumeControllerFactory
     }
 
     public SnapshotVolume create(
-        AccessContext accCtx,
         Resource rsc,
         Snapshot snapshot,
         SnapshotVolumeDefinition snapshotVolumeDefinition
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        snapshot.getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.USE);
 
         SnapshotVolume snapshotVolume = snapshot.getVolume(snapshotVolumeDefinition.getVolumeNumber());
 
@@ -72,8 +67,8 @@ public class SnapshotVolumeControllerFactory
         );
 
         driver.create(snapshotVolume);
-        snapshot.putVolume(accCtx, snapshotVolume);
-        snapshotVolumeDefinition.addSnapshotVolume(accCtx, snapshotVolume);
+        snapshot.putVolume(snapshotVolume);
+        snapshotVolumeDefinition.addSnapshotVolume(snapshotVolume);
 
         snapLayerFactory.copyLayerData(rsc, snapshot); // create layerdata for new SnapshotVolume
 
@@ -81,16 +76,14 @@ public class SnapshotVolumeControllerFactory
     }
 
     public SnapshotVolume restore(
-        AccessContext accCtx,
         RscLayerDataApi layerData,
         Snapshot snapshot,
         SnapshotVolumeDefinition snapshotVolumeDefinition,
         Map<String, String> renameStorPoolsMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        snapshot.getResourceDefinition().getObjProt().requireAccess(accCtx, AccessType.USE);
 
         SnapshotVolume snapshotVolume = snapshot.getVolume(snapshotVolumeDefinition.getVolumeNumber());
 
@@ -110,8 +103,8 @@ public class SnapshotVolumeControllerFactory
         );
 
         driver.create(snapshotVolume);
-        snapshot.putVolume(accCtx, snapshotVolume);
-        snapshotVolumeDefinition.addSnapshotVolume(accCtx, snapshotVolume);
+        snapshot.putVolume(snapshotVolume);
+        snapshotVolumeDefinition.addSnapshotVolume(snapshotVolume);
 
         snapLayerFactory.restoreLayerData(layerData, snapshot, renameStorPoolsMap, apiCallRc);
         return snapshotVolume;

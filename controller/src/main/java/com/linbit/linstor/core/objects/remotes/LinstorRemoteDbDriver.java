@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.dbdrivers.AbsProtectedDatabaseDriver;
 import com.linbit.linstor.dbdrivers.DatabaseException;
@@ -15,10 +14,6 @@ import com.linbit.linstor.dbdrivers.interfaces.remotes.LinstorRemoteCtrlDatabase
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -57,7 +52,6 @@ public final class LinstorRemoteDbDriver extends AbsProtectedDatabaseDriver<Lins
     @Inject
     public LinstorRemoteDbDriver(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext dbCtxRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
         ObjectProtectionFactory objProtFactoryRef,
@@ -65,7 +59,7 @@ public final class LinstorRemoteDbDriver extends AbsProtectedDatabaseDriver<Lins
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.LINSTOR_REMOTES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.LINSTOR_REMOTES, dbEngine, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -73,16 +67,16 @@ public final class LinstorRemoteDbDriver extends AbsProtectedDatabaseDriver<Lins
         setColumnSetter(UUID, remote -> remote.getUuid().toString());
         setColumnSetter(NAME, remote -> remote.getName().value);
         setColumnSetter(DSP_NAME, remote -> remote.getName().displayValue);
-        setColumnSetter(FLAGS, remote -> remote.getFlags().getFlagsBits(dbCtx));
-        setColumnSetter(URL, remote -> remote.getUrl(dbCtx).toString());
+        setColumnSetter(FLAGS, remote -> remote.getFlags().getFlagsBits());
+        setColumnSetter(URL, remote -> remote.getUrl().toString());
         setColumnSetter(
             CLUSTER_ID,
-            remote -> remote.getClusterId(dbCtxRef) == null ? null : remote.getClusterId(dbCtxRef).toString()
+            remote -> remote.getClusterId() == null ? null : remote.getClusterId().toString()
         );
 
-        setColumnSetter(ENCRYPTED_PASSPHRASE, remote -> remote.getEncryptedRemotePassphrase(dbCtx));
+        setColumnSetter(ENCRYPTED_PASSPHRASE, remote -> remote.getEncryptedRemotePassphrase());
 
-        urlDriver = generateSingleColumnDriver(URL, remote -> remote.getUrl(dbCtx).toString(), java.net.URL::toString);
+        urlDriver = generateSingleColumnDriver(URL, remote -> remote.getUrl().toString(), java.net.URL::toString);
 
         encryptedPassphraseDriver = generateSingleColumnDriver(
             ENCRYPTED_PASSPHRASE,
@@ -93,7 +87,7 @@ public final class LinstorRemoteDbDriver extends AbsProtectedDatabaseDriver<Lins
         flagsDriver = generateFlagDriver(FLAGS, LinstorRemote.Flags.class);
         clusterIdDriver = generateSingleColumnDriver(
             CLUSTER_ID,
-            remote -> remote.getClusterId(dbCtxRef) == null ? null : remote.getClusterId(dbCtxRef).toString(),
+            remote -> remote.getClusterId() == null ? null : remote.getClusterId().toString(),
             uuid -> uuid == null ? null : uuid.toString()
         );
 
@@ -158,7 +152,7 @@ public final class LinstorRemoteDbDriver extends AbsProtectedDatabaseDriver<Lins
     }
 
     @Override
-    protected String getId(LinstorRemote dataRef) throws AccessDeniedException
+    protected String getId(LinstorRemote dataRef)
     {
         return "LinstorRemote(" + dataRef.getName().displayValue + ")";
     }

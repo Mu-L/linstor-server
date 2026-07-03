@@ -9,8 +9,6 @@ import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.LayerStorageVlmDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.AbsVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.interfaces.layers.State;
@@ -137,29 +135,29 @@ public abstract class AbsStorageVlmData<RSC extends AbsResource<RSC>>
 
     @SuppressWarnings("unchecked")
     @Override
-    public void setStorPool(AccessContext accCtx, StorPool storPoolRef) throws DatabaseException, AccessDeniedException
+    public void setStorPool(StorPool storPoolRef) throws DatabaseException
     {
         StorPool oldStorPool = storPool.get();
         if (oldStorPool != null)
         {
             if (vlm instanceof Volume)
             {
-                oldStorPool.removeVolume(accCtx, (VlmProviderObject<Resource>) this);
+                oldStorPool.removeVolume((VlmProviderObject<Resource>) this);
             }
             else
             {
-                oldStorPool.removeSnapshotVolume(accCtx, (VlmProviderObject<Snapshot>) this);
+                oldStorPool.removeSnapshotVolume((VlmProviderObject<Snapshot>) this);
             }
         }
         storPool.set(storPoolRef);
 
         if (vlm instanceof Volume)
         {
-            storPoolRef.putVolume(accCtx, (VlmProviderObject<Resource>) this);
+            storPoolRef.putVolume((VlmProviderObject<Resource>) this);
         }
         else
         {
-            storPoolRef.putSnapshotVolume(accCtx, (VlmProviderObject<Snapshot>) this);
+            storPoolRef.putSnapshotVolume((VlmProviderObject<Snapshot>) this);
         }
     }
 
@@ -193,7 +191,7 @@ public abstract class AbsStorageVlmData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public boolean isActive(AccessContext ignored)
+    public boolean isActive()
     {
         return active;
     }

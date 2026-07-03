@@ -8,10 +8,6 @@ import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -28,7 +24,6 @@ public class SystemConfProtectionRepository implements SystemConfRepository
 {
     private final Props ctrlConf;
     private final Props stltConf;
-    private ObjectProtection objectProtection;
 
     // can't initialize objProt in constructor because of chicken-egg-problem
     @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
@@ -42,90 +37,70 @@ public class SystemConfProtectionRepository implements SystemConfRepository
         stltConf = stltConfRef;
     }
 
-    public void setObjectProtection(ObjectProtection objectProtectionRef)
+    public void setObjectProtection()
     {
         if (objectProtection != null)
         {
             throw new IllegalStateException("Object protection already set");
         }
-        objectProtection = objectProtectionRef;
     }
 
     @Override
-    public ObjectProtection getObjProt()
+    public void requireAccess(AccessType requested)
     {
         checkProtSet();
-        return objectProtection;
     }
 
     @Override
-    public void requireAccess(AccessContext accCtx, AccessType requested)
-        throws AccessDeniedException
+    public @Nullable String setCtrlProp(String key, String value, String namespace)
+        throws InvalidValueException, DatabaseException, InvalidKeyException
     {
         checkProtSet();
-        objectProtection.requireAccess(accCtx, requested);
-    }
-
-    @Override
-    public @Nullable String setCtrlProp(AccessContext accCtx, String key, String value, String namespace)
-        throws InvalidValueException, AccessDeniedException, DatabaseException, InvalidKeyException
-    {
-        checkProtSet();
-        objectProtection.requireAccess(accCtx, AccessType.CHANGE);
         return ctrlConf.setProp(key, value, namespace);
     }
 
     @Override
-    public @Nullable String setStltProp(AccessContext accCtx, String key, String value)
-        throws AccessDeniedException, InvalidValueException, InvalidKeyException, DatabaseException
+    public @Nullable String setStltProp(String key, String value)
+        throws InvalidValueException, InvalidKeyException, DatabaseException
     {
         checkProtSet();
-        objectProtection.requireAccess(accCtx, AccessType.CHANGE);
         return stltConf.setProp(key, value);
     }
 
     @Override
-    public @Nullable String removeCtrlProp(AccessContext accCtx, String key, String namespace)
-        throws AccessDeniedException, InvalidKeyException, DatabaseException
+    public @Nullable String removeCtrlProp(String key, String namespace)
+        throws InvalidKeyException, DatabaseException
     {
         checkProtSet();
-        objectProtection.requireAccess(accCtx, AccessType.CHANGE);
         return ctrlConf.removeProp(key, namespace);
     }
 
     @Override
-    public @Nullable String removeStltProp(AccessContext accCtx, String key, String namespace)
-        throws AccessDeniedException, InvalidKeyException, DatabaseException
+    public @Nullable String removeStltProp(String key, String namespace)
+        throws InvalidKeyException, DatabaseException
     {
         checkProtSet();
-        objectProtection.requireAccess(accCtx, AccessType.CHANGE);
         return stltConf.removeProp(key, namespace);
     }
 
     @Override
-    public ReadOnlyProps getCtrlConfForView(AccessContext accCtx)
-        throws AccessDeniedException
+    public ReadOnlyProps getCtrlConfForView()
     {
         checkProtSet();
-        objectProtection.requireAccess(accCtx, AccessType.VIEW);
         return new ReadOnlyPropsImpl(ctrlConf);
     }
 
     @Override
-    public Props getCtrlConfForChange(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getCtrlConfForChange()
     {
         checkProtSet();
-        objectProtection.requireAccess(accCtx, AccessType.CHANGE);
         return ctrlConf;
     }
 
     @Override
-    public ReadOnlyProps getStltConfForView(AccessContext accCtx)
-        throws AccessDeniedException
+    public ReadOnlyProps getStltConfForView()
     {
         checkProtSet();
-        objectProtection.requireAccess(accCtx, AccessType.VIEW);
         return new ReadOnlyPropsImpl(stltConf);
     }
 

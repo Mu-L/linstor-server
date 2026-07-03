@@ -2,7 +2,6 @@ package com.linbit.linstor.debug;
 
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 
@@ -35,7 +34,6 @@ public class CmdTestErrorLog extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     ) throws Exception
     {

@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.ScheduleName;
 import com.linbit.linstor.core.objects.Schedule.InitMaps;
 import com.linbit.linstor.core.objects.Schedule.OnFailure;
@@ -17,10 +16,6 @@ import com.linbit.linstor.dbdrivers.interfaces.ScheduleCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -67,7 +62,6 @@ public final class ScheduleDbDriver extends AbsProtectedDatabaseDriver<Schedule,
     @Inject
     public ScheduleDbDriver(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext dbCtxRef,
         DbEngine dbEngine,
         Provider<TransactionMgr> transMgrProviderRef,
         ObjectProtectionFactory objProtFactoryRef,
@@ -75,7 +69,7 @@ public final class ScheduleDbDriver extends AbsProtectedDatabaseDriver<Schedule,
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.SCHEDULES, dbEngine, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.SCHEDULES, dbEngine, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -83,37 +77,37 @@ public final class ScheduleDbDriver extends AbsProtectedDatabaseDriver<Schedule,
         setColumnSetter(UUID, schedule -> schedule.getUuid().toString());
         setColumnSetter(NAME, schedule -> schedule.getName().value);
         setColumnSetter(DSP_NAME, schedule -> schedule.getName().displayValue);
-        setColumnSetter(FLAGS, schedule -> schedule.getFlags().getFlagsBits(dbCtx));
-        setColumnSetter(FULL_CRON, schedule -> schedule.getFullCron(dbCtx).asString());
+        setColumnSetter(FLAGS, schedule -> schedule.getFlags().getFlagsBits());
+        setColumnSetter(FULL_CRON, schedule -> schedule.getFullCron().asString());
         setColumnSetter(
             INC_CRON,
-            schedule -> schedule.getIncCron(dbCtx) == null ? null : schedule.getIncCron(dbCtx).asString()
+            schedule -> schedule.getIncCron() == null ? null : schedule.getIncCron().asString()
         );
-        setColumnSetter(KEEP_LOCAL, schedule -> schedule.getKeepLocal(dbCtx));
-        setColumnSetter(KEEP_REMOTE, schedule -> schedule.getKeepRemote(dbCtx));
-        setColumnSetter(ON_FAILURE, schedule -> schedule.getOnFailure(dbCtx).value);
-        setColumnSetter(MAX_RETRIES, schedule -> schedule.getMaxRetries(dbCtx));
+        setColumnSetter(KEEP_LOCAL, schedule -> schedule.getKeepLocal());
+        setColumnSetter(KEEP_REMOTE, schedule -> schedule.getKeepRemote());
+        setColumnSetter(ON_FAILURE, schedule -> schedule.getOnFailure().value);
+        setColumnSetter(MAX_RETRIES, schedule -> schedule.getMaxRetries());
 
         fullCronDriver = generateSingleColumnDriver(
-            FULL_CRON, schedule -> schedule.getFullCron(dbCtx).asString(), Cron::asString, Cron::asString
+            FULL_CRON, schedule -> schedule.getFullCron().asString(), Cron::asString, Cron::asString
         );
         incCronDriver = generateSingleColumnDriver(
             INC_CRON,
-            schedule -> schedule.getIncCron(dbCtx) == null ? null : schedule.getIncCron(dbCtx).asString(),
+            schedule -> schedule.getIncCron() == null ? null : schedule.getIncCron().asString(),
             incCron -> incCron == null ? null : incCron.asString(),
             incCron -> incCron == null ? null : incCron.asString()
         );
         keepLocalDriver = generateSingleColumnDriver(
-            KEEP_LOCAL, schedule -> "" + schedule.getKeepLocal(dbCtx), Function.identity()
+            KEEP_LOCAL, schedule -> "" + schedule.getKeepLocal(), Function.identity()
         );
         keepRemoteDriver = generateSingleColumnDriver(
-            KEEP_REMOTE, schedule -> "" + schedule.getKeepRemote(dbCtx), Function.identity()
+            KEEP_REMOTE, schedule -> "" + schedule.getKeepRemote(), Function.identity()
         );
         onFailureDriver = generateSingleColumnDriver(
-            ON_FAILURE, schedule -> schedule.getOnFailure(dbCtx).name(), Schedule.OnFailure::getValue
+            ON_FAILURE, schedule -> schedule.getOnFailure().name(), Schedule.OnFailure::getValue
         );
         maxRetriesDriver = generateSingleColumnDriver(
-            MAX_RETRIES, schedule -> "" + schedule.getMaxRetries(dbCtx), Function.identity()
+            MAX_RETRIES, schedule -> "" + schedule.getMaxRetries(), Function.identity()
         );
 
         flagsDriver = generateFlagDriver(FLAGS, Schedule.Flags.class);
@@ -199,7 +193,7 @@ public final class ScheduleDbDriver extends AbsProtectedDatabaseDriver<Schedule,
     }
 
     @Override
-    protected String getId(Schedule dataRef) throws AccessDeniedException
+    protected String getId(Schedule dataRef)
     {
         return "Schedule(" + dataRef.getName().value + ")";
     }

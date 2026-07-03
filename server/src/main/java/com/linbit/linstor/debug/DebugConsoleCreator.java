@@ -6,9 +6,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
 import com.linbit.linstor.transaction.manager.TransactionMgrGenerator;
 
 import javax.inject.Inject;
@@ -44,16 +41,11 @@ public class DebugConsoleCreator
      * @param accCtx The access context to authorize this API call
      * @param client Connected peer
      * @return New DebugConsole instance
-     * @throws AccessDeniedException If the API call is not authorized
      */
     public DebugConsole createDebugConsole(
-        AccessContext accCtx,
-        AccessContext debugCtx,
         @Nullable Peer client
     )
-        throws AccessDeniedException
     {
-        accCtx.getEffectivePrivs().requirePrivileges(Privilege.PRIV_SYS_ALL);
         DebugConsole peerDbgConsole = new DebugConsoleImpl(
             debugCtx, errorReporter, debugScope, transactionMgrGenerator, debugCommands
         );
@@ -72,12 +64,9 @@ public class DebugConsoleCreator
      *
      * @param accCtx The access context to authorize this API call
      * @param client Connected peer
-     * @throws AccessDeniedException If the API call is not authorized
      */
-    public void destroyDebugConsole(AccessContext accCtx, Peer client)
-        throws AccessDeniedException
+    public void destroyDebugConsole(Peer client)
     {
-        accCtx.getEffectivePrivs().requirePrivileges(Privilege.PRIV_SYS_ALL);
 
         CommonPeerCtx peerContext = (CommonPeerCtx) client.getAttachment();
         peerContext.setDebugConsole(null);

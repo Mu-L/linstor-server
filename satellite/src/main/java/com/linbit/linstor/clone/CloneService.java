@@ -10,7 +10,6 @@ import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.ControllerPeerConnector;
 import com.linbit.linstor.core.StltConfigAccessor;
@@ -28,8 +27,6 @@ import com.linbit.linstor.layer.storage.lvm.utils.LvmUtils;
 import com.linbit.linstor.layer.storage.zfs.utils.ZfsCommands;
 import com.linbit.linstor.layer.storage.zfs.utils.ZfsUtils;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.lvm.LvmData;
 import com.linbit.linstor.storage.data.provider.lvm.LvmThinData;
@@ -88,7 +85,6 @@ public class CloneService implements SystemService
     private final ThreadGroup threadGroup;
     private final ReadWriteLock reconfigurationLock;
     private final Provider<DeviceHandler> resourceProcessorProvider;
-    private final AccessContext sysCtx;
 
     private boolean serviceStarted = false;
 
@@ -101,8 +97,7 @@ public class CloneService implements SystemService
         ExtCmdFactory extCmdFactoryRef,
         StltConfigAccessor stltConfigAccessorRef,
         @Named(CoreModule.RECONFIGURATION_LOCK) ReadWriteLock reconfigurationLockRef,
-        Provider<DeviceHandler> resourceProcessorRef,
-        @SystemContext AccessContext sysCtxRef
+        Provider<DeviceHandler> resourceProcessorRef
     )
     {
         errorReporter = errorReporterRef;
@@ -113,7 +108,6 @@ public class CloneService implements SystemService
         stltConfigAccessor = stltConfigAccessorRef;
         reconfigurationLock = reconfigurationLockRef;
         resourceProcessorProvider = resourceProcessorRef;
-        sysCtx = sysCtxRef;
 
         try
         {
@@ -302,7 +296,7 @@ public class CloneService implements SystemService
                 // use root vlm data to traverse all rsc layers
                 tgtVlmData.getRscLayerObject()
                     .getAbsResource()
-                    .getLayerData(sysCtx)
+                    .getLayerData()
                     .getVlmProviderObject(tgtVlmData.getVlmNr()),
                 tgtVlmData.getCloneDevicePath()
             );
@@ -363,7 +357,7 @@ public class CloneService implements SystemService
                 }
             }
         }
-        catch (AccessDeniedException | StorageException exc)
+        catch (StorageException exc)
         {
             errorReporter.reportError(exc);
         }
@@ -477,38 +471,30 @@ public class CloneService implements SystemService
                         default:
                         {
                             String ddBlocksize = "64k";
-                            try
+                            ResourceDefinition dstRscDfn = dstVlmData.getRscLayerObject()
+                                .getAbsResource().getResourceDefinition();
+                            ResourceDefinition srcRscDfn = srcVlmData.getRscLayerObject()
+                                .getAbsResource().getResourceDefinition();
+                            PriorityProps prioProps = new PriorityProps();
+                            prioProps.addProps(dstRscDfn.getProps());
+                            prioProps.addProps(dstRscDfn.getResourceGroup().getProps());
+                            prioProps.addProps(srcRscDfn.getProps());
+                            prioProps.addProps(srcRscDfn.getResourceGroup().getProps());
+                            if (dstVlmData.getStorPool() != null)
                             {
-                                ResourceDefinition dstRscDfn = dstVlmData.getRscLayerObject()
-                                    .getAbsResource().getResourceDefinition();
-                                ResourceDefinition srcRscDfn = srcVlmData.getRscLayerObject()
-                                    .getAbsResource().getResourceDefinition();
-                                PriorityProps prioProps = new PriorityProps();
-                                prioProps.addProps(dstRscDfn.getProps(sysCtx));
-                                prioProps.addProps(dstRscDfn.getResourceGroup().getProps(sysCtx));
-                                prioProps.addProps(srcRscDfn.getProps(sysCtx));
-                                prioProps.addProps(srcRscDfn.getResourceGroup().getProps(sysCtx));
-                                if (dstVlmData.getStorPool() != null)
-                                {
-                                    prioProps.addProps(dstVlmData.getStorPool().getProps(sysCtx));
-                                }
-                                if (srcVlmData.getStorPool() != null)
-                                {
-                                    prioProps.addProps(srcVlmData.getStorPool().getProps(sysCtx));
-                                }
-                                prioProps.addProps(stltConfigAccessor.getReadonlyProps());
-                                @Nullable String bsProp = prioProps.getProp(
-                                    ApiConsts.KEY_CLONE_DD_BLOCKSIZE,
-                                    ApiConsts.NAMESPC_CLONE);
-                                if (bsProp != null && !bsProp.isEmpty())
-                                {
-                                    ddBlocksize = bsProp;
-                                }
+                                prioProps.addProps(dstVlmData.getStorPool().getProps());
                             }
-                            catch (AccessDeniedException exc)
+                            if (srcVlmData.getStorPool() != null)
                             {
-                                throw new StorageException(
-                                    "Access denied reading clone dd blocksize property", exc);
+                                prioProps.addProps(srcVlmData.getStorPool().getProps());
+                            }
+                            prioProps.addProps(stltConfigAccessor.getReadonlyProps());
+                            @Nullable String bsProp = prioProps.getProp(
+                                ApiConsts.KEY_CLONE_DD_BLOCKSIZE,
+                                ApiConsts.NAMESPC_CLONE);
+                            if (bsProp != null && !bsProp.isEmpty())
+                            {
+                                ddBlocksize = bsProp;
                             }
 
                             var ddConv = new ArrayList<>();

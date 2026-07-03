@@ -1,15 +1,12 @@
 package com.linbit.linstor.core.apicallhandler.controller.helpers;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.utils.LayerUtils;
 import com.linbit.linstor.utils.layer.LayerRscUtils;
@@ -29,12 +26,10 @@ import java.util.List;
 @Singleton
 public class ResourceCreateCheck
 {
-    private final AccessContext apiCtx;
 
     @Inject
-    public ResourceCreateCheck(@ApiContext AccessContext accessContextRef)
+    public ResourceCreateCheck(AccessContext accessContextRef)
     {
-        apiCtx = accessContextRef;
     }
 
     private enum ResourceRole
@@ -52,70 +47,63 @@ public class ResourceCreateCheck
     public void checkCreatedResource(Resource rsc)
     {
         // first check RD if it has already other resources with some properties like nvmeTarget, drbd, ...
-        try
+        ResourceDefinition rscDfn = rsc.getResourceDefinition();
+
+        boolean rdHasNvmeTarget = false;
+        boolean rdHasDrbd = !rscDfn.getLayerData(DeviceLayerKind.DRBD).isEmpty();
+
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
+        while (rscIt.hasNext())
         {
-            ResourceDefinition rscDfn = rsc.getResourceDefinition();
-
-            boolean rdHasNvmeTarget = false;
-            boolean rdHasDrbd = !rscDfn.getLayerData(apiCtx, DeviceLayerKind.DRBD).isEmpty();
-
-            Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
-            while (rscIt.hasNext())
+            Resource otherRsc = rscIt.next();
+            if (!otherRsc.equals(rsc))
             {
-                Resource otherRsc = rscIt.next();
-                if (!otherRsc.equals(rsc))
+                List<DeviceLayerKind> layerStack = LayerRscUtils.getLayerStack(otherRsc);
+                if (layerStack.contains(DeviceLayerKind.NVME))
                 {
-                    List<DeviceLayerKind> layerStack = LayerRscUtils.getLayerStack(otherRsc, apiCtx);
-                    if (layerStack.contains(DeviceLayerKind.NVME))
+                    if (!otherRsc.isNvmeInitiator())
                     {
-                        if (!otherRsc.isNvmeInitiator(apiCtx))
-                        {
-                            rdHasNvmeTarget = true;
-                        }
-                    }
-                }
-            }
-
-            // now check the new resource's role and validate it
-            ResourceRole resourceRole = getCreatedResourceRole(rsc);
-            if (resourceRole != null)
-            {
-                switch (resourceRole)
-                {
-                    case NVME_TARGET ->
-                    {
-                        if (rdHasNvmeTarget && !rdHasDrbd)
-                        {
-                            throw new ApiRcException(
-                                ApiCallRcImpl.simpleEntry(
-                                    ApiConsts.FAIL_EXISTS_NVME_TARGET_PER_RSC_DFN,
-                                    "Only one NVMe Target per resource definition allowed!"
-                                )
-                            );
-                        }
-                    }
-                    case NVME_INITIATOR ->
-                    {
-                        if (!rdHasNvmeTarget)
-                        {
-                            throw new ApiRcException(
-                                ApiCallRcImpl.simpleEntry(
-                                    ApiConsts.FAIL_MISSING_NVME_TARGET,
-                                    "An NVMe Target needs to be created before the Initiator!"
-                                )
-                            );
-                        }
-                    }
-                    default ->
-                    {
-                        // no further checks needed in this case
+                        rdHasNvmeTarget = true;
                     }
                 }
             }
         }
-        catch (AccessDeniedException exc)
+
+        // now check the new resource's role and validate it
+        ResourceRole resourceRole = getCreatedResourceRole(rsc);
+        if (resourceRole != null)
         {
-            throw new ImplementationError(exc);
+            switch (resourceRole)
+            {
+                case NVME_TARGET ->
+                {
+                    if (rdHasNvmeTarget && !rdHasDrbd)
+                    {
+                        throw new ApiRcException(
+                            ApiCallRcImpl.simpleEntry(
+                                ApiConsts.FAIL_EXISTS_NVME_TARGET_PER_RSC_DFN,
+                                "Only one NVMe Target per resource definition allowed!"
+                            )
+                        );
+                    }
+                }
+                case NVME_INITIATOR ->
+                {
+                    if (!rdHasNvmeTarget)
+                    {
+                        throw new ApiRcException(
+                            ApiCallRcImpl.simpleEntry(
+                                ApiConsts.FAIL_MISSING_NVME_TARGET,
+                                "An NVMe Target needs to be created before the Initiator!"
+                            )
+                        );
+                    }
+                }
+                default ->
+                {
+                    // no further checks needed in this case
+                }
+            }
         }
     }
 
@@ -123,19 +111,12 @@ public class ResourceCreateCheck
     {
         ResourceRole ret = null;
 
-        try
+        List<DeviceLayerKind> layerStack = LayerUtils.getLayerStack(rsc);
+        if (layerStack.contains(DeviceLayerKind.NVME))
         {
-            List<DeviceLayerKind> layerStack = LayerUtils.getLayerStack(rsc, apiCtx);
-            if (layerStack.contains(DeviceLayerKind.NVME))
-            {
-                ret = rsc.isNvmeInitiator(apiCtx) ?
-                    ResourceRole.NVME_INITIATOR :
-                    ResourceRole.NVME_TARGET;
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            ret = rsc.isNvmeInitiator() ?
+                ResourceRole.NVME_INITIATOR :
+                ResourceRole.NVME_TARGET;
         }
         return ret;
     }

@@ -5,8 +5,6 @@ import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -19,7 +17,6 @@ import com.linbit.linstor.core.CtrlSecurityObjects;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -40,8 +37,6 @@ import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.core.repository.RemoteRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.ScheduleBackupService;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -76,12 +71,10 @@ public class CtrlRemoteApiCallHandler
     private static final Pattern LINSTOR_URL_PATTERN = Pattern.compile("(https?://)?([^:]+)(:[0-9]+)?");
     private static final Pattern PATTERN_AWS_REGION_FROM_AZ = Pattern.compile("([^-]+-[^-]+-.)");
 
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final ResponseConverter responseConverter;
     private final S3RemoteControllerFactory s3remoteFactory;
@@ -98,12 +91,10 @@ public class CtrlRemoteApiCallHandler
 
     @Inject
     public CtrlRemoteApiCallHandler(
-        @SystemContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         ResponseConverter responseConverterRef,
         S3RemoteControllerFactory s3remoteFactoryRef,
@@ -118,12 +109,10 @@ public class CtrlRemoteApiCallHandler
         BackupInfoManager backupInfoMgrRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         responseConverter = responseConverterRef;
         s3remoteFactory = s3remoteFactoryRef;
@@ -143,7 +132,7 @@ public class CtrlRemoteApiCallHandler
         final AccessContext pAccCtx = peerAccCtx.get();
         return listGeneric(
             S3Remote.class,
-            remote -> remote.getApiData(pAccCtx, null, null)
+            remote -> remote.getApiData(null, null)
         );
     }
 
@@ -152,7 +141,7 @@ public class CtrlRemoteApiCallHandler
         final AccessContext pAccCtx = peerAccCtx.get();
         return listGeneric(
             LinstorRemote.class,
-            remote -> remote.getApiData(pAccCtx, null, null)
+            remote -> remote.getApiData(null, null)
         );
     }
 
@@ -161,21 +150,21 @@ public class CtrlRemoteApiCallHandler
         final AccessContext pAccCtx = peerAccCtx.get();
         return listGeneric(
             EbsRemote.class,
-            remote -> remote.getApiData(pAccCtx, null, null)
+            remote -> remote.getApiData(null, null)
         );
     }
 
     @SuppressWarnings("unchecked")
     private <RET_TYPE, REMOTE_CLASS extends AbsRemote> List<RET_TYPE> listGeneric(
         Class<REMOTE_CLASS> clazz,
-        ExceptionThrowingFunction<REMOTE_CLASS, RET_TYPE, AccessDeniedException> remoteToApiDataFunc
+        ExceptionThrowingFunction<REMOTE_CLASS, RET_TYPE> remoteToApiDataFunc
     )
     {
         ArrayList<RET_TYPE> ret = new ArrayList<>();
         try
         {
             AccessContext pAccCtx = peerAccCtx.get();
-            for (Entry<RemoteName, AbsRemote> entry : remoteRepository.getMapForView(pAccCtx).entrySet())
+            for (Entry<RemoteName, AbsRemote> entry : remoteRepository.getMapForView().entrySet())
             {
                 AbsRemote remote = entry.getValue();
                 if (clazz.isInstance(remote))
@@ -255,17 +244,17 @@ public class CtrlRemoteApiCallHandler
             byte[] accessKey = encryptionHelper.encrypt(accessKeyRef);
             byte[] secretKey = encryptionHelper.encrypt(secretKeyRef);
             S3Remote remote = s3remoteFactory
-                .create(peerAccCtx.get(), remoteName, endpointRef, bucketRef, regionRef, accessKey, secretKey);
-            remoteRepository.put(apiCtx, remote);
+                .create(remoteName, endpointRef, bucketRef, regionRef, accessKey, secretKey);
+            remoteRepository.put(remote);
 
             if (usePathStyleRef)
             {
-                remote.getFlags().enableFlags(peerAccCtx.get(), AbsRemote.Flags.S3_USE_PATH_STYLE);
+                remote.getFlags().enableFlags(AbsRemote.Flags.S3_USE_PATH_STYLE);
             }
 
             // check if url and keys work together
             byte[] masterKey = ctrlSecObj.getCryptKey();
-            backupHandler.listObjects("", remote, peerAccCtx.get(), masterKey);
+            backupHandler.listObjects("", remote, masterKey);
 
             ctrlTransactionHelper.commit();
             responses.addEntry(ApiCallRcImpl.simpleEntry(ApiConsts.CREATED | ApiConsts.MASK_REMOTE, "Remote created"));
@@ -285,14 +274,6 @@ public class CtrlRemoteApiCallHandler
                     For more information on the error, please check the error-report."""
                 ),
                 exc
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "create " + getRemoteDescription(remoteNameStr),
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
             );
         }
         catch (LinStorDataAlreadyExistsException exc)
@@ -353,15 +334,15 @@ public class CtrlRemoteApiCallHandler
         {
             if (endpointRef != null && !endpointRef.isEmpty())
             {
-                s3remote.setUrl(peerAccCtx.get(), endpointRef);
+                s3remote.setUrl(endpointRef);
             }
             if (bucketRef != null && !bucketRef.isEmpty())
             {
-                s3remote.setBucket(peerAccCtx.get(), bucketRef);
+                s3remote.setBucket(bucketRef);
             }
             if (regionRef != null && !regionRef.isEmpty())
             {
-                s3remote.setRegion(peerAccCtx.get(), regionRef);
+                s3remote.setRegion(regionRef);
             }
             if (accessKeyRef != null && !accessKeyRef.isEmpty())
             {
@@ -380,7 +361,7 @@ public class CtrlRemoteApiCallHandler
                         exc
                     );
                 }
-                s3remote.setAccessKey(peerAccCtx.get(), accessKey);
+                s3remote.setAccessKey(accessKey);
             }
             if (secretKeyRef != null && !secretKeyRef.isEmpty())
             {
@@ -399,10 +380,10 @@ public class CtrlRemoteApiCallHandler
                         exc
                     );
                 }
-                s3remote.setSecretKey(peerAccCtx.get(), secretKey);
+                s3remote.setSecretKey(secretKey);
             }
             byte[] masterKey = ctrlSecObj.getCryptKey();
-            backupHandler.listObjects("", s3remote, peerAccCtx.get(), masterKey);
+            backupHandler.listObjects("", s3remote, masterKey);
         }
         catch (SdkClientException exc)
         {
@@ -415,14 +396,6 @@ public class CtrlRemoteApiCallHandler
                     For more information on the error, please check the error-report."""
                 ),
                 exc
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "modify " + getRemoteDescription(remoteNameStr),
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
             );
         }
         catch (DatabaseException exc)
@@ -510,21 +483,12 @@ public class CtrlRemoteApiCallHandler
             // TODO: check if remoteClusterId (if given) is unique. We could use
             // CtrlBackupL2LDstApiCallHandler#loadLinstorRemote for that
             remote = linstorRemoteFactory.create(
-                peerAccCtx.get(),
                 remoteName,
                 createUrlWithDefaults(urlRef),
                 encryptedTargetPassphrase,
                 remoteClusterId
             );
-            remoteRepository.put(apiCtx, remote);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "create " + getRemoteDescription(remoteNameRef),
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
-            );
+            remoteRepository.put(remote);
         }
         catch (LinStorDataAlreadyExistsException exc)
         {
@@ -647,11 +611,11 @@ public class CtrlRemoteApiCallHandler
         {
             if (urlStrRef != null && !urlStrRef.isEmpty())
             {
-                linstorRemote.setUrl(peerAccCtx.get(), createUrlWithDefaults(urlStrRef));
+                linstorRemote.setUrl(createUrlWithDefaults(urlStrRef));
             }
             if (passphraseRef != null && !passphraseRef.isEmpty())
             {
-                linstorRemote.setEncryptedRemotePassphase(peerAccCtx.get(), encryptionHelper.encrypt(passphraseRef));
+                linstorRemote.setEncryptedRemotePassphase(encryptionHelper.encrypt(passphraseRef));
             }
             if (clusterIidRef != null && !clusterIidRef.isEmpty())
             {
@@ -664,16 +628,8 @@ public class CtrlRemoteApiCallHandler
                         )
                     );
                 }
-                linstorRemote.setClusterId(peerAccCtx.get(), UUID.fromString(clusterIidRef));
+                linstorRemote.setClusterId(UUID.fromString(clusterIidRef));
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "modify " + getRemoteDescription(remoteNameStr),
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
-            );
         }
         catch (DatabaseException exc)
         {
@@ -768,7 +724,6 @@ public class CtrlRemoteApiCallHandler
             byte[] encryptedAccessKey = encryptionHelper.encrypt(accessKeyRef);
             byte[] encryptedSecretKey = encryptionHelper.encrypt(secretKeyRef);
             remote = ebsRemoteFactory.create(
-                peerAccCtx.get(),
                 remoteName,
                 0,
                 new URL(endpoint),
@@ -777,22 +732,14 @@ public class CtrlRemoteApiCallHandler
                 encryptedAccessKey,
                 encryptedSecretKey
             );
-            remote.setDecryptedAccessKey(apiCtx, accessKeyRef);
-            remote.setDecryptedSecretKey(apiCtx, secretKeyRef);
-            remoteRepository.put(apiCtx, remote);
+            remote.setDecryptedAccessKey(accessKeyRef);
+            remote.setDecryptedSecretKey(secretKeyRef);
+            remoteRepository.put(remote);
 
             // TODO perform check if accessKey and secretKey are correct if possible
 
             ctrlTransactionHelper.commit();
             responses.addEntry(ApiCallRcImpl.simpleEntry(ApiConsts.CREATED | ApiConsts.MASK_REMOTE, "Remote created"));
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "create " + getRemoteDescription(remoteNameStrRef),
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
-            );
         }
         catch (LinStorDataAlreadyExistsException exc)
         {
@@ -922,7 +869,7 @@ public class CtrlRemoteApiCallHandler
             final String changedRegion;
             if (availabilityZoneRef != null && !availabilityZoneRef.isEmpty())
             {
-                ebsRemote.setAvailabilityZone(pAccCtx, availabilityZoneRef);
+                ebsRemote.setAvailabilityZone(availabilityZoneRef);
                 changedRegion = buildRegion(regionRef, availabilityZoneRef);
                 if (!Objects.equals(changedRegion, regionRef))
                 {
@@ -941,7 +888,7 @@ public class CtrlRemoteApiCallHandler
 
             if (changedRegion != null && !changedRegion.isEmpty())
             {
-                ebsRemote.setRegion(pAccCtx, changedRegion);
+                ebsRemote.setRegion(changedRegion);
                 changedEndpoint = buildEndpoing(endpointRef, changedRegion);
                 if (!Objects.equals(changedEndpoint, endpointRef))
                 {
@@ -960,26 +907,18 @@ public class CtrlRemoteApiCallHandler
 
             if (changedEndpoint != null && !changedEndpoint.isEmpty())
             {
-                ebsRemote.setUrl(pAccCtx, new URL(changedEndpoint));
+                ebsRemote.setUrl(new URL(changedEndpoint));
             }
             if (accessKeyRef != null && !accessKeyRef.isEmpty())
             {
-                ebsRemote.setEncryptedAccessKey(pAccCtx, encryptionHelper.encrypt(accessKeyRef));
-                ebsRemote.setDecryptedAccessKey(pAccCtx, accessKeyRef);
+                ebsRemote.setEncryptedAccessKey(encryptionHelper.encrypt(accessKeyRef));
+                ebsRemote.setDecryptedAccessKey(accessKeyRef);
             }
             if (secretKeyRef != null && !secretKeyRef.isEmpty())
             {
-                ebsRemote.setEncryptedSecretKey(pAccCtx, encryptionHelper.encrypt(secretKeyRef));
-                ebsRemote.setDecryptedSecretKey(pAccCtx, secretKeyRef);
+                ebsRemote.setEncryptedSecretKey(encryptionHelper.encrypt(secretKeyRef));
+                ebsRemote.setDecryptedSecretKey(secretKeyRef);
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "modify " + getRemoteDescription(remoteNameStrRef),
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
-            );
         }
         catch (DatabaseException exc)
         {
@@ -1116,19 +1055,11 @@ public class CtrlRemoteApiCallHandler
         Flux<ApiCallRc> postUpdateStltFlux;
         try
         {
-            scheduleService.removeTasks(remote, peerAccCtx.get());
+            scheduleService.removeTasks(remote);
         }
         catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "while trying to remove props",
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
-            );
         }
         catch (DatabaseException exc)
         {
@@ -1180,40 +1111,33 @@ public class CtrlRemoteApiCallHandler
 
     private void ensureEbsRemoteUnusedPrivileged(AbsRemote remoteRef)
     {
-        try
+        if (remoteRef instanceof EbsRemote)
         {
-            if (remoteRef instanceof EbsRemote)
+            final String remoteNameDispValue = remoteRef.getName().displayValue;
+            for (Node node : nodeRepo.getMapForView().values())
             {
-                final String remoteNameDispValue = remoteRef.getName().displayValue;
-                for (Node node : nodeRepo.getMapForView(apiCtx).values())
+                Iterator<StorPool> storPoolIt = node.iterateStorPools();
+                while (storPoolIt.hasNext())
                 {
-                    Iterator<StorPool> storPoolIt = node.iterateStorPools(apiCtx);
-                    while (storPoolIt.hasNext())
+                    StorPool storPool = storPoolIt.next();
+                    String ebsRemoteName = storPool.getProps().getProp(
+                        ApiConsts.KEY_REMOTE,
+                        ApiConsts.NAMESPC_STORAGE_DRIVER + "/" + ApiConsts.NAMESPC_EBS
+                    );
+                    if (ebsRemoteName != null && ebsRemoteName.equalsIgnoreCase(remoteNameDispValue))
                     {
-                        StorPool storPool = storPoolIt.next();
-                        String ebsRemoteName = storPool.getProps(apiCtx).getProp(
-                            ApiConsts.KEY_REMOTE,
-                            ApiConsts.NAMESPC_STORAGE_DRIVER + "/" + ApiConsts.NAMESPC_EBS
+                        throw new ApiRcException(
+                            ApiCallRcImpl.simpleEntry(
+                                ApiConsts.FAIL_IN_USE,
+                                "Remote " + remoteNameDispValue +
+                                    " cannot be deleted as a storage pool still uses it"
+                            )
+                                .setCorrection("Delete the storage pool first")
+                                .setSkipErrorReport(true)
                         );
-                        if (ebsRemoteName != null && ebsRemoteName.equalsIgnoreCase(remoteNameDispValue))
-                        {
-                            throw new ApiRcException(
-                                ApiCallRcImpl.simpleEntry(
-                                    ApiConsts.FAIL_IN_USE,
-                                    "Remote " + remoteNameDispValue +
-                                        " cannot be deleted as a storage pool still uses it"
-                                )
-                                    .setCorrection("Delete the storage pool first")
-                                    .setSkipErrorReport(true)
-                            );
-                        }
                     }
                 }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
     }
 
@@ -1239,16 +1163,8 @@ public class CtrlRemoteApiCallHandler
 
         try
         {
-            remoteRef.delete(peerAccCtx.get());
-            remoteRepository.remove(apiCtx, remoteName);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "delete " + remoteDescription,
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
-            );
+            remoteRef.delete();
+            remoteRepository.remove(remoteName);
         }
         catch (DatabaseException exc)
         {
@@ -1268,15 +1184,7 @@ public class CtrlRemoteApiCallHandler
     {
         try
         {
-            remoteRef.getFlags().enableFlags(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "delete " + getRemoteDescription(remoteRef.getName().displayValue),
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
-            );
+            remoteRef.getFlags().enableFlags(flags);
         }
         catch (DatabaseException exc)
         {
@@ -1325,29 +1233,18 @@ public class CtrlRemoteApiCallHandler
     {
         AbsRemote remote = loadRemote(remoteNameStr);
         Flux<ApiCallRc> flux = Flux.empty();
-        try
+        if (remote == null)
         {
-            if (remote == null)
-            {
-                flux = Flux.<ApiCallRc>just(
-                    ApiCallRcImpl.singleApiCallRc(
-                        ApiConsts.WARN_NOT_FOUND,
-                        getRemoteDescription(remoteNameStr) + " not found."
-                    )
-                );
-            }
-            else if (remote.getFlags().isSet(peerAccCtx.get(), AbsRemote.Flags.MARK_DELETED))
-            {
-                flux = deleteInTransaction(remote);
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Cannot access Flags of " + remoteNameStr,
-                ApiConsts.FAIL_ACC_DENIED_REMOTE
+            flux = Flux.<ApiCallRc>just(
+                ApiCallRcImpl.singleApiCallRc(
+                    ApiConsts.WARN_NOT_FOUND,
+                    getRemoteDescription(remoteNameStr) + " not found."
+                )
             );
+        }
+        else if (remote.getFlags().isSet(AbsRemote.Flags.MARK_DELETED))
+        {
+            flux = deleteInTransaction(remote);
         }
         return flux;
     }

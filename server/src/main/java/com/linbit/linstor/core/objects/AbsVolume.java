@@ -1,9 +1,6 @@
 package com.linbit.linstor.core.objects;
 
 import com.linbit.linstor.core.identifier.VolumeNumber;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -20,7 +17,7 @@ import java.util.UUID;
  */
 public abstract class AbsVolume<RSC extends AbsResource<RSC>>
     extends AbsCoreObj<AbsVolume<RSC>>
-    implements LinstorDataObject, ProtectedObject
+    implements LinstorDataObject
 {
 
     // Reference to the resource this volume belongs to
@@ -61,5 +58,5 @@ public abstract class AbsVolume<RSC extends AbsResource<RSC>>
 
     public abstract VolumeNumber getVolumeNumber();
 
-    public abstract long getVolumeSize(AccessContext dbCtxRef) throws AccessDeniedException;
+    public abstract long getVolumeSize();
 }

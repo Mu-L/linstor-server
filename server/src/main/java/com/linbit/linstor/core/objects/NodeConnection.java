@@ -10,12 +10,8 @@ import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.NodeConnectionDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -86,15 +82,12 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
         NodeConnectionDatabaseDriver dbDriverRef,
         PropsContainerFactory propsContainerFactory,
         TransactionObjectFactory transObjFactory,
-        Provider<? extends TransactionMgr> transMgrProviderRef,
-        AccessContext accCtx
-    ) throws LinStorDataAlreadyExistsException, AccessDeniedException, DatabaseException
+        Provider<? extends TransactionMgr> transMgrProviderRef
+    ) throws LinStorDataAlreadyExistsException, DatabaseException
     {
-        node1.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-        node2.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
-        NodeConnection node1ConData = node1.getNodeConnection(accCtx, node2);
-        NodeConnection node2ConData = node2.getNodeConnection(accCtx, node1);
+        NodeConnection node1ConData = node1.getNodeConnection(node2);
+        NodeConnection node2ConData = node2.getNodeConnection(node1);
 
         if (node1ConData != null || node2ConData != null)
         {
@@ -165,11 +158,9 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
     }
 
     public static @Nullable NodeConnection get(
-        AccessContext accCtx,
         Node node1,
         Node node2
     )
-        throws AccessDeniedException
     {
         Node source;
         Node target;
@@ -184,7 +175,7 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
             target = node1;
         }
 
-        return source.getNodeConnection(accCtx, target);
+        return source.getNodeConnection(target);
     }
 
     public NodeName getSourceNodeName()
@@ -203,7 +194,7 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
         return nodeConnKey;
     }
 
-    public Node getNode(AccessContext accCtx, NodeName nodeNameRef) throws AccessDeniedException
+    public Node getNode(NodeName nodeNameRef)
     {
         checkDeleted();
 
@@ -222,11 +213,10 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
                 String.format("Given node name (%s) is neither source nor target node)", nodeNameRef.displayValue)
             );
         }
-        node.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return node;
     }
 
-    public Node getOtherNode(AccessContext accCtx, Node nodeRef) throws AccessDeniedException
+    public Node getOtherNode(Node nodeRef)
     {
         checkDeleted();
         Node otherNode;
@@ -242,47 +232,38 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
         {
             throw new ImplementationError("Node not part of nodeconnection: " + nodeRef);
         }
-        otherNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
         return otherNode;
     }
 
-    public Node getSourceNode(AccessContext accCtx) throws AccessDeniedException
+    public Node getSourceNode()
     {
         checkDeleted();
-        sourceNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
-        targetNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return sourceNode;
     }
 
-    public Node getTargetNode(AccessContext accCtx) throws AccessDeniedException
+    public Node getTargetNode()
     {
         checkDeleted();
-        sourceNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
-        targetNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return targetNode;
     }
 
     public NodeConnPojo getApiData(
         Node localNode,
-        AccessContext accCtx,
         @Nullable Long fullSyncId,
         @Nullable Long updateId
     )
-        throws AccessDeniedException
     {
         checkDeleted();
-        sourceNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
-        targetNode.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
         NodePojo otherNodePojo;
         if (sourceNode.equals(localNode))
         {
-            otherNodePojo = targetNode.getApiData(accCtx, false, fullSyncId, updateId);
+            otherNodePojo = targetNode.getApiData(false, fullSyncId, updateId);
         }
         else if (targetNode.equals(localNode))
         {
-            otherNodePojo = sourceNode.getApiData(accCtx, false, fullSyncId, updateId);
+            otherNodePojo = sourceNode.getApiData(false, fullSyncId, updateId);
         }
         else
         {
@@ -299,11 +280,10 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
         );
     }
 
-    public Props getProps(AccessContext accCtx) throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
         return PropsAccess.secureGetProps(
-            accCtx,
             sourceNode.getObjProt(),
             targetNode.getObjProt(),
             props
@@ -311,15 +291,13 @@ public class NodeConnection extends AbsCoreObj<NodeConnection>
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            sourceNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-            targetNode.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
-            sourceNode.removeNodeConnection(accCtx, this);
-            targetNode.removeNodeConnection(accCtx, this);
+            sourceNode.removeNodeConnection(this);
+            targetNode.removeNodeConnection(this);
 
             props.delete();
 

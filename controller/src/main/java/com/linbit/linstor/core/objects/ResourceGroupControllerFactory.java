@@ -6,10 +6,6 @@ import com.linbit.linstor.core.repository.ResourceGroupRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceGroupDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -56,7 +52,6 @@ public class ResourceGroupControllerFactory
     }
 
     public ResourceGroup create(
-        AccessContext accCtx,
         ResourceGroupName rscGrpName,
         @Nullable String description,
         @Nullable List<DeviceLayerKind> layerStackRef,
@@ -73,9 +68,9 @@ public class ResourceGroupControllerFactory
         @Nullable Boolean autoPlaceDisklessOnRemainingRef,
         @Nullable Short peerSlotsRef
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        ResourceGroup rscGrp = rscGrpRepository.get(accCtx, rscGrpName);
+        ResourceGroup rscGrp = rscGrpRepository.get(rscGrpName);
 
         if (rscGrp != null)
         {
@@ -85,7 +80,6 @@ public class ResourceGroupControllerFactory
         rscGrp = new ResourceGroup(
             UUID.randomUUID(),
             objectProtectionFactory.getInstance(
-                accCtx,
                 ObjectProtection.buildPath(rscGrpName),
                 true
             ),

@@ -12,7 +12,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.event.common.ResourceState;
 import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -30,20 +29,19 @@ public interface DeviceHandler
         AbsRscLayerObject<Resource> rscLayerData,
         ApiCallRcImpl apiCallRc
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException;
+        throws StorageException, ResourceException, VolumeException, DatabaseException;
 
     void processSnapshot(
         AbsRscLayerObject<Snapshot> snapLayerData,
         ApiCallRcImpl apiCallRc
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException,
-        DatabaseException;
+        throws StorageException, ResourceException, VolumeException, DatabaseException;
 
     void sendResourceCreatedEvent(AbsRscLayerObject<Resource> layerDataRef, ResourceState resourceStateRef);
 
     void sendResourceDeletedEvent(AbsRscLayerObject<Resource> layerDataRef);
 
-    void localNodePropsChanged(Props propsRef) throws StorageException, AccessDeniedException;
+    void localNodePropsChanged(Props propsRef) throws StorageException;
 
     void fullSyncApplied(Node localNodeRef) throws StorageException;
 
@@ -95,7 +93,7 @@ public interface DeviceHandler
     }
 
     void openForClone(VlmProviderObject<?> sourceVlmData, @Nullable String targetRscNameRef)
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     void closeAfterClone(VlmProviderObject<?> vlmDataRef, @Nullable String targetRscNameRef) throws StorageException;
 

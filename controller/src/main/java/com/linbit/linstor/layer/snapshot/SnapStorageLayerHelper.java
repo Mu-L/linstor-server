@@ -5,7 +5,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -24,8 +23,6 @@ import com.linbit.linstor.layer.AbsLayerHelperUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.provider.StorageRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
@@ -50,14 +47,12 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
     @Inject
     SnapStorageLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef
     )
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             DeviceLayerKind.STORAGE
@@ -66,7 +61,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
 
     @Override
     protected @Nullable RscDfnLayerObject createSnapDfnData(SnapshotDefinition rscDfnRef, String rscNameSuffixRef)
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // StorageLayer does not have resource-definition specific data (nothing to snapshot)
@@ -78,7 +73,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapVlmDfnRef,
         String rscNameSuffixRef
     )
-        throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // StorageLayer does not have volume-definition specific data (nothing to snapshot)
@@ -91,7 +86,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         AbsRscLayerObject<Resource> rscDataRef,
         AbsRscLayerObject<Snapshot> parentRef
     )
-        throws AccessDeniedException, DatabaseException, ExhaustedPoolException
+        throws DatabaseException, ExhaustedPoolException
     {
         return layerDataFactory.createStorageRscData(
             layerRscIdPool.autoAllocate(),
@@ -107,7 +102,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         StorageRscData<Snapshot> snapDataRef,
         VlmProviderObject<Resource> vlmDataRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         VlmProviderObject<Snapshot> snapVlmData;
 
@@ -158,7 +153,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         }
         // To restore backups, the usable size is needed in the snapshot
         snapVlmData.setUsableSize(vlmDataRef.getUsableSize());
-        storPool.putSnapshotVolume(apiCtx, snapVlmData);
+        storPool.putSnapshotVolume(snapVlmData);
         return snapVlmData;
     }
 
@@ -179,7 +174,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapshotVolumeDefinitionRef,
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // StorageLayer does not have volume-definition specific data (nothing to snapshot)
@@ -192,7 +187,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         RscLayerDataApi rscLayerDataApiRef,
         @Nullable AbsRscLayerObject<Snapshot> parentRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException, AccessDeniedException
+    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException
     {
         return layerDataFactory.createStorageRscData(
             layerRscIdPool.autoAllocate(),
@@ -209,7 +204,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef,
         @Nullable ApiCallRc apiCallRc
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         VlmProviderObject<Snapshot> snapVlmData;
 
@@ -218,7 +213,6 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         // be required when restoring from a snapshot
         DeviceProviderKind providerKind = vlmLayerDataApiRef.getProviderKind();
         StorPool storPool = AbsLayerHelperUtils.getStorPool(
-            apiCtx,
             snapVlmRef,
             snapDataRef,
             vlmLayerDataApiRef.getStorPoolApi().getStorPoolName(),
@@ -240,7 +234,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
             case DISKLESS:
                 snapVlmData = layerDataFactory.createDisklessData(
                     snapVlmRef,
-                    snapVlmRef.getVolumeSize(apiCtx),
+                    snapVlmRef.getVolumeSize(),
                     snapDataRef,
                     storPool
                 );
@@ -276,7 +270,7 @@ class SnapStorageLayerHelper extends AbsSnapLayerHelper<
         }
         // To restore backups, the usable size is needed in the snapshot
         snapVlmData.setUsableSize(vlmLayerDataApiRef.getUsableSize());
-        storPool.putSnapshotVolume(apiCtx, snapVlmData);
+        storPool.putSnapshotVolume(snapVlmData);
         return snapVlmData;
     }
 }

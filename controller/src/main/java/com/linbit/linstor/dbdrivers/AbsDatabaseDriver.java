@@ -19,8 +19,6 @@ import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDrive
 import com.linbit.linstor.dbdrivers.k8s.crd.GenCrdCurrent;
 import com.linbit.linstor.dbdrivers.k8s.crd.LinstorSpec;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.utils.ExceptionThrowingFunction;
@@ -52,7 +50,6 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
     {
     };
 
-    protected final AccessContext dbCtx;
 
     protected final ErrorReporter errorReporter;
     /**
@@ -64,10 +61,9 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
     protected final @Nullable DatabaseTable table;
     private final DbEngine dbEngine;
 
-    private final Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters;
+    private final Map<Column, ExceptionThrowingFunction<DATA, Object>> setters;
 
     protected AbsDatabaseDriver(
-        AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         @Nullable DatabaseTable tableRef,
         DbEngine dbEngineRef
@@ -76,7 +72,6 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
         errorReporter = errorReporterRef;
         table = tableRef;
         dbEngine = dbEngineRef;
-        dbCtx = dbCtxRef;
 
         setters = new HashMap<>();
     }
@@ -107,14 +102,7 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
     {
         if (table != null)
         {
-            try
-            {
-                dbEngine.create(setters, dataRef, table, this::getId);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError("Database driver does not have enough privileges");
-            }
+            dbEngine.create(setters, dataRef, table, this::getId);
         }
     }
 
@@ -123,31 +111,17 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
     {
         if (table != null)
         {
-            try
-            {
-                dbEngine.upsert(setters, dataRef, table, this::getId);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError("Database driver does not have enough privileges");
-            }
+            dbEngine.upsert(setters, dataRef, table, this::getId);
         }
     }
 
     @Override
     public void delete(DATA dataRef) throws DatabaseException
     {
-        try
+        // some drivers simply do not have a table (like LayerStorageRscDbDriver)
+        if (table != null)
         {
-            // some drivers simply do not have a table (like LayerStorageRscDbDriver)
-            if (table != null)
-            {
-                dbEngine.delete(setters, dataRef, table, this::getId);
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError("Database driver does not have enough privileges");
+            dbEngine.delete(setters, dataRef, table, this::getId);
         }
     }
 
@@ -172,10 +146,6 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
         try
         {
             loadedObjectsMap = dbEngine.loadAll(table, parentRef, this::load);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError("Database context does not have enough privileges");
         }
         catch (InvalidNameException | InvalidIpAddressException | ValueOutOfRangeException | MdException |
             ExhaustedPoolException | ValueInUseException exc)
@@ -216,7 +186,7 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
 
     protected <INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
         Column col,
-        ExceptionThrowingFunction<DATA, String, AccessDeniedException> dataValueToString,
+        ExceptionThrowingFunction<DATA, String> dataValueToString,
         Function<INPUT_TYPE, DB_TYPE> typeMapper
     )
     {
@@ -232,7 +202,7 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
 
     protected <INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
         Column col,
-        ExceptionThrowingFunction<DATA, String, AccessDeniedException> dataValueToString,
+        ExceptionThrowingFunction<DATA, String> dataValueToString,
         Function<INPUT_TYPE, DB_TYPE> typeMapper,
         DataToString<INPUT_TYPE> inputToStringRef
     )
@@ -271,7 +241,7 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
 
     protected void setColumnSetter(
         Column colRef,
-        ExceptionThrowingFunction<DATA, Object, AccessDeniedException> setterRef
+        ExceptionThrowingFunction<DATA, Object> setterRef
     )
     {
         setters.put(colRef, setterRef);
@@ -323,9 +293,9 @@ public abstract class AbsDatabaseDriver<DATA extends Comparable<? super DATA>, I
         LOAD_ALL parentRef
     )
         throws DatabaseException, InvalidNameException, ValueOutOfRangeException, InvalidIpAddressException,
-        MdException, ExhaustedPoolException, ValueInUseException, RuntimeException, AccessDeniedException;
+        MdException, ExhaustedPoolException, ValueInUseException, RuntimeException;
 
-    protected abstract String getId(DATA data) throws AccessDeniedException;
+    protected abstract String getId(DATA data);
 
     private static class MultiColumnDriver<PARENT, COL_VALUE> implements SingleColumnDatabaseDriver<PARENT, COL_VALUE>
     {

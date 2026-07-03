@@ -5,8 +5,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceConnectionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -40,12 +38,11 @@ public class ResourceConnectionControllerFactory
     }
 
     public ResourceConnection create(
-        AccessContext accCtx,
         Resource sourceResource,
         Resource targetResource,
         @Nullable ResourceConnection.Flags[] initFlags
     )
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
         ResourceConnection rscConData = ResourceConnection.createWithSorting(
             UUID.randomUUID(),
@@ -57,13 +54,12 @@ public class ResourceConnectionControllerFactory
             propsContainerFactory,
             transObjFactory,
             transMgrProvider,
-            StateFlagsBits.getMask(initFlags),
-            accCtx
+            StateFlagsBits.getMask(initFlags)
         );
         dbDriver.create(rscConData);
 
-        sourceResource.setAbsResourceConnection(accCtx, rscConData);
-        targetResource.setAbsResourceConnection(accCtx, rscConData);
+        sourceResource.setAbsResourceConnection(rscConData);
+        targetResource.setAbsResourceConnection(rscConData);
 
         return rscConData;
     }

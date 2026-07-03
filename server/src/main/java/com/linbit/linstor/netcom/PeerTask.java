@@ -10,9 +10,6 @@ import com.linbit.linstor.api.prop.Property;
 import com.linbit.linstor.core.cfg.StltConfig;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
 import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 
 import javax.net.ssl.SSLException;
@@ -28,7 +25,6 @@ import reactor.core.publisher.Flux;
 public class PeerTask implements Peer
 {
     private final String peerId;
-    private AccessContext accCtx;
     static final ServiceName serviceName;
     static
     {
@@ -44,12 +40,10 @@ public class PeerTask implements Peer
     private final ExtToolsManager extToolsMgr;
 
     public PeerTask(
-        String peerIdRef,
-        AccessContext defaultCtx
+        String peerIdRef
     )
     {
         peerId = peerIdRef;
-        accCtx = defaultCtx;
         extToolsMgr = new ExtToolsManager();
     }
 
@@ -85,11 +79,8 @@ public class PeerTask implements Peer
     }
 
     @Override
-    public void setAccessContext(AccessContext privilegedCtx, AccessContext newAccCtx)
-        throws AccessDeniedException
+    public void setAccessContext(AccessContext newAccCtx)
     {
-        privilegedCtx.getEffectivePrivs().requirePrivileges(Privilege.PRIV_SYS_ALL);
-        accCtx = newAccCtx;
     }
 
     @Override

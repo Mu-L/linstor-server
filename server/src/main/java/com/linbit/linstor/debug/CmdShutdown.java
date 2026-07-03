@@ -5,7 +5,6 @@ import java.io.PrintStream;
 import java.util.Map;
 
 import com.linbit.linstor.core.ApplicationLifecycleManager;
-import com.linbit.linstor.security.AccessContext;
 
 /**
  * Shuts down the Controller or Satellite
@@ -38,7 +37,6 @@ public class CmdShutdown extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     ) throws Exception
     {

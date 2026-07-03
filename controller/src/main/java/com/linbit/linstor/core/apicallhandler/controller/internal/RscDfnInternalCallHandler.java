@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
@@ -23,8 +22,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 
 import static com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller.notConnectedError;
@@ -42,7 +39,6 @@ import reactor.core.publisher.Flux;
 public class RscDfnInternalCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final CtrlRscCrtApiHelper ctrlRscCrtHelper;
@@ -57,7 +53,6 @@ public class RscDfnInternalCallHandler
     @Inject
     public RscDfnInternalCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         CtrlRscCrtApiHelper crtlRscCrtHelperRef,
@@ -70,7 +65,6 @@ public class RscDfnInternalCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         ctrlRscCrtHelper = crtlRscCrtHelperRef;
@@ -99,11 +93,7 @@ public class RscDfnInternalCallHandler
         ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
         try
         {
-            rscDfn.getFlags().enableFlags(apiCtx, ResourceDefinition.Flags.FAILED);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            rscDfn.getFlags().enableFlags(ResourceDefinition.Flags.FAILED);
         }
         catch (DatabaseException dbExc)
         {
@@ -147,24 +137,24 @@ public class RscDfnInternalCallHandler
         try
         {
             {
-                Resource rsc = rscDfn.getResource(apiCtx, currentPeer.getNode().getName());
+                Resource rsc = rscDfn.getResource(currentPeer.getNode().getName());
                 Volume vlm = rsc.getVolume(new VolumeNumber(vlmNr));
-                if (vlm.getFlags().isSet(apiCtx, Volume.Flags.CLONING))
+                if (vlm.getFlags().isSet(Volume.Flags.CLONING))
                 {
                     if (success)
                     {
-                        vlm.getFlags().enableFlags(apiCtx, Volume.Flags.CLONING_FINISHED);
+                        vlm.getFlags().enableFlags(Volume.Flags.CLONING_FINISHED);
                         errorReporter.logTrace("Cloning finished with success on %s/%d from %s",
                             rscName, vlmNr, currentPeer.getNode().getName());
                         ResourceDataUtils.recalculateVolatileRscData(ctrlRscLayerDataFactory, rsc);
                     }
                     else
                     {
-                        rscDfn.getFlags().enableFlags(apiCtx, ResourceDefinition.Flags.FAILED);
+                        rscDfn.getFlags().enableFlags(ResourceDefinition.Flags.FAILED);
                         // We set the DELETE flag here, to prevent undeletable/broken resources
                         // currently we don't have a good way to ignore layers, but ensure to be able to delete storage
                         // layer volumes, so DELETE is currently our only choice
-                        vlm.getFlags().enableFlags(apiCtx, Volume.Flags.DELETE);
+                        vlm.getFlags().enableFlags(Volume.Flags.DELETE);
                         errorReporter.logError("Error cloning Volume %s/%d on node %s",
                             rscName, vlmNr, currentPeer.getNode().getName());
                     }
@@ -180,15 +170,15 @@ public class RscDfnInternalCallHandler
             }
 
             // if failed never finish
-            boolean allCloned = !rscDfn.getFlags().isSet(apiCtx, ResourceDefinition.Flags.FAILED);
-            final Collection<Resource> resources = rscDfn.streamResource(apiCtx).collect(Collectors.toList());
+            boolean allCloned = !rscDfn.getFlags().isSet(ResourceDefinition.Flags.FAILED);
+            final Collection<Resource> resources = rscDfn.streamResource().collect(Collectors.toList());
             if (allCloned)
             {
                 for (Resource rsc : resources)
                 {
                     for (Volume vlm : rsc.streamVolumes().collect(Collectors.toList()))
                     {
-                        if (!vlm.getFlags().isSet(apiCtx, Volume.Flags.CLONING_FINISHED))
+                        if (!vlm.getFlags().isSet(Volume.Flags.CLONING_FINISHED))
                         {
                             allCloned = false;
                             break;
@@ -207,11 +197,11 @@ public class RscDfnInternalCallHandler
                 {
                     for (Volume vlm : rsc.streamVolumes().collect(Collectors.toList()))
                     {
-                        vlm.getFlags().disableFlags(apiCtx, Volume.Flags.CLONING);
+                        vlm.getFlags().disableFlags(Volume.Flags.CLONING);
                         // diskless resources don't clone, so we cleanup the flag after cloning is done
-                        if (rsc.isDiskless(apiCtx))
+                        if (rsc.isDiskless())
                         {
-                            vlm.getFlags().disableFlags(apiCtx, Volume.Flags.CLONING_FINISHED);
+                            vlm.getFlags().disableFlags(Volume.Flags.CLONING_FINISHED);
                         }
                     }
                     ResourceDataUtils.recalculateVolatileRscData(ctrlRscLayerDataFactory, rsc);
@@ -231,7 +221,7 @@ public class RscDfnInternalCallHandler
                         )
                     )
                     .concatWith(ctrlRscAutoBalanceHelper.balanceAfterOperation(
-                        rscDfn, apiCtx, ApiConsts.KEY_BALANCE_AFTER_CLONE, ApiConsts.NAMESPC_CLONE)
+                        rscDfn, ApiConsts.KEY_BALANCE_AFTER_CLONE, ApiConsts.NAMESPC_CLONE)
                     ).concatWith(
                         scopeRunner.fluxInTransactionalScope(
                             "Finish clone update unset CLONING",
@@ -246,7 +236,7 @@ public class RscDfnInternalCallHandler
                 ctrlTransactionHelper.commit();
             }
         }
-        catch (AccessDeniedException | ValueOutOfRangeException | DatabaseException | InvalidNameException exc)
+        catch (ValueOutOfRangeException | DatabaseException | InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -258,9 +248,9 @@ public class RscDfnInternalCallHandler
     {
         try
         {
-            rscDfn.getFlags().disableFlags(apiCtx, ResourceDefinition.Flags.CLONING);
+            rscDfn.getFlags().disableFlags(ResourceDefinition.Flags.CLONING);
 
-            final Set<Resource> resources = rscDfn.streamResource(apiCtx).collect(Collectors.toSet());
+            final Set<Resource> resources = rscDfn.streamResource().collect(Collectors.toSet());
             for (Resource rsc : resources)
             {
                 ResourceDataUtils.recalculateVolatileRscData(ctrlRscLayerDataFactory, rsc);
@@ -280,7 +270,7 @@ public class RscDfnInternalCallHandler
                 )
                 .concatWith(ctrlRscCrtHelper.setInitialized(resources));
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }

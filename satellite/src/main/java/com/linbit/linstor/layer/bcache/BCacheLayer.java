@@ -4,7 +4,6 @@ import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.extproc.ExtCmdFailedException;
 import com.linbit.fsevent.FileSystemWatch;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -29,8 +28,6 @@ import com.linbit.linstor.layer.storage.WipeHandler;
 import com.linbit.linstor.layer.storage.utils.DeviceUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
@@ -61,7 +58,6 @@ public class BCacheLayer implements DeviceLayer
     private static final long WAIT_FOR_BCACHE_TIMEOUT_MS = 100;
     private static final long WAIT_FOR_BCACHE_RETRY_COUNT = 20;
     private final ErrorReporter errorReporter;
-    private final AccessContext storDriverAccCtx;
     private final ExtCmdFactory extCmdFactory;
     private final Provider<DeviceHandler> resourceProcessorProvider;
     private final StltConfigAccessor stltConfAccessor;
@@ -74,7 +70,6 @@ public class BCacheLayer implements DeviceLayer
     @Inject
     public BCacheLayer(
         ErrorReporter errorReporterRef,
-        @DeviceManagerContext AccessContext storDriverAccCtxRef,
         ExtCmdFactory extCmdFactoryRef,
         Provider<DeviceHandler> resourceProcessorProviderRef,
         StltConfigAccessor stltConfAccessorRef,
@@ -84,7 +79,6 @@ public class BCacheLayer implements DeviceLayer
     )
     {
         errorReporter = errorReporterRef;
-        storDriverAccCtx = storDriverAccCtxRef;
         extCmdFactory = extCmdFactoryRef;
         resourceProcessorProvider = resourceProcessorProviderRef;
         stltConfAccessor = stltConfAccessorRef;
@@ -101,7 +95,7 @@ public class BCacheLayer implements DeviceLayer
 
     @Override
     public void prepare(Set<AbsRscLayerObject<Resource>> rscObjListRef, Set<AbsRscLayerObject<Snapshot>> snapObjListRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         errorReporter.logTrace("BCache: listing all bcache devices");
         HashMap<UUID, String> bcacheUuidToDev = sysFsHandler.queryBCacheDevices();
@@ -168,32 +162,29 @@ public class BCacheLayer implements DeviceLayer
         AbsRscLayerObject<Resource> rscLayerDataRef,
         ApiCallRcImpl apiCallRcRef
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException,
+        throws StorageException, ResourceException, VolumeException, DatabaseException,
         AbortLayerProcessingException
     {
         BCacheRscData<Resource> rscData = (BCacheRscData<Resource>) rscLayerDataRef;
         StateFlags<Flags> rscFlags = rscData.getAbsResource().getStateFlags();
 
         boolean deleteFlagSet = rscFlags.isSomeSet(
-            storDriverAccCtx,
             Resource.Flags.DELETE,
             Resource.Flags.DISK_REMOVING
         );
-        boolean inactiveFlagSet = rscFlags.isSomeSet(storDriverAccCtx, Resource.Flags.INACTIVE);
-        boolean forceCreateMetaData = rscFlags.isSet(storDriverAccCtx, Resource.Flags.RESTORE_FROM_SNAPSHOT) ||
+        boolean inactiveFlagSet = rscFlags.isSomeSet(Resource.Flags.INACTIVE);
+        boolean forceCreateMetaData = rscFlags.isSet(Resource.Flags.RESTORE_FROM_SNAPSHOT) ||
             rscData.getAbsResource().getResourceDefinition().getFlags()
-                .isSet(storDriverAccCtx, ResourceDefinition.Flags.CLONING);
+                .isSet(ResourceDefinition.Flags.CLONING);
 
         for (BCacheVlmData<Resource> vlmData : rscData.getVlmLayerObjects().values())
         {
             boolean vlmDeleteFlagSet = ((Volume) vlmData.getVolume()).getFlags()
                 .isSomeSet(
-                    storDriverAccCtx,
                     Volume.Flags.DELETE,
                     Volume.Flags.CLONING
             );
             boolean vlmDfnDeleteFlagSet = vlmData.getVolume().getVolumeDefinition().getFlags().isSet(
-                storDriverAccCtx,
                 VolumeDefinition.Flags.DELETE
             );
             if (deleteFlagSet || inactiveFlagSet || vlmDeleteFlagSet || vlmDfnDeleteFlagSet)
@@ -250,12 +241,10 @@ public class BCacheLayer implements DeviceLayer
             {
                 boolean vlmDeleteFlagSet = ((Volume) vlmData.getVolume()).getFlags()
                     .isSomeSet(
-                        storDriverAccCtx,
                         Volume.Flags.DELETE,
                         Volume.Flags.CLONING
                 );
                 boolean vlmDfnDeleteFlagSet = vlmData.getVolume().getVolumeDefinition().getFlags().isSet(
-                    storDriverAccCtx,
                     VolumeDefinition.Flags.DELETE
                 );
                 if (!vlmDeleteFlagSet && !vlmDfnDeleteFlagSet)
@@ -528,19 +517,19 @@ public class BCacheLayer implements DeviceLayer
 
     @Override
     public @Nullable LocalPropsChangePojo setLocalNodeProps(Props localNodePropsRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         localNodeProps = localNodePropsRef;
         return null;
     }
 
     @Override
-    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef) throws AccessDeniedException
+    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef)
     {
         boolean resourceReadySent = true;
 
         StateFlags<Flags> rscFlags = layerDataRef.getAbsResource().getStateFlags();
-        if (rscFlags.isSet(storDriverAccCtx, Resource.Flags.DELETE))
+        if (rscFlags.isSet(Resource.Flags.DELETE))
         {
             resourceProcessorProvider.get().sendResourceDeletedEvent(layerDataRef);
         }
@@ -555,7 +544,7 @@ public class BCacheLayer implements DeviceLayer
             }
             else
             {
-                boolean isActive = rscFlags.isUnset(storDriverAccCtx, Resource.Flags.INACTIVE);
+                boolean isActive = rscFlags.isUnset(Resource.Flags.INACTIVE);
                 resourceProcessorProvider.get().sendResourceCreatedEvent(
                     layerDataRef,
                     new ResourceState(
@@ -592,18 +581,18 @@ public class BCacheLayer implements DeviceLayer
         return sb.toString();
     }
 
-    private PriorityProps getPrioProps(AbsVolume<Resource> vlmRef) throws AccessDeniedException
+    private PriorityProps getPrioProps(AbsVolume<Resource> vlmRef)
     {
         VolumeDefinition vlmDfn = vlmRef.getVolumeDefinition();
         ResourceDefinition rscDfn = vlmRef.getResourceDefinition();
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         Resource rsc = vlmRef.getAbsResource();
         return new PriorityProps(
-            vlmDfn.getProps(storDriverAccCtx),
-            rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmDfn.getVolumeNumber()),
-            rsc.getProps(storDriverAccCtx),
-            rscDfn.getProps(storDriverAccCtx),
-            rscGrp.getProps(storDriverAccCtx),
+            vlmDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rsc.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getProps(),
             localNodeProps,
             stltConfAccessor.getReadonlyProps()
         );

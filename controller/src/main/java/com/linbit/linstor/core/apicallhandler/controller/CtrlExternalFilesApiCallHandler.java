@@ -5,8 +5,6 @@ import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -14,7 +12,6 @@ import com.linbit.linstor.api.pojo.ExtFileStatusPojo;
 import com.linbit.linstor.api.pojo.ExternalFilePojo;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -37,8 +34,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.proto.javainternal.c2s.MsgIntReqExtFileStatusOuterClass.MsgIntReqExtFileStatus;
 import com.linbit.linstor.proto.javainternal.s2c.MsgIntExtFileStatusOuterClass.MsgIntExtFileStatus;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -66,13 +61,11 @@ import reactor.core.publisher.Mono;
 public class CtrlExternalFilesApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
 
     private final ExternalFileControllerFactory extFileFactory;
@@ -82,12 +75,10 @@ public class CtrlExternalFilesApiCallHandler
     @Inject
     public CtrlExternalFilesApiCallHandler(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         ResponseConverter responseConverterRef,
         ExternalFileControllerFactory extFileFactoryRef,
@@ -96,12 +87,10 @@ public class CtrlExternalFilesApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         responseConverter = responseConverterRef;
         extFileFactory = extFileFactoryRef;
@@ -115,11 +104,11 @@ public class CtrlExternalFilesApiCallHandler
         try
         {
             AccessContext pAccCtx = peerAccCtx.get();
-            for (Entry<ExternalFileName, ExternalFile> entry : extFileRepository.getMapForView(pAccCtx).entrySet())
+            for (Entry<ExternalFileName, ExternalFile> entry : extFileRepository.getMapForView().entrySet())
             {
                 if (includeExtFileRef.test(entry.getKey().extFileName))
                 {
-                    ret.add(entry.getValue().getApiData(pAccCtx, null, null));
+                    ret.add(entry.getValue().getApiData(null, null));
                 }
             }
         }
@@ -143,23 +132,12 @@ public class CtrlExternalFilesApiCallHandler
     {
         Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
         Peer peer;
-        try
+        @Nullable Peer tmpPeer = node.getPeer();
+        if (tmpPeer == null)
         {
-            @Nullable Peer tmpPeer = node.getPeer(peerAccCtx.get());
-            if (tmpPeer == null)
-            {
-                throw new ImplementationError("Node '" + nodeNameStr + "' unexpectedly does not have a peer");
-            }
-            peer = tmpPeer;
+            throw new ImplementationError("Node '" + nodeNameStr + "' unexpectedly does not have a peer");
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "access peer for node '" + nodeNameStr + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        peer = tmpPeer;
 
         byte[] reqMsg;
         try
@@ -212,10 +190,10 @@ public class CtrlExternalFilesApiCallHandler
 
             if (node != null)
             {
-                allowed = CtrlExternalFilesHelper.isPathWhitelisted(extFileName, node, peerAccCtx.get());
+                allowed = CtrlExternalFilesHelper.isPathWhitelisted(extFileName, node);
             }
         }
-        catch (AccessDeniedException | ApiRcException exc)
+        catch (ApiRcException exc)
         {
             // ignore exc, return false
         }
@@ -255,21 +233,12 @@ public class CtrlExternalFilesApiCallHandler
                     checkValidAltSuffixes(altSuffixesRef);
 
                     extFile = extFileFactory.create(
-                        peerAccCtx.get(),
                         extFileName,
                         contentRef,
                         // not sure where the parameter comes from, so we make a copy of it, just to be sure
                         altSuffixesRef == null ? new ArrayList<>() : new ArrayList<>(altSuffixesRef)
                     );
-                    extFileRepository.put(apiCtx, extFile);
-                }
-                catch (AccessDeniedException exc)
-                {
-                    throw new ApiAccessDeniedException(
-                        exc,
-                        "create " + getExtFileDescription(extFileNameStr),
-                        ApiConsts.FAIL_ACC_DENIED_EXT_FILE
-                    );
+                    extFileRepository.put(extFile);
                 }
                 catch (LinStorDataAlreadyExistsException exc)
                 {
@@ -278,26 +247,15 @@ public class CtrlExternalFilesApiCallHandler
             }
             else
             {
-                try
+                if (contentRef != null && contentRef.length > 0)
                 {
-                    if (contentRef != null && contentRef.length > 0)
-                    {
-                        checkValidContent(contentRef);
-                        extFile.setContent(peerAccCtx.get(), contentRef);
-                    }
-                    if (altSuffixesRef != null)
-                    {
-                        checkValidAltSuffixes(altSuffixesRef);
-                        extFile.setAltSuffixes(peerAccCtx.get(), altSuffixesRef);
-                    }
+                    checkValidContent(contentRef);
+                    extFile.setContent(contentRef);
                 }
-                catch (AccessDeniedException exc)
+                if (altSuffixesRef != null)
                 {
-                    throw new ApiAccessDeniedException(
-                        exc,
-                        "modify " + getExtFileDescription(extFileNameStr),
-                        ApiConsts.FAIL_ACC_DENIED_EXT_FILE
-                    );
+                    checkValidAltSuffixes(altSuffixesRef);
+                    extFile.setAltSuffixes(altSuffixesRef);
                 }
             }
         }
@@ -427,9 +385,9 @@ public class CtrlExternalFilesApiCallHandler
         List<Flux<ApiCallRc>> fluxList = new ArrayList<>();
         try
         {
-            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(apiCtx).values())
+            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
             {
-                Props rscDfnProps = rscDfn.getProps(apiCtx);
+                Props rscDfnProps = rscDfn.getProps();
                 boolean changed = CtrlExternalFilesHelper.removePath(rscDfnProps, extFileRef) != null;
                 if (changed)
                 {
@@ -446,7 +404,7 @@ public class CtrlExternalFilesApiCallHandler
                 }
             }
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -479,16 +437,8 @@ public class CtrlExternalFilesApiCallHandler
 
         try
         {
-            extFileRef.delete(peerAccCtx.get());
-            extFileRepository.remove(apiCtx, extFileName);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "delete " + extFileDescription,
-                ApiConsts.FAIL_ACC_DENIED_EXT_FILE
-            );
+            extFileRef.delete();
+            extFileRepository.remove(extFileName);
         }
         catch (DatabaseException exc)
         {
@@ -508,15 +458,7 @@ public class CtrlExternalFilesApiCallHandler
     {
         try
         {
-            extFileRef.getFlags().enableFlags(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "delete " + getExtFileDescription(extFileRef.getName().extFileName),
-                ApiConsts.FAIL_ACC_DENIED_EXT_FILE
-            );
+            extFileRef.getFlags().enableFlags(flags);
         }
         catch (DatabaseException exc)
         {

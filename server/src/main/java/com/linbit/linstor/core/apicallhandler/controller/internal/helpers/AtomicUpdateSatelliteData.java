@@ -5,8 +5,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.core.objects.SnapshotDefinition;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,17 +23,17 @@ public class AtomicUpdateSatelliteData
     {
     }
 
-    public Collection<Node> getInvolvedOnlineNodes(AccessContext accCtx) throws AccessDeniedException
+    public Collection<Node> getInvolvedOnlineNodes()
     {
         Set<Node> nodes = new HashSet<>();
         for (ResourceDefinition rscDfn : rscDfnsToUpdate)
         {
-            Iterator<Resource> rscIt = rscDfn.iterateResource(accCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
                 Node node = rsc.getNode();
-                if (node.getPeer(accCtx).isOnline())
+                if (node.getPeer().isOnline())
                 {
                     nodes.add(rsc.getNode());
                 }
@@ -43,7 +41,7 @@ public class AtomicUpdateSatelliteData
         }
         for (SnapshotDefinition snapDfn : snapDfnsToUpdate)
         {
-            for (Snapshot snapshot : snapDfn.getAllSnapshots(accCtx))
+            for (Snapshot snapshot : snapDfn.getAllSnapshots())
             {
                 nodes.add(snapshot.getNode());
             }

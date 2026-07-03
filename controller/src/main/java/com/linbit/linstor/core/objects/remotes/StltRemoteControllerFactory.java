@@ -7,10 +7,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.repository.RemoteRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.noop.NoOpFlagDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -46,7 +42,6 @@ public class StltRemoteControllerFactory
     }
 
     public StltRemote create(
-        AccessContext accCtxRef,
         RemoteName nameRef,
         @Nullable String ipRef,
         Map<String, Integer> portsRef,
@@ -54,16 +49,15 @@ public class StltRemoteControllerFactory
         @Nullable Node nodeRef,
         String otherRscNameRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
-        if (remoteRepo.get(accCtxRef, nameRef) != null)
+        if (remoteRepo.get(nameRef) != null)
         {
             throw new ImplementationError("This remote name is already registered");
         }
 
         return new StltRemote(
             objProtFactory.getInstance(
-                accCtxRef,
                 ObjectProtection.buildPath(nameRef),
                 true
             ),

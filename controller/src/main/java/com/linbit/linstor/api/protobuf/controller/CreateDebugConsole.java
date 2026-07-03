@@ -5,7 +5,6 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCall;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.protobuf.ApiCallAnswerer;
@@ -17,9 +16,6 @@ import com.linbit.linstor.netcom.IllegalMessageStateException;
 import com.linbit.linstor.netcom.Message;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.proto.javainternal.MsgDebugReplyOuterClass.MsgDebugReply;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -42,22 +38,19 @@ public class CreateDebugConsole implements ApiCall
     private final ApiCallAnswerer apiCallAnswerer;
     private final DebugConsoleCreator debugConsoleCreator;
     private final Provider<Peer> clientProvider;
-    private final Provider<AccessContext> accCtxProvider;
 
     @Inject
     public CreateDebugConsole(
         ErrorReporter errorReporterRef,
         ApiCallAnswerer apiCallAnswererRef,
         DebugConsoleCreator debugConsoleCreatorRef,
-        Provider<Peer> clientProviderRef,
-        @PeerContext Provider<AccessContext> accCtxProviderRef
+        Provider<Peer> clientProviderRef
     )
     {
         errorReporter = errorReporterRef;
         apiCallAnswerer = apiCallAnswererRef;
         debugConsoleCreator = debugConsoleCreatorRef;
         clientProvider = clientProviderRef;
-        accCtxProvider = accCtxProviderRef;
     }
 
     @Override
@@ -78,7 +71,7 @@ public class CreateDebugConsole implements ApiCall
                 {
                     AccessContext privCtx = accCtxProvider.get().clone();
                     privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-                    debugConsoleCreator.createDebugConsole(privCtx, privCtx, client);
+                    debugConsoleCreator.createDebugConsole(client);
                 }
 
                 msgDbgReplyBld.addDebugOut(

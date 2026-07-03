@@ -6,7 +6,6 @@ import com.linbit.SystemService;
 import com.linbit.SystemServiceStartException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PublicContext;
 import com.linbit.linstor.api.interfaces.serializer.CommonSerializer;
 import com.linbit.linstor.core.cfg.StltConfig;
 import com.linbit.linstor.logging.ErrorReporter;
@@ -16,7 +15,6 @@ import com.linbit.linstor.netcom.TcpConnector;
 import com.linbit.linstor.netcom.TcpConnectorService;
 import com.linbit.linstor.netcom.ssl.SslTcpConnectorService;
 import com.linbit.linstor.proto.CommonMessageProcessor;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 
@@ -38,7 +36,6 @@ public final class SatelliteNetComInitializer
 
     private final ErrorReporter errorReporter;
     private final CommonSerializer commonSerializer;
-    private final AccessContext publicCtx;
     private final MessageProcessor msgProc;
     private final StltConnTracker stltConnTracker;
     private final ModularCryptoProvider cryptoProvider;
@@ -51,7 +48,6 @@ public final class SatelliteNetComInitializer
     public SatelliteNetComInitializer(
         ErrorReporter errorReporterRef,
         CommonSerializer commonSerializerRef,
-        @PublicContext AccessContext publicCtxRef,
         CommonMessageProcessor msgProcRef,
         StltConnTracker stltConnTrackerRef,
         ModularCryptoProvider cryptoProviderRef,
@@ -61,7 +57,6 @@ public final class SatelliteNetComInitializer
     {
         errorReporter = errorReporterRef;
         commonSerializer = commonSerializerRef;
-        publicCtx = publicCtxRef;
         msgProc = msgProcRef;
         stltConnTracker = stltConnTrackerRef;
         cryptoProvider = cryptoProviderRef;
@@ -69,7 +64,7 @@ public final class SatelliteNetComInitializer
         stltCfg = stltCfgRef;
     }
 
-    public boolean initMainNetComService(final AccessContext initCtx)
+    public boolean initMainNetComService()
         throws SystemServiceStartException
     {
         String bindAddressStr = stltCfg.getNetBindAddress();
@@ -105,7 +100,6 @@ public final class SatelliteNetComInitializer
                     msgProc,
                     bindAddress,
                     publicCtx,
-                    initCtx,
                     stltConnTracker
                 );
             }
@@ -147,7 +141,6 @@ public final class SatelliteNetComInitializer
                         msgProc,
                         bindAddress,
                         publicCtx,
-                        initCtx,
                         stltConnTracker,
                         cryptoProvider,
                         sslProtocol,

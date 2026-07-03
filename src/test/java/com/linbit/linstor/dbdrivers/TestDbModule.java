@@ -135,17 +135,6 @@ import com.linbit.linstor.dbdrivers.interfaces.remotes.LinstorRemoteDatabaseDriv
 import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteDatabaseDriver;
 import com.linbit.linstor.dbdrivers.sql.SQLEngine;
-import com.linbit.linstor.security.DbAccessor;
-import com.linbit.linstor.security.DbSQLPersistence;
-import com.linbit.linstor.security.SecConfigDbDriver;
-import com.linbit.linstor.security.SecDefaultRoleDbDriver;
-import com.linbit.linstor.security.SecIdRoleDbDriver;
-import com.linbit.linstor.security.SecIdentityDbDriver;
-import com.linbit.linstor.security.SecObjectProtectionAclDbDriver;
-import com.linbit.linstor.security.SecObjectProtectionDbDriver;
-import com.linbit.linstor.security.SecRoleDbDriver;
-import com.linbit.linstor.security.SecTypeDbDriver;
-import com.linbit.linstor.security.SecTypeRulesDbDriver;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
 import com.google.inject.AbstractModule;

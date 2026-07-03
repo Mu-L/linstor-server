@@ -3,9 +3,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -13,7 +11,6 @@ import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.StorPoolHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.ApiSuccessUtils;
@@ -27,9 +24,6 @@ import com.linbit.linstor.core.objects.remotes.EbsRemote;
 import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -51,21 +45,18 @@ import reactor.core.publisher.Flux;
 public class CtrlStorPoolCrtApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final StorPoolDefinitionRepository storPoolDefinitionRepository;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final StorPoolHelper storPoolHelper;
     private final CtrlApiDataLoader dataLoader;
 
     @Inject
     public CtrlStorPoolCrtApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
@@ -74,12 +65,10 @@ public class CtrlStorPoolCrtApiCallHandler
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlApiDataLoader dataLoaderRef,
         ErrorReporter errorReporterRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
@@ -88,7 +77,6 @@ public class CtrlStorPoolCrtApiCallHandler
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         dataLoader = dataLoaderRef;
         errorReporter = errorReporterRef;
     }
@@ -233,20 +221,17 @@ public class CtrlStorPoolCrtApiCallHandler
             }
             // check if specified preferred network interface exists
             ctrlPropsHelper.checkPrefNic(
-                peerAccCtx.get(),
                 storPool.getNode(),
                 storPoolPropsMap.get(ApiConsts.KEY_STOR_POOL_PREF_NIC),
                 ApiConsts.MASK_STOR_POOL
             );
             ctrlPropsHelper.checkPrefNic(
-                peerAccCtx.get(),
                 storPool.getNode(),
                 storPoolPropsMap.get(ApiConsts.NAMESPC_NVME + "/" + ApiConsts.KEY_PREF_NIC),
                 ApiConsts.MASK_STOR_POOL
             );
             // check if specified "outside address" network interface exists
             ctrlPropsHelper.checkPrefOutsideAddress(
-                apiCtx,
                 storPool.getNode(),
                 storPoolPropsMap.get(
                     ApiConsts.NAMESPC_LINSTOR_DRBD + "/" + ApiConsts.KEY_DRBD_OUTSIDE_ADDRESS
@@ -323,36 +308,13 @@ public class CtrlStorPoolCrtApiCallHandler
 
     private void requireStorPoolDfnMapChangeAccess()
     {
-        try
-        {
-            storPoolDefinitionRepository.requireAccess(
-                peerAccCtx.get(),
-                AccessType.CHANGE
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "change any storage pools",
-                ApiConsts.FAIL_ACC_DENIED_STOR_POOL_DFN
-            );
-        }
     }
 
     private void updateStorPoolDfnMap(StorPool storPool)
     {
-        try
-        {
-            storPoolDefinitionRepository.put(
-                apiCtx,
-                storPool.getName(),
-                storPool.getDefinition(apiCtx)
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
-        }
+        storPoolDefinitionRepository.put(
+            storPool.getName(),
+            storPool.getDefinition()
+        );
     }
 }

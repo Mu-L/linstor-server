@@ -2,7 +2,6 @@ package com.linbit.linstor.core.apicallhandler.controller.autoplacer;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlMinIoSizeHelper;
@@ -11,8 +10,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -28,7 +25,6 @@ public class Autoplacer
     public static final String MIN_FREE_SPACE_PROP = ApiConsts.NAMESPC_AUTOPLACER + "/" +
         ApiConsts.KEY_AUTOPLACE_MIN_THIN_FREE_SPACE;
 
-    private final AccessContext apiAccCtx;
     private final StorPoolFilter filter;
     private final StrategyHandler strategyHandler;
     private final Selector selector;
@@ -38,7 +34,6 @@ public class Autoplacer
 
     @Inject
     public Autoplacer(
-        @SystemContext AccessContext apiAccCtxRef,
         StorPoolFilter filterRef,
         StrategyHandler strategyHandlerRef,
         Selector selectorRef,
@@ -47,7 +42,6 @@ public class Autoplacer
         CtrlMinIoSizeHelper minIoSizeHelperRef
     )
     {
-        apiAccCtx = apiAccCtxRef;
         filter = filterRef;
         strategyHandler = strategyHandlerRef;
         selector = selectorRef;
@@ -68,77 +62,70 @@ public class Autoplacer
     )
     {
         @Nullable Set<StorPool> selection = null;
-        try
+        @Nullable Resource.Flags disklessType = Resource.Flags.valueOfOrNull(selectFilter.getDisklessType());
+
+        long start = System.currentTimeMillis();
+        ArrayList<StorPool> availableStorPools = filter.listAvailableStorPools(disklessType == null);
+
+        // Can change minIoSize if a new resource definition is being created
+        final boolean canChangeMinIoSize = rscStateHelper.canChangeMinIoSize(rscDfnRef);
+        @Nullable final Long minIoSize = rscDfnRef == null ?
+            null :
+            rscDfnRef.getFloorVolumesMinIoSize(minIoSizeHelper.isAutoMinIoSize(rscDfnRef));
+
+        // 1: filter storage pools
+        long startFilter = System.currentTimeMillis();
+        ArrayList<StorPool> filteredStorPools = filter.filter(
+            selectFilter,
+            availableStorPools,
+            rscDfnRef,
+            rscSize,
+            disklessType,
+            canChangeMinIoSize,
+            minIoSize
+        );
+        errorReporter.logTrace(
+            "Autoplacer.Filter: Finished in %dms. %s StorPools remaining",
+            System.currentTimeMillis() - startFilter,
+            filteredStorPools.size()
+        );
+
+        // 2: rate each storage pool with different weighted strategies
+        long startRating = System.currentTimeMillis();
+        Collection<StorPoolWithScore> storPoolsWithScoreList = strategyHandler.rate(filteredStorPools);
+        errorReporter.logTrace(
+            "Autoplacer.Strategy: Finished in %dms.",
+            System.currentTimeMillis() - startRating
+        );
+
+        // 3: actual selection of storage pools
+        long startSelection = System.currentTimeMillis();
+        @Nullable Set<StorPoolWithScore> selectionWithScores = selector.select(
+            selectFilter,
+            rscDfnRef,
+            storPoolsWithScoreList,
+            canChangeMinIoSize,
+            minIoSize
+        );
+        errorReporter.logTrace(
+            "Autoplacer.Selection: Finished in %dms.",
+            System.currentTimeMillis() - startSelection
+        );
+
+        boolean foundCandidate = selectionWithScores != null;
+        if (foundCandidate)
         {
-            @Nullable Resource.Flags disklessType = Resource.Flags.valueOfOrNull(selectFilter.getDisklessType());
-
-            long start = System.currentTimeMillis();
-            ArrayList<StorPool> availableStorPools = filter.listAvailableStorPools(disklessType == null);
-
-            // Can change minIoSize if a new resource definition is being created
-            final boolean canChangeMinIoSize = rscStateHelper.canChangeMinIoSize(rscDfnRef);
-            @Nullable final Long minIoSize = rscDfnRef == null ?
-                null :
-                rscDfnRef.getFloorVolumesMinIoSize(apiAccCtx, minIoSizeHelper.isAutoMinIoSize(rscDfnRef, apiAccCtx));
-
-            // 1: filter storage pools
-            long startFilter = System.currentTimeMillis();
-            ArrayList<StorPool> filteredStorPools = filter.filter(
-                selectFilter,
-                availableStorPools,
-                rscDfnRef,
-                rscSize,
-                disklessType,
-                canChangeMinIoSize,
-                minIoSize
-            );
-            errorReporter.logTrace(
-                "Autoplacer.Filter: Finished in %dms. %s StorPools remaining",
-                System.currentTimeMillis() - startFilter,
-                filteredStorPools.size()
-            );
-
-            // 2: rate each storage pool with different weighted strategies
-            long startRating = System.currentTimeMillis();
-            Collection<StorPoolWithScore> storPoolsWithScoreList = strategyHandler.rate(filteredStorPools);
-            errorReporter.logTrace(
-                "Autoplacer.Strategy: Finished in %dms.",
-                System.currentTimeMillis() - startRating
-            );
-
-            // 3: actual selection of storage pools
-            long startSelection = System.currentTimeMillis();
-            @Nullable Set<StorPoolWithScore> selectionWithScores = selector.select(
-                selectFilter,
-                rscDfnRef,
-                storPoolsWithScoreList,
-                canChangeMinIoSize,
-                minIoSize
-            );
-            errorReporter.logTrace(
-                "Autoplacer.Selection: Finished in %dms.",
-                System.currentTimeMillis() - startSelection
-            );
-
-            boolean foundCandidate = selectionWithScores != null;
-            if (foundCandidate)
+            selection = new TreeSet<>();
+            for (StorPoolWithScore spWithScore : selectionWithScores)
             {
-                selection = new TreeSet<>();
-                for (StorPoolWithScore spWithScore : selectionWithScores)
-                {
-                    selection.add(spWithScore.storPool);
-                }
+                selection.add(spWithScore.storPool);
             }
-            errorReporter.logTrace(
-                "Autoplacer: Finished in %dms %s candidate",
-                System.currentTimeMillis() - start,
-                foundCandidate ? "with" : "without"
-            );
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        errorReporter.logTrace(
+            "Autoplacer: Finished in %dms %s candidate",
+            System.currentTimeMillis() - start,
+            foundCandidate ? "with" : "without"
+        );
         return selection;
     }
 

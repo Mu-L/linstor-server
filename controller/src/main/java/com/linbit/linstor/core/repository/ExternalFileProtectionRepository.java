@@ -5,10 +5,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.CoreModule.ExternalFileMap;
 import com.linbit.linstor.core.identifier.ExternalFileName;
 import com.linbit.linstor.core.objects.ExternalFile;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -17,7 +13,6 @@ import javax.inject.Singleton;
 public class ExternalFileProtectionRepository implements ExternalFileRepository
 {
     private final CoreModule.ExternalFileMap extFileMap;
-    private @Nullable ObjectProtection extFileMapObjProt;
 
     @Inject
     public ExternalFileProtectionRepository(CoreModule.ExternalFileMap extFileMapRef)
@@ -25,13 +20,12 @@ public class ExternalFileProtectionRepository implements ExternalFileRepository
         extFileMap = extFileMapRef;
     }
 
-    public void setObjectProtection(ObjectProtection extFileMapObjProtRef)
+    public void setObjectProtection()
     {
         if (extFileMapObjProt != null)
         {
             throw new IllegalStateException("Object protection already set");
         }
-        extFileMapObjProt = extFileMapObjProtRef;
     }
 
     @Override
@@ -42,43 +36,36 @@ public class ExternalFileProtectionRepository implements ExternalFileRepository
     }
 
     @Override
-    public void requireAccess(AccessContext accCtx, AccessType requested)
-        throws AccessDeniedException
+    public void requireAccess(AccessType requested)
     {
         checkProtSet();
-        extFileMapObjProt.requireAccess(accCtx, requested);
     }
 
     @Override
-    public @Nullable ExternalFile get(AccessContext accCtx, ExternalFileName externalFileNameRef)
-        throws AccessDeniedException
+    public @Nullable ExternalFile get(ExternalFileName externalFileNameRef)
     {
         checkProtSet();
-        extFileMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return extFileMap.get(externalFileNameRef);
     }
 
     @Override
-    public void put(AccessContext accCtx, ExternalFile externalFileRef) throws AccessDeniedException
+    public void put(ExternalFile externalFileRef)
     {
         checkProtSet();
-        extFileMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         extFileMap.put(externalFileRef.getName(), externalFileRef);
     }
 
     @Override
-    public void remove(AccessContext accCtx, ExternalFileName externalFileNameRef) throws AccessDeniedException
+    public void remove(ExternalFileName externalFileNameRef)
     {
         checkProtSet();
-        extFileMapObjProt.requireAccess(accCtx, AccessType.CHANGE);
         extFileMap.remove(externalFileNameRef);
     }
 
     @Override
-    public ExternalFileMap getMapForView(AccessContext accCtx) throws AccessDeniedException
+    public ExternalFileMap getMapForView()
     {
         checkProtSet();
-        extFileMapObjProt.requireAccess(accCtx, AccessType.VIEW);
         return extFileMap;
     }
 

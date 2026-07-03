@@ -7,8 +7,6 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotDeleteApiCa
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.AutoSnapshotTask;
 import com.linbit.utils.ExceptionThrowingPredicate;
 
@@ -23,14 +21,12 @@ import reactor.core.publisher.Flux;
 public class ResourceDefinitionUtils
 {
     public static int getResourceCount(
-        AccessContext accCtx,
         ResourceDefinition rscDfn,
-        ExceptionThrowingPredicate<Resource, AccessDeniedException> predicate
+        ExceptionThrowingPredicate<Resource> predicate
     )
-        throws AccessDeniedException
     {
         int count = 0;
-        Iterator<Resource> rscIt = rscDfn.iterateResource(accCtx);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
@@ -49,11 +45,9 @@ public class ResourceDefinitionUtils
         Set<String> deletePropKeys,
         Set<String> deletedNamespaces,
         Collection<ResourceDefinition> affectedRscDfnListRef,
-        AccessContext accCtxRef,
         ReadOnlyProps ctrlProps,
         boolean forceCheckAllRscDfnRef
     )
-        throws AccessDeniedException
     {
         Flux<ApiCallRc> retFlux = Flux.empty();
         String autoSnapKey = ApiConsts.NAMESPC_AUTO_SNAPSHOT + "/" + ApiConsts.KEY_RUN_EVERY;
@@ -66,8 +60,8 @@ public class ResourceDefinitionUtils
             for (ResourceDefinition rscDfn : affectedRscDfnListRef)
             {
                 PriorityProps prioProps = new PriorityProps(
-                    rscDfn.getProps(accCtxRef),
-                    rscDfn.getResourceGroup().getProps(accCtxRef),
+                    rscDfn.getProps(),
+                    rscDfn.getResourceGroup().getProps(),
                     ctrlProps
                 );
                 String prioPropVal = prioProps.getProp(autoSnapKey);
@@ -90,8 +84,8 @@ public class ResourceDefinitionUtils
                 if (!modifiedRscDfnSet.contains(rscDfn))
                 {
                     PriorityProps prioProps = new PriorityProps(
-                        rscDfn.getProps(accCtxRef),
-                        rscDfn.getResourceGroup().getProps(accCtxRef),
+                        rscDfn.getProps(),
+                        rscDfn.getResourceGroup().getProps(),
                         ctrlProps
                     );
                     String prioPropVal = prioProps.getProp(autoSnapKey);

@@ -22,7 +22,6 @@ import com.linbit.linstor.dbdrivers.interfaces.updater.MapDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.dbdrivers.k8s.crd.K8sCrdEngine;
 import com.linbit.linstor.dbdrivers.sql.SQLEngine;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
@@ -59,7 +58,7 @@ public interface DbEngine
     @FunctionalInterface
     interface DataToString<DATA>
     {
-        String toString(DATA data) throws AccessDeniedException;
+        String toString(DATA data);
     }
 
     /**
@@ -92,7 +91,7 @@ public interface DbEngine
             LOAD_ALL parents
         )
             throws InvalidNameException, InvalidIpAddressException, ValueOutOfRangeException, DatabaseException,
-            MdException, ValueInUseException, ExhaustedPoolException, AccessDeniedException;
+            MdException, ValueInUseException, ExhaustedPoolException;
     }
 
     /**
@@ -122,7 +121,7 @@ public interface DbEngine
      *     Converts the DATA to a String (only for logging)
      */
     <DATA, FLAG extends Enum<FLAG> & Flags> StateFlagsPersistence<DATA> generateFlagsDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         Column colRef,
         Class<FLAG> flagsClassRef,
         DataToString<DATA> idFormatterRef
@@ -158,11 +157,11 @@ public interface DbEngine
      *     Converts the INPUT_TYPE to {@link String} (only for logging)
      */
     <DATA, INPUT_TYPE, DB_TYPE> SingleColumnDatabaseDriver<DATA, INPUT_TYPE> generateSingleColumnDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         Column colRef,
         Function<INPUT_TYPE, DB_TYPE> typeMapperRef,
         DataToString<DATA> dataToStringRef,
-        ExceptionThrowingFunction<DATA, String, AccessDeniedException> dataValueToStringRef,
+        ExceptionThrowingFunction<DATA, String> dataValueToStringRef,
         DataToString<INPUT_TYPE> inputToStringRef
     );
 
@@ -185,7 +184,7 @@ public interface DbEngine
      *     Converts the DATA to a String (only for logging)
      */
     <DATA, LIST_TYPE> CollectionDatabaseDriver<DATA, LIST_TYPE> generateCollectionToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         Column colRef,
         DataToString<DATA> dataToStringRef
     );
@@ -211,7 +210,7 @@ public interface DbEngine
      *     Converts the DATA to a String (only for logging)
      */
     <DATA, KEY, VALUE> MapDatabaseDriver<DATA, KEY, VALUE> generateMapToJsonStringArrayDriver(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         Column colRef,
         DataToString<DATA> dataToStringRef
     );
@@ -236,12 +235,12 @@ public interface DbEngine
      *
      */
     <DATA> void create(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         DATA dataRef,
         DatabaseTable table,
         DataToString<DATA> dataToString
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     /**
      * Update or inserts (creates) the given DATA object
@@ -263,12 +262,12 @@ public interface DbEngine
      *
      */
     <DATA> void upsert(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> settersRef,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> settersRef,
         DATA dataRef,
         DatabaseTable tableRef,
         DataToString<DATA> dataToString
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     /**
      * Deletes the given data object from the database.
@@ -291,12 +290,12 @@ public interface DbEngine
      *
      */
     <DATA> void delete(
-        Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,
+        Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,
         DATA dataRef,
         DatabaseTable table,
         DataToString<DATA> dataToString
     )
-        throws DatabaseException, AccessDeniedException;
+        throws DatabaseException;
 
     /**
      * Deletes all data objects from the given database table.
@@ -335,8 +334,8 @@ public interface DbEngine
         @Nullable LOAD_ALL parents,
         DataLoader<DATA, INIT_MAPS, LOAD_ALL> dataLoaderRef
     )
-        throws DatabaseException, AccessDeniedException, InvalidNameException, InvalidIpAddressException,
-        ValueOutOfRangeException, MdException, ValueInUseException, ExhaustedPoolException, AccessDeniedException;
+        throws DatabaseException, InvalidNameException, InvalidIpAddressException,
+        ValueOutOfRangeException, MdException, ValueInUseException, ExhaustedPoolException;
 
     String getDbDump() throws DatabaseException;
 

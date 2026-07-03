@@ -6,10 +6,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.utils.TreePrinter;
 import com.linbit.utils.UuidUtils;
 
@@ -80,12 +76,11 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
     {
-        lister.execute(debugOut, debugErr, accCtx, parameters);
+        lister.execute(debugOut, debugErr, parameters);
     }
 
     private class StorPoolDefinitionHandler implements FilteredObjectLister.ObjectHandler<StorPoolDefinition>
@@ -97,12 +92,10 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
         }
 
         @Override
-        public void ensureSearchAccess(final AccessContext accCtx)
-            throws AccessDeniedException
+        public void ensureSearchAccess()
         {
             if (storPoolDfnMapProt != null)
             {
-                storPoolDfnMapProt.get().requireAccess(accCtx, AccessType.VIEW);
             }
         }
 
@@ -127,13 +120,11 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
 
         @Override
         public void displayObjects(
-            final PrintStream output, final StorPoolDefinition storPoolDfnRef, final AccessContext accCtx
-        )
+            final PrintStream output, final StorPoolDefinition storPoolDfnRef)
         {
             try
             {
                 ObjectProtection objProt = storPoolDfnRef.getObjProt();
-                objProt.requireAccess(accCtx, AccessType.VIEW);
 
                 TreePrinter.Builder treeBuilder = TreePrinter
                     .builder(
@@ -149,7 +140,7 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
                     )
                     .leaf("Security type: %-24s", objProt.getSecurityType().name.displayValue);
 
-                Iterator<StorPool> storPoolIterator = storPoolDfnRef.iterateStorPools(accCtx);
+                Iterator<StorPool> storPoolIterator = storPoolDfnRef.iterateStorPools();
 
                 treeBuilder.branchHideEmpty("Storage pools");
                 while (storPoolIterator.hasNext())
@@ -165,7 +156,7 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
                         .leaf("Node UUID: %s", storPool.getNode().getUuid().toString().toUpperCase())
                         .leaf("Node volatile UUID: %s", UuidUtils.dbgInstanceIdString(storPool.getNode()))
                         .leaf("Driver name: %s", storPool.getDeviceProviderKind())
-                        .leaf("Volume count: %d", storPool.getVolumes(accCtx).size())
+                        .leaf("Volume count: %d", storPool.getVolumes().size())
                         .endBranch();
                 }
                 treeBuilder.endBranch();
@@ -179,7 +170,7 @@ public class CmdDisplayStorPoolDfn extends BaseDebugCmd
         }
 
         @Override
-        public int countObjects(final StorPoolDefinition storPoolDfnRef, final AccessContext accCtx)
+        public int countObjects(final StorPoolDefinition storPoolDfnRef)
         {
             return 1;
         }

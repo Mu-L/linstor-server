@@ -8,14 +8,8 @@ import com.linbit.linstor.core.identifier.KeyValueStoreName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.KeyValueStoreDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -25,21 +19,19 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
 
-public class KeyValueStore extends AbsCoreObj<KeyValueStore> implements ProtectedObject
+public class KeyValueStore extends AbsCoreObj<KeyValueStore>
 {
     public interface InitMaps
     {
         // currently only a place holder for future maps
     }
 
-    private final ObjectProtection objProt;
     private final KeyValueStoreName kvsName;
     private final Props props;
     private final KeyValueStoreDatabaseDriver driver;
 
     public KeyValueStore(
         UUID uuidRef,
-        ObjectProtection objProtRef,
         KeyValueStoreName kvsNameRef,
         KeyValueStoreDatabaseDriver driverRef,
         PropsContainerFactory propsContainerFactory,
@@ -49,7 +41,6 @@ public class KeyValueStore extends AbsCoreObj<KeyValueStore> implements Protecte
         throws DatabaseException
     {
         super(uuidRef, transObjFactory, transMgrProvider);
-        objProt = objProtRef;
         kvsName = kvsNameRef;
         driver = driverRef;
 
@@ -96,35 +87,26 @@ public class KeyValueStore extends AbsCoreObj<KeyValueStore> implements Protecte
         return ret;
     }
 
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkDeleted();
-        return objProt;
-    }
-
     public KeyValueStoreName getName()
     {
         checkDeleted();
         return kvsName;
     }
 
-    public Props getProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, objProt, props);
+        return props;
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
             props.delete();
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
 
@@ -134,8 +116,7 @@ public class KeyValueStore extends AbsCoreObj<KeyValueStore> implements Protecte
         }
     }
 
-    public KvsApi getApiData(AccessContext accCtx, @Nullable Long fullSyncId, @Nullable Long updateId)
-        throws AccessDeniedException
+    public KvsApi getApiData(@Nullable Long fullSyncId, @Nullable Long updateId)
     {
         return new KeyValueStorePojo(
             getName().getDisplayName(),

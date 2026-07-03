@@ -1,12 +1,9 @@
 package com.linbit.linstor.core.objects;
 
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeGroupDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -19,7 +16,6 @@ import java.util.UUID;
 @Singleton
 public class VolumeGroupSatelliteFactory
 {
-    private final AccessContext sysCtx;
     private final VolumeGroupDatabaseDriver vlmGrpDriver;
     private final PropsContainerFactory propsContainerFactory;
     private final TransactionObjectFactory transObjFactory;
@@ -27,14 +23,12 @@ public class VolumeGroupSatelliteFactory
 
     @Inject
     public VolumeGroupSatelliteFactory(
-        @SystemContext AccessContext sysCtxRef,
         VolumeGroupDatabaseDriver vlmGrpDriverRef,
         PropsContainerFactory propsContainerFactoryRef,
         TransactionObjectFactory transObjFactoryRef,
         Provider<TransactionMgr> transMgrProviderRef
     )
     {
-        sysCtx = sysCtxRef;
         vlmGrpDriver = vlmGrpDriverRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -47,9 +41,9 @@ public class VolumeGroupSatelliteFactory
         VolumeNumber vlmNr,
         long initFlags
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
-        VolumeGroup vlmGrp = rscGrp.getVolumeGroup(sysCtx, vlmNr);
+        VolumeGroup vlmGrp = rscGrp.getVolumeGroup(vlmNr);
 
         if (vlmGrp == null)
         {
@@ -63,7 +57,7 @@ public class VolumeGroupSatelliteFactory
                 transObjFactory,
                 transMgrProvider
             );
-            rscGrp.putVolumeGroup(sysCtx, vlmGrp);
+            rscGrp.putVolumeGroup(vlmGrp);
         }
         return vlmGrp;
     }

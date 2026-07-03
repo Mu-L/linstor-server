@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.extproc.ChildProcessHandler;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.pojo.NodePojo;
 import com.linbit.linstor.api.pojo.NodePojo.NodeConnPojo;
@@ -31,8 +30,6 @@ import com.linbit.linstor.layer.storage.lvm.utils.LvmUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
 import javax.inject.Inject;
@@ -54,7 +51,6 @@ import java.util.stream.Collectors;
 public class StltNodeApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final DeviceManager deviceManager;
     private final ReadWriteLock reconfigurationLock;
     private final ReadWriteLock nodesMapLock;
@@ -69,7 +65,6 @@ public class StltNodeApiCallHandler
     @Inject
     StltNodeApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         DeviceManager deviceManagerRef,
         @Named(CoreModule.RECONFIGURATION_LOCK) ReadWriteLock reconfigurationLockRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
@@ -83,7 +78,6 @@ public class StltNodeApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         deviceManager = deviceManagerRef;
         reconfigurationLock = reconfigurationLockRef;
         nodesMapLock = nodesMapLockRef;
@@ -113,13 +107,13 @@ public class StltNodeApiCallHandler
             Set<ResourceName> rscToDeleteNames = new HashSet<>();
             if (removedNode != null)
             {
-                List<Resource> rscToDelete = removedNode.streamResources(apiCtx).collect(Collectors.toList());
+                List<Resource> rscToDelete = removedNode.streamResources().collect(Collectors.toList());
                 for (Resource rsc : rscToDelete)
                 {
                     rscToDeleteNames.add(rsc.getResourceDefinition().getName());
-                    rsc.delete(apiCtx);
+                    rsc.delete();
                 }
-                removedNode.delete(apiCtx);
+                removedNode.delete();
                 transMgrProvider.get().commit();
             }
 
@@ -149,7 +143,6 @@ public class StltNodeApiCallHandler
 
             Node.Flags[] nodeFlags = Node.Flags.restoreFlags(nodePojo.getNodeFlags());
             curNode = nodeFactory.getInstanceSatellite(
-                apiCtx,
                 nodePojo.getUuid(),
                 new NodeName(nodePojo.getName()),
                 Node.Type.valueOf(nodePojo.getType()),
@@ -157,9 +150,9 @@ public class StltNodeApiCallHandler
             );
             checkUuid(curNode, nodePojo);
 
-            curNode.getFlags().resetFlagsTo(apiCtx, nodeFlags);
+            curNode.getFlags().resetFlagsTo(nodeFlags);
 
-            Props nodeProps = curNode.getProps(apiCtx);
+            Props nodeProps = curNode.getProps();
             nodeProps.map().putAll(nodePojo.getProps());
             nodeProps.keySet().retainAll(nodePojo.getProps().keySet());
 
@@ -169,11 +162,10 @@ public class StltNodeApiCallHandler
             {
                 NetInterfaceName netIfName = new NetInterfaceName(netIfApi.getName());
                 LsIpAddress ipAddress = new LsIpAddress(netIfApi.getAddress());
-                NetInterface netIf = curNode.getNetInterface(apiCtx, netIfName);
+                NetInterface netIf = curNode.getNetInterface(netIfName);
                 if (netIf == null)
                 {
                     netInterfaceFactory.getInstanceSatellite(
-                        apiCtx,
                         netIfApi.getUuid(),
                         curNode,
                         netIfName,
@@ -182,11 +174,11 @@ public class StltNodeApiCallHandler
                 }
                 else
                 {
-                    netIf.setAddress(apiCtx, ipAddress);
+                    netIf.setAddress(ipAddress);
                 }
             }
 
-            Set<ResourceName> rscSet = curNode.streamResources(apiCtx)
+            Set<ResourceName> rscSet = curNode.streamResources()
                 .map(Resource::getResourceDefinition)
                 .map(ResourceDefinition::getName)
                 .collect(Collectors.toSet());
@@ -216,7 +208,7 @@ public class StltNodeApiCallHandler
     }
 
     private void mergeNodeConnections(Node localNode, NodePojo nodePojo)
-        throws AccessDeniedException, ImplementationError, InvalidNameException, DatabaseException
+        throws ImplementationError, InvalidNameException, DatabaseException
     {
         // do not compare getLocalNode().equals(localNode), since .getLocalNodeName() queries the nodesMap
         // which was cleared at the beginning of the FullSync. If we are alphanumerically later than the
@@ -238,46 +230,42 @@ public class StltNodeApiCallHandler
              * node, which will result in an error.
              */
 
-            List<NodeConnection> nodeConsToDelete = new ArrayList<>(localNode.getNodeConnections(apiCtx));
+            List<NodeConnection> nodeConsToDelete = new ArrayList<>(localNode.getNodeConnections());
             for (NodeConnPojo nodeConn : nodePojo.getNodeConns())
             {
                 NodePojo otherNodePojo = nodeConn.getOtherNodeApi();
                 Node otherNode = nodeFactory.getInstanceSatellite(
-                    apiCtx,
                     otherNodePojo.getUuid(),
                     new NodeName(otherNodePojo.getName()),
                     Node.Type.valueOf(otherNodePojo.getType()),
                     Node.Flags.restoreFlags(otherNodePojo.getFlags())
                 );
                 NodeConnection nodeCon = nodeConnectionFactory.getInstanceSatellite(
-                    apiCtx,
                     nodeConn.getUuid(),
                     localNode,
                     otherNode
                 );
                 nodeConsToDelete.remove(nodeCon);
-                Props nodeConnProps = nodeCon.getProps(apiCtx);
+                Props nodeConnProps = nodeCon.getProps();
                 nodeConnProps.map().putAll(nodeConn.getProps());
                 nodeConnProps.keySet().retainAll(nodeConn.getProps().keySet());
             }
             for (NodeConnection nodeConToDelete : nodeConsToDelete)
             {
-                Node otherNode = nodeConToDelete.getOtherNode(apiCtx, localNode);
-                localNode.removeNodeConnection(apiCtx, nodeConToDelete);
-                if (!deleteRemoteNodeIfNeeded(apiCtx, nodesMap, localNode, otherNode))
+                Node otherNode = nodeConToDelete.getOtherNode(localNode);
+                localNode.removeNodeConnection(nodeConToDelete);
+                if (!deleteRemoteNodeIfNeeded(nodesMap, localNode, otherNode))
                 {
-                    otherNode.removeNodeConnection(apiCtx, nodeConToDelete);
+                    otherNode.removeNodeConnection(nodeConToDelete);
                 }
             }
         }
     }
 
     public static boolean canRemoteNodeBeDeleted(
-        AccessContext apiCtxRef,
         Node localNodeRef,
         Node remoteNodeRef
     )
-        throws AccessDeniedException
     {
         /*
          * Bugfix: if the remoteRsc was the last resource of the remote node
@@ -300,24 +288,23 @@ public class StltNodeApiCallHandler
          */
 
         return remoteNodeRef.getResourceCount() < 1 &&
-            localNodeRef.getNodeConnection(apiCtxRef, remoteNodeRef) == null;
+            localNodeRef.getNodeConnection(remoteNodeRef) == null;
     }
 
     public static boolean deleteRemoteNodeIfNeeded(
-        AccessContext apiCtxRef,
         NodesMap nodesMapRef,
         Node localNodeRef,
         Node remoteNodeRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
 
         boolean deleted = false;
-        boolean shouldDelete = canRemoteNodeBeDeleted(apiCtxRef, localNodeRef, remoteNodeRef);
+        boolean shouldDelete = canRemoteNodeBeDeleted(localNodeRef, remoteNodeRef);
         if (shouldDelete)
         {
             nodesMapRef.remove(remoteNodeRef.getName());
-            remoteNodeRef.delete(apiCtxRef);
+            remoteNodeRef.delete();
             deleted = true;
         }
 

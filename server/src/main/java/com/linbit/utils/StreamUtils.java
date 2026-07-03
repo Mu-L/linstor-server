@@ -1,6 +1,5 @@
 package com.linbit.utils;
 
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.util.Iterator;
 import java.util.Spliterator;
@@ -14,7 +13,7 @@ public class StreamUtils
     @FunctionalInterface
     public interface AccessCheckedConsumer<T>
     {
-        void accept(T element) throws AccessDeniedException;
+        void accept(T element);
     }
 
     public static <T> Stream<T> toStream(Iterator<T> iterator)

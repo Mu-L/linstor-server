@@ -31,7 +31,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.AbsRemote.RemoteType;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -120,16 +119,14 @@ public class BackupFindUsableNodesTest extends ApiTestBase
 
         LayerPayload payload = new LayerPayload();
         rscDfn = resourceDefinitionFactory.create(
-            PUBLIC_CTX,
             new ResourceName("test"),
             null,
             new ResourceDefinition.Flags[0],
             null,
             payload,
-            createDefaultResourceGroup(PUBLIC_CTX)
+            createDefaultResourceGroup()
         );
         snapDfn = snapshotDefinitionFactory.create(
-            PUBLIC_CTX,
             rscDfn,
             new SnapshotName(SNAP_NAME),
             new SnapshotDefinition.Flags[0]
@@ -145,35 +142,28 @@ public class BackupFindUsableNodesTest extends ApiTestBase
         nodeE = makeNode(NODE_E);
         nodesMap.put(nodeE.getName(), nodeE);
         StorPoolDefinition dataLvmThinDfn = storPoolDefinitionFactory.create(
-            PUBLIC_CTX,
             new StorPoolName(DATA_POOL_LVM_THIN)
         );
         StorPoolDefinition metaLvmThinDfn = storPoolDefinitionFactory.create(
-            PUBLIC_CTX,
             new StorPoolName(META_POOL_LVM_THIN)
         );
-        StorPoolDefinition dataZfsDfn = storPoolDefinitionFactory.create(PUBLIC_CTX, new StorPoolName(DATA_POOL_ZFS));
-        StorPoolDefinition metaZfsDfn = storPoolDefinitionFactory.create(PUBLIC_CTX, new StorPoolName(META_POOL_ZFS));
+        StorPoolDefinition dataZfsDfn = storPoolDefinitionFactory.create(new StorPoolName(DATA_POOL_ZFS));
+        StorPoolDefinition metaZfsDfn = storPoolDefinitionFactory.create(new StorPoolName(META_POOL_ZFS));
         for (Node node : Arrays.asList(nodeA, nodeB, nodeC, nodeD, nodeE))
         {
             FreeSpaceMgr dataLvmThinFST = freeSpaceMgrFactory.getInstance(
-                PUBLIC_CTX,
                 new SharedStorPoolName(node.getName(), new StorPoolName(DATA_POOL_LVM_THIN))
             );
             FreeSpaceMgr metaLvmThinFST = freeSpaceMgrFactory.getInstance(
-                PUBLIC_CTX,
                 new SharedStorPoolName(node.getName(), new StorPoolName(META_POOL_LVM_THIN))
             );
             FreeSpaceMgr dataZfsFST = freeSpaceMgrFactory.getInstance(
-                PUBLIC_CTX,
                 new SharedStorPoolName(node.getName(), new StorPoolName(DATA_POOL_ZFS))
             );
             FreeSpaceMgr metaZfsFST = freeSpaceMgrFactory.getInstance(
-                PUBLIC_CTX,
                 new SharedStorPoolName(node.getName(), new StorPoolName(META_POOL_ZFS))
             );
             storPoolFactory.create(
-                PUBLIC_CTX,
                 node,
                 dataLvmThinDfn,
                 DeviceProviderKind.LVM_THIN,
@@ -181,15 +171,14 @@ public class BackupFindUsableNodesTest extends ApiTestBase
                 false
             );
             storPoolFactory.create(
-                PUBLIC_CTX,
                 node,
                 metaLvmThinDfn,
                 DeviceProviderKind.LVM_THIN,
                 metaLvmThinFST,
                 false
             );
-            storPoolFactory.create(PUBLIC_CTX, node, dataZfsDfn, DeviceProviderKind.ZFS, dataZfsFST, false);
-            storPoolFactory.create(PUBLIC_CTX, node, metaZfsDfn, DeviceProviderKind.ZFS, metaZfsFST, false);
+            storPoolFactory.create(node, dataZfsDfn, DeviceProviderKind.ZFS, dataZfsFST, false);
+            storPoolFactory.create(node, metaZfsDfn, DeviceProviderKind.ZFS, metaZfsFST, false);
         }
     }
 
@@ -265,7 +254,7 @@ public class BackupFindUsableNodesTest extends ApiTestBase
         assertSet(usableNodes, NODE_A, NODE_B);
         singleDrbdRsc(nodeD, false);
         singleDrbdRsc(nodeE, false);
-        snapDfn.getSnapDfnProps(SYS_CTX)
+        snapDfn.getSnapDfnProps()
             .setProp(
                 InternalApiConsts.KEY_BACKUP_SRC_NODE,
                 nodeA.getName().displayValue,
@@ -342,7 +331,7 @@ public class BackupFindUsableNodesTest extends ApiTestBase
             if (inputNode.selectedLast)
             {
                 inc = true;
-                snapDfn.getSnapDfnProps(SYS_CTX)
+                snapDfn.getSnapDfnProps()
                     .setProp(
                         InternalApiConsts.KEY_BACKUP_SRC_NODE,
                         inputNode.nodeName,
@@ -354,7 +343,7 @@ public class BackupFindUsableNodesTest extends ApiTestBase
 
         assertEquals(
             input.nodes.values().iterator().next().vlmNrToInternalMDMap.size(),
-            rscDfn.getVolumeDfnCount(PUBLIC_CTX)
+            rscDfn.getVolumeDfnCount()
         );
         Set<Node> usableNodes = backupNodeFinder.findUsableNodes(
             rscDfn,
@@ -523,15 +512,15 @@ public class BackupFindUsableNodesTest extends ApiTestBase
 
     private void setStorPool(int vlmNr, DeviceProviderKind kindRef) throws Exception
     {
-        VolumeDefinition volumeDfn = rscDfn.getVolumeDfn(PUBLIC_CTX, new VolumeNumber(vlmNr));
+        VolumeDefinition volumeDfn = rscDfn.getVolumeDfn(new VolumeNumber(vlmNr));
         switch (kindRef)
         {
             case LVM_THIN:
-                volumeDfn.getProps(PUBLIC_CTX)
+                volumeDfn.getProps()
                     .setProp(ApiConsts.KEY_STOR_POOL_NAME, DATA_POOL_LVM_THIN);
                 break;
             case ZFS:
-                volumeDfn.getProps(PUBLIC_CTX)
+                volumeDfn.getProps()
                     .setProp(ApiConsts.KEY_STOR_POOL_NAME, DATA_POOL_ZFS);
                 break;
             case DISKLESS:
@@ -553,15 +542,15 @@ public class BackupFindUsableNodesTest extends ApiTestBase
 
     private void setExtMeta(int vlmNr, boolean set) throws Exception
     {
-        VolumeDefinition volumeDfn = rscDfn.getVolumeDfn(PUBLIC_CTX, new VolumeNumber(vlmNr));
+        VolumeDefinition volumeDfn = rscDfn.getVolumeDfn(new VolumeNumber(vlmNr));
         if (set)
         {
-            volumeDfn.getProps(PUBLIC_CTX)
+            volumeDfn.getProps()
                 .setProp(ApiConsts.KEY_STOR_POOL_DRBD_META_NAME, META_POOL_LVM_THIN);
         }
         else
         {
-            volumeDfn.getProps(PUBLIC_CTX)
+            volumeDfn.getProps()
                 .removeProp(ApiConsts.KEY_STOR_POOL_DRBD_META_NAME);
         }
     }
@@ -586,7 +575,7 @@ public class BackupFindUsableNodesTest extends ApiTestBase
     private void singleRsc(Node node, List<DeviceLayerKind> layerStack, boolean makeSnap) throws Exception
     {
         Resource rsc = makeRsc(node, layerStack);
-        List<VolumeDefinition> vlmDfns = rscDfn.streamVolumeDfn(PUBLIC_CTX).collect(Collectors.toList());
+        List<VolumeDefinition> vlmDfns = rscDfn.streamVolumeDfn().collect(Collectors.toList());
         for (VolumeDefinition vlmDfn : vlmDfns)
         {
             makeVlm(rsc, vlmDfn);
@@ -597,8 +586,8 @@ public class BackupFindUsableNodesTest extends ApiTestBase
             Snapshot snap = makeSnap(rsc);
             for (VolumeDefinition vlmDfn : vlmDfns)
             {
-                SnapshotVolumeDefinition snapVlmDfn = rscDfn.getSnapshotDfn(PUBLIC_CTX, new SnapshotName(SNAP_NAME))
-                    .getSnapshotVolumeDefinition(PUBLIC_CTX, vlmDfn.getVolumeNumber());
+                SnapshotVolumeDefinition snapVlmDfn = rscDfn.getSnapshotDfn(new SnapshotName(SNAP_NAME))
+                    .getSnapshotVolumeDefinition(vlmDfn.getVolumeNumber());
                 makeSnapVlm(rsc, snap, snapVlmDfn);
             }
         }
@@ -606,9 +595,8 @@ public class BackupFindUsableNodesTest extends ApiTestBase
 
     private VolumeDefinition makeVlmDfn() throws Exception
     {
-        int vlmNr = rscDfn.getVolumeDfnCount(PUBLIC_CTX);
+        int vlmNr = rscDfn.getVolumeDfnCount();
         return volumeDefinitionFactory.create(
-            PUBLIC_CTX,
             rscDfn,
             new VolumeNumber(vlmNr),
             1000 + vlmNr,
@@ -620,28 +608,26 @@ public class BackupFindUsableNodesTest extends ApiTestBase
     private SnapshotVolumeDefinition makeSnapVlmDfn(VolumeDefinition vlmDfn) throws Exception
     {
         return snapshotVolumeDefinitionFactory.create(
-            PUBLIC_CTX,
             snapDfn,
             vlmDfn,
-            vlmDfn.getVolumeSize(PUBLIC_CTX),
+            vlmDfn.getVolumeSize(),
             new SnapshotVolumeDefinition.Flags[0]
         );
     }
 
     private Resource makeRsc(Node node, List<DeviceLayerKind> layerStack) throws Exception
     {
-        return resourceFactory.create(PUBLIC_CTX, rscDfn, node, null, new Resource.Flags[0], layerStack);
+        return resourceFactory.create(rscDfn, node, null, new Resource.Flags[0], layerStack);
     }
 
     private Snapshot makeSnap(Resource rsc) throws Exception
     {
-        return snapshotFactory.create(PUBLIC_CTX, rsc, snapDfn, new Snapshot.Flags[0]);
+        return snapshotFactory.create(rsc, snapDfn, new Snapshot.Flags[0]);
     }
 
     private Volume makeVlm(Resource rsc, VolumeDefinition vlmDfn) throws Exception
     {
         return volumeFactory.create(
-            PUBLIC_CTX,
             rsc,
             vlmDfn,
             new Volume.Flags[0],
@@ -655,12 +641,12 @@ public class BackupFindUsableNodesTest extends ApiTestBase
     private SnapshotVolume makeSnapVlm(Resource rsc, Snapshot snap, SnapshotVolumeDefinition snapVlmDfn)
         throws Exception
     {
-        return snapshotVolumeFactory.create(PUBLIC_CTX, rsc, snap, snapVlmDfn);
+        return snapshotVolumeFactory.create(rsc, snap, snapVlmDfn);
     }
 
     private Node makeNode(String name) throws Exception
     {
-        Node node = nodeFactory.create(PUBLIC_CTX, new NodeName(name), Node.Type.SATELLITE, new Node.Flags[0]);
+        Node node = nodeFactory.create(new NodeName(name), Node.Type.SATELLITE, new Node.Flags[0]);
         Peer mockedPeer = Mockito.mock(Peer.class);
         ExtToolsManager extToolsMgr = new ExtToolsManager();
         extToolsMgr.updateExternalToolsInfo(
@@ -675,14 +661,7 @@ public class BackupFindUsableNodesTest extends ApiTestBase
         ReentrantReadWriteLock peerLock = new ReentrantReadWriteLock(true);
         Mockito.when(mockedPeer.getSatelliteStateLock()).thenReturn(peerLock);
 
-        try
-        {
-            node.setPeer(GenericDbBase.SYS_CTX, mockedPeer);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        node.setPeer(GenericDbBase.SYS_CTX, mockedPeer);
 
         return node;
     }

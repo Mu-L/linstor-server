@@ -2,9 +2,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcWith;
@@ -18,7 +16,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.CopySnapsHelper;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
@@ -34,8 +31,6 @@ import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.event.EventStreamClosedException;
 import com.linbit.linstor.event.EventStreamTimeoutException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
@@ -67,7 +62,6 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlRscAutoPlaceApiCallHandler
 {
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final Autoplacer autoplacer;
     private final FreeCapacityFetcher freeCapacityFetcher;
@@ -77,13 +71,11 @@ public class CtrlRscAutoPlaceApiCallHandler
     private final NodesMap nodesMap;
     private final ResponseConverter responseConverter;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final Provider<CtrlRscAutoHelper> autoHelperProvider;
     private final CopySnapsHelper copySnapHelper;
 
     @Inject
     public CtrlRscAutoPlaceApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         Autoplacer autoplacerRef,
         FreeCapacityFetcher freeCapacityFetcherRef,
@@ -93,12 +85,10 @@ public class CtrlRscAutoPlaceApiCallHandler
         NodesMap nodesMapRef,
         ResponseConverter responseConverterRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         Provider<CtrlRscAutoHelper> autoHelperProviderRef,
         CopySnapsHelper copySnapHelperRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         autoplacer = autoplacerRef;
         freeCapacityFetcher = freeCapacityFetcherRef;
@@ -108,7 +98,6 @@ public class CtrlRscAutoPlaceApiCallHandler
         nodesMap = nodesMapRef;
         responseConverter = responseConverterRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         autoHelperProvider = autoHelperProviderRef;
         copySnapHelper = copySnapHelperRef;
     }
@@ -280,7 +269,7 @@ public class CtrlRscAutoPlaceApiCallHandler
                 .setSkipAlreadyPlacedOnNodeNamesCheck(disklessNodeNames)
                 .build();
 
-            final long rscSize = calculateResourceDefinitionSize(rscDfn, peerAccCtx.get());
+            final long rscSize = calculateResourceDefinitionSize(rscDfn);
 
             Set<StorPool> candidate = findBestCandidate(
                 autoStorConfig,
@@ -371,16 +360,9 @@ public class CtrlRscAutoPlaceApiCallHandler
     private Set<SharedStorPoolName> getSharedStorPoolNames(Resource rsc)
     {
         Set<SharedStorPoolName> sharedSpNames = new TreeSet<>();
-        try
+        for (StorPool sp : LayerVlmUtils.getStorPools(rsc, false))
         {
-            for (StorPool sp : LayerVlmUtils.getStorPools(rsc, apiCtx, false))
-            {
-                sharedSpNames.add(sp.getSharedStorPoolName());
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            sharedSpNames.add(sp.getSharedStorPoolName());
         }
         return sharedSpNames;
     }
@@ -455,42 +437,31 @@ public class CtrlRscAutoPlaceApiCallHandler
             // deploy resource disklessly on remaining nodes
             for (Node disklessNode : nodesMap.values())
             {
-                try
-                {
-                    @Nullable Resource deployedResource = disklessNode.getResource(apiCtx, rscName);
-                    boolean deploy = deployedResource == null ||
-                        deployedResource.getStateFlags().isSet(apiCtx, Resource.Flags.TIE_BREAKER);
-                    // only deploy on satellites / combined nodes
-                    deploy &= disklessNode.getNodeType(apiCtx).isDeviceProviderKindAllowed(DeviceProviderKind.DISKLESS);
+                @Nullable Resource deployedResource = disklessNode.getResource(rscName);
+                boolean deploy = deployedResource == null ||
+                    deployedResource.getStateFlags().isSet(Resource.Flags.TIE_BREAKER);
+                // only deploy on satellites / combined nodes
+                deploy &= disklessNode.getNodeType().isDeviceProviderKindAllowed(DeviceProviderKind.DISKLESS);
 
-                    if (deploy)
-                    {
-                        PairNonNull<List<Flux<ApiCallRc>>, ApiCallRcWith<Resource>> createdRsc = ctrlRscCrtApiHelper
-                            .createResourceDb(
-                                disklessNode.getName().displayValue,
-                                rscNameStr,
-                                rscInitFlags,
-                                rscPropsMap,
-                                Collections.emptyList(),
-                                null,
-                                null,
-                                null,
-                                thinFreeCapacities,
-                                layerStackStrList,
-                                null,
-                                true // diskless on remaining are by default client-only (no quorum vote)
-                        );
-                        deployedResources.add(createdRsc.objB.extractApiCallRc(responses));
-                        autoFlux.addAll(createdRsc.objA);
-                    }
-                }
-                catch (AccessDeniedException accDeniedExc)
+                if (deploy)
                 {
-                    throw new ApiAccessDeniedException(
-                        accDeniedExc,
-                        "access " + CtrlNodeApiCallHandler.getNodeDescriptionInline(disklessNode),
-                        ApiConsts.FAIL_ACC_DENIED_NODE
+                    PairNonNull<List<Flux<ApiCallRc>>, ApiCallRcWith<Resource>> createdRsc = ctrlRscCrtApiHelper
+                        .createResourceDb(
+                            disklessNode.getName().displayValue,
+                            rscNameStr,
+                            rscInitFlags,
+                            rscPropsMap,
+                            Collections.emptyList(),
+                            null,
+                            null,
+                            null,
+                            thinFreeCapacities,
+                            layerStackStrList,
+                            null,
+                            true // diskless on remaining are by default client-only (no quorum vote)
                     );
+                    deployedResources.add(createdRsc.objB.extractApiCallRc(responses));
+                    autoFlux.addAll(createdRsc.objA);
                 }
             }
         }
@@ -547,27 +518,16 @@ public class CtrlRscAutoPlaceApiCallHandler
         else
         {
             ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStrRef, true);
-            try
+            if (rscDfn.getDiskfulCount() == 0)
             {
-                if (rscDfn.getDiskfulCount(peerAccCtx.get()) == 0)
-                {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.simpleEntry(
-                            ApiConsts.FAIL_NOT_FOUND_RSC,
-                            "Cannot place 'diskless-on-remaining' without having diskful resources deployed"
-                        )
-                    );
-                }
-                layerStackToUse = rscDfn.getLayerStack(peerAccCtx.get());
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ApiAccessDeniedException(
-                    exc,
-                    "getting default layer stack",
-                    ApiConsts.FAIL_ACC_DENIED_RSC_DFN
+                throw new ApiRcException(
+                    ApiCallRcImpl.simpleEntry(
+                        ApiConsts.FAIL_NOT_FOUND_RSC,
+                        "Cannot place 'diskless-on-remaining' without having diskful resources deployed"
+                    )
                 );
             }
+            layerStackToUse = rscDfn.getLayerStack();
         }
         if (layerStackToUse.isEmpty())
         {
@@ -584,95 +544,40 @@ public class CtrlRscAutoPlaceApiCallHandler
     private boolean isFlagSet(Resource rsc, Resource.Flags... flags)
     {
         boolean flagSet = false;
-        try
-        {
-            flagSet = rsc.getStateFlags().isSet(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + CtrlRscApiCallHandler.getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        flagSet = rsc.getStateFlags().isSet(flags);
         return flagSet;
     }
 
 
     private boolean hasSkipDiskProp(Resource rsc)
     {
-        try
-        {
-            String skipDiskProp = rsc.getProps(peerAccCtx.get()).getProp(
-                ApiConsts.KEY_DRBD_SKIP_DISK, ApiConsts.NAMESPC_DRBD_OPTIONS);
-            return StringUtils.propTrueOrYes(skipDiskProp);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + CtrlRscApiCallHandler.getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        String skipDiskProp = rsc.getProps().getProp(
+            ApiConsts.KEY_DRBD_SKIP_DISK, ApiConsts.NAMESPC_DRBD_OPTIONS);
+        return StringUtils.propTrueOrYes(skipDiskProp);
     }
 
     private boolean isSomeFlagSet(Resource rsc, Resource.Flags... flags)
     {
         boolean flagSet = false;
-        try
-        {
-            flagSet = rsc.getStateFlags().isSomeSet(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + CtrlRscApiCallHandler.getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        flagSet = rsc.getStateFlags().isSomeSet(flags);
         return flagSet;
     }
 
     private boolean isNodeFlagSet(Resource rsc, Node.Flags... flags)
     {
         boolean flagSet = false;
-        try
-        {
-            flagSet = rsc.getNode().getFlags().isSet(peerAccCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + CtrlRscApiCallHandler.getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        flagSet = rsc.getNode().getFlags().isSet(flags);
         return flagSet;
     }
 
-    static long calculateResourceDefinitionSize(ResourceDefinition rscDfn, AccessContext accCtx)
+    static long calculateResourceDefinitionSize(ResourceDefinition rscDfn)
     {
         long size = 0;
-        try
+        Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn();
+        while (vlmDfnIt.hasNext())
         {
-            Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn(accCtx);
-            while (vlmDfnIt.hasNext())
-            {
-                VolumeDefinition vlmDfn = vlmDfnIt.next();
-                size += vlmDfn.getVolumeSize(accCtx);
-            }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access " + CtrlRscDfnApiCallHandler.getRscDfnDescriptionInline(rscDfn.getName().displayValue),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
+            VolumeDefinition vlmDfn = vlmDfnIt.next();
+            size += vlmDfn.getVolumeSize();
         }
         return size;
 
@@ -681,14 +586,7 @@ public class CtrlRscAutoPlaceApiCallHandler
     private Stream<Resource> privilegedStreamResources(ResourceDefinition rscDfn)
     {
         Stream<Resource> ret;
-        try
-        {
-            ret = rscDfn.streamResource(apiCtx);
-        }
-        catch (AccessDeniedException accDenied)
-        {
-            throw new ImplementationError("ApiCtx has not enough privileges", accDenied);
-        }
+        ret = rscDfn.streamResource();
         return ret;
     }
 

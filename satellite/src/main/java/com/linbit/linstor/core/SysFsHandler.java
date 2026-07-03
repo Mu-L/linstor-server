@@ -6,7 +6,6 @@ import com.linbit.extproc.ExtCmd.OutputData;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.objects.Resource;
@@ -18,8 +17,6 @@ import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.provider.spdk.SpdkData;
@@ -94,7 +91,6 @@ public class SysFsHandler
     );
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ExtCmdFactory extCmdFactory;
     private final Map<VlmProviderObject<Resource>, String> deviceMajorMinorMap;
     private final ReadOnlyProps satelliteProps;
@@ -107,13 +103,11 @@ public class SysFsHandler
     @Inject
     public SysFsHandler(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext apiCtxRef,
         ExtCmdFactory extCmdFactoryRef,
         @Named(LinStor.SATELLITE_PROPS) ReadOnlyProps satellitePropsRef
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         extCmdFactory =  extCmdFactoryRef;
         satelliteProps = satellitePropsRef;
 
@@ -130,7 +124,7 @@ public class SysFsHandler
      * datastructures tracking the /sys/fs/cgroup/blkio/* settings
      */
     public void update(Resource rsc, ApiCallRcImpl apiCallRcRef)
-        throws StorageException, AccessDeniedException, InvalidKeyException
+        throws StorageException, InvalidKeyException
     {
         List<BiExecutor<VlmProviderObject<Resource>, String>> consumers = new ArrayList<>();
         for (ThrottleConfig cfg : THROTTLE_CFGS)
@@ -147,7 +141,7 @@ public class SysFsHandler
             }
             else
             {
-                if (anyVlmDataHasKey(rsc.getLayerData(apiCtx), cfg))
+                if (anyVlmDataHasKey(rsc.getLayerData(), cfg))
                 {
                     errorReporter.logWarning("%s does not exist. Skipping.", cfg.device);
                     apiCallRcRef.add(
@@ -181,10 +175,10 @@ public class SysFsHandler
      * This method does *not* attempt to reset the QoS setting, since it assumes that the devices are already deleted.
      */
     public void cleanup(Resource rsc)
-        throws StorageException, AccessDeniedException, InvalidKeyException
+        throws StorageException, InvalidKeyException
     {
         execForAllVlmData(
-            rsc.getLayerData(apiCtx),
+            rsc.getLayerData(),
             vlmData ->
             {
                 String identifier;
@@ -214,10 +208,10 @@ public class SysFsHandler
         Resource rsc,
         BiExecutor<VlmProviderObject<Resource>, String> consumer
     )
-        throws AccessDeniedException, InvalidKeyException, StorageException
+        throws InvalidKeyException, StorageException
     {
         execForAllVlmData(
-            rsc.getLayerData(apiCtx),
+            rsc.getLayerData(),
             vlmData ->
             {
                 AbsRscLayerObject<Resource> rscLayerObject = vlmData.getRscLayerObject();
@@ -266,7 +260,7 @@ public class SysFsHandler
         String identifier,
         ThrottleConfig cfg
     )
-        throws AccessDeniedException, InvalidKeyException, StorageException
+        throws InvalidKeyException, StorageException
     {
         PriorityProps priorityProps = getPrioProps(vlmDataRef);
 
@@ -310,7 +304,7 @@ public class SysFsHandler
         }
     }
 
-    private PriorityProps getPrioProps(VlmProviderObject<Resource> vlmDataRef) throws AccessDeniedException
+    private PriorityProps getPrioProps(VlmProviderObject<Resource> vlmDataRef)
     {
         Volume vlm = (Volume) vlmDataRef.getVolume();
         Resource rsc = vlm.getAbsResource();
@@ -318,29 +312,29 @@ public class SysFsHandler
         VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         PriorityProps priorityProps = new PriorityProps();
-        priorityProps.addProps(vlm.getProps(apiCtx));
-        priorityProps.addProps(vlmDfn.getProps(apiCtx));
-        priorityProps.addProps(rscGrp.getVolumeGroupProps(apiCtx, vlmDfn.getVolumeNumber()));
-        priorityProps.addProps(rsc.getProps(apiCtx));
-        priorityProps.addProps(rscDfn.getProps(apiCtx));
-        priorityProps.addProps(rscGrp.getProps(apiCtx));
+        priorityProps.addProps(vlm.getProps());
+        priorityProps.addProps(vlmDfn.getProps());
+        priorityProps.addProps(rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()));
+        priorityProps.addProps(rsc.getProps());
+        priorityProps.addProps(rscDfn.getProps());
+        priorityProps.addProps(rscGrp.getProps());
 
-        for (StorPool storPool : LayerVlmUtils.getStorPoolSet(vlm, apiCtx, true))
+        for (StorPool storPool : LayerVlmUtils.getStorPoolSet(vlm, true))
         {
-            priorityProps.addProps(storPool.getProps(apiCtx));
-            priorityProps.addProps(storPool.getDefinition(apiCtx).getProps(apiCtx));
+            priorityProps.addProps(storPool.getProps());
+            priorityProps.addProps(storPool.getDefinition().getProps());
         }
 
-        priorityProps.addProps(rsc.getNode().getProps(apiCtx));
+        priorityProps.addProps(rsc.getNode().getProps());
         priorityProps.addProps(satelliteProps);
         return priorityProps;
     }
 
-    private @Nullable String getMajorMinor(VlmProviderObject<Resource> vlmDataRef) throws AccessDeniedException
+    private @Nullable String getMajorMinor(VlmProviderObject<Resource> vlmDataRef)
     {
         String majMin = deviceMajorMinorMap.get(vlmDataRef);
-        if (vlmDataRef.exists() && !((Volume) vlmDataRef.getVolume()).getFlags().isSet(apiCtx, Volume.Flags.CLONING) &&
-            !((Volume) vlmDataRef.getVolume()).getFlags().isSet(apiCtx, Volume.Flags.DRBD_DELETE))
+        if (vlmDataRef.exists() && !((Volume) vlmDataRef.getVolume()).getFlags().isSet(Volume.Flags.CLONING) &&
+            !((Volume) vlmDataRef.getVolume()).getFlags().isSet(Volume.Flags.DRBD_DELETE))
         {
             if (majMin == null)
             {
@@ -367,7 +361,7 @@ public class SysFsHandler
         AbsRscLayerObject<Resource> rscLayerData,
         Executor<VlmProviderObject<Resource>> consumer
     )
-        throws StorageException, AccessDeniedException, InvalidKeyException
+        throws StorageException, InvalidKeyException
     {
         for (VlmProviderObject<Resource> vlmData : rscLayerData.getVlmLayerObjects().values())
         {
@@ -383,7 +377,6 @@ public class SysFsHandler
      * Returns true iff any given lowest volume data actually uses the sys-fs key from the given ThrottleConfig
      */
     private boolean anyVlmDataHasKey(AbsRscLayerObject<Resource> rscLayerDataRef, ThrottleConfig cfgRef)
-        throws AccessDeniedException
     {
         boolean ret = false;
         boolean isDataPath = rscLayerDataRef.getResourceNameSuffix().equals(RscLayerSuffixes.SUFFIX_DATA);
@@ -584,12 +577,12 @@ public class SysFsHandler
 
     private interface Executor<T>
     {
-        void exec(T obj) throws StorageException, AccessDeniedException, InvalidKeyException;
+        void exec(T obj) throws StorageException, InvalidKeyException;
     }
 
     private interface BiExecutor<T, V>
     {
-        void exec(T obj, V arg2) throws StorageException, AccessDeniedException, InvalidKeyException;
+        void exec(T obj, V arg2) throws StorageException, InvalidKeyException;
     }
 
     private static class SysFsFileWalker extends SimpleFileVisitor<Path>

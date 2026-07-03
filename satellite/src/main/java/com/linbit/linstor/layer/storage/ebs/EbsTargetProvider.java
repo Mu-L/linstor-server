@@ -26,7 +26,6 @@ import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.ebs.EbsData;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject.Size;
@@ -86,7 +85,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
         List<EbsData<Resource>> vlmDataListRef,
         List<EbsData<Snapshot>> snapVlmsRef
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         return getTargetInfoListImpl(vlmDataListRef, snapVlmsRef);
     }
@@ -94,7 +93,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
     @SuppressWarnings("unchecked")
     @Override
     protected void updateStates(List<EbsData<Resource>> vlmDataListRef, List<EbsData<Snapshot>> snapVlmsRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         final List<EbsData<?>> combinedList = new ArrayList<>();
         combinedList.addAll(vlmDataListRef);
@@ -140,7 +139,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
     }
 
     private void updateInfo(EbsData<?> vlmDataRef, @Nullable com.amazonaws.services.ec2.model.Volume amazonVlmRef)
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         if (vlmDataRef.getVolume() instanceof Volume)
         {
@@ -171,8 +170,8 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
                 {
                     AbsVolume<?> absVlm = vlmDataRef.getVolume();
                     Props vlmProps = absVlm instanceof Volume volume ?
-                        volume.getProps(storDriverAccCtx) :
-                        ((SnapshotVolume) absVlm).getSnapVlmProps(storDriverAccCtx);
+                        volume.getProps() :
+                        ((SnapshotVolume) absVlm).getSnapVlmProps();
                     vlmProps.setProp(
                         InternalApiConsts.KEY_EBS_VLM_ID + vlmDataRef.getRscLayerObject().getResourceNameSuffix(),
                         amazonVlmRef.getVolumeId(),
@@ -191,7 +190,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
     }
 
     private void updateTags(EbsData<?> vlmDataRef, com.amazonaws.services.ec2.model.Volume amazonVlmRef)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         Map<String, String> missingTags = getEbsTags(vlmDataRef);
         List<Tag> tagsToDelete = new ArrayList<>();
@@ -229,7 +228,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
         }
     }
 
-    private Map<String, String> getEbsTags(EbsData<?> vlmDataRef) throws AccessDeniedException
+    private Map<String, String> getEbsTags(EbsData<?> vlmDataRef)
     {
         PriorityProps prioProps;
         AbsVolume<?> absVlm = vlmDataRef.getVolume();
@@ -239,10 +238,10 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
             ResourceDefinition rscDfn = vlmDfn.getResourceDefinition();
             ResourceGroup rscGrp = rscDfn.getResourceGroup();
             prioProps = new PriorityProps(
-                vlmDfn.getProps(storDriverAccCtx),
-                rscDfn.getProps(storDriverAccCtx),
-                rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmDfn.getVolumeNumber()),
-                rscGrp.getProps(storDriverAccCtx),
+                vlmDfn.getProps(),
+                rscDfn.getProps(),
+                rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+                rscGrp.getProps(),
                 localNodeProps,
                 stltConfigAccessor.getReadonlyProps()
             );
@@ -253,10 +252,10 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
             SnapshotVolumeDefinition snapVlmDfn = snapVlm.getSnapshotVolumeDefinition();
             SnapshotDefinition snapDfn = snapVlm.getSnapshotDefinition();
             prioProps = new PriorityProps(
-                snapVlmDfn.getSnapVlmDfnProps(storDriverAccCtx),
-                snapVlmDfn.getVlmDfnProps(storDriverAccCtx),
-                snapDfn.getSnapDfnProps(storDriverAccCtx),
-                snapDfn.getRscDfnProps(storDriverAccCtx),
+                snapVlmDfn.getSnapVlmDfnProps(),
+                snapVlmDfn.getVlmDfnProps(),
+                snapDfn.getSnapDfnProps(),
+                snapDfn.getRscDfnProps(),
                 localNodeProps,
                 stltConfigAccessor.getReadonlyProps()
             );
@@ -276,7 +275,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
     @SuppressWarnings("unchecked")
     private void updateVolumeType(EbsData<?> vlmDataRef, com.amazonaws.services.ec2.model.Volume amazonVlmRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         if (vlmDataRef.getVolume() instanceof Volume)
         {
@@ -294,20 +293,20 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
         // else: we do not touch snapshots :)
     }
 
-    private @Nullable String getVolumeType(EbsData<Resource> vlmDataRef) throws AccessDeniedException
+    private @Nullable String getVolumeType(EbsData<Resource> vlmDataRef)
     {
         return getPrioProps(vlmDataRef).getProp(ApiConsts.KEY_EBS_VOLUME_TYPE);
     }
 
     @Override
     protected void createLvImpl(EbsData<Resource> vlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         createEbsVolume(vlmDataRef, null);
     }
 
     private void createEbsVolume(EbsData<Resource> vlmDataRef, @Nullable String restoreFromSnapEbsId)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         EbsRemote remote = getEbsRemote(vlmDataRef.getStorPool());
         AmazonEC2 client = getClient(remote);
@@ -317,7 +316,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
 
         CreateVolumeRequest createVlmRequest = new CreateVolumeRequest()
-            .withAvailabilityZone(remote.getAvailabilityZone(storDriverAccCtx))
+            .withAvailabilityZone(remote.getAvailabilityZone())
             .withSize(
                 (int) SizeConv.convertRoundUp(vlmDataRef.getExpectedSize(), SizeUnit.UNIT_KiB, SizeUnit.UNIT_GiB)
             )
@@ -349,7 +348,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
     @Override
     protected boolean snapshotExists(EbsData<Snapshot> snapVlmRef, boolean ignoredForTakeSnapshorRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         boolean snapshotExists = false;
 
@@ -379,7 +378,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
     @Override
     protected void createSnapshot(EbsData<Resource> vlmDataRef, EbsData<Snapshot> snapVlmRef, boolean readOnly)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         EbsRemote remote = getEbsRemote(vlmDataRef.getStorPool());
         AmazonEC2 client = getClient(remote);
@@ -410,14 +409,14 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
     @Override
     protected void restoreSnapshot(EbsData<Snapshot> sourceSnapVlmDataRef, EbsData<Resource> vlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         createEbsVolume(vlmDataRef, getEbsSnapId(sourceSnapVlmDataRef));
     }
 
     @Override
     protected void rollbackImpl(EbsData<Resource> vlmDataRef, EbsData<Snapshot> rollbackToSnapVlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // we will need to delete the old volume if the rollback/restore worked
         String oldEbsVlmId = getEbsVlmId(vlmDataRef);
@@ -433,7 +432,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
     @Override
     protected void deleteSnapshotImpl(EbsData<Snapshot> snapVlmRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         EbsRemote remote = getEbsRemote(snapVlmRef.getStorPool());
         AmazonEC2 client = getClient(remote);
@@ -444,7 +443,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
         snapVlmRef.setExists(false);
     }
 
-    protected PriorityProps getPrioProps(EbsData<Resource> vlmDataRef) throws AccessDeniedException
+    protected PriorityProps getPrioProps(EbsData<Resource> vlmDataRef)
     {
         Volume vlm = (Volume) vlmDataRef.getVolume();
         Resource rsc = vlm.getAbsResource();
@@ -452,25 +451,25 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
         return new PriorityProps(
-            vlm.getProps(storDriverAccCtx),
-            rsc.getProps(storDriverAccCtx),
-            vlmDataRef.getStorPool().getProps(storDriverAccCtx),
+            vlm.getProps(),
+            rsc.getProps(),
+            vlmDataRef.getStorPool().getProps(),
             localNodeProps,
-            vlmDfn.getProps(storDriverAccCtx),
-            rscDfn.getProps(storDriverAccCtx),
-            rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmDfn.getVolumeNumber()),
-            rscGrp.getProps(storDriverAccCtx),
+            vlmDfn.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rscGrp.getProps(),
             stltConfigAccessor.getReadonlyProps()
         );
     }
 
     @Override
     protected void resizeLvImpl(EbsData<Resource> vlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         AmazonEC2 client = getClient(vlmDataRef.getStorPool());
 
-        String ebsVlmId = ((Volume) vlmDataRef.getVolume()).getProps(storDriverAccCtx)
+        String ebsVlmId = ((Volume) vlmDataRef.getVolume()).getProps()
             .getProp(
                 InternalApiConsts.KEY_EBS_VLM_ID,
                 ApiConsts.NAMESPC_STLT + "/" + ApiConsts.NAMESPC_EBS
@@ -503,7 +502,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
     @Override
     protected void deleteLvImpl(EbsData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         AmazonEC2 client = getClient(vlmDataRef.getStorPool());
 
@@ -516,7 +515,7 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
     @Override
     protected void deactivateLvImpl(EbsData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // noop
     }
@@ -564,14 +563,14 @@ public class EbsTargetProvider extends AbsEbsProvider<com.amazonaws.services.ec2
 
     @Override
     public @Nullable LocalPropsChangePojo update(StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         return null;
     }
 
     @Override
     public @Nullable LocalPropsChangePojo checkConfig(StorPoolInfo storPoolRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return null;
     }

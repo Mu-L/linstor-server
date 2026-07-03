@@ -14,13 +14,8 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeDatabaseDriver;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.propscon.PropsAccess;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -143,32 +138,25 @@ public class Volume extends AbsVolume<Resource>
         return volumeDfn;
     }
 
-    public Stream<VolumeConnection> streamVolumeConnections(AccessContext accCtx)
-        throws AccessDeniedException
+    public Stream<VolumeConnection> streamVolumeConnections()
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return volumeConnections.values().stream();
     }
 
-    public @Nullable VolumeConnection getVolumeConnection(AccessContext accCtx, Volume othervolume)
-        throws AccessDeniedException
+    public @Nullable VolumeConnection getVolumeConnection(Volume othervolume)
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return volumeConnections.get(othervolume.getKey());
     }
 
-    public void setVolumeConnection(AccessContext accCtx, VolumeConnection volumeConnection)
-        throws AccessDeniedException
+    public void setVolumeConnection(VolumeConnection volumeConnection)
     {
         checkDeleted();
 
-        Volume sourceVolume = volumeConnection.getSourceVolume(accCtx);
-        Volume targetVolume = volumeConnection.getTargetVolume(accCtx);
+        Volume sourceVolume = volumeConnection.getSourceVolume();
+        Volume targetVolume = volumeConnection.getTargetVolume();
 
-        sourceVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-        targetVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         if (this.equals(sourceVolume))
         {
@@ -180,16 +168,13 @@ public class Volume extends AbsVolume<Resource>
         }
     }
 
-    public void removeVolumeConnection(AccessContext accCtx, VolumeConnection volumeConnection)
-        throws AccessDeniedException
+    public void removeVolumeConnection(VolumeConnection volumeConnection)
     {
         checkDeleted();
 
-        Volume sourceVolume = volumeConnection.getSourceVolume(accCtx);
-        Volume targetVolume = volumeConnection.getTargetVolume(accCtx);
+        Volume sourceVolume = volumeConnection.getSourceVolume();
+        Volume targetVolume = volumeConnection.getTargetVolume();
 
-        sourceVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-        targetVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         if (this.equals(sourceVolume))
         {
@@ -201,11 +186,10 @@ public class Volume extends AbsVolume<Resource>
         }
     }
 
-    public Props getProps(AccessContext accCtx)
-        throws AccessDeniedException
+    public Props getProps()
     {
         checkDeleted();
-        return PropsAccess.secureGetProps(accCtx, absRsc.getObjProt(), props);
+        return props;
     }
 
     public StateFlags<Volume.Flags> getFlags()
@@ -214,17 +198,15 @@ public class Volume extends AbsVolume<Resource>
         return flags;
     }
 
-    public String getDevicePath(AccessContext accCtx) throws AccessDeniedException
+    public String getDevicePath()
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return devicePath.get();
     }
 
-    public void setDevicePath(AccessContext accCtx, String path) throws AccessDeniedException
+    public void setDevicePath(String path)
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         try
         {
             devicePath.set(path);
@@ -235,34 +217,30 @@ public class Volume extends AbsVolume<Resource>
         }
     }
 
-    public void markDeleted(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void markDeleted()
+        throws DatabaseException
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.USE);
-        getFlags().enableFlags(accCtx, Flags.DELETE);
+        getFlags().enableFlags(Flags.DELETE);
     }
 
-    public void markDrbdDeleted(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void markDrbdDeleted()
+        throws DatabaseException
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.USE);
-        getFlags().enableFlags(accCtx, Flags.DRBD_DELETE);
+        getFlags().enableFlags(Flags.DRBD_DELETE);
     }
 
-    public boolean isUsableSizeSet(AccessContext accCtx) throws AccessDeniedException
+    public boolean isUsableSizeSet()
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
         return usableSize.get() != null;
     }
 
-    public void setUsableSize(AccessContext accCtx, long size) throws AccessDeniedException
+    public void setUsableSize(long size)
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.USE);
 
         try
         {
@@ -274,25 +252,22 @@ public class Volume extends AbsVolume<Resource>
         }
     }
 
-    public long getUsableSize(AccessContext accCtx) throws AccessDeniedException
+    public long getUsableSize()
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
         return usableSize.get();
     }
 
-    public boolean isAllocatedSizeSet(AccessContext accCtx) throws AccessDeniedException
+    public boolean isAllocatedSizeSet()
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return allocatedSize.get() != null;
     }
 
-    public void setAllocatedSize(AccessContext accCtx, long size) throws AccessDeniedException
+    public void setAllocatedSize(long size)
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.USE);
         try
         {
             allocatedSize.set(size);
@@ -303,38 +278,35 @@ public class Volume extends AbsVolume<Resource>
         }
     }
 
-    public long getAllocatedSize(AccessContext accCtx) throws AccessDeniedException
+    public long getAllocatedSize()
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.VIEW);
         return allocatedSize.get();
     }
 
-    public long getEstimatedSize(AccessContext accCtx) throws AccessDeniedException
+    public long getEstimatedSize()
     {
         checkDeleted();
-        absRsc.getObjProt().requireAccess(accCtx, AccessType.VIEW);
 
-        return volumeDfn.getVolumeSize(accCtx);
+        return volumeDfn.getVolumeSize();
     }
 
     @Override
-    public void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void delete()
+        throws DatabaseException
     {
         if (!deleted.get())
         {
-            absRsc.getObjProt().requireAccess(accCtx, AccessType.USE);
 
             // preventing ConcurrentModificationException
             Collection<VolumeConnection> values = new ArrayList<>(volumeConnections.values());
             for (VolumeConnection vlmConn : values)
             {
-                vlmConn.delete(accCtx);
+                vlmConn.delete();
             }
 
-            absRsc.removeVolume(accCtx, this);
-            volumeDfn.removeVolume(accCtx, this);
+            absRsc.removeVolume(this);
+            volumeDfn.removeVolume(this);
 
             props.delete();
 
@@ -400,10 +372,10 @@ public class Volume extends AbsVolume<Resource>
     }
 
     @Override
-    public long getVolumeSize(AccessContext dbCtxRef) throws AccessDeniedException
+    public long getVolumeSize()
     {
         checkDeleted();
-        return volumeDfn.getVolumeSize(dbCtxRef);
+        return volumeDfn.getVolumeSize();
     }
 
     public static String getVolumeKey(Volume volume)
@@ -414,7 +386,7 @@ public class Volume extends AbsVolume<Resource>
         return nodeName.value + "/" + rscName.value + "/" + volNr.value;
     }
 
-    public VolumeApi getApiData(@Nullable Long allocated, AccessContext accCtx) throws AccessDeniedException
+    public VolumeApi getApiData(@Nullable Long allocated)
     {
         checkDeleted();
         VolumeNumber vlmNr = volumeDfn.getVolumeNumber();
@@ -423,7 +395,7 @@ public class Volume extends AbsVolume<Resource>
         StorPool compatStorPool = null;
 
         Deque<AbsRscLayerObject<Resource>> rscLayersToExpand = new ArrayDeque<>();
-        rscLayersToExpand.add(absRsc.getLayerData(accCtx));
+        rscLayersToExpand.add(absRsc.getLayerData());
         while (!rscLayersToExpand.isEmpty())
         {
             AbsRscLayerObject<Resource> rscLayerObject = rscLayersToExpand.removeFirst();
@@ -436,7 +408,7 @@ public class Volume extends AbsVolume<Resource>
                 layerDataList.add(
                     new PairNonNull<>(
                         vlmProvider.getLayerKind().name(),
-                        vlmProvider.asPojo(accCtx)
+                        vlmProvider.asPojo()
                     )
                 );
 
@@ -461,10 +433,10 @@ public class Volume extends AbsVolume<Resource>
         return new VlmPojo(
             volumeDfn.getUuid(),
             getUuid(),
-            getDevicePath(accCtx),
+            getDevicePath(),
             vlmNr.value,
-            getFlags().getFlagsBits(accCtx),
-            getProps(accCtx).cloneMap(),
+            getFlags().getFlagsBits(),
+            getProps().cloneMap(),
             Optional.ofNullable(allocated),
             Optional.ofNullable(usableSize.get()),
             layerDataList,
@@ -637,11 +609,5 @@ public class Volume extends AbsVolume<Resource>
     public void clearReports()
     {
         reports = new ApiCallRcImpl();
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        return absRsc.getObjProt();
     }
 }

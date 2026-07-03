@@ -5,8 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -30,7 +28,6 @@ import com.linbit.linstor.core.apicallhandler.controller.backup.l2l.rest.data.Ba
 import com.linbit.linstor.core.apicallhandler.controller.backup.l2l.rest.data.BackupShippingSrcData;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlBackupQueueInternalCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
@@ -53,8 +50,6 @@ import com.linbit.linstor.layer.AbsLayerHelperUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo;
 import com.linbit.linstor.tasks.StltRemoteCleanupTask;
@@ -109,8 +104,6 @@ import reactor.util.retry.Retry;
 public class CtrlBackupL2LSrcApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext sysCtx;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -134,8 +127,6 @@ public class CtrlBackupL2LSrcApiCallHandler
 
     @Inject
     public CtrlBackupL2LSrcApiCallHandler(
-        @SystemContext AccessContext sysCtxRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -155,8 +146,6 @@ public class CtrlBackupL2LSrcApiCallHandler
         Provider<CtrlRemoteApiCallHandler> ctrlRemoteApiCallHandlerRef
     )
     {
-        sysCtx = sysCtxRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -248,7 +237,7 @@ public class CtrlBackupL2LSrcApiCallHandler
         boolean runInBackgroundRef,
         boolean forceRscGrp,
         boolean copySnapsForEvac
-    ) throws AccessDeniedException, InvalidNameException
+    ) throws InvalidNameException
     {
         AbsRemote remote = ctrlApiDataLoader.loadRemote(linstorRemoteNameRef, true);
 
@@ -265,12 +254,12 @@ public class CtrlBackupL2LSrcApiCallHandler
         String srcClusterId;
         try
         {
-            srcClusterId = systemConfRepository.getCtrlConfForView(sysCtx).getProp(
+            srcClusterId = systemConfRepository.getCtrlConfForView().getProp(
                 InternalApiConsts.KEY_CLUSTER_LOCAL_ID,
                 ApiConsts.NAMESPC_CLUSTER
             );
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -281,14 +270,13 @@ public class CtrlBackupL2LSrcApiCallHandler
         @Nullable Instant crtTime = null;
         if (srcSnapNameRef != null)
         {
-            snapDfnToShip = rscDfn.getSnapshotDfn(sysCtx, new SnapshotName(srcSnapNameRef));
+            snapDfnToShip = rscDfn.getSnapshotDfn(new SnapshotName(srcSnapNameRef));
             if (snapDfnToShip != null)
             {
                 crtTime = snapDfnToShip.getCreationTime();
                 if (
                     snapDfnToShip.getFlags()
                         .isSomeSet(
-                            sysCtx,
                             SnapshotDefinition.Flags.DELETE,
                             SnapshotDefinition.Flags.FAILED_DEPLOYMENT,
                             SnapshotDefinition.Flags.FAILED_DISCONNECT
@@ -305,41 +293,29 @@ public class CtrlBackupL2LSrcApiCallHandler
                 }
             }
         }
-        try
+        for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
         {
-            for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(sysCtx))
-            {
-                if (
-                    !snapDfn.getAllSnapshots(sysCtx).isEmpty() && !BackupShippingUtils.hasShippingStatus(
-                        snapDfn,
-                        linstorRemoteNameRef,
-                        InternalApiConsts.VALUE_FAILED,
-                        sysCtx
-                    )
+            if (
+                !snapDfn.getAllSnapshots().isEmpty() && !BackupShippingUtils.hasShippingStatus(
+                    snapDfn,
+                    linstorRemoteNameRef,
+                    InternalApiConsts.VALUE_FAILED
                 )
+            )
+            {
+                if (crtTime != null)
                 {
-                    if (crtTime != null)
-                    {
-                        @Nullable Instant curCrtTime = snapDfn.getCreationTime();
-                        if (curCrtTime != null && curCrtTime.isBefore(crtTime))
-                        {
-                            srcSnapDfnUuids.add(snapDfn.getUuid().toString());
-                        }
-                    }
-                    else
+                    @Nullable Instant curCrtTime = snapDfn.getCreationTime();
+                    if (curCrtTime != null && curCrtTime.isBefore(crtTime))
                     {
                         srcSnapDfnUuids.add(snapDfn.getUuid().toString());
                     }
                 }
+                else
+                {
+                    srcSnapDfnUuids.add(snapDfn.getUuid().toString());
+                }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Finding possible base snapshot definitions",
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
         }
         LocalDateTime now = LocalDateTime.now(ZoneId.systemDefault());
         String backupName = snapDfnToShip == null ? BackupShippingUtils.generateBackupName(now) : srcSnapNameRef;
@@ -381,8 +357,7 @@ public class CtrlBackupL2LSrcApiCallHandler
                     srcSnapDfnUuids,
                     dstNodeNameRef
                 ),
-                linstorRemote,
-                sysCtx
+                linstorRemote
             ).retryWhen(buildIoExceptionRetrySpec("prevSnap", remote.getName().displayValue, null))
             .doOnError(IOException.class, exc ->
             {
@@ -496,19 +471,12 @@ public class CtrlBackupL2LSrcApiCallHandler
         ResourceDefinition rscDfn = snapRef.getResourceDefinition();
         Node node = snapRef.getNode();
         PriorityProps prioProps;
-        try
-        {
-            prioProps = new PriorityProps(
-                node.getProps(sysCtx),
-                rscDfn.getProps(sysCtx),
-                rscDfn.getResourceGroup().getProps(sysCtx),
-                systemConfRepository.getCtrlConfForView(sysCtx)
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        prioProps = new PriorityProps(
+            node.getProps(),
+            rscDfn.getProps(),
+            rscDfn.getResourceGroup().getProps(),
+            systemConfRepository.getCtrlConfForView()
+        );
         return ApiConsts.VAL_TRUE.equalsIgnoreCase(
             prioProps.getProp(ApiConsts.KEY_BACKUP_L2L_SKIP_WAIT_FOR_START, ApiConsts.NAMESPC_BACKUP_SHIPPING)
         );
@@ -524,7 +492,6 @@ public class CtrlBackupL2LSrcApiCallHandler
         StltRemote stltRemote = createStltRemote(
             stltRemoteFactory,
             remoteRepo,
-            peerAccCtx.get(),
             data.getSrcRscName(),
             data.getSrcBackupName(),
             new TreeMap<>(),
@@ -555,7 +522,6 @@ public class CtrlBackupL2LSrcApiCallHandler
     static StltRemote createStltRemote(
         StltRemoteControllerFactory stltRemoteFactoryRef,
         RemoteRepository remoteRepoRef,
-        AccessContext accCtxRef,
         String rscNameRef,
         String snapshotNameRef,
         Map<String, Integer> snapShipPortsRef,
@@ -568,7 +534,6 @@ public class CtrlBackupL2LSrcApiCallHandler
         try
         {
             stltRemote = stltRemoteFactoryRef.create(
-                accCtxRef,
                 // add random uuid to avoid naming conflict
                 RemoteName.createStltRemoteName(rscNameRef, snapshotNameRef, UUID.randomUUID()),
                 null,
@@ -577,15 +542,7 @@ public class CtrlBackupL2LSrcApiCallHandler
                 nodeRef,
                 otherRscNameRef
             );
-            remoteRepoRef.put(accCtxRef, stltRemote);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Setting backup source flag to snapshot",
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
-            );
+            remoteRepoRef.put(stltRemote);
         }
         catch (DatabaseException exc)
         {
@@ -604,9 +561,8 @@ public class CtrlBackupL2LSrcApiCallHandler
         try
         {
             BackupMetaDataPojo metaDataPojo = BackupShippingUtils.getBackupMetaDataPojo(
-                peerAccCtx.get(),
                 data.getSrcSnapshot(),
-                systemConfRepository.getStltConfForView(sysCtx),
+                systemConfRepository.getStltConfForView(),
                 ctrlSecObjs.getEncKey(),
                 ctrlSecObjs.getCryptHash(),
                 ctrlSecObjs.getCryptSalt(),
@@ -622,7 +578,7 @@ public class CtrlBackupL2LSrcApiCallHandler
                 data.getStltRemote().getLinstorRemoteName()
             );
 
-            ExtToolsManager extToolsMgr = data.getSrcSnapshot().getNode().getPeer(sysCtx).getExtToolsManager();
+            ExtToolsManager extToolsMgr = data.getSrcSnapshot().getNode().getPeer().getExtToolsManager();
             ExtToolsInfo zstd = extToolsMgr.getExtToolInfo(ExtTools.ZSTD);
             data.setUseZstd(zstd != null && zstd.isSupported());
 
@@ -637,7 +593,7 @@ public class CtrlBackupL2LSrcApiCallHandler
             data.setMetaDataPojo(metaDataPojo);
             // tell target cluster "Hey! Listen!"
             flux = Flux.merge(
-                restClient.sendBackupRequest(data, peerAccCtx.get())
+                restClient.sendBackupRequest(data)
                     .retryWhen(
                         buildIoExceptionRetrySpec(
                             "requestShip",
@@ -659,10 +615,6 @@ public class CtrlBackupL2LSrcApiCallHandler
                 cleanupAfterRequestShipFailureFlux(data, exc)
                     .concatWith(Mono.error(exc))
             );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "preparing backup shipping", ApiConsts.FAIL_ACC_DENIED_RSC_DFN);
         }
         catch (ParseException exc)
         {
@@ -789,14 +741,7 @@ public class CtrlBackupL2LSrcApiCallHandler
 
         // The StltRemote was created in createStltRemote() and put into the remoteRepo.
         // It is a transient (non-persisted) object — a simple remove is enough.
-        try
-        {
-            remoteRepo.remove(sysCtx, data.getStltRemote().getName());
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ImplementationError(accExc);
-        }
+        remoteRepo.remove(data.getStltRemote().getName());
 
         ctrlTransactionHelper.commit();
 
@@ -834,9 +779,9 @@ public class CtrlBackupL2LSrcApiCallHandler
             {
                 AccessContext accCtx = peerAccCtx.get();
                 StltRemote stltRemote = data.getStltRemote();
-                stltRemote.setIp(accCtx, responseRef.dstStltIp);
-                stltRemote.setAllPorts(accCtx, responseRef.dstStltPorts);
-                stltRemote.useZstd(accCtx, responseRef.useZstd && data.isUseZstd());
+                stltRemote.setIp(responseRef.dstStltIp);
+                stltRemote.setAllPorts(responseRef.dstStltPorts);
+                stltRemote.useZstd(responseRef.useZstd && data.isUseZstd());
                 ctrlTransactionHelper.commit();
                 flux = ctrlSatelliteUpdateCaller.updateSatellites(stltRemote);
                 String propsNamespc = BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + data.getLinstorRemote()
@@ -844,13 +789,13 @@ public class CtrlBackupL2LSrcApiCallHandler
 
                 Snapshot snap = data.getSrcSnapshot();
                 snap.getSnapshotDefinition()
-                    .getSnapDfnProps(peerAccCtx.get())
+                    .getSnapDfnProps()
                     .setProp(
                         InternalApiConsts.KEY_SHIPPING_STATUS,
                         InternalApiConsts.VALUE_SHIPPING,
                         propsNamespc
                     );
-                snap.setShipBackup(accCtx, true);
+                snap.setShipBackup(true);
                 SnapshotDefinition prevSnapDfn = null;
                 if (
                     responseRef.srcSnapDfnUuid != null && !responseRef.srcSnapDfnUuid.isEmpty() && data
@@ -858,7 +803,7 @@ public class CtrlBackupL2LSrcApiCallHandler
                 )
                 {
                     UUID prevSnapUuid = UUID.fromString(responseRef.srcSnapDfnUuid);
-                    for (SnapshotDefinition snapDfn : snap.getResourceDefinition().getSnapshotDfns(accCtx))
+                    for (SnapshotDefinition snapDfn : snap.getResourceDefinition().getSnapshotDfns())
                     {
                         if (snapDfn.getUuid().equals(prevSnapUuid))
                         {
@@ -883,7 +828,7 @@ public class CtrlBackupL2LSrcApiCallHandler
                     data.getScheduleName()
                 );
                 snap.getSnapshotDefinition()
-                    .getSnapDfnProps(peerAccCtx.get())
+                    .getSnapDfnProps()
                     .setProp(
                         InternalApiConsts.KEY_BACKUP_TARGET_REMOTE,
                         stltRemote.getName().displayValue,
@@ -921,14 +866,6 @@ public class CtrlBackupL2LSrcApiCallHandler
                 );
             }
 
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Setting backup source flag to snapshot",
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
-            );
         }
         catch (DatabaseException exc)
         {
@@ -991,13 +928,13 @@ public class CtrlBackupL2LSrcApiCallHandler
     private Flux<ApiCallRc> startQueuesInTransaction(
         BackupShippingSrcData data,
         StltRemoteCleanupTask task
-    ) throws AccessDeniedException, DatabaseException, InvalidKeyException, InvalidValueException
+    ) throws DatabaseException, InvalidKeyException, InvalidValueException
     {
         SnapshotDefinition snapDfn = null;
         if (data.getSrcSnapshot() != null && !data.getSrcSnapshot().isDeleted())
         {
             snapDfn = data.getSrcSnapshot().getSnapshotDefinition();
-            // snapDfn.getSnapDfnProps(peerAccCtx.get())
+            // snapDfn.getSnapDfnProps()
             // .setProp(
             // InternalApiConsts.KEY_SHIPPING_STATUS,
             // InternalApiConsts.VALUE_QUEUED,
@@ -1017,19 +954,8 @@ public class CtrlBackupL2LSrcApiCallHandler
     {
         AccessContext accCtx = peerAccCtx.get();
         Snapshot snap = dataRef.getSrcSnapshot();
-        try
-        {
-            snap.setShipBackup(accCtx, false);
-            ctrlTransactionHelper.commit();
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Cleaning up flags of snapshot after shippment started",
-                ApiConsts.FAIL_ACC_DENIED_SNAPSHOT
-            );
-        }
+        snap.setShipBackup(false);
+        ctrlTransactionHelper.commit();
 
         return ctrlSatelliteUpdateCaller.updateSatellites(snap.getSnapshotDefinition(), notConnectedError())
             .transform(

@@ -2,7 +2,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.pojo.EffectivePropertiesPojo;
 import com.linbit.linstor.api.pojo.RscPojo;
 import com.linbit.linstor.core.StltConfigAccessor;
@@ -24,8 +23,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.utils.LayerUtils;
@@ -65,7 +62,6 @@ public class CtrlVlmListApiCallHandler
     private final ResourceDefinitionRepository resourceDefinitionRepository;
     private final NodeRepository nodeRepository;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final StltConfigAccessor stltCfgAccessor;
 
     @Inject
@@ -76,7 +72,6 @@ public class CtrlVlmListApiCallHandler
         ResourceDefinitionRepository resourceDefinitionRepositoryRef,
         NodeRepository nodeRepositoryRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         StltConfigAccessor stltCfgAccessorRef
     )
     {
@@ -86,7 +81,6 @@ public class CtrlVlmListApiCallHandler
         resourceDefinitionRepository = resourceDefinitionRepositoryRef;
         nodeRepository = nodeRepositoryRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         stltCfgAccessor = stltCfgAccessorRef;
     }
 
@@ -133,19 +127,19 @@ public class CtrlVlmListApiCallHandler
         ResourceList rscList = new ResourceList();
         try
         {
-            resourceDefinitionRepository.getMapForView(peerAccCtx.get()).values().stream()
+            resourceDefinitionRepository.getMapForView().values().stream()
                 .filter(rscDfn -> RegexMatcher.matchesAny(resourceFilter, rscDfn.getName().displayValue))
                 .forEach(rscDfn ->
                 {
                     try
                     {
-                        for (Resource rsc : rscDfn.streamResource(peerAccCtx.get())
+                        for (Resource rsc : rscDfn.streamResource()
                             .filter(rsc -> RegexMatcher.matchesAny(
                                 nodesFilter, rsc.getNode().getName().displayValue))
                             .collect(toList()))
                         {
                             // prop filter
-                            final ReadOnlyProps props = rsc.getProps(peerAccCtx.get());
+                            final ReadOnlyProps props = rsc.getProps();
                             if (props.contains(propFilters))
                             {
                                 // create our api object ourselves to filter the volumes by storage pools
@@ -154,7 +148,7 @@ public class CtrlVlmListApiCallHandler
                                 List<VolumeApi> volumes = new ArrayList<>();
                                 List<AbsRscLayerObject<Resource>> storageRscList = LayerUtils
                                     .getChildLayerDataByKind(
-                                    rsc.getLayerData(peerAccCtx.get()),
+                                    rsc.getLayerData(),
                                     DeviceLayerKind.STORAGE
                                 );
                                 Iterator<Volume> itVolumes = rsc.iterateVolumes();
@@ -191,23 +185,21 @@ public class CtrlVlmListApiCallHandler
                                         }
                                         volumes.add(vlm.getApiData(
                                             getAllocated(
-                                                vlmAllocatedAnswers, vlm),
-                                                peerAccCtx.get()
+                                                vlmAllocatedAnswers, vlm)
                                             )
                                         );
                                     }
                                 }
 
                                 List<ResourceConnectionApi> rscConns = new ArrayList<>();
-                                for (ResourceConnection rscConn : rsc.getAbsResourceConnections(peerAccCtx.get()))
+                                for (ResourceConnection rscConn : rsc.getAbsResourceConnections())
                                 {
-                                    rscConns.add(rscConn.getApiData(peerAccCtx.get()));
+                                    rscConns.add(rscConn.getApiData());
                                 }
 
                                 if (!volumes.isEmpty())
                                 {
                                     EffectivePropertiesPojo propsPojo = rsc.getEffectiveProps(
-                                        peerAccCtx.get(),
                                         stltCfgAccessor
                                     );
 
@@ -215,16 +207,16 @@ public class CtrlVlmListApiCallHandler
                                         rscDfn.getName().getDisplayName(),
                                         rsc.getNode().getName().getDisplayName(),
                                         rsc.getNode().getUuid(),
-                                        rscDfn.getApiData(peerAccCtx.get()),
+                                        rscDfn.getApiData(),
                                         rsc.getUuid(),
-                                        rsc.getStateFlags().getFlagsBits(peerAccCtx.get()),
-                                        rsc.getProps(peerAccCtx.get()).map(),
+                                        rsc.getStateFlags().getFlagsBits(),
+                                        rsc.getProps().map(),
                                         volumes,
                                         null,
                                         rscConns,
                                         null,
                                         null,
-                                        rsc.getLayerData(peerAccCtx.get()).asPojo(peerAccCtx.get()),
+                                        rsc.getLayerData().asPojo(),
                                         rsc.getCreateTimestamp().orElse(null),
                                         propsPojo
                                     );
@@ -241,9 +233,9 @@ public class CtrlVlmListApiCallHandler
                 );
 
             // get resource states of all nodes
-            for (final Node node : nodeRepository.getMapForView(peerAccCtx.get()).values())
+            for (final Node node : nodeRepository.getMapForView().values())
             {
-                final Peer satellite = node.getPeer(peerAccCtx.get());
+                final Peer satellite = node.getPeer();
                 if (satellite != null)
                 {
                     Lock readLock = satellite.getSatelliteStateLock().readLock();
@@ -277,7 +269,6 @@ public class CtrlVlmListApiCallHandler
         final @Nullable Map<Volume.Key, VlmAllocatedResult> vlmAllocatedCapacities,
         Volume vlm
     )
-        throws AccessDeniedException
     {
         long allocated = 0L;
         if (vlmAllocatedCapacities != null)
@@ -294,9 +285,9 @@ public class CtrlVlmListApiCallHandler
                  * test if the vlm is thick-provisioned which would mean that the has already set its
                  * allocated size, as that will not change.
                  */
-                if (vlm.isAllocatedSizeSet(peerAccCtx.get()))
+                if (vlm.isAllocatedSizeSet())
                 {
-                    allocated = vlm.getAllocatedSize(peerAccCtx.get());
+                    allocated = vlm.getAllocatedSize();
                 }
                 // else the satellite is offline, but an appropriate message should already have been
                 // generated by our caller method
@@ -310,16 +301,16 @@ public class CtrlVlmListApiCallHandler
             }
         }
         else
-        if (vlm.isAllocatedSizeSet(peerAccCtx.get()))
+        if (vlm.isAllocatedSizeSet())
         {
-            allocated = vlm.getAllocatedSize(peerAccCtx.get());
+            allocated = vlm.getAllocatedSize();
         }
 
         return allocated;
 
         /*
         Long allocated = null;
-        DeviceProviderKind driverKind = vlm.getStorPools(peerAccCtx.get()).getDeviceProviderKind();
+        DeviceProviderKind driverKind = vlm.getStorPools().getDeviceProviderKind();
         if (driverKind.hasBackingDevice())
         {
             allocated = getDiskAllocated(vlmAllocatedCapacities, vlm);
@@ -328,7 +319,7 @@ public class CtrlVlmListApiCallHandler
         {
             // Report the maximum usage of the peer volumes for diskless volumes
             Long maxAllocated = null;
-            Iterator<Volume> vlmIter = vlm.getVolumeDefinition().iterateVolumes(peerAccCtx.get());
+            Iterator<Volume> vlmIter = vlm.getVolumeDefinition().iterateVolumes();
             while (vlmIter.hasNext())
             {
                 Volume peerVlm = vlmIter.next();

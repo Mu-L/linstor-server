@@ -5,8 +5,6 @@ import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.types.NodeId;
 import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.Flags;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -26,9 +24,9 @@ public interface DrbdRscObject<RSC extends AbsResource<RSC>>
 
     void setNodeId(NodeId nodeIdRef) throws DatabaseException;
 
-    boolean isDiskless(AccessContext accCtx) throws AccessDeniedException;
+    boolean isDiskless();
 
-    boolean isDisklessForPeers(AccessContext accCtx) throws AccessDeniedException;
+    boolean isDisklessForPeers();
 
     short getPeerSlots();
 

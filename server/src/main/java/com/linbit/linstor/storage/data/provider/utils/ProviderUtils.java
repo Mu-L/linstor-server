@@ -3,8 +3,6 @@ package com.linbit.linstor.storage.data.provider.utils;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -15,9 +13,8 @@ import java.util.Deque;
 public class ProviderUtils
 {
     public static <RSC extends AbsResource<RSC>, VLM extends AbsVolume<RSC>> long getAllocatedSize(
-        VLM vlm,
-        AccessContext accCtx
-    ) throws AccessDeniedException
+        VLM vlm
+    )
     {
         long sum = 0;
         RSC rsc = vlm.getAbsResource();
@@ -25,7 +22,7 @@ public class ProviderUtils
         VolumeNumber vlmNr = vlm.getVolumeNumber();
 
         Deque<AbsRscLayerObject<RSC>> rscDataList = new ArrayDeque<>();
-        rscDataList.add(rsc.getLayerData(accCtx));
+        rscDataList.add(rsc.getLayerData());
 
         while (!rscDataList.isEmpty())
         {

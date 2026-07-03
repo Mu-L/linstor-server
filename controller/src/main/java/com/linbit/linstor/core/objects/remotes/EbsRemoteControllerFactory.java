@@ -5,10 +5,6 @@ import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.repository.RemoteRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.EbsRemoteDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -45,7 +41,6 @@ public class EbsRemoteControllerFactory
     }
 
     public EbsRemote create(
-        AccessContext accCtxRef,
         RemoteName nameRef,
         long initFlagsRef,
         URL url,
@@ -54,16 +49,15 @@ public class EbsRemoteControllerFactory
         byte[] encryptedAccessKeyRef,
         byte[] encryptedSecretKeyRef
     )
-        throws AccessDeniedException, LinStorDataAlreadyExistsException, DatabaseException
+        throws LinStorDataAlreadyExistsException, DatabaseException
     {
-        if (remoteRepo.get(accCtxRef, nameRef) != null)
+        if (remoteRepo.get(nameRef) != null)
         {
             throw new LinStorDataAlreadyExistsException("This remote name is already registered");
         }
 
         EbsRemote remote = new EbsRemote(
             objProtFactory.getInstance(
-                accCtxRef,
                 ObjectProtection.buildPath(nameRef),
                 true
             ),

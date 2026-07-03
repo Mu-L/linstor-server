@@ -31,7 +31,6 @@ import com.linbit.linstor.layer.storage.zfs.utils.ZfsCommands.ZfsVolumeType;
 import com.linbit.linstor.layer.storage.zfs.utils.ZfsUtils;
 import com.linbit.linstor.layer.storage.zfs.utils.ZfsUtils.ZfsInfo;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
@@ -194,7 +193,6 @@ public class ZfsProvider
 
     @Override
     protected String asSnapLvIdentifier(ZfsData<Snapshot> snapVlmDataRef)
-        throws AccessDeniedException
     {
         return asSnapLvIdentifier(snapVlmDataRef, false);
     }
@@ -212,7 +210,6 @@ public class ZfsProvider
     }
 
     private String asSnapLvIdentifier(ZfsData<Snapshot> snapVlmDataRef, boolean forTakeSnapshotRef)
-        throws AccessDeniedException
     {
         StorageRscData<Snapshot> snapData = snapVlmDataRef.getRscLayerObject();
         @Nullable String rscNameFormatSuffix;
@@ -224,7 +221,7 @@ public class ZfsProvider
         if (!forTakeSnapshotRef)
         {
             rscNameFormatSuffix = snapData.getAbsResource()
-                .getSnapProps(storDriverAccCtx)
+                .getSnapProps()
                 .getProp(InternalApiConsts.KEY_ZFS_RENAME_SUFFIX, STORAGE_NAMESPACE);
         }
         else
@@ -275,7 +272,7 @@ public class ZfsProvider
     }
 
     @SuppressWarnings("unchecked")
-    private String asIdentifierRaw(ZfsData<?> zfsData, ZfsVolumeType zfsTypeRef) throws AccessDeniedException
+    private String asIdentifierRaw(ZfsData<?> zfsData, ZfsVolumeType zfsTypeRef)
     {
         String identifier;
         switch (zfsTypeRef)
@@ -294,7 +291,6 @@ public class ZfsProvider
     }
 
     private String asFullQualifiedSnapIdentifier(ZfsData<Snapshot> zfsData, boolean forTakeSnapshotRef)
-        throws AccessDeniedException
     {
         return getZPool(zfsData.getStorPool()) + File.separator +
             asSnapLvIdentifier(zfsData, forTakeSnapshotRef);
@@ -351,7 +347,7 @@ public class ZfsProvider
             additionalOptionsArr = new String[additionalOptions.size()];
             additionalOptions.toArray(additionalOptionsArr);
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -361,18 +357,10 @@ public class ZfsProvider
     @Override
     protected long getExtentSize(AbsStorageVlmData<?> vlmDataRef) throws StorageException
     {
-        try
-        {
-            return ZfsPropsUtils.extractZfsVolBlockSizePrivileged(
-                (ZfsData<?>) vlmDataRef,
-                storDriverAccCtx,
-                stltConfigAccessor.getReadonlyProps()
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return ZfsPropsUtils.extractZfsVolBlockSizePrivileged(
+            (ZfsData<?>) vlmDataRef,
+            stltConfigAccessor.getReadonlyProps()
+        );
     }
 
     /**
@@ -421,7 +409,7 @@ public class ZfsProvider
 
     @Override
     protected void resizeLvImpl(ZfsData<Resource> vlmData)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         ZfsCommands.resize(
             extCmdFactory.create(),
@@ -433,14 +421,14 @@ public class ZfsProvider
 
     @Override
     protected void deleteLvImpl(ZfsData<Resource> vlmData, String ignored)
-        throws StorageException, DatabaseException, AccessDeniedException
+        throws StorageException, DatabaseException
     {
         delete(vlmData, ZfsVolumeType.VOLUME);
     }
 
     @SuppressWarnings("unchecked")
     private void delete(ZfsData<?> vlmDataRef, ZfsVolumeType zfsTypeRef)
-        throws StorageException, InvalidKeyException, AccessDeniedException, DatabaseException
+        throws StorageException, InvalidKeyException, DatabaseException
     {
         ZfsInfo zfsInfo = infoListCache.get(vlmDataRef.getFullQualifiedLvIdentifier());
         if (canDelete(zfsInfo))
@@ -599,25 +587,25 @@ public class ZfsProvider
         return ret;
     }
 
-    private String getNextRenameSuffix(ZfsData<Resource> vlmDataRef) throws InvalidKeyException, AccessDeniedException
+    private String getNextRenameSuffix(ZfsData<Resource> vlmDataRef) throws InvalidKeyException
     {
         String nextNum = vlmDataRef.getRscLayerObject()
             .getAbsResource()
-            .getProps(storDriverAccCtx)
+            .getProps()
             .getProp(InternalApiConsts.KEY_ZFS_RENAME_SUFFIX, STORAGE_NAMESPACE);
         return "_" + nextNum;
     }
 
     @Override
     protected void deactivateLvImpl(ZfsData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // noop, not supported
     }
 
     @Override
     public boolean snapshotExists(ZfsData<Snapshot> snapVlm, boolean forTakeSnapshotRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         ZfsInfo zfsInfo = infoListCache.get(asFullQualifiedSnapIdentifier(snapVlm, forTakeSnapshotRef));
         return zfsInfo != null;
@@ -625,11 +613,11 @@ public class ZfsProvider
 
     @Override
     protected void createSnapshot(ZfsData<Resource> vlmData, ZfsData<Snapshot> snapVlm, boolean readOnly)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         Snapshot snap = snapVlm.getVolume().getAbsResource();
         // snapshot will be created by "zfs receive" command
-        if (!BackupShippingUtils.isBackupTarget(snap.getSnapshotDefinition(), snap.getNode(), storDriverAccCtx))
+        if (!BackupShippingUtils.isBackupTarget(snap.getSnapshotDefinition(), snap.getNode()))
         {
             ZfsCommands.createSnapshot(
                 extCmdFactory.create(),
@@ -643,7 +631,7 @@ public class ZfsProvider
 
     @Override
     protected void restoreSnapshot(ZfsData<Snapshot> sourceSnapVlmDataRef, ZfsData<Resource> targetVlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         ZfsCommands.restoreSnapshot(
             extCmdFactory.create(),
@@ -655,13 +643,13 @@ public class ZfsProvider
 
     @Override
     protected void deleteSnapshotImpl(ZfsData<Snapshot> snapVlmRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         delete(snapVlmRef, ZfsVolumeType.SNAPSHOT);
     }
 
     private void markForDeletionAndRename(ZfsData<?> zfsDataRef, ZfsVolumeType zfsVlmTypeRef, String newId)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         final String zPool = getZPool(zfsDataRef.getStorPool());
         final String rawCurrentLvId = asIdentifierRaw(zfsDataRef, zfsVlmTypeRef);
@@ -687,7 +675,7 @@ public class ZfsProvider
 
     @Override
     protected void rollbackImpl(ZfsData<Resource> vlmDataRef, ZfsData<Snapshot> rollbackToSnapVlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         ZfsCommands.rollback(
             extCmdFactory.create(),
@@ -715,10 +703,10 @@ public class ZfsProvider
         try
         {
             zPool = DeviceLayerUtils.getNamespaceStorDriver(
-                storPool.getReadOnlyProps(storDriverAccCtx)
+                storPool.getReadOnlyProps()
             ).getProp(StorageConstants.CONFIG_ZFS_POOL_KEY);
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -727,7 +715,7 @@ public class ZfsProvider
 
     @Override
     public @Nullable LocalPropsChangePojo checkConfig(StorPoolInfo storPool)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         String zpoolName = getZPool(storPool);
         if (zpoolName == null)
@@ -751,9 +739,9 @@ public class ZfsProvider
     }
 
     protected void checkExtentSize(StorPool storPool, LocalPropsChangePojo ret)
-        throws ImplementationError, AccessDeniedException, StorageException
+        throws ImplementationError, StorageException
     {
-        @Nullable String oldExtentSizeInKib = storPool.getProps(storDriverAccCtx)
+        @Nullable String oldExtentSizeInKib = storPool.getProps()
             .getProp(
                 InternalApiConsts.ALLOCATION_GRANULARITY,
                 StorageConstants.NAMESPACE_INTERNAL
@@ -779,7 +767,7 @@ public class ZfsProvider
 
     @Override
     public @Nullable LocalPropsChangePojo update(StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         LocalPropsChangePojo ret = new LocalPropsChangePojo();
         List<String> pvs = ZfsUtils.getPhysicalVolumes(extCmdFactory.create(), getZpoolOnlyName(storPoolRef));
@@ -804,7 +792,7 @@ public class ZfsProvider
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException, AccessDeniedException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException
     {
         String zPool = getZPool(storPool);
         if (zPool == null)
@@ -838,7 +826,7 @@ public class ZfsProvider
 
     @Override
     protected String getBackupShippingReceivingCommandImpl(ZfsData<Snapshot> snapVlmDataRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return "zfs receive -F " + getZPool(snapVlmDataRef.getStorPool()) + "/" +
             asSnapLvIdentifier(snapVlmDataRef);
@@ -849,7 +837,7 @@ public class ZfsProvider
         ZfsData<Snapshot> lastSnapVlmDataRef,
         ZfsData<Snapshot> curSnapVlmDataRef
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         StringBuilder sb = new StringBuilder("zfs send ");
         if (lastSnapVlmDataRef != null)
@@ -865,7 +853,7 @@ public class ZfsProvider
 
     @Override
     protected void updateStates(List<ZfsData<Resource>> vlmDataList, List<ZfsData<Snapshot>> snapVlms)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         /*
          *  updating volume states
@@ -881,7 +869,7 @@ public class ZfsProvider
     }
 
     private void updateState(ZfsData<?> vlmData, ZfsVolumeType zfsTypeRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         vlmData.setZPool(getZPool(vlmData.getStorPool()));
 
@@ -936,7 +924,7 @@ public class ZfsProvider
     }
 
     @SuppressWarnings("unchecked")
-    private void updateInfo(ZfsData<?> vlmData, ZfsInfo zfsInfo) throws DatabaseException, AccessDeniedException
+    private void updateInfo(ZfsData<?> vlmData, ZfsInfo zfsInfo) throws DatabaseException
     {
         vlmData.setExists(true);
         vlmData.setZPool(zfsInfo.poolName);
@@ -964,7 +952,7 @@ public class ZfsProvider
         vlmData.setDevicePath(devicePath);
     }
 
-    protected PriorityProps getPrioProps(ZfsData<Resource> vlmDataRef) throws AccessDeniedException
+    protected PriorityProps getPrioProps(ZfsData<Resource> vlmDataRef)
     {
         Volume vlm = (Volume) vlmDataRef.getVolume();
         Resource rsc = vlm.getAbsResource();
@@ -972,14 +960,14 @@ public class ZfsProvider
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
         return new PriorityProps(
-            vlm.getProps(storDriverAccCtx),
-            rsc.getProps(storDriverAccCtx),
-            vlmDataRef.getStorPool().getProps(storDriverAccCtx),
-            rsc.getNode().getProps(storDriverAccCtx),
-            vlmDfn.getProps(storDriverAccCtx),
-            rscDfn.getProps(storDriverAccCtx),
-            rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmDfn.getVolumeNumber()),
-            rscGrp.getProps(storDriverAccCtx),
+            vlm.getProps(),
+            rsc.getProps(),
+            vlmDataRef.getStorPool().getProps(),
+            rsc.getNode().getProps(),
+            vlmDfn.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rscGrp.getProps(),
             stltConfigAccessor.getReadonlyProps()
         );
     }
@@ -1050,7 +1038,7 @@ public class ZfsProvider
 
     @Override
     public Map<ReadOnlyVlmProviderInfo, Long> fetchAllocatedSizes(List<ReadOnlyVlmProviderInfo> vlmDataListRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         Map<ReadOnlyVlmProviderInfo, Long> ret = new HashMap<>();
         Set<String> dataSets = new HashSet<>();
@@ -1109,14 +1097,7 @@ public class ZfsProvider
         {
             createLvImpl(srcData);
             final String devicePath = getDevicePath(zPool, asLvIdentifier(srcData));
-            try
-            {
-                waitUntilDeviceCreated(srcData, devicePath);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new StorageException("Unable to run openForClone::waitUntilDeviceCreated", exc);
-            }
+            waitUntilDeviceCreated(srcData, devicePath);
             vlm.setCloneDevicePath(devicePath);
         }
     }

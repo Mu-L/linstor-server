@@ -5,14 +5,11 @@ import com.linbit.drbd.md.MaxSizeException;
 import com.linbit.drbd.md.MinSizeException;
 import com.linbit.linstor.CtrlStorPoolResolveHelper;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcWith;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.objects.AbsResource;
@@ -30,8 +27,6 @@ import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -54,24 +49,18 @@ import java.util.stream.Collectors;
 @Singleton
 public class CtrlVlmCrtApiHelper
 {
-    private final AccessContext apiCtx;
     private final VolumeControllerFactory volumeFactory;
-    private final Provider<AccessContext> peerAccCtx;
     private final CtrlStorPoolResolveHelper storPoolResolveHelper;
     private final SystemConfRepository sysCfgRepo;
 
     @Inject
     CtrlVlmCrtApiHelper(
-        @ApiContext AccessContext apiCtxRef,
         VolumeControllerFactory volumeFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         CtrlStorPoolResolveHelper storPoolResolveHelperRef,
         SystemConfRepository sysCfgRepoRef
     )
     {
-        apiCtx = apiCtxRef;
         volumeFactory = volumeFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         storPoolResolveHelper = storPoolResolveHelperRef;
         sysCfgRepo = sysCfgRepoRef;
     }
@@ -163,11 +152,10 @@ public class CtrlVlmCrtApiHelper
         long vlmDfnSize = -1;
         try
         {
-            vlmDfnSize = vlmDfn.getVolumeSize(peerAccCtx.get());
+            vlmDfnSize = vlmDfn.getVolumeSize();
             if (snapVlmRef == null)
             {
                 vlm = volumeFactory.create(
-                    peerAccCtx.get(),
                     rsc,
                     vlmDfn,
                     null, // flags
@@ -180,24 +168,15 @@ public class CtrlVlmCrtApiHelper
             else
             {
                 vlm = volumeFactory.create(
-                    peerAccCtx.get(),
                     rsc,
                     vlmDfn,
                     null, // flags
                     payload,
-                    snapVlmRef.getAbsResource().getLayerData(peerAccCtx.get()),
+                    snapVlmRef.getAbsResource().getLayerData(),
                     storpoolRenameMap,
                     apiCallRc
                 );
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "register " + getVlmDescriptionInline(rsc, vlmDfn),
-                ApiConsts.FAIL_ACC_DENIED_VLM
-            );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
         {
@@ -300,8 +279,7 @@ public class CtrlVlmCrtApiHelper
                         true,
                         storPool.getName(),
                         rsc.getNode(),
-                        ctrlProps,
-                        apiCtx
+                        ctrlProps
                     )
                     // allow the volume to be created if the free capacity is unknown
                     .orElse(true)
@@ -353,7 +331,7 @@ public class CtrlVlmCrtApiHelper
             if (!nonEbsDisklessPools.isEmpty())
             {
                 AbsRscLayerObject<Resource> rscData = CtrlRscToggleDiskApiCallHandler
-                    .getLayerData(peerAccCtx.get(), rsc);
+                    .getLayerData(rsc);
                 if (!LayerUtils.hasLayer(rscData, DeviceLayerKind.DRBD) &&
                     !LayerUtils.hasLayer(rscData, DeviceLayerKind.NVME))
                 {
@@ -370,27 +348,13 @@ public class CtrlVlmCrtApiHelper
 
     private ReadOnlyProps getCtrlPropsPrivileged()
     {
-        try
-        {
-            return sysCfgRepo.getCtrlConfForView(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return sysCfgRepo.getCtrlConfForView();
     }
 
     private Peer getPeerPrivileged(Node assignedNode)
     {
         Peer peer;
-        try
-        {
-            peer = assignedNode.getPeer(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        peer = assignedNode.getPeer();
         return peer;
     }
 
@@ -399,10 +363,10 @@ public class CtrlVlmCrtApiHelper
         boolean isSet;
         try
         {
-            isSet = vlmDfn.getProps(apiCtx)
+            isSet = vlmDfn.getProps()
                 .getProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID) != null;
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -412,34 +376,19 @@ public class CtrlVlmCrtApiHelper
     private long getVolumeSizePrivileged(VolumeDefinition vlmDfn)
     {
         long volumeSize;
-        try
-        {
-            volumeSize = vlmDfn.getVolumeSize(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        volumeSize = vlmDfn.getVolumeSize();
         return volumeSize;
     }
 
     public boolean isDiskless(Resource rsc)
     {
         boolean isDiskless;
-        try
-        {
-            StateFlags<Flags> stateFlags = rsc.getStateFlags();
-            isDiskless = stateFlags.isSomeSet(
-                apiCtx,
-                Resource.Flags.DRBD_DISKLESS,
-                Resource.Flags.NVME_INITIATOR,
-                Resource.Flags.EBS_INITIATOR
-            );
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
-        }
+        StateFlags<Flags> stateFlags = rsc.getStateFlags();
+        isDiskless = stateFlags.isSomeSet(
+            Resource.Flags.DRBD_DISKLESS,
+            Resource.Flags.NVME_INITIATOR,
+            Resource.Flags.EBS_INITIATOR
+        );
         return isDiskless;
     }
 }

@@ -11,7 +11,6 @@ import com.linbit.drbd.DrbdVersion;
 import com.linbit.fsevent.FileSystemWatch;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorModule;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiModule;
 import com.linbit.linstor.api.ApiType;
 import com.linbit.linstor.api.BaseApiCall;
@@ -46,11 +45,6 @@ import com.linbit.linstor.logging.LoggingModule;
 import com.linbit.linstor.logging.StdErrorReporter;
 import com.linbit.linstor.modularcrypto.ModularCryptoProvider;
 import com.linbit.linstor.numberpool.SatelliteNumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Privilege;
-import com.linbit.linstor.security.SatelliteSecurityModule;
-import com.linbit.linstor.security.SecurityModule;
 import com.linbit.linstor.systemstarter.NetComInitializer;
 import com.linbit.linstor.systemstarter.ServiceStarter;
 import com.linbit.linstor.systemstarter.StartupInitializer;
@@ -90,7 +84,6 @@ public final class Satellite
     private final ErrorReporter errorReporter;
 
     // System security context
-    private final AccessContext sysCtx;
 
     private final CoreTimer timerEventSvc;
 
@@ -125,7 +118,6 @@ public final class Satellite
     @Inject
     public Satellite(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext sysCtxRef,
         CoreTimer timerEventSvcRef,
         @Named(CoreModule.RECONFIGURATION_LOCK)
         ReadWriteLock reconfigurationLockRef,
@@ -145,7 +137,6 @@ public final class Satellite
     )
     {
         errorReporter = errorReporterRef;
-        sysCtx = sysCtxRef;
         timerEventSvc = timerEventSvcRef;
         reconfigurationLock = reconfigurationLockRef;
         systemServicesMap = systemServicesMapRef;
@@ -192,7 +183,6 @@ public final class Satellite
             try
             {
                 errorReporter.setLogLevel(
-                    sysCtx,
                     Level.valueOf(logLevelStr.toUpperCase()),
                     tmpLinLevel
                 );
@@ -222,7 +212,7 @@ public final class Satellite
             initCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
 
             SystemService devMgrService = (SystemService) devMgr;
-            NetComInitializer netComInitializer = new NetComInitializer(satelliteNetComInitializer, initCtx);
+            NetComInitializer netComInitializer = new NetComInitializer(satelliteNetComInitializer);
 
             ArrayList<StartupInitializer> startOrderlist = new ArrayList<>();
 
@@ -252,14 +242,6 @@ public final class Satellite
 
             applicationLifecycleManager.startSystemServices(startOrderlist);
 
-        }
-        catch (AccessDeniedException accessExc)
-        {
-            throw new ImplementationError(
-                "The initialization security context does not have all privileges. " +
-                    "Initialization failed.",
-                accessExc
-            );
         }
         catch (SystemServiceStartException exc)
         {
@@ -336,7 +318,7 @@ public final class Satellite
             privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
             debugCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
 
-            DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(privCtx, debugCtx, null);
+            DebugConsole dbgConsole = debugConsoleCreator.createDebugConsole(debugCtx, null);
             dbgConsole.stdStreamsConsole(DebugConsoleImpl.CONSOLE_PROMPT);
             System.out.println();
 

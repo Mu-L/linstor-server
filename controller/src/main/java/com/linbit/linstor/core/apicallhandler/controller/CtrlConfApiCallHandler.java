@@ -10,8 +10,6 @@ import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRc.RcEntry;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -38,7 +36,6 @@ import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteU
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDefinitionUtils;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ZfsDeleteStrategy;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ZfsRollbackStrategy;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
@@ -63,8 +60,6 @@ import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.range.Range;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.AutoDiskfulTask;
 import com.linbit.linstor.tasks.AutoSnapshotTask;
 import com.linbit.linstor.tasks.BalanceResourcesTask;
@@ -112,11 +107,9 @@ public class CtrlConfApiCallHandler
     private static final int MAX_REMOTE_NAME_LEN = 10;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext sysCtx;
     private final SystemConfRepository systemConfRepository;
     private final DynamicNumberPool minorNrPool;
     private final DynamicNumberPool backupShipPortPool;
-    private final Provider<AccessContext> peerAccCtx;
     private final Provider<Peer> peerProvider;
     private final Provider<TransactionMgr> transMgrProvider;
 
@@ -175,13 +168,11 @@ public class CtrlConfApiCallHandler
     @Inject
     public CtrlConfApiCallHandler(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext sysCtxRef,
         SystemConfRepository systemConfRepositoryRef,
         @Named(NumberPoolModule.MINOR_NUMBER_POOL) DynamicNumberPool minorNrPoolRef,
         @Named(
             NumberPoolModule.BACKUP_SHIPPING_PORT_POOL
         ) DynamicNumberPool backupShipPortPoolRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         Provider<Peer> peerProviderRef,
         Provider<TransactionMgr> transMgrProviderRef,
         CoreModule.NodesMap nodesMapRef,
@@ -210,11 +201,9 @@ public class CtrlConfApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        sysCtx = sysCtxRef;
         systemConfRepository = systemConfRepositoryRef;
         minorNrPool = minorNrPoolRef;
         backupShipPortPool = backupShipPortPoolRef;
-        peerAccCtx = peerAccCtxRef;
         peerProvider = peerProviderRef;
         transMgrProvider = transMgrProviderRef;
 
@@ -243,11 +232,11 @@ public class CtrlConfApiCallHandler
         systemServicesMap = systemServicesMapRef;
     }
 
-    public void updateSatelliteConf() throws AccessDeniedException
+    public void updateSatelliteConf()
     {
         for (Node nodeToContact : nodesMap.values())
         {
-            Peer satellitePeer = nodeToContact.getPeer(peerAccCtx.get());
+            Peer satellitePeer = nodeToContact.getPeer();
 
             if (satellitePeer.isOnline() && !satellitePeer.hasFullSyncFailed())
             {
@@ -338,7 +327,7 @@ public class CtrlConfApiCallHandler
                     rscDfn.getName().displayValue
                 );
 
-                CtrlRscAutoQuorumHelper.removeQuorumPropIfSetByLinstor(rscDfn, peerAccCtx.get());
+                CtrlRscAutoQuorumHelper.removeQuorumPropIfSetByLinstor(rscDfn);
                 ApiCallRcImpl responses = new ApiCallRcImpl();
                 CtrlRscAutoHelper.AutoHelperContext autoHelperCtx =
                     new CtrlRscAutoHelper.AutoHelperContext(responses, context, rscDfn);
@@ -364,7 +353,7 @@ public class CtrlConfApiCallHandler
 
         List<Flux<ApiCallRc>> specialPropFluxes = new ArrayList<>();
         Map<String, PropertyChangedListener> propsChangedListeners = propsChangeListenerBuilder.get()
-            .buildPropsChangedListeners(peerAccCtx.get(), specialPropFluxes);
+            .buildPropsChangedListeners(specialPropFluxes);
 
         /*
          * Some properties need to be considered in combination with other properties.
@@ -453,28 +442,16 @@ public class CtrlConfApiCallHandler
             rscDfnMap.values(), overridePropsRef, deletePropKeysRef, apiCallRc));
 
         Flux<ApiCallRc> autoSnapFlux;
-        try
-        {
-            autoSnapFlux = ResourceDefinitionUtils.handleAutoSnapProps(
-                autoSnapshotTask,
-                ctrlSnapDeleteHandler,
-                filteredOverrideProps,
-                filteredDeletePropKeys,
-                filteredDeleteNamespaces,
-                Collections.unmodifiableCollection(rscDfnMap.values()),
-                peerAccCtx.get(),
-                systemConfRepository.getStltConfForView(peerAccCtx.get()),
-                false
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "Checking props for auto-snapshot",
-                ApiConsts.FAIL_ACC_DENIED_CTRL_CFG
-            );
-        }
+        autoSnapFlux = ResourceDefinitionUtils.handleAutoSnapProps(
+            autoSnapshotTask,
+            ctrlSnapDeleteHandler,
+            filteredOverrideProps,
+            filteredDeletePropKeys,
+            filteredDeleteNamespaces,
+            Collections.unmodifiableCollection(rscDfnMap.values()),
+            systemConfRepository.getStltConfForView(),
+            false
+        );
 
         transMgrProvider.get().commit();
 
@@ -555,7 +532,7 @@ public class CtrlConfApiCallHandler
     }
 
     private Flux<ApiCallRc> setCtrlConfigInScope(ControllerConfigApi config)
-        throws AccessDeniedException, IOException
+        throws IOException
     {
         ResponseContext context = makeCtrlConfContext(ApiOperation.makeModifyOperation());
         String logLevel = config.getLogLevel();
@@ -571,7 +548,6 @@ public class CtrlConfApiCallHandler
                 ctrlCfg.setLogLevel(logLevel);
                 ctrlCfg.setLogLevelLinstor(logLevelLinstor);
                 errorReporter.setLogLevel(
-                    peerAccCtx.get(),
                     Level.valueOf(logLevel.toUpperCase()),
                     Level.valueOf(logLevelLinstor.toUpperCase())
                 );
@@ -585,7 +561,6 @@ public class CtrlConfApiCallHandler
                     ctrlCfg.setLogLevel(logLevel);
                     ctrlCfg.setLogLevelLinstor(logLevelLinstorGlobal);
                     errorReporter.setLogLevel(
-                        peerAccCtx.get(),
                         Level.valueOf(logLevel.toUpperCase()),
                         Level.valueOf(logLevelLinstorGlobal.toUpperCase())
                     );
@@ -595,7 +570,7 @@ public class CtrlConfApiCallHandler
                     LinstorParsingUtils.asLogLevel(logLevel);
                     ctrlCfg.setLogLevel(logLevel);
                     errorReporter
-                        .setLogLevel(peerAccCtx.get(), Level.valueOf(logLevel.toUpperCase()), null);
+                        .setLogLevel(Level.valueOf(logLevel.toUpperCase()), null);
                 }
             }
         }
@@ -611,7 +586,6 @@ public class CtrlConfApiCallHandler
                     ctrlCfg.setLogLevelLinstor(logLevelLinstor);
                     errorReporter
                         .setLogLevel(
-                            peerAccCtx.get(),
                             Level.valueOf(logLevelGlobal.toUpperCase()),
                             Level.valueOf(logLevelLinstor.toUpperCase())
                         );
@@ -626,7 +600,6 @@ public class CtrlConfApiCallHandler
                         ctrlCfg.setLogLevelLinstor(logLevelLinstorGlobal);
                         errorReporter
                             .setLogLevel(
-                                peerAccCtx.get(),
                                 Level.valueOf(logLevelGlobal.toUpperCase()),
                                 Level.valueOf(logLevelLinstorGlobal.toUpperCase())
                             );
@@ -635,8 +608,7 @@ public class CtrlConfApiCallHandler
                     {
                         LinstorParsingUtils.asLogLevel(logLevelGlobal);
                         ctrlCfg.setLogLevel(logLevelGlobal);
-                        errorReporter.setLogLevel(
-                            peerAccCtx.get(), Level.valueOf(logLevelGlobal.toUpperCase()), null
+                        errorReporter.setLogLevel(Level.valueOf(logLevelGlobal.toUpperCase()), null
                         );
                     }
                 }
@@ -648,7 +620,7 @@ public class CtrlConfApiCallHandler
                     LinstorParsingUtils.asLogLevel(logLevelLinstor);
                     ctrlCfg.setLogLevelLinstor(logLevelLinstor);
                     errorReporter
-                        .setLogLevel(peerAccCtx.get(), null, Level.valueOf(logLevelLinstor.toUpperCase()));
+                        .setLogLevel(null, Level.valueOf(logLevelLinstor.toUpperCase()));
                 }
                 else
                 {
@@ -656,8 +628,7 @@ public class CtrlConfApiCallHandler
                     {
                         LinstorParsingUtils.asLogLevel(logLevelLinstorGlobal);
                         ctrlCfg.setLogLevelLinstor(logLevelLinstorGlobal);
-                        errorReporter.setLogLevel(
-                            peerAccCtx.get(), null, Level.valueOf(logLevelLinstorGlobal.toUpperCase())
+                        errorReporter.setLogLevel(null, Level.valueOf(logLevelLinstorGlobal.toUpperCase())
                         );
                     }
                 }
@@ -731,7 +702,7 @@ public class CtrlConfApiCallHandler
         boolean notifyStlts = false;
         try
         {
-            @Nullable Props optNamespace = systemConfRepository.getCtrlConfForChange(peerAccCtx.get())
+            @Nullable Props optNamespace = systemConfRepository.getCtrlConfForChange()
                 .getNamespace(deleteNamespaceRef);
             if (optNamespace != null)
             {
@@ -762,7 +733,6 @@ public class CtrlConfApiCallHandler
         catch (AccessDeniedException exc)
         {
             String errorMsg = ResponseUtils.getAccDeniedMsg(
-                peerAccCtx.get(),
                 "set a controller config property"
             );
             apiCallRc.addEntry(
@@ -771,7 +741,6 @@ public class CtrlConfApiCallHandler
             );
             errorReporter.reportError(
                 exc,
-                peerAccCtx.get(),
                 null,
                 errorMsg
             );
@@ -780,15 +749,14 @@ public class CtrlConfApiCallHandler
     }
 
     private boolean setCtrlProp(
-        AccessContext accCtx,
         String key,
         String value,
         @Nullable String namespace,
         PropertyChangedListener propChangedListenerRef
     )
-        throws InvalidValueException, AccessDeniedException, DatabaseException, InvalidKeyException
+        throws InvalidValueException, DatabaseException, InvalidKeyException
     {
-        String oldVal = systemConfRepository.setCtrlProp(accCtx, key, value, namespace);
+        String oldVal = systemConfRepository.setCtrlProp(key, value, namespace);
         if (propChangedListenerRef != null)
         {
             propChangedListenerRef.changed(key, value, oldVal);
@@ -806,14 +774,13 @@ public class CtrlConfApiCallHandler
     }
 
     private boolean setStltProp(
-        AccessContext accCtx,
         String key,
         String value,
         PropertyChangedListener propChangedListenerRef
     )
-        throws InvalidValueException, AccessDeniedException, DatabaseException, InvalidKeyException
+        throws InvalidValueException, DatabaseException, InvalidKeyException
     {
-        String oldVal = systemConfRepository.setStltProp(accCtx, key, value);
+        String oldVal = systemConfRepository.setStltProp(key, value);
         if (propChangedListenerRef != null)
         {
             propChangedListenerRef.changed(key, value, oldVal);
@@ -904,7 +871,7 @@ public class CtrlConfApiCallHandler
                 if (fullKey.startsWith(ApiConsts.NAMESPC_REST + '/') ||
                     fullKey.startsWith(ApiConsts.NAMESPC_AUTOPLACER + "/"))
                 {
-                    notifyStlts = setCtrlProp(peerAccCtx.get(), key, normalized, namespace, propChangedListener);
+                    notifyStlts = setCtrlProp(key, normalized, namespace, propChangedListener);
                 }
                 else
                 {
@@ -921,7 +888,6 @@ public class CtrlConfApiCallHandler
                             break;
                         case ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_AUTO_ADD_QUORUM_TIEBREAKER:
                             notifyStlts = setCtrlProp(
-                                peerAccCtx.get(),
                                 key,
                                 normalized,
                                 namespace,
@@ -935,7 +901,6 @@ public class CtrlConfApiCallHandler
                             break;
                         case ApiConsts.NAMESPC_DRBD_RESOURCE_OPTIONS + "/" + InternalApiConsts.KEY_DRBD_QUORUM:
                             setCtrlProp(
-                                peerAccCtx.get(),
                                 ApiConsts.KEY_QUORUM_SET_BY,
                                 "user",
                                 ApiConsts.NAMESPC_INTERNAL_DRBD,
@@ -943,7 +908,6 @@ public class CtrlConfApiCallHandler
                             );
 
                             notifyStlts = setCtrlProp(
-                                peerAccCtx.get(),
                                 key,
                                 normalized,
                                 namespace,
@@ -952,7 +916,6 @@ public class CtrlConfApiCallHandler
                             break;
                         case ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_AUTO_VERIFY_ALGO_ALLOWED_USER:
                             notifyStlts = setCtrlProp(
-                                peerAccCtx.get(),
                                 key,
                                 normalized,
                                 namespace,
@@ -962,7 +925,7 @@ public class CtrlConfApiCallHandler
                             break;
                         case ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_DISABLE_AUTO_RESYNC_AFTER:
                         {
-                            setCtrlProp(peerAccCtx.get(), key, normalized, namespace, propChangedListener);
+                            setCtrlProp(key, normalized, namespace, propChangedListener);
                             PairNonNull<ApiCallRc, Set<Resource>> result;
                             if (normalized.equalsIgnoreCase("true"))
                             {
@@ -979,9 +942,9 @@ public class CtrlConfApiCallHandler
                             break;
                         case ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_DISABLE_AUTO_VERIFY_ALGO:
                         {
-                            setCtrlProp(peerAccCtx.get(), key, normalized, namespace, propChangedListener);
+                            setCtrlProp(key, normalized, namespace, propChangedListener);
                             // also set on satellite, so conffile builder can ignore if disabled
-                            setStltProp(peerAccCtx.get(), fullKey, normalized, propChangedListener);
+                            setStltProp(fullKey, normalized, propChangedListener);
                             PairNonNull<ApiCallRc, Set<Resource>> result = updateRscDfnsVerifyAlgo();
                             apiCallRc.addEntries(result.objA);
                             // ignore touched resources, as we disable auto-verify-algo by conf file builder global prop
@@ -991,12 +954,12 @@ public class CtrlConfApiCallHandler
                         case ApiConsts.KEY_BALANCE_RESOURCES_INTERVAL:
                         {
                             updateBalanceResourcesTaskSchedule(normalized);
-                            setCtrlProp(peerAccCtx.get(), key, normalized, namespace, propChangedListener);
+                            setCtrlProp(key, normalized, namespace, propChangedListener);
                         }
                             break;
                         case Autoplacer.MIN_FREE_SPACE_PROP:
                             SizeSpecParser.ensureParsableWithPercent(normalized);
-                            setCtrlProp(peerAccCtx.get(), key, normalized, namespace, propChangedListener);
+                            setCtrlProp(key, normalized, namespace, propChangedListener);
                             break;
                         case ApiConsts.KEY_AUTOPLACE_ALLOW_TARGET: // fall-through
                         case ApiConsts.KEY_SEARCH_DOMAIN: // fall-through
@@ -1041,7 +1004,7 @@ public class CtrlConfApiCallHandler
                             // fall-through
                         case ApiConsts.NAMESPC_LOGGING + "/" + ApiConsts.KEY_LOG_ARCHIVE_AGE_DAYS:
                             // no need to update stlts
-                            setCtrlProp(peerAccCtx.get(), key, normalized, namespace, propChangedListener);
+                            setCtrlProp(key, normalized, namespace, propChangedListener);
                             break;
                         case ApiConsts.KEY_EXT_CMD_WAIT_TO: // deprecated
                             String mappedKey = ApiConsts.NAMESPC_EXT_CMD + "/" + ApiConsts.KEY_WAIT_TO;
@@ -1059,7 +1022,7 @@ public class CtrlConfApiCallHandler
                             notifyStlts = applyExtCmdTimeout(fullKey, normalized, propChangedListener);
                             break;
                         default:
-                            notifyStlts = setStltProp(peerAccCtx.get(), fullKey, normalized, propChangedListener);
+                            notifyStlts = setStltProp(fullKey, normalized, propChangedListener);
                             break;
                     }
                 }
@@ -1112,7 +1075,6 @@ public class CtrlConfApiCallHandler
             if (exc instanceof AccessDeniedException)
             {
                 errorMsg = ResponseUtils.getAccDeniedMsg(
-                    peerAccCtx.get(),
                     "set a controller config property"
                 );
                 rc = ApiConsts.FAIL_ACC_DENIED_CTRL_CFG;
@@ -1154,7 +1116,6 @@ public class CtrlConfApiCallHandler
             {
                 errorReporter.reportError(
                     exc,
-                    peerAccCtx.get(),
                     null,
                     errorMsg
                 );
@@ -1164,7 +1125,7 @@ public class CtrlConfApiCallHandler
     }
 
     private boolean applyExtCmdTimeout(String fullKey, String value, PropertyChangedListener propChangedListenerRef)
-        throws InvalidKeyException, AccessDeniedException, DatabaseException, InvalidValueException
+        throws InvalidKeyException, DatabaseException, InvalidValueException
     {
         long timeout;
         try
@@ -1190,13 +1151,13 @@ public class CtrlConfApiCallHandler
                 )
             );
         }
-        boolean notifyStlt = setStltProp(peerAccCtx.get(), fullKey, value, propChangedListenerRef);
-        ChildProcessHandler.applyTimeoutProps(systemConfRepository.getStltConfForView(peerAccCtx.get()));
+        boolean notifyStlt = setStltProp(fullKey, value, propChangedListenerRef);
+        ChildProcessHandler.applyTimeoutProps(systemConfRepository.getStltConfForView());
         return notifyStlt;
     }
 
     private void handleClusterRemoteNamespace(ApiCallRcImpl apiCallRc, String fullKey, String value)
-        throws InvalidKeyException, AccessDeniedException, DatabaseException, InvalidValueException
+        throws InvalidKeyException, DatabaseException, InvalidValueException
     {
         ApiCallRcEntry entry = null;
 
@@ -1204,7 +1165,7 @@ public class CtrlConfApiCallHandler
         String actualKey = fullKey.substring(ApiConsts.NAMESPC_CLUSTER_REMOTE.length() + 1);
         if (UuidUtils.isUuid(actualKey))
         {
-            if (systemConfRepository.getCtrlConfForView(peerAccCtx.get()).values().contains(value))
+            if (systemConfRepository.getCtrlConfForView().values().contains(value))
             {
                 entry = new ApiCallRcEntry();
                 entry.setMessage("The value '" + value + "' is already used for another remote cluster");
@@ -1227,7 +1188,7 @@ public class CtrlConfApiCallHandler
         }
         else
         {
-            systemConfRepository.getCtrlConfForChange(peerAccCtx.get()).setProp(
+            systemConfRepository.getCtrlConfForChange().setProp(
                 actualKey,
                 value,
                 ApiConsts.NAMESPC_CLUSTER_REMOTE
@@ -1268,7 +1229,6 @@ public class CtrlConfApiCallHandler
                 {
                     String normalized = whitelistProps.normalize(LinStorObject.CTRL, currentKey, currentValue);
                     setCtrlProp(
-                        peerAccCtx.get(),
                         currentKey,
                         normalized,
                         null,
@@ -1286,7 +1246,7 @@ public class CtrlConfApiCallHandler
                 String[] splitByNamespaces = StringUtils.split(currentKey, "/");
                 if (currentKey.startsWith(ApiConsts.NAMESPC_NETCOM) && splitByNamespaces.length == 3)
                 {
-                    systemConfRepository.removeCtrlProp(peerAccCtx.get(), currentKey, null);
+                    systemConfRepository.removeCtrlProp(currentKey, null);
                     connectorsToCheck.add(splitByNamespaces[1]);
                     deletePropIterator.remove(); // remove the prop to not being forwarded to the default handler
                 }
@@ -1299,7 +1259,7 @@ public class CtrlConfApiCallHandler
                 String[] splitByNamespaces = StringUtils.split(currentKey, "/");
                 if (currentKey.startsWith(ApiConsts.NAMESPC_NETCOM) && splitByNamespaces.length == 2)
                 {
-                    @Nullable Props optNamespace = systemConfRepository.getCtrlConfForChange(peerAccCtx.get())
+                    @Nullable Props optNamespace = systemConfRepository.getCtrlConfForChange()
                         .getNamespace(currentKey);
                     if (optNamespace != null)
                     {
@@ -1307,7 +1267,7 @@ public class CtrlConfApiCallHandler
                         while (keysIterator.hasNext())
                         {
                             String actualKey = keysIterator.next();
-                            systemConfRepository.removeCtrlProp(peerAccCtx.get(), actualKey, null);
+                            systemConfRepository.removeCtrlProp(actualKey, null);
                         }
                     }
                     deleteNamespaceIterator.remove(); // remove the prop to not being forwarded to the default handler
@@ -1317,7 +1277,7 @@ public class CtrlConfApiCallHandler
             boolean abort = false;
             if (!connectorsToCheck.isEmpty())
             {
-                @Nullable Props ctrlProps = systemConfRepository.getCtrlConfForChange(peerAccCtx.get())
+                @Nullable Props ctrlProps = systemConfRepository.getCtrlConfForChange()
                     .getNamespace(ApiConsts.NAMESPC_NETCOM);
                 if (ctrlProps != null)
                 {
@@ -1423,7 +1383,6 @@ public class CtrlConfApiCallHandler
             if (exc instanceof AccessDeniedException)
             {
                 errorMsg = ResponseUtils.getAccDeniedMsg(
-                    peerAccCtx.get(),
                     "set a netcom (controller) config property"
                 );
                 rc = ApiConsts.FAIL_ACC_DENIED_CTRL_CFG;
@@ -1456,7 +1415,6 @@ public class CtrlConfApiCallHandler
             apiCallRc.addEntry(errorMsg, rc | ApiConsts.MASK_CTRL_CONF | ApiConsts.MASK_CRT);
             errorReporter.reportError(
                 exc,
-                peerAccCtx.get(),
                 null,
                 errorMsg
             );
@@ -1469,8 +1427,8 @@ public class CtrlConfApiCallHandler
         Map<String, String> mergedMap = new TreeMap<>();
         try
         {
-            mergedMap.putAll(systemConfRepository.getCtrlConfForView(peerAccCtx.get()).map());
-            mergedMap.putAll(systemConfRepository.getStltConfForView(peerAccCtx.get()).map());
+            mergedMap.putAll(systemConfRepository.getCtrlConfForView().map());
+            mergedMap.putAll(systemConfRepository.getStltConfForView().map());
         }
         catch (Exception ignored)
         {
@@ -1504,19 +1462,7 @@ public class CtrlConfApiCallHandler
         transMgrProvider.get().commit();
         if (result.objB)
         {
-            try
-            {
-                updateSatelliteConf();
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ApiRcException(ApiCallRcImpl.singleApiCallRc(
-                    ApiConsts.FAIL_ACC_DENIED_CTRL_CFG,
-                    ResponseUtils.getAccDeniedMsg(
-                        peerAccCtx.get(),
-                        "delete a controller config property"
-                    )));
-            }
+            updateSatelliteConf();
         }
         Flux<ApiCallRc> fluxUpdRscDfns = Flux.empty();
         for (Resource rsc : result.objC)
@@ -1561,8 +1507,8 @@ public class CtrlConfApiCallHandler
             );
             if (isPropWhitelisted)
             {
-                String oldValue = systemConfRepository.removeCtrlProp(peerAccCtx.get(), key, namespace);
-                notifyStlts = systemConfRepository.removeStltProp(peerAccCtx.get(), key, namespace) != null;
+                String oldValue = systemConfRepository.removeCtrlProp(key, namespace);
+                notifyStlts = systemConfRepository.removeStltProp(key, namespace) != null;
 
                 if (oldValue != null)
                 {
@@ -1573,8 +1519,7 @@ public class CtrlConfApiCallHandler
                         case ApiConsts.KEY_MINOR_NR_AUTO_RANGE -> minorNrPool.reloadRange();
                         case ApiConsts.KEY_TCP_PORT_RANGE -> backupShipPortPool.reloadRange();
                         case ApiConsts.NAMESPC_DRBD_RESOURCE_OPTIONS + "/" + InternalApiConsts.KEY_DRBD_QUORUM ->
-                            systemConfRepository.removeCtrlProp(
-                                peerAccCtx.get(), ApiConsts.KEY_QUORUM_SET_BY, ApiConsts.NAMESPC_INTERNAL_DRBD);
+                            systemConfRepository.removeCtrlProp(ApiConsts.KEY_QUORUM_SET_BY, ApiConsts.NAMESPC_INTERNAL_DRBD);
                         case ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_DISABLE_AUTO_RESYNC_AFTER ->
                         {
                             PairNonNull<ApiCallRc, Set<Resource>> result = ctrlResyncAfterHelper.manage();
@@ -1621,7 +1566,6 @@ public class CtrlConfApiCallHandler
             if (exc instanceof AccessDeniedException)
             {
                 errorMsg = ResponseUtils.getAccDeniedMsg(
-                    peerAccCtx.get(),
                     "delete a controller config property"
                 );
                 rc = ApiConsts.FAIL_ACC_DENIED_CTRL_CFG;
@@ -1643,7 +1587,6 @@ public class CtrlConfApiCallHandler
             apiCallRc.addEntry(errorMsg, rc);
             errorReporter.reportError(
                 exc,
-                peerAccCtx.get(),
                 null,
                 errorMsg
             );
@@ -1651,33 +1594,23 @@ public class CtrlConfApiCallHandler
         return new TripleNonNull<>(apiCallRc, notifyStlts, changedRscs);
     }
 
-    private void reloadAllNodesTcpPortPools() throws AccessDeniedException
+    private void reloadAllNodesTcpPortPools()
     {
         AccessContext peerCtx = peerAccCtx.get();
         for (Node node : nodesMap.values())
         {
-            node.getTcpPortPool(peerCtx).reloadRange();
+            node.getTcpPortPool().reloadRange();
         }
     }
 
     public LinstorEncryptionStatus masterPassphraseStatus()
     {
         LinstorEncryptionStatus status = LinstorEncryptionStatus.UNSET;
-        try
+        ReadOnlyProps namespace = encHelper.getEncryptedNamespace();
+        if (!(namespace == null || namespace.isEmpty()))
         {
-            ReadOnlyProps namespace = encHelper.getEncryptedNamespace(peerAccCtx.get());
-            if (!(namespace == null || namespace.isEmpty()))
-            {
-                status = encHelper.isMasterKeyUnlocked() ?
-                    LinstorEncryptionStatus.UNLOCKED : LinstorEncryptionStatus.LOCKED;
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiRcException(ApiCallRcImpl.simpleEntry(
-                ApiConsts.MASK_CTRL_CONF | ApiConsts.FAIL_ACC_DENIED_CTRL_CFG,
-                ResponseUtils.getAccDeniedMsg(peerAccCtx.get(), "view the controller properties")
-            ));
+            status = encHelper.isMasterKeyUnlocked() ?
+                LinstorEncryptionStatus.UNLOCKED : LinstorEncryptionStatus.LOCKED;
         }
         return status;
     }
@@ -1703,7 +1636,7 @@ public class CtrlConfApiCallHandler
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
         try
         {
-            ReadOnlyProps namespace = encHelper.getEncryptedNamespace(peerAccCtx.get());
+            ReadOnlyProps namespace = encHelper.getEncryptedNamespace();
             if (namespace == null || namespace.isEmpty())
             {
                 ResponseUtils.reportStatic(
@@ -1714,7 +1647,6 @@ public class CtrlConfApiCallHandler
                     true,
                     apiCallRc,
                     errorReporter,
-                    peerAccCtx.get(),
                     peerProvider.get()
                 );
             }
@@ -1741,7 +1673,7 @@ public class CtrlConfApiCallHandler
         catch (AccessDeniedException exc)
         {
             ResponseUtils.addAnswerStatic(
-                ResponseUtils.getAccDeniedMsg(peerAccCtx.get(), "view the controller properties"),
+                ResponseUtils.getAccDeniedMsg("view the controller properties"),
                 null, // cause
                 null, // details
                 null, // correction
@@ -1765,7 +1697,6 @@ public class CtrlConfApiCallHandler
                 false,
                 apiCallRc,
                 errorReporter,
-                peerAccCtx.get(),
                 peerProvider.get()
             );
         }
@@ -1811,7 +1742,6 @@ public class CtrlConfApiCallHandler
                 false,
                 apiCallRc,
                 errorReporter,
-                peerAccCtx.get(),
                 peerProvider.get()
             );
         }
@@ -1842,7 +1772,7 @@ public class CtrlConfApiCallHandler
         long mask = ApiConsts.MASK_CTRL_CONF;
         try
         {
-            ReadOnlyProps namespace = encHelper.getEncryptedNamespace(peerAccCtx.get());
+            ReadOnlyProps namespace = encHelper.getEncryptedNamespace();
 
             if (oldPassphrase == null)
             {
@@ -1854,11 +1784,10 @@ public class CtrlConfApiCallHandler
                     byte[] masterKey = encHelper.generateSecret();
                     encHelper.setPassphraseImpl(
                         newPassphrase.getBytes(StandardCharsets.UTF_8),
-                        masterKey,
-                        peerAccCtx.get()
+                        masterKey
                     );
                     // setPassphraseImpl sets the props in this namespace; to ensure they are there, get it again
-                    namespace = encHelper.getEncryptedNamespace(peerAccCtx.get());
+                    namespace = encHelper.getEncryptedNamespace();
                     flux = encHelper.setCryptKey(masterKey, namespace, true);
 
                     // setCryptKey could have changed voaltileRscData (ignoreReasons, etc...)
@@ -1913,8 +1842,7 @@ public class CtrlConfApiCallHandler
                     );
                     encHelper.setPassphraseImpl(
                         newPassphrase.getBytes(StandardCharsets.UTF_8),
-                        decryptedMasterKey,
-                        peerAccCtx.get()
+                        decryptedMasterKey
                     );
                     ResponseUtils.reportSuccessStatic(
                         "Crypt passphrase updated",
@@ -1941,7 +1869,6 @@ public class CtrlConfApiCallHandler
                 false,
                 apiCallRc,
                 errorReporter,
-                peerAccCtx.get(),
                 peerProvider.get()
             );
         }
@@ -1949,13 +1876,12 @@ public class CtrlConfApiCallHandler
         {
             ResponseUtils.reportStatic(
                 accDeniedExc,
-                ResponseUtils.getAccDeniedMsg(peerAccCtx.get(), "access the controller properties"),
+                ResponseUtils.getAccDeniedMsg("access the controller properties"),
                 ApiConsts.FAIL_ACC_DENIED_CTRL_CFG,
                 null, // objects
                 false,
                 apiCallRc,
                 errorReporter,
-                peerAccCtx.get(),
                 peerProvider.get()
             );
         }
@@ -1969,7 +1895,6 @@ public class CtrlConfApiCallHandler
                 false,
                 apiCallRc,
                 errorReporter,
-                peerAccCtx.get(),
                 peerProvider.get()
             );
         }
@@ -1983,7 +1908,6 @@ public class CtrlConfApiCallHandler
                 false,
                 apiCallRc,
                 errorReporter,
-                peerAccCtx.get(),
                 peerProvider.get()
             );
         }
@@ -2028,7 +1952,6 @@ public class CtrlConfApiCallHandler
                 false,
                 apiCallRc,
                 errorReporter,
-                peerAccCtx.get(),
                 peerProvider.get()
             );
         }
@@ -2044,7 +1967,7 @@ public class CtrlConfApiCallHandler
         ApiCallRcImpl apiCallRc,
         PropertyChangedListener propChangedListenerRef
     )
-        throws InvalidKeyException, InvalidValueException, AccessDeniedException, DatabaseException
+        throws InvalidKeyException, InvalidValueException, DatabaseException
     {
         List<Range> ranges = Range.parseList(value);
 
@@ -2065,7 +1988,7 @@ public class CtrlConfApiCallHandler
             }
             if (allRangesValid)
             {
-                @Nullable String oldValue = systemConfRepository.setCtrlProp(peerAccCtx.get(), key, value, namespace);
+                @Nullable String oldValue = systemConfRepository.setCtrlProp(key, value, namespace);
                 if (poolToReloadRef != null)
                 {
                     poolToReloadRef.reloadRange();
@@ -2119,7 +2042,7 @@ public class CtrlConfApiCallHandler
         ApiCallRcImpl apiCallRc,
         PropertyChangedListener propChangedListenerRef
     )
-        throws AccessDeniedException, InvalidKeyException, InvalidValueException, DatabaseException
+        throws InvalidKeyException, InvalidValueException, DatabaseException
     {
         try
         {
@@ -2148,7 +2071,7 @@ public class CtrlConfApiCallHandler
                 if (isValidMinorNr(range.from(), apiCallRc) &&
                     isValidMinorNr(range.to(), apiCallRc))
                 {
-                    String oldValue = systemConfRepository.setCtrlProp(peerAccCtx.get(), key, value, namespace);
+                    String oldValue = systemConfRepository.setCtrlProp(key, value, namespace);
                     minorNrPool.reloadRange();
 
                     if (propChangedListenerRef != null)
@@ -2186,7 +2109,6 @@ public class CtrlConfApiCallHandler
             apiCallRc.addEntry(errorMsg, ApiConsts.FAIL_INVLD_MINOR_NR);
             errorReporter.reportError(
                 exc,
-                peerAccCtx.get(),
                 null,
                 errorMsg
             );
@@ -2199,7 +2121,7 @@ public class CtrlConfApiCallHandler
         try
         {
             @Nullable String autoHttps = systemConfRepository
-                .getCtrlConfForView(sysCtx)
+                .getCtrlConfForView()
                 .getProp(ApiConsts.KEY_AUTO_HTTPS, ApiConsts.NAMESPC_REST);
             return Boolean.parseBoolean(autoHttps);
         }

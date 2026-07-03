@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ImplementationError;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
@@ -22,8 +21,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.locks.LockGuardFactory;
 
@@ -39,7 +36,6 @@ import reactor.core.publisher.Flux;
 public class VlmDfnInternalCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final ScopeRunner scopeRunner;
@@ -53,7 +49,6 @@ public class VlmDfnInternalCallHandler
     @Inject
     public VlmDfnInternalCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         ScopeRunner scopeRunnerRef,
@@ -64,7 +59,6 @@ public class VlmDfnInternalCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         scopeRunner = scopeRunnerRef;
@@ -105,7 +99,7 @@ public class VlmDfnInternalCallHandler
 
             for (int vlmNr : vlmNrListRef)
             {
-                @Nullable VolumeDefinition vlmDfn = resDfn.getVolumeDfn(apiCtx, new VolumeNumber(vlmNr));
+                @Nullable VolumeDefinition vlmDfn = resDfn.getVolumeDfn(new VolumeNumber(vlmNr));
                 if (vlmDfn == null)
                 {
                     errorReporter.logWarning(
@@ -127,7 +121,7 @@ public class VlmDfnInternalCallHandler
 
                     boolean expectedNode = upToDateOn != null && upToDateOn.equalsIgnoreCase(nodeName.displayValue);
                     StateFlags<Flags> vlmDfnFlags = vlmDfn.getFlags();
-                    boolean alreadyInitialzed = vlmDfnFlags.isSet(apiCtx, VolumeDefinition.Flags.DRBD_INITIALIZED);
+                    boolean alreadyInitialzed = vlmDfnFlags.isSet(VolumeDefinition.Flags.DRBD_INITIALIZED);
                     if (!expectedNode || alreadyInitialzed)
                     {
                         errorReporter.logWarning(
@@ -141,7 +135,7 @@ public class VlmDfnInternalCallHandler
                     }
                     else
                     {
-                        vlmDfnFlags.enableFlags(apiCtx, VolumeDefinition.Flags.DRBD_INITIALIZED);
+                        vlmDfnFlags.enableFlags(VolumeDefinition.Flags.DRBD_INITIALIZED);
                     }
                 }
             }
@@ -163,7 +157,7 @@ public class VlmDfnInternalCallHandler
                     )
                 );
         }
-        catch (InvalidKeyException | AccessDeniedException | ValueOutOfRangeException implErr)
+        catch (InvalidKeyException | ValueOutOfRangeException implErr)
         {
             throw new ImplementationError(implErr);
         }

@@ -1,7 +1,6 @@
 package com.linbit.linstor.propscon;
 
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -121,7 +120,7 @@ public class CommonPropsTestUtils
         final String secondPrefix,
         final int secondAmount
     )
-        throws InvalidKeyException, InvalidValueException, AccessDeniedException, DatabaseException
+        throws InvalidKeyException, InvalidValueException, DatabaseException
     {
         root.setProp("/", "");
         for (int firstIdx = 0; firstIdx < firstAmount; firstIdx++)

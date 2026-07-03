@@ -2,7 +2,6 @@ package com.linbit.linstor.api.rest.v1.config;
 
 import com.linbit.linstor.LinStorRuntimeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.rest.v1.utils.ApiCallRcRestUtils;
@@ -11,8 +10,6 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlAuthHandler;
 import com.linbit.linstor.core.repository.AuthTokenRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.annotation.Priority;
 import javax.inject.Inject;
@@ -41,20 +38,17 @@ public class AuthenticationFilter implements ContainerRequestFilter
 
     private final AuthTokenRepository authTokenRepository;
     private final SystemConfRepository systemConfRepository;
-    private final AccessContext sysCtx;
     private final ErrorReporter errorReporter;
 
     @Inject
     public AuthenticationFilter(
         AuthTokenRepository authTokenRepositoryRef,
         SystemConfRepository systemConfRepositoryRef,
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef
     )
     {
         authTokenRepository = authTokenRepositoryRef;
         systemConfRepository = systemConfRepositoryRef;
-        sysCtx = sysCtxRef;
         errorReporter = errorReporterRef;
     }
 
@@ -125,7 +119,7 @@ public class AuthenticationFilter implements ContainerRequestFilter
         try
         {
             @Nullable String tokenAuthEnabled = systemConfRepository
-                .getCtrlConfForView(sysCtx)
+                .getCtrlConfForView()
                 .getProp(ApiConsts.KEY_TOKEN_AUTH_ENABLED, ApiConsts.NAMESPC_AUTH);
             return Boolean.parseBoolean(tokenAuthEnabled);
         }

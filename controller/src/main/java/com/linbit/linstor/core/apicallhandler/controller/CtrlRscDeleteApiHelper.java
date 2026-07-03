@@ -2,15 +2,12 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
@@ -29,8 +26,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.RetryResourcesTask;
 import com.linbit.linstor.tasks.ScheduleBackupService;
 import com.linbit.locks.LockGuard;
@@ -64,12 +59,10 @@ public class CtrlRscDeleteApiHelper
         ReadOnlyProps.PATH_SEPARATOR + ApiConsts.KEY_ZFS_DELETE_STRATEGY;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final ScheduleBackupService scheduleService;
     private final RetryResourcesTask retryRscTask;
@@ -79,13 +72,11 @@ public class CtrlRscDeleteApiHelper
     @Inject
     public CtrlRscDeleteApiHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScheduleBackupService scheduleServiceRef,
         RetryResourcesTask retryRscTaskRef,
         Provider<CtrlRscAutoHelper> rscAutoHelperProviderRef,
@@ -93,13 +84,11 @@ public class CtrlRscDeleteApiHelper
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
         scheduleService = scheduleServiceRef;
         retryRscTask = retryRscTaskRef;
         rscAutoHelperProvider = rscAutoHelperProviderRef;
@@ -111,8 +100,8 @@ public class CtrlRscDeleteApiHelper
         try
         {
             ResourceDefinition rscDfn = rsc.getResourceDefinition();
-            rsc.markDeleted(peerAccCtx.get());
-            if (rscDfn.getNotDeletedDiskfulCount(apiCtx) == 0)
+            rsc.markDeleted();
+            if (rscDfn.getNotDeletedDiskfulCount() == 0)
             {
                 scheduleService.removeTasks(rscDfn);
             }
@@ -121,16 +110,8 @@ public class CtrlRscDeleteApiHelper
             while (volumesIterator.hasNext())
             {
                 Volume vlm = volumesIterator.next();
-                vlm.markDeleted(peerAccCtx.get());
+                vlm.markDeleted();
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getRscDescription(rsc) + " as deleted",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         catch (DatabaseException sqlExc)
         {
@@ -142,21 +123,13 @@ public class CtrlRscDeleteApiHelper
     {
         try
         {
-            rsc.markDrbdDeleted(peerAccCtx.get());
+            rsc.markDrbdDeleted();
             Iterator<Volume> volumesIterator = rsc.iterateVolumes();
             while (volumesIterator.hasNext())
             {
                 Volume vlm = volumesIterator.next();
-                vlm.markDrbdDeleted(peerAccCtx.get());
+                vlm.markDrbdDeleted();
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "mark " + getRscDescription(rsc) + " as deleted",
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         catch (DatabaseException sqlExc)
         {
@@ -306,11 +279,11 @@ public class CtrlRscDeleteApiHelper
 
                     try
                     {
-                        Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn(apiCtx);
+                        Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn();
                         while (vlmDfnIt.hasNext())
                         {
                             VolumeDefinition vlmDfn = vlmDfnIt.next();
-                            if (minIoSizeHelper.isAutoMinIoSize(vlmDfn, apiCtx))
+                            if (minIoSizeHelper.isAutoMinIoSize(vlmDfn))
                             {
                                 errorReporter.logDebug(
                                     "updateVolumeMinIoSize: Last resource deleted. Unsetting property " +
@@ -318,7 +291,7 @@ public class CtrlRscDeleteApiHelper
                                     ApiConsts.NAMESPC_DRBD_DISK_OPTIONS,
                                     InternalApiConsts.KEY_DRBD_BLOCK_SIZE
                                 );
-                                Props vlmDfnProps = vlmDfn.getProps(apiCtx);
+                                Props vlmDfnProps = vlmDfn.getProps();
                                 vlmDfnProps.removeProp(
                                     InternalApiConsts.KEY_DRBD_BLOCK_SIZE,
                                     ApiConsts.NAMESPC_DRBD_DISK_OPTIONS
@@ -330,7 +303,7 @@ public class CtrlRscDeleteApiHelper
                             }
                         }
                     }
-                    catch (AccessDeniedException | InvalidKeyException exc)
+                    catch (InvalidKeyException exc)
                     {
                         throw new ImplementationError(exc);
                     }
@@ -403,12 +376,12 @@ public class CtrlRscDeleteApiHelper
         try
         {
             AccessContext accCtx = peerAccCtx.get();
-            boolean isDiskless = rsc.isDrbdDiskless(accCtx) ||
-                rsc.isNvmeInitiator(accCtx) ||
-                rsc.isEbsInitiator(accCtx);
-            boolean hasDisklessNotDeleting = rsc.getResourceDefinition().hasDisklessNotDeleting(accCtx);
+            boolean isDiskless = rsc.isDrbdDiskless() ||
+                rsc.isNvmeInitiator() ||
+                rsc.isEbsInitiator();
+            boolean hasDisklessNotDeleting = rsc.getResourceDefinition().hasDisklessNotDeleting();
             int otherNotDeletedDiskfulCount = rsc.getResourceDefinition()
-                .getNotDeletedDiskfulCountExcluding(accCtx, rsc);
+                .getNotDeletedDiskfulCountExcluding(rsc);
             if (!isDiskless && hasDisklessNotDeleting && otherNotDeletedDiskfulCount == 0)
             {
                 ApiCallRcImpl.ApiCallRcEntry err = ApiCallRcImpl
@@ -445,14 +418,7 @@ public class CtrlRscDeleteApiHelper
     private Peer getPeerPrivileged(Node node)
     {
         Peer nodePeer;
-        try
-        {
-            nodePeer = node.getPeer(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        nodePeer = node.getPeer();
         return nodePeer;
     }
 
@@ -466,11 +432,7 @@ public class CtrlRscDeleteApiHelper
     {
         try
         {
-            rsc.delete(apiCtx);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(accDeniedExc);
+            rsc.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -482,14 +444,14 @@ public class CtrlRscDeleteApiHelper
     {
         try
         {
-            rscDfn.getProps(apiCtx).removeProp(InternalApiConsts.DEPRECATED_PROP_PRIMARY_SET);
-            Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn(apiCtx);
+            rscDfn.getProps().removeProp(InternalApiConsts.DEPRECATED_PROP_PRIMARY_SET);
+            Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn();
             while (vlmDfnIt.hasNext())
             {
-                vlmDfnIt.next().uninitializeDrbd(apiCtx);
+                vlmDfnIt.next().uninitializeDrbd();
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }

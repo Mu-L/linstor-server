@@ -46,16 +46,6 @@ import com.linbit.linstor.dbdrivers.interfaces.VolumeDefinitionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeGroupDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.EbsRemoteDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteDatabaseDriver;
-import com.linbit.linstor.security.ObjectProtectionFactory;
-import com.linbit.linstor.security.ObjectProtectionStltFactory;
-import com.linbit.linstor.security.SatelliteSecConfigDbDriver;
-import com.linbit.linstor.security.SatelliteSecIdRoleDbDriver;
-import com.linbit.linstor.security.SatelliteSecIdentityDbDriver;
-import com.linbit.linstor.security.SatelliteSecObjProtAclDbDriver;
-import com.linbit.linstor.security.SatelliteSecObjProtDbDriver;
-import com.linbit.linstor.security.SatelliteSecRoleDbDriver;
-import com.linbit.linstor.security.SatelliteSecTypeDbDriver;
-import com.linbit.linstor.security.SatelliteSecTypeRulesDbDriver;
 
 import com.google.inject.AbstractModule;
 

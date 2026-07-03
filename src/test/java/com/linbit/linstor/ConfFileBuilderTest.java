@@ -47,10 +47,6 @@ import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.DummySecurityInitializer;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
@@ -121,9 +117,7 @@ public class ConfFileBuilderTest
     }
 
     private ErrorReporter errorReporter;
-    private AccessContext accessContext;
 
-    private ObjectProtection dummyObjectProtection;
     private WhitelistProps whitelistProps;
 
     private DrbdRscData<Resource> localRscData, peerRscData;
@@ -150,7 +144,7 @@ public class ConfFileBuilderTest
         errorReporter = new EmptyErrorReporter();
         accessContext = DummySecurityInitializer.getSystemAccessContext();
 
-        dummyObjectProtection = DummySecurityInitializer.getDummyObjectProtection(accessContext);
+        dummyObjectProtection = DummySecurityInitializer.getDummyObjectProtection();
 
         whitelistProps = new WhitelistProps(errorReporter);
         // just let it empty - we do not want test drbd-options anyways here
@@ -171,17 +165,15 @@ public class ConfFileBuilderTest
 
         localRscData = makeMockResource(101, "alpha", "1.2.3.4", false, false, false);
         peerRscData = makeMockResource(202, "bravo", "5.6.7.8", false, false, false);
-        when(localRscData.getAbsResource().getNode().getNodeConnection(
-                accessContext, peerRscData.getAbsResource().getNode()))
+        when(localRscData.getAbsResource().getNode().getNodeConnection(peerRscData.getAbsResource().getNode()))
             .thenReturn(nodeConn);
-        when(peerRscData.getAbsResource().getNode().getNodeConnection(
-                accessContext, localRscData.getAbsResource().getNode()))
+        when(peerRscData.getAbsResource().getNode().getNodeConnection(localRscData.getAbsResource().getNode()))
             .thenReturn(nodeConn);
-        when(rscConn.getProps(accessContext)).thenReturn(rscConnProps);
-        when(nodeConn.getProps(accessContext)).thenReturn(nodeConnProps);
-        when(localRscData.getAbsResource().getAbsResourceConnection(accessContext, peerRscData.getAbsResource()))
+        when(rscConn.getProps()).thenReturn(rscConnProps);
+        when(nodeConn.getProps()).thenReturn(nodeConnProps);
+        when(localRscData.getAbsResource().getAbsResourceConnection(peerRscData.getAbsResource()))
             .thenReturn(rscConn);
-        when(peerRscData.getAbsResource().getAbsResourceConnection(accessContext, localRscData.getAbsResource()))
+        when(peerRscData.getAbsResource().getAbsResourceConnection(localRscData.getAbsResource()))
             .thenReturn(rscConn);
 
         stltProps = propsContainerFactory.getInstance("STLT_CFG", "", LinStorObject.STLT);
@@ -208,7 +200,6 @@ public class ConfFileBuilderTest
     {
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.emptyList(),
             whitelistProps,
@@ -225,7 +216,6 @@ public class ConfFileBuilderTest
         when(localRscData.getAbsResource().getResourceDefinition()).thenReturn(null);
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -241,7 +231,6 @@ public class ConfFileBuilderTest
     {
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -260,7 +249,6 @@ public class ConfFileBuilderTest
         setProps(new String[] {"alpha", "alpha"}, "eth0", "eth1", "eth2", "eth3");
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -277,7 +265,6 @@ public class ConfFileBuilderTest
         setProps(new String[] {"charlie", "delta"}, "eth0", "eth1", "eth2", "eth3");
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -294,7 +281,6 @@ public class ConfFileBuilderTest
         setProps(new String[] {"alpha", "bravo"}, "eth-1", "eth1", "eth2", "eth3");
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -307,11 +293,10 @@ public class ConfFileBuilderTest
 
     @Test(expected = StorageException.class)
     public void testInvalidName()
-        throws DatabaseException, InvalidKeyException, InvalidValueException, AccessDeniedException, StorageException
+        throws DatabaseException, InvalidKeyException, InvalidValueException, StorageException
     {
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -328,7 +313,6 @@ public class ConfFileBuilderTest
     {
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -344,11 +328,10 @@ public class ConfFileBuilderTest
 /*
     @Test(expected = ImplementationError.class)
     public void testInvalidKey()
-            throws SQLException, InvalidKeyException, InvalidValueException, AccessDeniedException, StorageException
+            throws SQLException, InvalidKeyException, InvalidValueException, StorageException
     {
         confFileBuilder = new ConfFileBuilder(
                 errorReporter,
-                accessContext,
                 localRsc,
                 Collections.singletonList(peerRsc),
                 whitelistProps
@@ -394,7 +377,7 @@ public class ConfFileBuilderTest
 
         Props drbdprops = Mockito.mock(Props.class);
 
-        when(storPool.getProps(accessContext)).thenReturn(storPoolProps);
+        when(storPool.getProps()).thenReturn(storPoolProps);
 
         when(volumeDefinition.getVolumeNumber()).thenReturn(new VolumeNumber(volumeNumber));
         when(volumeDefinition.getResourceDefinition()).thenReturn(resourceDefinition);
@@ -405,7 +388,7 @@ public class ConfFileBuilderTest
         when(volume.getFlags()).thenReturn(volumeFlags);
         when(volume.getVolumeDefinition()).thenReturn(volumeDefinition);
         when(volume.getResourceDefinition()).thenReturn(resourceDefinition);
-        when(volume.getProps(accessContext)).thenReturn(vlmProps);
+        when(volume.getProps()).thenReturn(vlmProps);
         when(volume.getAbsResource()).thenReturn(resource);
         when(volume.getVolumeNumber()).thenReturn(new VolumeNumber(volumeNumber));
 
@@ -416,16 +399,11 @@ public class ConfFileBuilderTest
         when(assignedNode.streamNetInterfaces(any(AccessContext.class)))
                 .thenAnswer(makeStreamAnswer(netInterface));
 
-        when(assignedNode.getNetInterface(
-                accessContext, new NetInterfaceName("eth0"))).thenReturn(netInterface);
-        when(assignedNode.getNetInterface(
-                accessContext, new NetInterfaceName("eth1"))).thenReturn(netInterface);
-        when(assignedNode.getNetInterface(
-                accessContext, new NetInterfaceName("eth2"))).thenReturn(netInterface);
-        when(assignedNode.getNetInterface(
-                accessContext, new NetInterfaceName("eth3"))).thenReturn(netInterface);
-        when(assignedNode.getNetInterface(
-                accessContext, new NetInterfaceName("eth-1"))).thenReturn(null);
+        when(assignedNode.getNetInterface(new NetInterfaceName("eth0"))).thenReturn(netInterface);
+        when(assignedNode.getNetInterface(new NetInterfaceName("eth1"))).thenReturn(netInterface);
+        when(assignedNode.getNetInterface(new NetInterfaceName("eth2"))).thenReturn(netInterface);
+        when(assignedNode.getNetInterface(new NetInterfaceName("eth3"))).thenReturn(netInterface);
+        when(assignedNode.getNetInterface(new NetInterfaceName("eth-1"))).thenReturn(null);
         when(netInterface.getNode()).thenReturn(assignedNode);
 
         when(rscStateFlags.isUnset(any(AccessContext.class), eq(Resource.Flags.DELETE)))
@@ -444,17 +422,17 @@ public class ConfFileBuilderTest
             .thenReturn(diskless);
 
         when(resourceDefinition.getName()).thenReturn(new ResourceName("testResource"));
-        when(resourceDefinition.getProps(accessContext)).thenReturn(rscDfnProps);
+        when(resourceDefinition.getProps()).thenReturn(rscDfnProps);
         when(rscDfnProps.getNamespace(any(String.class))).thenReturn(null);
 
         when(resourceDefinition.getResourceGroup()).thenReturn(rscGrp);
         when(rscGrp.getName()).thenReturn(new ResourceGroupName("testGroup"));
-        when(rscGrp.getProps(accessContext)).thenReturn(rscGrpProps);
-        when(rscGrp.getVolumeGroup(accessContext, new VolumeNumber(0))).thenReturn(vlmGrp);
-        when(vlmGrp.getProps(accessContext)).thenReturn(vlmGrpProps);
-        when(rscGrp.getVolumeGroupProps(accessContext, new VolumeNumber(0))).thenReturn(vlmGrpProps);
+        when(rscGrp.getProps()).thenReturn(rscGrpProps);
+        when(rscGrp.getVolumeGroup(new VolumeNumber(0))).thenReturn(vlmGrp);
+        when(vlmGrp.getProps()).thenReturn(vlmGrpProps);
+        when(rscGrp.getVolumeGroupProps(new VolumeNumber(0))).thenReturn(vlmGrpProps);
 
-        when(volumeDefinition.getProps(accessContext)).thenReturn(vlmDfnProps);
+        when(volumeDefinition.getProps()).thenReturn(vlmDfnProps);
         when(vlmDfnProps.getNamespace(ApiConsts.NAMESPC_DRBD_DISK_OPTIONS)).thenReturn(drbdprops);
 
         when(resource.getObjProt()).thenReturn(dummyObjectProtection);
@@ -465,10 +443,10 @@ public class ConfFileBuilderTest
         when(resource.getNode()).thenReturn(assignedNode);
         when(resource.iterateVolumes()).thenAnswer(makeIteratorAnswer(volume));
         when(resource.streamVolumes()).thenAnswer(makeStreamAnswer(volume));
-        when(resource.getProps(accessContext)).thenReturn(rscProps);
-        when(resource.disklessForDrbdPeers(accessContext)).thenReturn(diskless);
+        when(resource.getProps()).thenReturn(rscProps);
+        when(resource.disklessForDrbdPeers()).thenReturn(diskless);
 
-        when(assignedNode.getProps(accessContext)).thenReturn(nodeProps);
+        when(assignedNode.getProps()).thenReturn(nodeProps);
 
 
         List<DrbdRscData<Resource>> rscDataList = new ArrayList<>();
@@ -509,7 +487,7 @@ public class ConfFileBuilderTest
                 null, // peerSlots - copied from rscDfnData
                 null, // alStripes - copied from rscDfnData
                 null, // alStripeSize - copied from rscDfnData
-                resource.isDrbdDiskless(accessContext) ?
+                resource.isDrbdDiskless() ?
                     DrbdRscObject.DrbdRscFlags.DISKLESS.flagValue : 0,
                 mockedTcpPool,
                 LAYER_DRBD_RSC_NO_OP_DRIVER,
@@ -584,7 +562,6 @@ public class ConfFileBuilderTest
     {
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -605,7 +582,6 @@ public class ConfFileBuilderTest
     {
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -632,7 +608,6 @@ public class ConfFileBuilderTest
     {
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -643,7 +618,6 @@ public class ConfFileBuilderTest
 
         String confFileDeleted = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             makeMockResource(101, "testNode", "1.2.3.4", true, false, false),
             Collections.singletonList(makeMockResource(202, "testNode", "5.6.7.8", true, false, false)),
             whitelistProps,
@@ -661,7 +635,6 @@ public class ConfFileBuilderTest
     {
         confFileBuilder = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             localRscData,
             Collections.singletonList(peerRscData),
             whitelistProps,
@@ -672,7 +645,6 @@ public class ConfFileBuilderTest
 
         String confFileDeleted = new ConfFileBuilder(
             errorReporter,
-            accessContext,
             makeMockResource(101, "testNode", "1.2.3.4", false, false, false),
             Collections.singletonList(makeMockResource(202, "testNode", "5.6.7.8", false, true, false)),
             whitelistProps,
@@ -695,7 +667,6 @@ public class ConfFileBuilderTest
             peerRscs.add(makeMockResource(0, "testNode2", "9.10.11.12", false, false, true));
             String confFileNormal = new ConfFileBuilder(
                 errorReporter,
-                accessContext,
                 makeMockResource(0, "localNode", "1.2.3.4", false, false, false),
                 peerRscs,
                 whitelistProps,
@@ -712,7 +683,6 @@ public class ConfFileBuilderTest
             peerRscs.add(makeMockResource(0, "testNode2", "9.10.11.12", false, false, true));
             String confFileNormal = new ConfFileBuilder(
                 errorReporter,
-                accessContext,
                 makeMockResource(0, "localNode", "1.2.3.4", false, false, true),
                 peerRscs,
                 whitelistProps,
@@ -729,7 +699,6 @@ public class ConfFileBuilderTest
             peerRscs.add(makeMockResource(0, "testNode2", "9.10.11.12", false, false, false));
             String confFileNormal = new ConfFileBuilder(
                 errorReporter,
-                accessContext,
                 makeMockResource(0, "localNode", "1.2.3.4", false, false, false),
                 peerRscs,
                 whitelistProps,

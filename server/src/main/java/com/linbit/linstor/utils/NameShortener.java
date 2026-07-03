@@ -14,8 +14,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.util.Map;
 import java.util.Set;
@@ -57,7 +55,6 @@ public class NameShortener
     private final String delimiter;
     private final int delimiterLen;
 
-    private final AccessContext accCtx;
 
     /**
      * Map of {@code <BaseString, digitCount>} to specific numberPools
@@ -85,7 +82,6 @@ public class NameShortener
         String propNamespaceRef,
         String propKeyRef,
         int maxLenRef,
-        AccessContext accCtxRef,
         String delimiterRef,
         @Nullable String validCharacters
     )
@@ -93,7 +89,6 @@ public class NameShortener
         propNamespace = propNamespaceRef;
         propKey = propKeyRef;
         maxLen = maxLenRef;
-        accCtx = accCtxRef;
         delimiter = delimiterRef;
         delimiterLen = delimiterRef.length();
 
@@ -107,15 +102,15 @@ public class NameShortener
     }
 
     public String shorten(ResourceDefinition rscDfn, String rscSuffix)
-        throws AccessDeniedException, DatabaseException, LinStorException
+        throws DatabaseException, LinStorException
     {
-        return shorten(rscDfn.getProps(accCtx), "", rscDfn.getName().displayValue + rscSuffix, false);
+        return shorten(rscDfn.getProps(), "", rscDfn.getName().displayValue + rscSuffix, false);
     }
 
     public String shorten(VolumeDefinition vlmDfn, String keyPrefix, String rscSuffix, boolean appendVlmNr)
-        throws AccessDeniedException, DatabaseException, LinStorException
+        throws DatabaseException, LinStorException
     {
-        String overrideVlmId = vlmDfn.getProps(accCtx).getProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID);
+        String overrideVlmId = vlmDfn.getProps().getProp(ApiConsts.KEY_STOR_POOL_OVERRIDE_VLM_ID);
         String fullName;
         if (overrideVlmId != null)
         {
@@ -127,7 +122,7 @@ public class NameShortener
                 (appendVlmNr ? String.format("_%05d", vlmDfn.getVolumeNumber().value) : "");
         }
         String shortName = shorten(
-            vlmDfn.getProps(accCtx),
+            vlmDfn.getProps(),
             keyPrefix,
             fullName,
             overrideVlmId != null
@@ -137,7 +132,7 @@ public class NameShortener
     }
 
     public String shorten(Props props, String propKeyPrefix, String fullName, boolean forceVolumeName)
-        throws AccessDeniedException, DatabaseException, LinStorException
+        throws DatabaseException, LinStorException
     {
         String shortName = null;
         try
@@ -326,9 +321,9 @@ public class NameShortener
      *
      *
      */
-    public void remove(ResourceDefinition rscDfn, String rscSuffix) throws AccessDeniedException
+    public void remove(ResourceDefinition rscDfn, String rscSuffix)
     {
-        ReadOnlyProps rscDfnProps = rscDfn.getProps(accCtx);
+        ReadOnlyProps rscDfnProps = rscDfn.getProps();
         String shortName = rscDfnProps.getProp(propKey);
         if (shortName != null)
         {

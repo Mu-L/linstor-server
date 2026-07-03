@@ -8,8 +8,6 @@ import com.linbit.linstor.core.objects.VolumeConnection;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.PropsContainer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.Pair;
 import com.linbit.utils.PairNonNull;
 
@@ -30,24 +28,22 @@ public class PriorityProps
     private final HashMap<String, String> fallbackMap = new HashMap<>();
 
     public PriorityProps(
-        AccessContext accCtx,
         NodeConnection nodeConnection,
         ResourceConnection resourceConnection,
         VolumeConnection volumeConnection
     )
-        throws AccessDeniedException
     {
         if (volumeConnection != null)
         {
-            addProps(volumeConnection.getProps(accCtx));
+            addProps(volumeConnection.getProps());
         }
         if (resourceConnection != null)
         {
-            addProps(resourceConnection.getProps(accCtx));
+            addProps(resourceConnection.getProps());
         }
         if (nodeConnection != null)
         {
-            addProps(nodeConnection.getProps(accCtx));
+            addProps(nodeConnection.getProps());
         }
     }
 

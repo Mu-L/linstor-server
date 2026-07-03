@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller.helpers;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.StorPool;
@@ -13,8 +12,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.data.provider.zfs.ZfsData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -36,18 +33,16 @@ import java.util.TreeSet;
 @Singleton
 public class AllocationGranularityHelper
 {
-    private final Provider<AccessContext> peerAccCtxProvider;
 
     @Inject
-    public AllocationGranularityHelper(@PeerContext Provider<AccessContext> peerAccCtxProviderRef)
+    public AllocationGranularityHelper(Provider<AccessContext> peerAccCtxProviderRef)
     {
-        peerAccCtxProvider = peerAccCtxProviderRef;
     }
 
     public void updateIfNeeded(ResourceDefinition rscDfnRef, boolean includeStorPoolCheckRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
-        updateIfNeeded(peerAccCtxProvider.get(), rscDfnRef, includeStorPoolCheckRef);
+        updateIfNeeded(rscDfnRef, includeStorPoolCheckRef);
     }
 
     /**
@@ -60,18 +55,18 @@ public class AllocationGranularityHelper
      * @param rscDfnRef All volume definitions of the given resource definition will be checked
      * @param includeStorPoolCheckRef If set to true, this method also checks for the storage pool properties
      */
-    public void updateIfNeeded(AccessContext accCtxRef, ResourceDefinition rscDfnRef, boolean includeStorPoolCheckRef)
-        throws AccessDeniedException, DatabaseException
+    public void updateIfNeeded(ResourceDefinition rscDfnRef, boolean includeStorPoolCheckRef)
+        throws DatabaseException
     {
         Map<VolumeDefinition, TreeSet<Long>> allocationGranularitiesByVlmDfnMap = new HashMap<>();
 
-        Iterator<Resource> rscIt = rscDfnRef.iterateResource(accCtxRef);
+        Iterator<Resource> rscIt = rscDfnRef.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
 
             Set<AbsRscLayerObject<Resource>> storRscDataSet = LayerRscUtils.getRscDataByLayer(
-                rsc.getLayerData(accCtxRef),
+                rsc.getLayerData(),
                 DeviceLayerKind.STORAGE
             );
 
@@ -82,7 +77,7 @@ public class AllocationGranularityHelper
                     // currently only StoragePools and ZfsData might contribute to the set of allocationGranularities
                     if (includeStorPoolCheckRef)
                     {
-                        addStorPoolAllocGrans(accCtxRef, allocationGranularitiesByVlmDfnMap, storVlmData);
+                        addStorPoolAllocGrans(allocationGranularitiesByVlmDfnMap, storVlmData);
                     }
                     addVolumeSpecificAllocGran(allocationGranularitiesByVlmDfnMap, storVlmData);
                 }
@@ -91,22 +86,20 @@ public class AllocationGranularityHelper
 
         for (Map.Entry<VolumeDefinition, TreeSet<Long>> entry : allocationGranularitiesByVlmDfnMap.entrySet())
         {
-            adjustVlmDfnPropIfNeeded(accCtxRef, entry.getKey(), entry.getValue());
+            adjustVlmDfnPropIfNeeded(entry.getKey(), entry.getValue());
         }
     }
 
     private void addStorPoolAllocGrans(
-        AccessContext accCtxRef,
         Map<VolumeDefinition, TreeSet<Long>> allocationGranularitiesByVlmDfnMap,
         VlmProviderObject<Resource> storVlmData
     )
-        throws AccessDeniedException
     {
-        Set<StorPool> storPoolSet = LayerVlmUtils.getStorPoolSet(storVlmData, accCtxRef);
+        Set<StorPool> storPoolSet = LayerVlmUtils.getStorPoolSet(storVlmData);
         VolumeDefinition vlmDfn = storVlmData.getVolume().getVolumeDefinition();
         for (StorPool sp : storPoolSet)
         {
-            ReadOnlyProps spProps = sp.getProps(accCtxRef);
+            ReadOnlyProps spProps = sp.getProps();
             @Nullable String spPropValue = spProps.getProp(
                 InternalApiConsts.ALLOCATION_GRANULARITY,
                 StorageConstants.NAMESPACE_INTERNAL
@@ -141,15 +134,14 @@ public class AllocationGranularityHelper
     }
 
     private void adjustVlmDfnPropIfNeeded(
-        AccessContext accCtxRef,
         VolumeDefinition vlmDfnRef,
         TreeSet<Long> allocGranSetRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         if (!allocGranSetRef.isEmpty())
         {
-            Props vlmDfnProps = vlmDfnRef.getProps(accCtxRef);
+            Props vlmDfnProps = vlmDfnRef.getProps();
             @Nullable String vlmDfnAllocGranStr = vlmDfnProps.getProp(
                 InternalApiConsts.ALLOCATION_GRANULARITY,
                 StorageConstants.NAMESPACE_INTERNAL

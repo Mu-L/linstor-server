@@ -7,7 +7,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.linbit.linstor.core.CoreModule;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Named;
 
@@ -50,7 +49,6 @@ public class CmdDisplayLockStatus extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception

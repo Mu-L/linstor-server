@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -9,7 +8,6 @@ import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.api.protobuf.ProtoDeserializationUtils;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.repository.NodeRepository;
@@ -19,8 +17,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerNotConnectedException;
 import com.linbit.linstor.proto.responses.MsgErrorReportOuterClass;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
@@ -52,7 +48,6 @@ public class CtrlErrorListApiCallHandler
     private final ErrorReporter errorReporter;
     private final NodeRepository nodeRepository;
     private final CtrlStltSerializer stltComSerializer;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final String nodeNameForErrorReports;
 
@@ -61,14 +56,12 @@ public class CtrlErrorListApiCallHandler
         ErrorReporter errorReporterRef,
         NodeRepository nodeRepositoryRef,
         CtrlStltSerializer clientComSerializerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef)
     {
         errorReporter = errorReporterRef;
         nodeRepository = nodeRepositoryRef;
         stltComSerializer = clientComSerializerRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         nodeNameForErrorReports = LinStor.getHostName();
@@ -104,11 +97,10 @@ public class CtrlErrorListApiCallHandler
         @Nullable final String exception,
         @Nullable final String version,
         @Nullable final List<String> ids)
-        throws AccessDeniedException
     {
         Set<String> nodesFilter = nodes != null ?
             nodes.stream().map(String::toLowerCase).collect(Collectors.toSet()) : Collections.emptySet();
-        final Stream<Node> nodeStream = nodeRepository.getMapForView(peerAccCtx.get()).values().stream();
+        final Stream<Node> nodeStream = nodeRepository.getMapForView().values().stream();
 
         List<Tuple2<NodeName, Flux<ByteArrayInputStream>>> nameAndRequests = nodeStream
             .filter(n -> nodesFilter.isEmpty() || nodesFilter.contains(n.getName().displayValue.toLowerCase()))
@@ -220,9 +212,8 @@ public class CtrlErrorListApiCallHandler
         final Set<String> ids,
         @Nullable final Long limit,
         @Nullable final Long offset)
-        throws AccessDeniedException
     {
-        Stream<Node> nodeStream = nodeRepository.getMapForView(peerAccCtx.get()).values().stream()
+        Stream<Node> nodeStream = nodeRepository.getMapForView().values().stream()
             .filter(node -> nodesToRequest.isEmpty() ||
                 nodesToRequest.stream().anyMatch(node.getName().getDisplayName()::equalsIgnoreCase));
 
@@ -261,18 +252,7 @@ public class CtrlErrorListApiCallHandler
     private @Nullable Peer getPeer(Node node)
     {
         Peer peer;
-        try
-        {
-            peer = node.getPeer(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access peer for node '" + node.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        peer = node.getPeer();
         return peer;
     }
 

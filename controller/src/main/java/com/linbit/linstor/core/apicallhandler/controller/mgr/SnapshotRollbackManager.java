@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller.mgr;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -19,8 +18,6 @@ import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -46,7 +43,6 @@ import reactor.core.publisher.FluxSink;
 @Singleton
 public class SnapshotRollbackManager
 {
-    private final AccessContext apiCtx;
     private final ErrorReporter errorReporter;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlTransactionHelper ctrlTransactionHelper;
@@ -57,7 +53,6 @@ public class SnapshotRollbackManager
 
     @Inject
     public SnapshotRollbackManager(
-        @ApiContext AccessContext apiCtxRef,
         ErrorReporter errorReporterRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
@@ -65,7 +60,6 @@ public class SnapshotRollbackManager
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef
     )
     {
-        apiCtx = apiCtxRef;
         errorReporter = errorReporterRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
@@ -128,12 +122,12 @@ public class SnapshotRollbackManager
 
                 // remove the rollback property
                 Iterator<Resource> rscIter;
-                rscIter = rscDfn.iterateResource(apiCtx);
+                rscIter = rscDfn.iterateResource();
 
                 while (rscIter.hasNext())
                 {
                     Resource rsc = rscIter.next();
-                    rsc.getProps(apiCtx).removeProp(ApiConsts.KEY_RSC_ROLLBACK_TARGET);
+                    rsc.getProps().removeProp(ApiConsts.KEY_RSC_ROLLBACK_TARGET);
                 }
 
                 if (infoRef.succeededNodes.isEmpty())
@@ -154,14 +148,14 @@ public class SnapshotRollbackManager
                     // if DRBD is involved. If DRBD is not involved, there is nothing we can do.
                     for (NodeName nodeName : infoRef.failedNodes)
                     {
-                        Resource rsc = rscDfn.getResource(apiCtx, nodeName);
-                        AbsRscLayerObject<Resource> layerData = rsc.getLayerData(apiCtx);
+                        Resource rsc = rscDfn.getResource(nodeName);
+                        AbsRscLayerObject<Resource> layerData = rsc.getLayerData();
                         if (layerData instanceof DrbdRscData)
                         {
                             DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) layerData;
                             StateFlags<DrbdRscFlags> drbdRscFlags = drbdRscData.getFlags();
-                            drbdRscFlags.disableFlags(apiCtx, DrbdRscObject.DrbdRscFlags.INITIALIZED);
-                            drbdRscFlags.enableFlags(apiCtx, DrbdRscObject.DrbdRscFlags.FORCE_NEW_METADATA);
+                            drbdRscFlags.disableFlags(DrbdRscObject.DrbdRscFlags.INITIALIZED);
+                            drbdRscFlags.enableFlags(DrbdRscObject.DrbdRscFlags.FORCE_NEW_METADATA);
                         }
                     }
                     nextStep = disableForceNewMetadata(infoRef);
@@ -194,7 +188,7 @@ public class SnapshotRollbackManager
                         )
                     .concatWith(nextStep);
             }
-            catch (AccessDeniedException | InvalidKeyException exc)
+            catch (InvalidKeyException exc)
             {
                 throw new ImplementationError(exc);
             }
@@ -229,19 +223,19 @@ public class SnapshotRollbackManager
         {
             for (NodeName nodeName : infoRef.failedNodes)
             {
-                Resource rsc = rscDfn.getResource(apiCtx, nodeName);
-                AbsRscLayerObject<Resource> layerData = rsc.getLayerData(apiCtx);
+                Resource rsc = rscDfn.getResource(nodeName);
+                AbsRscLayerObject<Resource> layerData = rsc.getLayerData();
                 if (layerData instanceof DrbdRscData)
                 {
                     DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) layerData;
                     StateFlags<DrbdRscFlags> drbdRscFlags = drbdRscData.getFlags();
-                    drbdRscFlags.disableFlags(apiCtx, DrbdRscObject.DrbdRscFlags.INITIALIZED);
-                    drbdRscFlags.enableFlags(apiCtx, DrbdRscObject.DrbdRscFlags.FORCE_NEW_METADATA);
+                    drbdRscFlags.disableFlags(DrbdRscObject.DrbdRscFlags.INITIALIZED);
+                    drbdRscFlags.enableFlags(DrbdRscObject.DrbdRscFlags.FORCE_NEW_METADATA);
                 }
             }
             ctrlTransactionHelper.commit();
         }
-        catch (AccessDeniedException | InvalidKeyException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }

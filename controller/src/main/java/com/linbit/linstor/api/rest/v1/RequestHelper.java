@@ -1,9 +1,6 @@
 package com.linbit.linstor.api.rest.v1;
 
-import com.linbit.linstor.annotation.ErrorReporterContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.PublicContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -17,7 +14,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerREST;
 import com.linbit.linstor.prometheus.LinstorControllerMetrics;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.security.LdapAuthentication;
 import com.linbit.linstor.security.SignInException;
 import com.linbit.linstor.transaction.TransactionException;
@@ -54,7 +50,6 @@ public class RequestHelper
 {
     protected final ErrorReporter errorReporter;
     private final LinStorScope apiCallScope;
-    private final AccessContext publicContext;
     private final TransactionMgrGenerator transactionMgrGenerator;
     private final LdapAuthentication ldapAuthentication;
     private final CtrlConfig linstorConfig;
@@ -63,7 +58,6 @@ public class RequestHelper
     public RequestHelper(
         ErrorReporter errorReporterRef,
         LinStorScope apiCallScopeRef,
-        @PublicContext AccessContext accessContextRef,
         TransactionMgrGenerator transactionMgrGeneratorRef,
         LdapAuthentication ldapAuthenticationRef,
         CtrlConfig linstorConfigRef
@@ -71,7 +65,6 @@ public class RequestHelper
     {
         errorReporter = errorReporterRef;
         apiCallScope = apiCallScopeRef;
-        publicContext = accessContextRef;
         transactionMgrGenerator = transactionMgrGeneratorRef;
         ldapAuthentication = ldapAuthenticationRef;
         linstorConfig = linstorConfigRef;
@@ -196,8 +189,8 @@ public class RequestHelper
 
         try (LinStorScope.ScopeAutoCloseable close = apiCallScope.enter())
         {
-            apiCallScope.seed(Key.get(AccessContext.class, PeerContext.class), accCtx);
-            apiCallScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class), accCtx);
+            apiCallScope.seed(Key.get(AccessContext.class, PeerContext.class));
+            apiCallScope.seed(Key.get(AccessContext.class, ErrorReporterContext.class));
             apiCallScope.seed(Peer.class, peer);
 
             if (transMgr != null)
@@ -262,7 +255,6 @@ public class RequestHelper
                         errorReporter.reportError(
                             Level.ERROR,
                             sqlExc,
-                            accCtx,
                             peer,
                             "A database error occurred while trying to rollback"
                         );

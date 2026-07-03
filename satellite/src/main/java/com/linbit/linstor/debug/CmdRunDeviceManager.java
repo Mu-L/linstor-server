@@ -11,7 +11,6 @@ import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -89,7 +88,6 @@ public class CmdRunDeviceManager extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
@@ -139,7 +137,7 @@ public class CmdRunDeviceManager extends BaseDebugCmd
                         // Select all resources
                         for (ResourceDefinition curRscDfn : rscDfnMap.values())
                         {
-                            Resource curRsc = curRscDfn.getResource(accCtx, localNodeName);
+                            Resource curRsc = curRscDfn.getResource(localNodeName);
                             if (curRsc != null)
                             {
                                 slctRsc.put(curRscDfn.getName(), curRsc.getUuid());
@@ -155,7 +153,7 @@ public class CmdRunDeviceManager extends BaseDebugCmd
                             nameMatcher.reset(rscName.value);
                             if (nameMatcher.find())
                             {
-                                Resource curRsc = curRscDfn.getResource(accCtx, localNodeName);
+                                Resource curRsc = curRscDfn.getResource(localNodeName);
                                 if (curRsc != null)
                                 {
                                     slctRsc.put(rscName, curRsc.getUuid());
@@ -226,7 +224,7 @@ public class CmdRunDeviceManager extends BaseDebugCmd
                     if (rscDfn != null)
                     {
                         ResourceName rscName = rscDfn.getName();
-                        Resource rsc = rscDfn.getResource(accCtx, localNodeName);
+                        Resource rsc = rscDfn.getResource(localNodeName);
                         if (rsc != null)
                         {
                             Flux<ApiCallRc> fluxObj = deviceManager.getUpdateTracker().updateResource(

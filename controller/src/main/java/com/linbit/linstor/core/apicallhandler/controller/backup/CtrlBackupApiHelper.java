@@ -4,8 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -36,8 +34,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 
@@ -65,7 +61,6 @@ public class CtrlBackupApiHelper
 {
     private final CtrlSecurityObjects ctrlSecObj;
     private final RemoteRepository remoteRepo;
-    private final Provider<AccessContext> peerAccCtx;
     private final BackupToS3 backupHandler;
     private final ErrorReporter errorReporter;
     private final CtrlApiDataLoader ctrlApiDataLoader;
@@ -73,14 +68,12 @@ public class CtrlBackupApiHelper
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlTransactionHelper ctrlTransactionHelper;
-    private final AccessContext sysCtx;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
 
     @Inject
     public CtrlBackupApiHelper(
         CtrlSecurityObjects ctrlSecObjRef,
         RemoteRepository remoteRepoRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         BackupToS3 backupHandlerRef,
         ErrorReporter errorReporterRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
@@ -88,13 +81,11 @@ public class CtrlBackupApiHelper
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
-        @SystemContext AccessContext sysCtxRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef
     )
     {
         ctrlSecObj = ctrlSecObjRef;
         remoteRepo = remoteRepoRef;
-        peerAccCtx = peerAccCtxRef;
         backupHandler = backupHandlerRef;
         errorReporter = errorReporterRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
@@ -102,7 +93,6 @@ public class CtrlBackupApiHelper
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
-        sysCtx = sysCtxRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
 
     }
@@ -132,7 +122,7 @@ public class CtrlBackupApiHelper
     /**
      * Get the remote with the given name only if it is an s3 remote
      */
-    S3Remote getS3Remote(String remoteName) throws AccessDeniedException, InvalidNameException
+    S3Remote getS3Remote(String remoteName) throws InvalidNameException
     {
         AbsRemote remote = getRemote(remoteName);
         if (!(remote instanceof S3Remote s3Remote))
@@ -150,7 +140,7 @@ public class CtrlBackupApiHelper
     /**
      * Get the remote with the given name only if it is a l2l-remote
      */
-    LinstorRemote getL2LRemote(String remoteName) throws AccessDeniedException, InvalidNameException
+    LinstorRemote getL2LRemote(String remoteName) throws InvalidNameException
     {
         AbsRemote remote = getRemote(remoteName);
         if (!(remote instanceof LinstorRemote linstorRemote))
@@ -168,7 +158,7 @@ public class CtrlBackupApiHelper
     /**
      * Get the remote with the given name and make sure it exists.
      */
-    AbsRemote getRemote(String remoteName) throws AccessDeniedException, InvalidNameException
+    AbsRemote getRemote(String remoteName) throws InvalidNameException
     {
         if (remoteName == null || remoteName.isEmpty())
         {
@@ -179,7 +169,7 @@ public class CtrlBackupApiHelper
                 )
             );
         }
-        AbsRemote remote = remoteRepo.get(peerAccCtx.get(), new RemoteName(remoteName, true));
+        AbsRemote remote = remoteRepo.get(new RemoteName(remoteName, true));
         if (remote == null)
         {
             throw new ApiRcException(
@@ -199,9 +189,9 @@ public class CtrlBackupApiHelper
      *
      *
      */
-    void ensureShippingToRemoteAllowed(AbsRemote remote) throws AccessDeniedException
+    void ensureShippingToRemoteAllowed(AbsRemote remote)
     {
-        if (remote.getFlags().isSomeSet(peerAccCtx.get(), AbsRemote.Flags.MARK_DELETED, AbsRemote.Flags.DELETE))
+        if (remote.getFlags().isSomeSet(AbsRemote.Flags.MARK_DELETED, AbsRemote.Flags.DELETE))
         {
             throw new ApiException(
                 "The given remote " + remote +
@@ -214,21 +204,19 @@ public class CtrlBackupApiHelper
      * Get all snapDfns that are currently shipping a backup.
      */
     Set<SnapshotDefinition> getInProgressBackups(ResourceDefinition rscDfn)
-        throws AccessDeniedException
     {
         return getInProgressBackups(rscDfn, null);
     }
 
     Set<SnapshotDefinition> getInProgressBackups(ResourceDefinition rscDfn, @Nullable AbsRemote remote)
-        throws AccessDeniedException
     {
         Set<SnapshotDefinition> snapDfns = new HashSet<>();
         @Nullable String remoteName = remote == null ? null : remote.getName().displayValue;
-        for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(peerAccCtx.get()))
+        for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
         {
-            ReadOnlyProps snapDfnTarget = snapDfn.getSnapDfnProps(peerAccCtx.get())
+            ReadOnlyProps snapDfnTarget = snapDfn.getSnapDfnProps()
                 .getNamespaceOrEmpty(BackupShippingUtils.BACKUP_TARGET_PROPS_NAMESPC);
-            ReadOnlyProps snapDfnSource = snapDfn.getSnapDfnProps(peerAccCtx.get())
+            ReadOnlyProps snapDfnSource = snapDfn.getSnapDfnProps()
                 .getNamespaceOrEmpty(BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC);
             if (remoteName == null)
             {
@@ -270,12 +258,12 @@ public class CtrlBackupApiHelper
     }
 
     boolean hasShippingToRemote(String remoteToCheck, String expectedRemote)
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         boolean ret = expectedRemote != null;
         if (ret && !expectedRemote.equalsIgnoreCase(remoteToCheck))
         {
-            AbsRemote remote = remoteRepo.get(sysCtx, new RemoteName(remoteToCheck, true));
+            AbsRemote remote = remoteRepo.get(new RemoteName(remoteToCheck, true));
             if (remote instanceof StltRemote stltRemote)
             {
                 // we checked the stlt-remote instead of the correct remote, check again
@@ -299,12 +287,11 @@ public class CtrlBackupApiHelper
     /**
      * Get all s3Keys of the given remote, filtered by rscName
      */
-    Set<String> getAllS3Keys(S3Remote s3Remote, @Nullable String rscName) throws AccessDeniedException
+    Set<String> getAllS3Keys(S3Remote s3Remote, @Nullable String rscName)
     {
         List<S3ObjectSummary> objects = backupHandler.listObjects(
             rscName,
             s3Remote,
-            peerAccCtx.get(),
             getLocalMasterKey()
         );
         // get ALL s3 keys of the given bucket, including possibly not linstor related ones
@@ -320,7 +307,6 @@ public class CtrlBackupApiHelper
         S3Remote s3RemoteRef,
         ApiCallRcImpl apiCallRc
     )
-        throws AccessDeniedException
     {
         Set<String> allS3Keys = getAllS3Keys(s3RemoteRef, null);
         Map<String, S3ObjectInfo> ret = new TreeMap<>();
@@ -334,7 +320,6 @@ public class CtrlBackupApiHelper
                 BackupMetaDataPojo s3MetaFile = backupHandler.getMetaFile(
                     s3Key,
                     s3RemoteRef,
-                    peerAccCtx.get(),
                     getLocalMasterKey()
                 );
                 S3ObjectInfo metaInfo = ret.computeIfAbsent(s3Key, S3ObjectInfo::new);
@@ -382,7 +367,7 @@ public class CtrlBackupApiHelper
             }
             catch (IOException exc)
             {
-                String errRepId = errorReporter.reportError(exc, peerAccCtx.get(), null, "used s3 key: " + s3Key);
+                String errRepId = errorReporter.reportError(exc, null, "used s3 key: " + s3Key);
                 apiCallRc.addEntry(
                     "IO exception while parsing metafile " + s3Key + ". Details in error report " + errRepId,
                     ApiConsts.FAIL_UNKNOWN_ERROR
@@ -425,12 +410,11 @@ public class CtrlBackupApiHelper
             if (rscDfn != null)
             {
                 snapDfn = rscDfn.getSnapshotDfn(
-                    peerAccCtx.get(),
                     new SnapshotName(snapName)
                 );
             }
         }
-        catch (InvalidNameException | AccessDeniedException ignored)
+        catch (InvalidNameException ignored)
         {
         }
         return snapDfn;
@@ -470,7 +454,7 @@ public class CtrlBackupApiHelper
         Flux<ApiCallRc> flux;
         try
         {
-            remote.getFlags().enableFlags(sysCtx, StltRemote.Flags.DELETE);
+            remote.getFlags().enableFlags(StltRemote.Flags.DELETE);
             ctrlTransactionHelper.commit();
             flux = ctrlSatelliteUpdateCaller.updateSatellites(remote)
                 .concatWith(
@@ -482,7 +466,7 @@ public class CtrlBackupApiHelper
                     )
                 );
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -494,17 +478,17 @@ public class CtrlBackupApiHelper
         AbsRemote remote;
         try
         {
-            remote = remoteRepo.get(sysCtx, new RemoteName(remoteNameRef, true));
+            remote = remoteRepo.get(new RemoteName(remoteNameRef, true));
             if (!(remote instanceof StltRemote))
             {
                 throw new ImplementationError("This method should only be called for satellite remotes");
             }
-            remoteRepo.remove(sysCtx, remote.getName());
-            remote.delete(sysCtx);
+            remoteRepo.remove(remote.getName());
+            remote.delete();
 
             ctrlTransactionHelper.commit();
         }
-        catch (AccessDeniedException | InvalidNameException | DatabaseException exc)
+        catch (InvalidNameException | DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }

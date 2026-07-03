@@ -6,7 +6,6 @@
 
 package com.linbit.linstor.api;
 
-import com.linbit.linstor.annotation.ErrorReporterContext;
 import com.linbit.linstor.annotation.Nullable;
 
 import javax.inject.Singleton;

@@ -6,7 +6,6 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.NodeConnection;
 import com.linbit.linstor.core.objects.NodeConnectionDbDriver;
 import com.linbit.linstor.core.objects.TestFactory;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.GenericDbBase;
 
 import javax.inject.Inject;
@@ -60,9 +59,9 @@ public class NodeConnectionDbDriverTest extends GenericDbBase
 
         uuid = randomUUID();
 
-        nodeSrc = nodeFactory.create(SYS_CTX, sourceName, null, null);
+        nodeSrc = nodeFactory.create(sourceName, null, null);
         nodesMap.put(nodeSrc.getName(), nodeSrc);
-        nodeDst = nodeFactory.create(SYS_CTX, targetName, null, null);
+        nodeDst = nodeFactory.create(targetName, null, null);
         nodesMap.put(nodeDst.getName(), nodeDst);
 
         nodeCon = TestFactory.createNodeConnection(
@@ -72,8 +71,7 @@ public class NodeConnectionDbDriverTest extends GenericDbBase
             driver,
             propsContainerFactory,
             transObjFactory,
-            transMgrProvider,
-            SYS_CTX
+            transMgrProvider
         );
     }
 
@@ -89,7 +87,7 @@ public class NodeConnectionDbDriverTest extends GenericDbBase
     @Test
     public void testPersistGetInstance() throws Exception
     {
-        nodeConnectionFactory.create(SYS_CTX, nodeSrc, nodeDst);
+        nodeConnectionFactory.create(nodeSrc, nodeDst);
         commit();
 
         checkDbPersist(false);
@@ -117,11 +115,10 @@ public class NodeConnectionDbDriverTest extends GenericDbBase
     public void testLoadGetInstance() throws Exception
     {
         driver.create(nodeCon);
-        nodeSrc.setNodeConnection(SYS_CTX, nodeCon);
-        nodeDst.setNodeConnection(SYS_CTX, nodeCon);
+        nodeSrc.setNodeConnection(nodeCon);
+        nodeDst.setNodeConnection(nodeCon);
 
         NodeConnection loadedConDfn = NodeConnection.get(
-            SYS_CTX,
             nodeSrc,
             nodeDst
         );
@@ -133,7 +130,6 @@ public class NodeConnectionDbDriverTest extends GenericDbBase
     public void testCache() throws Exception
     {
         NodeConnection storedInstance = nodeConnectionFactory.create(
-            SYS_CTX,
             nodeSrc,
             nodeDst
         );
@@ -141,7 +137,6 @@ public class NodeConnectionDbDriverTest extends GenericDbBase
         // no clear-cache
 
         assertEquals(storedInstance, NodeConnection.get(
-            SYS_CTX,
             nodeSrc,
             nodeDst
         ));
@@ -175,10 +170,10 @@ public class NodeConnectionDbDriverTest extends GenericDbBase
     public void testAlreadyExists() throws Exception
     {
         driver.create(nodeCon);
-        nodeSrc.setNodeConnection(SYS_CTX, nodeCon);
-        nodeDst.setNodeConnection(SYS_CTX, nodeCon);
+        nodeSrc.setNodeConnection(nodeCon);
+        nodeDst.setNodeConnection(nodeCon);
 
-        nodeConnectionFactory.create(SYS_CTX, nodeSrc, nodeDst);
+        nodeConnectionFactory.create(nodeSrc, nodeDst);
     }
 
 
@@ -201,15 +196,15 @@ public class NodeConnectionDbDriverTest extends GenericDbBase
         stmt.close();
     }
 
-    private void checkLoadedConDfn(NodeConnection loadedConDfn, boolean checkUuid) throws AccessDeniedException
+    private void checkLoadedConDfn(NodeConnection loadedConDfn, boolean checkUuid)
     {
         assertNotNull(loadedConDfn);
         if (checkUuid)
         {
             assertEquals(uuid, loadedConDfn.getUuid());
         }
-        Node sourceNode = loadedConDfn.getSourceNode(SYS_CTX);
-        Node targetNode = loadedConDfn.getTargetNode(SYS_CTX);
+        Node sourceNode = loadedConDfn.getSourceNode();
+        Node targetNode = loadedConDfn.getTargetNode();
 
         assertEquals(sourceName, sourceNode.getName());
         assertEquals(targetName, targetNode.getName());

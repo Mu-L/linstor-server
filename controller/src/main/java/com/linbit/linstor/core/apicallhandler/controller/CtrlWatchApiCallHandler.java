@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -21,9 +20,6 @@ import com.linbit.linstor.event.UnknownEventException;
 import com.linbit.linstor.event.Watch;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -35,7 +31,6 @@ import java.util.UUID;
 public class CtrlWatchApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final Provider<AccessContext> peerAccCtx;
     private final Provider<Peer> peer;
     private final EventBroker eventBroker;
     private final NodeRepository nodeRepository;
@@ -44,7 +39,6 @@ public class CtrlWatchApiCallHandler
     @Inject
     public CtrlWatchApiCallHandler(
         ErrorReporter errorReporterRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         Provider<Peer> peerRef,
         EventBroker eventBrokerRef,
         NodeRepository nodeRepositoryRef,
@@ -52,7 +46,6 @@ public class CtrlWatchApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        peerAccCtx = peerAccCtxRef;
         peer = peerRef;
         eventBroker = eventBrokerRef;
         nodeRepository = nodeRepositoryRef;
@@ -149,8 +142,6 @@ public class CtrlWatchApiCallHandler
                 // Watches can result in data being retrieved for objects that do not yet exist.
                 // For these objects we do not know the access requirements.
                 // Hence we require read access to the entire node and resource definition collections.
-                nodeRepository.requireAccess(peerAccCtx.get(), AccessType.VIEW);
-                resourceDefinitionRepository.requireAccess(peerAccCtx.get(), AccessType.VIEW);
 
                 eventBroker.createWatch(peer.get(), new Watch(
                     UUID.randomUUID(), peer.get().getId(), peerWatchId,
@@ -171,7 +162,6 @@ public class CtrlWatchApiCallHandler
             catch (AccessDeniedException exc)
             {
                 errorMsg = ResponseUtils.getAccDeniedMsg(
-                    peerAccCtx.get(),
                     "create a watch"
                 );
                 rc = ApiConsts.FAIL_ACC_DENIED_WATCH;
@@ -184,7 +174,6 @@ public class CtrlWatchApiCallHandler
             apiCallRc.addEntry(errorMsg, rc | ApiConsts.MASK_CRT);
             errorReporter.reportError(
                 errorExc,
-                peerAccCtx.get(),
                 null,
                 errorMsg
             );

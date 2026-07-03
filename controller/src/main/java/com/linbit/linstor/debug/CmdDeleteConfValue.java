@@ -5,7 +5,6 @@ import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
 import javax.inject.Inject;
@@ -69,7 +68,6 @@ public class CmdDeleteConfValue extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     )
         throws Exception
@@ -86,7 +84,7 @@ public class CmdDeleteConfValue extends BaseDebugCmd
             {
                 transMgr = trnActProvider.get();
 
-                String removed = systemConfRepository.removeCtrlProp(accCtx, key, namespace);
+                String removed = systemConfRepository.removeCtrlProp(key, namespace);
                 if (removed == null)
                 {
                     if (namespace == null)

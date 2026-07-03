@@ -5,9 +5,6 @@ import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeConnectionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -38,14 +35,11 @@ public class VolumeConnectionFactory
     }
 
     public VolumeConnection create(
-        AccessContext accCtx,
         Volume sourceVolume,
         Volume targetVolume
     )
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        sourceVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
-        targetVolume.getAbsResource().getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
         VolumeConnection volConData = VolumeConnection.createWithSorting(
             UUID.randomUUID(),
@@ -54,19 +48,17 @@ public class VolumeConnectionFactory
             dbDriver,
             propsContainerFactory,
             transObjFactory,
-            transMgrProvider,
-            accCtx
+            transMgrProvider
         );
 
         dbDriver.create(volConData);
-        sourceVolume.setVolumeConnection(accCtx, volConData);
-        targetVolume.setVolumeConnection(accCtx, volConData);
+        sourceVolume.setVolumeConnection(volConData);
+        targetVolume.setVolumeConnection(volConData);
 
         return volConData;
     }
 
     public VolumeConnection getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         Volume sourceVolume,
         Volume targetVolume
@@ -77,7 +69,7 @@ public class VolumeConnectionFactory
 
         try
         {
-            volConData = sourceVolume.getVolumeConnection(accCtx, targetVolume);
+            volConData = sourceVolume.getVolumeConnection(targetVolume);
             if (volConData == null)
             {
                 volConData = VolumeConnection.createWithSorting(
@@ -87,11 +79,10 @@ public class VolumeConnectionFactory
                     dbDriver,
                     propsContainerFactory,
                     transObjFactory,
-                    transMgrProvider,
-                    accCtx
+                    transMgrProvider
                 );
-                sourceVolume.setVolumeConnection(accCtx, volConData);
-                targetVolume.setVolumeConnection(accCtx, volConData);
+                sourceVolume.setVolumeConnection(volConData);
+                targetVolume.setVolumeConnection(volConData);
             }
         }
         catch (Exception exc)

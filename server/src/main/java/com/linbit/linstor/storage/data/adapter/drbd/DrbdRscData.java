@@ -24,8 +24,6 @@ import com.linbit.linstor.dbdrivers.interfaces.LayerDrbdRscDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.LayerDrbdVlmDatabaseDriver;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.AbsRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -378,17 +376,17 @@ public class DrbdRscData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public boolean isDiskless(AccessContext accCtx) throws AccessDeniedException
+    public boolean isDiskless()
     {
-        return flags.isSet(accCtx, DrbdRscFlags.DISKLESS);
+        return flags.isSet(DrbdRscFlags.DISKLESS);
     }
 
     @Override
-    public boolean isDisklessForPeers(AccessContext accCtx) throws AccessDeniedException
+    public boolean isDisklessForPeers()
     {
-        return flags.isSet(accCtx, DrbdRscFlags.DISKLESS) &&
-            flags.isUnset(accCtx, DrbdRscFlags.DISK_ADDING) &&
-            flags.isUnset(accCtx, DrbdRscFlags.DISK_REMOVING);
+        return flags.isSet(DrbdRscFlags.DISKLESS) &&
+            flags.isUnset(DrbdRscFlags.DISK_ADDING) &&
+            flags.isUnset(DrbdRscFlags.DISK_REMOVING);
     }
 
     @Override
@@ -428,9 +426,9 @@ public class DrbdRscData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public void delete(AccessContext accCtxRef) throws DatabaseException, AccessDeniedException
+    public void delete() throws DatabaseException
     {
-        super.delete(accCtxRef);
+        super.delete();
         @Nullable TransactionSet<DrbdRscData<?>, TcpPortNumber> localPorts = rscPorts;
         if (localPorts != null)
         {
@@ -522,12 +520,12 @@ public class DrbdRscData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public RscLayerDataApi asPojo(AccessContext accCtx) throws AccessDeniedException
+    public RscLayerDataApi asPojo()
     {
         List<DrbdVlmPojo> vlmPojos = new ArrayList<>();
         for (DrbdVlmData<RSC> drbdVlmData : vlmMap.values())
         {
-            vlmPojos.add(drbdVlmData.asPojo(accCtx));
+            vlmPojos.add(drbdVlmData.asPojo());
         }
         @Nullable TreeSet<Integer> portsInt;
         @Nullable Set<TcpPortNumber> localPorts = rscPorts;
@@ -545,16 +543,16 @@ public class DrbdRscData<RSC extends AbsResource<RSC>>
         }
         return new DrbdRscPojo(
             rscLayerId,
-            getChildrenPojos(accCtx),
+            getChildrenPojos(),
             getResourceNameSuffix(),
-            drbdRscDfnData.getApiData(accCtx),
+            drbdRscDfnData.getApiData(),
             nodeId.get().value,
             portsInt,
             getPortCount(),
             peerSlots,
             alStripes,
             alStripeSize,
-            flags.getFlagsBits(accCtx),
+            flags.getFlagsBits(),
             vlmPojos,
             suspend.get(),
             promotionScore,
@@ -578,20 +576,20 @@ public class DrbdRscData<RSC extends AbsResource<RSC>>
      * @return true if "DrbdOptions/SkipDisk" is "True" (ignoring case). False otherwise
      *
      */
-    public boolean isSkipDiskEnabled(AccessContext apiCtxRef, ReadOnlyProps stltProps) throws AccessDeniedException
+    public boolean isSkipDiskEnabled(ReadOnlyProps stltProps)
     {
         final boolean ret;
         RSC absRsc = getAbsResource();
         if (absRsc instanceof Resource rsc)
         {
-            PriorityProps prioProps = new PriorityProps(rsc.getProps(apiCtxRef));
-            for (StorPool storPool : LayerVlmUtils.getStorPools(rsc, apiCtxRef))
+            PriorityProps prioProps = new PriorityProps(rsc.getProps());
+            for (StorPool storPool : LayerVlmUtils.getStorPools(rsc))
             {
-                prioProps.addProps(storPool.getProps(apiCtxRef));
+                prioProps.addProps(storPool.getProps());
             }
             prioProps.addProps(
-                rsc.getNode().getProps(apiCtxRef),
-                rsc.getResourceDefinition().getProps(apiCtxRef),
+                rsc.getNode().getProps(),
+                rsc.getResourceDefinition().getProps(),
                 stltProps
             );
             ret = ApiConsts.VAL_TRUE.equalsIgnoreCase(
@@ -607,10 +605,10 @@ public class DrbdRscData<RSC extends AbsResource<RSC>>
         return ret;
     }
 
-    public boolean isResFileReady(AccessContext accCtx) throws AccessDeniedException
+    public boolean isResFileReady()
     {
         boolean isReady = true;
-        if (!isDiskless(accCtx))
+        if (!isDiskless())
         {
             for (DrbdVlmData<RSC> vlmData : this.getVlmLayerObjects().values())
             {

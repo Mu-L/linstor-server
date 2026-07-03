@@ -4,7 +4,6 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
@@ -21,8 +20,6 @@ import com.linbit.linstor.layer.AbsLayerHelperUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.writecache.WritecacheRscData;
 import com.linbit.linstor.storage.data.adapter.writecache.WritecacheVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -47,14 +44,12 @@ class SnapWritecacheLayerHelper
     @Inject
     SnapWritecacheLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef
     )
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             DeviceLayerKind.WRITECACHE
@@ -86,7 +81,7 @@ class SnapWritecacheLayerHelper
         Snapshot snapRef,
         AbsRscLayerObject<Resource> rscDataRef,
         AbsRscLayerObject<Snapshot> parentRef
-    ) throws AccessDeniedException, DatabaseException, ExhaustedPoolException
+    ) throws DatabaseException, ExhaustedPoolException
     {
         return layerDataFactory.createWritecacheRscData(
             layerRscIdPool.autoAllocate(),
@@ -101,7 +96,7 @@ class SnapWritecacheLayerHelper
         SnapshotVolume snapVlmRef,
         WritecacheRscData<Snapshot> snapDataRef,
         VlmProviderObject<Resource> vlmProviderObjectRef
-    ) throws DatabaseException, AccessDeniedException
+    ) throws DatabaseException
     {
         return layerDataFactory.createWritecacheVlmData(
             snapVlmRef,
@@ -127,7 +122,7 @@ class SnapWritecacheLayerHelper
         SnapshotVolumeDefinition snapshotVolumeDefinitionRef,
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         // WritecacheLayer does not have volume-definition specific data
@@ -140,7 +135,7 @@ class SnapWritecacheLayerHelper
         RscLayerDataApi rscLayerDataApiRef,
         @Nullable AbsRscLayerObject<Snapshot> parentRef,
         Map<String, String> renameStorPoolMapRef
-    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException, AccessDeniedException
+    ) throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException
     {
         return layerDataFactory.createWritecacheRscData(
             layerRscIdPool.autoAllocate(),
@@ -157,10 +152,9 @@ class SnapWritecacheLayerHelper
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef,
         @Nullable ApiCallRc apiCallRc
-    ) throws AccessDeniedException, InvalidNameException, DatabaseException
+    ) throws InvalidNameException, DatabaseException
     {
         StorPool cacheStorPool = AbsLayerHelperUtils.getStorPool(
-            apiCtx,
             snapVlmRef,
             snapDataRef,
             ((WritecacheVlmPojo) vlmLayerDataApiRef).getCacheStorPoolName(),

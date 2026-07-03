@@ -9,8 +9,6 @@ import com.linbit.linstor.core.objects.remotes.AbsRemote;
 import com.linbit.linstor.core.objects.remotes.S3Remote;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -44,7 +42,6 @@ public class S3RemoteSatelliteFactory
     }
 
     public S3Remote getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         RemoteName remoteNameRef,
         long initflags,
@@ -63,7 +60,7 @@ public class S3RemoteSatelliteFactory
             try
             {
                 s3remote = new S3Remote(
-                    objectProtectionFactory.getInstance(accCtx, "", true),
+                    objectProtectionFactory.getInstance("", true),
                     uuid,
                     driver,
                     remoteNameRef,

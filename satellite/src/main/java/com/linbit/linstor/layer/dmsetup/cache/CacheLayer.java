@@ -7,7 +7,6 @@ import com.linbit.extproc.ExtCmd;
 import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.extproc.ExtCmdFailedException;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -32,8 +31,6 @@ import com.linbit.linstor.layer.dmsetup.DmSetupUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
@@ -63,7 +60,6 @@ public class CacheLayer implements DeviceLayer
     private static final long DFLT_DMSETUP_WAIT_TIMEOUT_IN_MS = 10_000;
 
     private final ErrorReporter errorReporter;
-    private final AccessContext storDriverAccCtx;
     private final ExtCmdFactory extCmdFactory;
     private final Provider<DeviceHandler> resourceProcessorProvider;
 
@@ -73,14 +69,12 @@ public class CacheLayer implements DeviceLayer
     @Inject
     public CacheLayer(
         ErrorReporter errorReporterRef,
-        @DeviceManagerContext AccessContext storDriverAccCtxRef,
         ExtCmdFactory extCmdFactoryRef,
         Provider<DeviceHandler> resourceProcessorProviderRef,
         StltConfigAccessor stltConfAccessorRef
     )
     {
         errorReporter = errorReporterRef;
-        storDriverAccCtx = storDriverAccCtxRef;
         extCmdFactory = extCmdFactoryRef;
         resourceProcessorProvider = resourceProcessorProviderRef;
         stltConfAccessor = stltConfAccessorRef;
@@ -97,7 +91,7 @@ public class CacheLayer implements DeviceLayer
         Set<AbsRscLayerObject<Resource>> rscObjListRef,
         Set<AbsRscLayerObject<Snapshot>> snapObjListRef
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         errorReporter.logTrace("Cache: listing all 'cache' devices");
         Set<String> dmDeviceNames = DmSetupUtils.list(extCmdFactory.create(), "cache");
@@ -185,7 +179,7 @@ public class CacheLayer implements DeviceLayer
      */
     @Override
     public void suspendIo(AbsRscLayerObject<Resource> rscDataRef, boolean ignoredAsRootLayerRef)
-        throws ExtCmdFailedException, StorageException, ChildProcessTimeoutException, IOException, AccessDeniedException
+        throws ExtCmdFailedException, StorageException, ChildProcessTimeoutException, IOException
     {
         // the general procedure is described in the java-doc, but we still try to change the policy and send the
         // 'migration_threshold' message to all volumes asap and only afterwards wait for all volumes to finish
@@ -255,7 +249,7 @@ public class CacheLayer implements DeviceLayer
         }
     }
 
-    private long getFlushTimeout(CacheVlmData<Resource> cacheVlmDataRef) throws AccessDeniedException
+    private long getFlushTimeout(CacheVlmData<Resource> cacheVlmDataRef)
     {
         long ret;
         @Nullable String val = getPrioProps(cacheVlmDataRef.getVolume()).getProp(
@@ -291,11 +285,11 @@ public class CacheLayer implements DeviceLayer
             // ResourceDefinition rscDfn = vlm.getResourceDefinition();
             // ResourceGroup rscGrp = rscDfn.getResourceGroup();
             // PriorityProps prioProps = new PriorityProps(
-            // vlm.getProps(storDriverAccCtx),
-            // vlm.getVolumeDefinition().getProps(storDriverAccCtx),
-            // rscDfn.getProps(storDriverAccCtx),
-            // rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmData.getVlmNr()),
-            // rscGrp.getProps(storDriverAccCtx),
+            // vlm.getProps(),
+            // vlm.getVolumeDefinition().getProps(),
+            // rscDfn.getProps(),
+            // rscGrp.getVolumeGroupProps(vlmData.getVlmNr()),
+            // rscGrp.getProps(),
             // localNodeProps,
             // stltConfAccessor.getReadonlyProps()
             // );
@@ -340,7 +334,7 @@ public class CacheLayer implements DeviceLayer
                 npe
             );
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -374,12 +368,11 @@ public class CacheLayer implements DeviceLayer
         AbsRscLayerObject<Resource> rscLayerDataRef,
         ApiCallRcImpl apiCallRcRef
     )
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException
+        throws StorageException, ResourceException, VolumeException, DatabaseException
     {
         CacheRscData<Resource> rscData = (CacheRscData<Resource>) rscLayerDataRef;
         StateFlags<Flags> rscFlags = rscData.getAbsResource().getStateFlags();
         boolean shouldRscExist = rscFlags.isUnset(
-            storDriverAccCtx,
             Resource.Flags.DELETE,
             Resource.Flags.INACTIVE,
             Resource.Flags.DISK_REMOVING
@@ -387,11 +380,9 @@ public class CacheLayer implements DeviceLayer
         for (CacheVlmData<Resource> vlmData : rscData.getVlmLayerObjects().values())
         {
             boolean shouldVlmExist = ((Volume) vlmData.getVolume()).getFlags().isUnset(
-                storDriverAccCtx,
                 Volume.Flags.DELETE,
                 Volume.Flags.CLONING
             ) && vlmData.getVolume().getVolumeDefinition().getFlags().isUnset(
-                storDriverAccCtx,
                 VolumeDefinition.Flags.DELETE
             );
             if (!shouldRscExist || !shouldVlmExist)
@@ -447,11 +438,9 @@ public class CacheLayer implements DeviceLayer
             {
                 Volume vlm = (Volume) vlmData.getVolume();
                 boolean shouldVlmExist = vlm.getFlags().isUnset(
-                    storDriverAccCtx,
                     Volume.Flags.DELETE,
                     Volume.Flags.CLONING
                 ) && vlm.getVolumeDefinition().getFlags().isUnset(
-                    storDriverAccCtx,
                     VolumeDefinition.Flags.DELETE
                 );
                 if (shouldVlmExist)
@@ -493,11 +482,11 @@ public class CacheLayer implements DeviceLayer
     }
 
     @Override
-    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef) throws AccessDeniedException
+    public boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef)
     {
         boolean resourceReadySent = true;
         StateFlags<Flags> rscFlags = layerDataRef.getAbsResource().getStateFlags();
-        if (rscFlags.isSet(storDriverAccCtx, Resource.Flags.DELETE))
+        if (rscFlags.isSet(Resource.Flags.DELETE))
         {
             resourceProcessorProvider.get().sendResourceDeletedEvent(layerDataRef);
         }
@@ -515,7 +504,7 @@ public class CacheLayer implements DeviceLayer
             }
             else
             {
-                boolean isActive = rscFlags.isUnset(storDriverAccCtx, Resource.Flags.INACTIVE);
+                boolean isActive = rscFlags.isUnset(Resource.Flags.INACTIVE);
                 resourceProcessorProvider.get().sendResourceCreatedEvent(
                     layerDataRef,
                     new ResourceState(
@@ -539,7 +528,7 @@ public class CacheLayer implements DeviceLayer
         return false; // no layer specific DELETE flag
     }
 
-    private long getBlocksize(AbsVolume<Resource> vlmRef) throws InvalidKeyException, AccessDeniedException
+    private long getBlocksize(AbsVolume<Resource> vlmRef) throws InvalidKeyException
     {
         @Nullable String propValue = getCacheProp(vlmRef, ApiConsts.KEY_CACHE_BLOCK_SIZE);
         long ret;
@@ -554,25 +543,25 @@ public class CacheLayer implements DeviceLayer
         return ret;
     }
 
-    private String getFeature(AbsVolume<Resource> vlmRef) throws InvalidKeyException, AccessDeniedException
+    private String getFeature(AbsVolume<Resource> vlmRef) throws InvalidKeyException
     {
         return getCacheProp(vlmRef, ApiConsts.KEY_CACHE_OPERATING_MODE, DFLT_FEATURE);
     }
 
-    private String getPolicy(AbsVolume<Resource> vlmRef) throws InvalidKeyException, AccessDeniedException
+    private String getPolicy(AbsVolume<Resource> vlmRef) throws InvalidKeyException
     {
         return getCacheProp(vlmRef, ApiConsts.KEY_CACHE_POLICY, DFLT_POLICY);
     }
 
     private @Nullable String getCacheProp(AbsVolume<Resource> vlmRef, String key)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         @Nullable String value = getPrioProps(vlmRef).getProp(key, ApiConsts.NAMESPC_CACHE);
         return value == null ? null : value.trim();
     }
 
     private String getCacheProp(AbsVolume<Resource> vlmRef, String key, String dfltValue)
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return getPrioProps(vlmRef).getProp(
             key,
@@ -581,18 +570,18 @@ public class CacheLayer implements DeviceLayer
         ).trim();
     }
 
-    private PriorityProps getPrioProps(AbsVolume<Resource> vlmRef) throws AccessDeniedException
+    private PriorityProps getPrioProps(AbsVolume<Resource> vlmRef)
     {
         VolumeDefinition vlmDfn = vlmRef.getVolumeDefinition();
         ResourceDefinition rscDfn = vlmRef.getResourceDefinition();
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         Resource rsc = vlmRef.getAbsResource();
         return new PriorityProps(
-            vlmDfn.getProps(storDriverAccCtx),
-            rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmDfn.getVolumeNumber()),
-            rsc.getProps(storDriverAccCtx),
-            rscDfn.getProps(storDriverAccCtx),
-            rscGrp.getProps(storDriverAccCtx),
+            vlmDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rsc.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getProps(),
             localNodeProps,
             stltConfAccessor.getReadonlyProps()
         );

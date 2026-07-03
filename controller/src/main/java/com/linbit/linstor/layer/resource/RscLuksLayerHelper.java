@@ -7,7 +7,6 @@ import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.crypto.SecretGenerator;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
@@ -31,8 +30,6 @@ import com.linbit.linstor.modularcrypto.ModularCryptoProvider;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.luks.LuksRscData;
 import com.linbit.linstor.storage.data.adapter.luks.LuksVlmData;
@@ -79,7 +76,6 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
     @Inject
     RscLuksLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPoolRef,
         CtrlSecurityObjects secObjsRef,
@@ -93,7 +89,6 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             // LuksRscData.class cannot directly be casted to Class<LuksRscData<Resource>>. because java.
@@ -153,7 +148,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
         AbsRscLayerObject<Resource> parentObjectRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException
     {
         return layerDataFactory.createLuksRscData(
@@ -172,7 +167,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
 
     @Override
     protected boolean needsChildVlm(AbsRscLayerObject<Resource> childRscDataRef, Volume vlmRef)
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         return true;
     }
@@ -184,7 +179,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         // no special storage pools needed
         return Collections.emptySet();
@@ -203,8 +198,8 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
 
         Resource rsc = vlm.getAbsResource();
         boolean isNvmeBelow = layerListRef.contains(DeviceLayerKind.NVME);
-        boolean isNvmeInitiator = rsc.getStateFlags().isSet(apiCtx, Resource.Flags.NVME_INITIATOR);
-        boolean isEbsInitiator = rsc.getStateFlags().isSet(apiCtx, Resource.Flags.EBS_INITIATOR);
+        boolean isNvmeInitiator = rsc.getStateFlags().isSet(Resource.Flags.NVME_INITIATOR);
+        boolean isEbsInitiator = rsc.getStateFlags().isSet(Resource.Flags.EBS_INITIATOR);
 
         Set<StorPool> allStorPools = layerDataHelperProvider.get()
             .getAllNeededStorPools(rsc, payload, layerListRef);
@@ -225,7 +220,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
                 Set<String> availabilityZones = new HashSet<>();
                 for (StorPool sp : allStorPools)
                 {
-                    availabilityZones.add(RscStorageLayerHelper.getAvailabilityZone(apiCtx, remoteMap, sp));
+                    availabilityZones.add(RscStorageLayerHelper.getAvailabilityZone(remoteMap, sp));
                 }
                 if (availabilityZones.size() != 1)
                 {
@@ -236,7 +231,6 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
                 }
 
                 targetRsc = RscStorageLayerHelper.findTargetEbsResource(
-                    apiCtx,
                     remoteMap,
                     rsc.getResourceDefinition(),
                     availabilityZones.iterator().next(),
@@ -249,7 +243,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
             }
             if (targetRsc != null)
             {
-                AbsRscLayerObject<Resource> rootLayerData = targetRsc.getLayerData(apiCtx);
+                AbsRscLayerObject<Resource> rootLayerData = targetRsc.getLayerData();
                 List<AbsRscLayerObject<Resource>> targetDrbdChildren = LayerUtils
                     .getChildLayerDataByKind(rootLayerData, DeviceLayerKind.DRBD);
                 for (AbsRscLayerObject<Resource> targetRscData : targetDrbdChildren)
@@ -276,7 +270,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
                 if (!otherRsc.equals(rsc))
                 {
                     Set<AbsRscLayerObject<Resource>> otherRscLuksDataSet = LayerRscUtils.getRscDataByLayer(
-                        otherRsc.getLayerData(apiCtx),
+                        otherRsc.getLayerData(),
                         DeviceLayerKind.LUKS
                     );
                     for (AbsRscLayerObject<Resource> absOtherRscLayerObject : otherRscLuksDataSet)
@@ -297,7 +291,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
         // encrypted key was not copied from *-target or sharedRsc.. create new one
         if (encryptedVlmKey == null)
         {
-            var vlmDfnProps = vlm.getVolumeDefinition().getProps(apiCtx);
+            var vlmDfnProps = vlm.getVolumeDefinition().getProps();
             @Nullable String b64EncPassphrase = vlmDfnProps.getProp(
                 ApiConsts.KEY_PASSPHRASE, ApiConsts.NAMESPC_ENCRYPTION);
             if (b64EncPassphrase == null)
@@ -333,7 +327,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
 
     @Override
     protected void resetStoragePools(AbsRscLayerObject<Resource> rscDataRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // nothing to do
     }
@@ -344,13 +338,13 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
         List<DeviceLayerKind> layerListRef,
         LayerPayload payloadRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         boolean changed = false;
 
         boolean isRscInactiveOrDeleting = rscDataRef.getAbsResource()
             .getStateFlags()
-            .isSomeSet(apiCtx, Resource.Flags.DELETE, Resource.Flags.INACTIVE);
+            .isSomeSet(Resource.Flags.DELETE, Resource.Flags.INACTIVE);
         if (!secObjs.areAllSet() && !isRscInactiveOrDeleting)
         {
             // we do not need to ignore all layers above LUKS if we want to delete everything (and including) the luks
@@ -368,7 +362,7 @@ class RscLuksLayerHelper extends AbsRscLayerHelper<
 
     @Override
     protected List<ChildResourceData> getChildRsc(LuksRscData<Resource> rscDataRef, List<DeviceLayerKind> layerListRef)
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         return Arrays.asList(new ChildResourceData(RscLayerSuffixes.SUFFIX_DATA));
     }

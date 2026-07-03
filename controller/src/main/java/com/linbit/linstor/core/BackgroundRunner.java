@@ -1,7 +1,6 @@
 package com.linbit.linstor.core;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiModule;
@@ -9,7 +8,6 @@ import com.linbit.linstor.api.ApiRcUtils;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -36,19 +34,16 @@ import reactor.util.context.Context;
 public class BackgroundRunner
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext accCtx;
 
     private final TreeMap<NodeName, TreeSet<RunConfig<?>>> runQueuesByNode;
     private final TreeSet<NodeName> busyNodes;
 
     @Inject
     public BackgroundRunner(
-        ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef
+        ErrorReporter errorReporterRef
     )
     {
         errorReporter = errorReporterRef;
-        accCtx = apiCtxRef;
 
         runQueuesByNode = new TreeMap<>();
         busyNodes = new TreeSet<>();
@@ -71,7 +66,7 @@ public class BackgroundRunner
         {
             nodeNames.add(node.getName());
         }
-        runInBackground(new RunConfig<>(operationDescription, backgroundFlux, accCtx, nodeNames, true));
+        runInBackground(new RunConfig<>(operationDescription, backgroundFlux, nodeNames, true));
     }
 
     public void runInBackground(RunConfig<?> runCfgRef)
@@ -399,7 +394,6 @@ public class BackgroundRunner
             long priorityRef,
             String descriptionRef,
             Supplier<Flux<T>> fluxSupplierRef,
-            AccessContext accCtxRef,
             Collection<NodeName> nodesToLockRef,
             boolean backgroundRef
         )
@@ -411,7 +405,7 @@ public class BackgroundRunner
             nodesToLock = nodesToLockRef;
             background = backgroundRef;
 
-            initializeSubscriberContext(descriptionRef, accCtxRef);
+            initializeSubscriberContext(descriptionRef);
         }
 
         /*
@@ -420,12 +414,11 @@ public class BackgroundRunner
         public RunConfig(
             String descriptionRef,
             Flux<T> fluxRef,
-            AccessContext accCtxRef,
             @Nullable Collection<NodeName> nodesToLockRef,
             boolean backgroundRef
         )
         {
-            this(System.currentTimeMillis(), descriptionRef, fluxRef, accCtxRef, nodesToLockRef, backgroundRef);
+            this(System.currentTimeMillis(), descriptionRef, fluxRef, nodesToLockRef, backgroundRef);
         }
 
         /*
@@ -435,7 +428,6 @@ public class BackgroundRunner
             long priorityRef,
             String descriptionRef,
             Flux<T> fluxRef,
-            AccessContext accCtxRef,
             @Nullable Collection<NodeName> nodesToLockRef,
             boolean backgroundRef
         )
@@ -447,13 +439,13 @@ public class BackgroundRunner
             background = backgroundRef;
             nodesToLock = nodesToLockRef == null ? Collections.emptyList() : nodesToLockRef;
 
-            initializeSubscriberContext(descriptionRef, accCtxRef);
+            initializeSubscriberContext(descriptionRef);
         }
 
-        private void initializeSubscriberContext(String descriptionRef, AccessContext accCtxRef)
+        private void initializeSubscriberContext(String descriptionRef)
         {
             subscriberContext.put(ApiModule.API_CALL_NAME, descriptionRef);
-            subscriberContext.put(AccessContext.class, accCtxRef);
+            subscriberContext.put(AccessContext.class);
         }
 
         private void runDeferredFlux()

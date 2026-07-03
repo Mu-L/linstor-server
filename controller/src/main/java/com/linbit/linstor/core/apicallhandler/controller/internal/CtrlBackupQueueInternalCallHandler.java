@@ -5,8 +5,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -24,7 +22,6 @@ import com.linbit.linstor.core.apicallhandler.controller.backup.l2l.rest.BackupS
 import com.linbit.linstor.core.apicallhandler.controller.backup.l2l.rest.data.BackupShippingRequestPrevSnap;
 import com.linbit.linstor.core.apicallhandler.controller.backup.l2l.rest.data.BackupShippingResponsePrevSnap;
 import com.linbit.linstor.core.apicallhandler.controller.backup.l2l.rest.data.BackupShippingSrcData;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.core.objects.SnapshotDefinition;
@@ -37,8 +34,6 @@ import com.linbit.linstor.core.repository.SystemConfProtectionRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.utils.ExceptionThrowingIterator;
@@ -68,8 +63,6 @@ public class CtrlBackupQueueInternalCallHandler
 {
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerAccCtx;
-    private final AccessContext sysCtx;
     private final Provider<Peer> peerProvider;
     private final BackupInfoManager backupInfoMgr;
     private final BackupShippingRestClient restClient;
@@ -84,8 +77,6 @@ public class CtrlBackupQueueInternalCallHandler
     public CtrlBackupQueueInternalCallHandler(
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
-        @SystemContext AccessContext sysCtxRef,
         Provider<Peer> peerProviderRef,
         BackupInfoManager backupInfoMgrRef,
         BackupShippingRestClient restClientRef,
@@ -99,8 +90,6 @@ public class CtrlBackupQueueInternalCallHandler
     {
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
-        sysCtx = sysCtxRef;
         peerProvider = peerProviderRef;
         backupInfoMgr = backupInfoMgrRef;
         restClient = restClientRef;
@@ -117,7 +106,7 @@ public class CtrlBackupQueueInternalCallHandler
         @Nullable SnapshotDefinition snapDfn,
         AbsRemote remoteForSchedule,
         @Nullable StltRemote optStltRemote
-    ) throws AccessDeniedException
+    )
     {
         Flux<ApiCallRc> flux = Flux.empty();
         /*
@@ -153,7 +142,7 @@ public class CtrlBackupQueueInternalCallHandler
                 {
                     if (backupCrtHandler.getFreeShippingSlots(currentNode) > 0)
                     {
-                        ExceptionThrowingIterator<QueueItem, AccessDeniedException> next = new IteratorFromSingleItem(
+                        ExceptionThrowingIterator<QueueItem> next = new IteratorFromSingleItem(
                             queueItem
                         );
                         flux = flux.concatWith(startQueuedShippings(currentNode, next));
@@ -179,13 +168,13 @@ public class CtrlBackupQueueInternalCallHandler
             node = peerProvider.get().getNode();
         }
         // no need to continue with starting queues if the node was deleted
-        boolean nodeDeleted = node.isDeleted() || node.getFlags().isSet(peerAccCtx.get(), Node.Flags.DELETE);
+        boolean nodeDeleted = node.isDeleted() || node.getFlags().isSet(Node.Flags.DELETE);
         if (!nodeDeleted && backupCrtHandler.getFreeShippingSlots(node) > 0)
         {
             flux = flux.concatWith(
                 startMultipleQueuedShippings(
                     node,
-                    new IteratorFromBackupNodeQueue(node, backupInfoMgr, peerAccCtx.get())
+                    new IteratorFromBackupNodeQueue(node, backupInfoMgr)
                 )
             );
         }
@@ -198,7 +187,7 @@ public class CtrlBackupQueueInternalCallHandler
      */
     public Flux<ApiCallRc> startMultipleQueuedShippings(
         Node node,
-        ExceptionThrowingIterator<QueueItem, AccessDeniedException> nextItem
+        ExceptionThrowingIterator<QueueItem> nextItem
     )
     {
         return scopeRunner.fluxInTransactionalScope(
@@ -213,25 +202,17 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> startMultipleQueuedShippingsInTransaction(
         Node node,
-        ExceptionThrowingIterator<QueueItem, AccessDeniedException> nextItem
+        ExceptionThrowingIterator<QueueItem> nextItem
     )
     {
         Flux<ApiCallRc> flux;
-        try
+        if (backupCrtHandler.getFreeShippingSlots(node) > 0 && nextItem.hasNext())
         {
-            if (backupCrtHandler.getFreeShippingSlots(node) > 0 && nextItem.hasNext())
-            {
-                flux = startQueuedShippings(node, nextItem).concatWith(startMultipleQueuedShippings(node, nextItem));
-            }
-            else
-            {
-                flux = Flux.empty();
-            }
+            flux = startQueuedShippings(node, nextItem).concatWith(startMultipleQueuedShippings(node, nextItem));
         }
-        catch (AccessDeniedException exc)
+        else
         {
-            // peerAccessContext comes from stlt which should be privileged
-            throw new ImplementationError(exc);
+            flux = Flux.empty();
         }
         return flux;
     }
@@ -242,7 +223,7 @@ public class CtrlBackupQueueInternalCallHandler
      */
     private Flux<ApiCallRc> startQueuedShippings(
         Node node,
-        ExceptionThrowingIterator<QueueItem, AccessDeniedException> nextItem
+        ExceptionThrowingIterator<QueueItem> nextItem
     )
     {
         return scopeRunner.fluxInTransactionalScope(
@@ -257,7 +238,7 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> startQueuedShippingsInTransaction(
         Node node,
-        ExceptionThrowingIterator<QueueItem, AccessDeniedException> nextItem
+        ExceptionThrowingIterator<QueueItem> nextItem
     )
     {
         Flux<ApiCallRc> flux = Flux.empty();
@@ -316,7 +297,7 @@ public class CtrlBackupQueueInternalCallHandler
                 }
             }
         }
-        catch (AccessDeniedException | InvalidNameException exc)
+        catch (InvalidNameException exc)
         {
             // peerAccessContext comes from stlt which should be privileged
             throw new ImplementationError(exc);
@@ -326,9 +307,9 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> handleS3QueueItem(
         Node node,
-        ExceptionThrowingIterator<QueueItem, AccessDeniedException> nextItem,
+        ExceptionThrowingIterator<QueueItem> nextItem,
         QueueItem current
-    ) throws AccessDeniedException, InvalidNameException, ImplementationError
+    ) throws InvalidNameException, ImplementationError
     {
         SnapshotDefinition prevSnapDfn = current.prevSnapDfn;
         Flux<ApiCallRc> flux = Flux.empty();
@@ -344,12 +325,11 @@ public class CtrlBackupQueueInternalCallHandler
         {
             if (
                 prevSnapDfn.isDeleted() ||
-                    prevSnapDfn.getFlags().isSet(peerAccCtx.get(), SnapshotDefinition.Flags.DELETE) ||
+                    prevSnapDfn.getFlags().isSet(SnapshotDefinition.Flags.DELETE) ||
                     !BackupShippingUtils.hasShippingStatus(
                         prevSnapDfn,
                         current.s3orLinRemote.getName().displayValue,
-                        InternalApiConsts.VALUE_SUCCESS,
-                        peerAccCtx.get()
+                        InternalApiConsts.VALUE_SUCCESS
                     )
             )
             {
@@ -362,10 +342,10 @@ public class CtrlBackupQueueInternalCallHandler
             }
             else
             {
-                Snapshot snap = prevSnapDfn.getSnapshot(peerAccCtx.get(), node.getName());
+                Snapshot snap = prevSnapDfn.getSnapshot(node.getName());
                 needsNewPrefSnapDfn = snap == null ||
                     snap.isDeleted() ||
-                    snap.getFlags().isSet(peerAccCtx.get(), Snapshot.Flags.DELETE);
+                    snap.getFlags().isSet(Snapshot.Flags.DELETE);
             }
         }
         if (needsNewPrefSnapDfn)
@@ -376,15 +356,14 @@ public class CtrlBackupQueueInternalCallHandler
                 true,
                 true
             );
-            if (prevSnapDfn != null && prevSnapDfn.getSnapshot(peerAccCtx.get(), node.getName()) == null)
+            if (prevSnapDfn != null && prevSnapDfn.getSnapshot(node.getName()) == null)
             {
                 // if the current node does not have the new prevSnap, a new node needs to be chosen
                 // as well
                 boolean queueAnyways = !BackupShippingUtils.hasShippingStatus(
                     prevSnapDfn,
                     current.s3orLinRemote.getName().displayValue,
-                    InternalApiConsts.VALUE_SUCCESS,
-                    peerAccCtx.get()
+                    InternalApiConsts.VALUE_SUCCESS
                 );
                 // nodeForShipping will be null if snap gets queued in the method
                 nodeForShipping = backupCrtHandler.getNodeForBackupOrQueue(
@@ -433,15 +412,15 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> handleL2LQueueItem(
         Node node,
-        ExceptionThrowingIterator<QueueItem, AccessDeniedException> nextItem,
+        ExceptionThrowingIterator<QueueItem> nextItem,
         QueueItem current
-    ) throws AccessDeniedException
+    )
     {
         Flux<ApiCallRc> flux;
         Set<String> srcSnapDfnUuids = new HashSet<>();
-        for (SnapshotDefinition snapDfn : current.snapDfn.getResourceDefinition().getSnapshotDfns(sysCtx))
+        for (SnapshotDefinition snapDfn : current.snapDfn.getResourceDefinition().getSnapshotDfns())
         {
-            if (!snapDfn.getAllSnapshots(sysCtx).isEmpty())
+            if (!snapDfn.getAllSnapshots().isEmpty())
             {
                 srcSnapDfnUuids.add(snapDfn.getUuid().toString());
             }
@@ -460,8 +439,7 @@ public class CtrlBackupQueueInternalCallHandler
                     srcSnapDfnUuids,
                     l2lData.getDstNodeName()
                 ),
-                (LinstorRemote) current.s3orLinRemote,
-                sysCtx
+                (LinstorRemote) current.s3orLinRemote
             ).doOnError(IOException.class, exc ->
             {
                 errorReporter.logError(
@@ -487,105 +465,96 @@ public class CtrlBackupQueueInternalCallHandler
 
     private Flux<ApiCallRc> startQueuedL2LShippingInTransaction(
         Node node,
-        ExceptionThrowingIterator<QueueItem, AccessDeniedException> nextItem,
+        ExceptionThrowingIterator<QueueItem> nextItem,
         QueueItem next,
         BackupShippingResponsePrevSnap resp
     ) throws ImplementationError
     {
         Flux<ApiCallRc> ret;
         Node l2lNodeForShipping = null;
-        try
+        if (!resp.canReceive)
         {
-            if (!resp.canReceive)
+            ret = Flux.just(resp.responses);
+        }
+        else
+        {
+            @Nullable final BackupShippingSrcData l2lData = next.l2lData;
+            if (l2lData == null)
             {
-                ret = Flux.just(resp.responses);
+                throw new ImplementationError("The QueueItem is missing its l2lData");
+            }
+            l2lData.setResetData(resp.resetData);
+            l2lData.setDstBaseSnapName(resp.dstBaseSnapName);
+            l2lData.setDstActualNodeName(resp.dstActualNodeName);
+            SnapshotDefinition l2lPrevSnapDfn = backupCrtHandler.getIncrementalBaseL2L(
+                next.snapDfn.getResourceDefinition(),
+                resp.prevSnapUuid,
+                next.s3orLinRemote.getName(),
+                next.prevSnapDfn != null,
+                resp.responses,
+                l2lData.getDstRscName()
+            );
+            boolean queueAnyways = l2lPrevSnapDfn != null && !BackupShippingUtils.hasShippingStatus(
+                l2lPrevSnapDfn,
+                next.s3orLinRemote.getName().displayValue,
+                InternalApiConsts.VALUE_SUCCESS
+            );
+            l2lNodeForShipping = backupCrtHandler.getNodeForBackupOrQueue(
+                next.snapDfn.getResourceDefinition(),
+                l2lPrevSnapDfn,
+                next.snapDfn,
+                next.s3orLinRemote,
+                next.preferredNode,
+                new ApiCallRcImpl(),
+                queueAnyways,
+                l2lData,
+                next.shipExistingSnap,
+                false
+            );
+            if (l2lNodeForShipping != null)
+            {
+                l2lData.setSrcSnapshot(
+                    next.snapDfn.getSnapshot(l2lNodeForShipping.getName())
+                );
+                l2lData.setSrcNodeName(l2lNodeForShipping.getName().displayValue);
+                final Node nodeForEffectivelyFinal = l2lNodeForShipping;
+                ret = backupCrtHandler.startShippingInTransaction(
+                    next.snapDfn,
+                    l2lNodeForShipping,
+                    next.s3orLinRemote,
+                    l2lPrevSnapDfn,
+                    new ApiCallRcImpl(),
+                    next.preferredNode,
+                    l2lData,
+                    next.shipExistingSnap
+                )
+                    .concatWith(
+                        scopeRunner.fluxInTransactionalScope(
+                            "Backup shipping L2L: Create Stlt-Remote",
+                            lockGuardFactory.create()
+                                .read(LockObj.NODES_MAP)
+                                .write(LockObj.RSC_DFN_MAP)
+                                .buildDeferred(),
+                            () -> backupL2LSrcHandler.get()
+                                .createStltRemoteInTransaction(l2lData, nodeForEffectivelyFinal)
+                        )
+                    );
             }
             else
             {
-                @Nullable final BackupShippingSrcData l2lData = next.l2lData;
-                if (l2lData == null)
+                if (!resp.responses.isEmpty())
                 {
-                    throw new ImplementationError("The QueueItem is missing its l2lData");
-                }
-                l2lData.setResetData(resp.resetData);
-                l2lData.setDstBaseSnapName(resp.dstBaseSnapName);
-                l2lData.setDstActualNodeName(resp.dstActualNodeName);
-                SnapshotDefinition l2lPrevSnapDfn = backupCrtHandler.getIncrementalBaseL2L(
-                    next.snapDfn.getResourceDefinition(),
-                    resp.prevSnapUuid,
-                    next.s3orLinRemote.getName(),
-                    next.prevSnapDfn != null,
-                    resp.responses,
-                    l2lData.getDstRscName()
-                );
-                boolean queueAnyways = l2lPrevSnapDfn != null && !BackupShippingUtils.hasShippingStatus(
-                    l2lPrevSnapDfn,
-                    next.s3orLinRemote.getName().displayValue,
-                    InternalApiConsts.VALUE_SUCCESS,
-                    peerAccCtx.get()
-                );
-                l2lNodeForShipping = backupCrtHandler.getNodeForBackupOrQueue(
-                    next.snapDfn.getResourceDefinition(),
-                    l2lPrevSnapDfn,
-                    next.snapDfn,
-                    next.s3orLinRemote,
-                    next.preferredNode,
-                    new ApiCallRcImpl(),
-                    queueAnyways,
-                    l2lData,
-                    next.shipExistingSnap,
-                    false
-                );
-                if (l2lNodeForShipping != null)
-                {
-                    l2lData.setSrcSnapshot(
-                        next.snapDfn.getSnapshot(peerAccCtx.get(), l2lNodeForShipping.getName())
-                    );
-                    l2lData.setSrcNodeName(l2lNodeForShipping.getName().displayValue);
-                    final Node nodeForEffectivelyFinal = l2lNodeForShipping;
-                    ret = backupCrtHandler.startShippingInTransaction(
-                        next.snapDfn,
-                        l2lNodeForShipping,
-                        next.s3orLinRemote,
-                        l2lPrevSnapDfn,
-                        new ApiCallRcImpl(),
-                        next.preferredNode,
-                        l2lData,
-                        next.shipExistingSnap
-                    )
-                        .concatWith(
-                            scopeRunner.fluxInTransactionalScope(
-                                "Backup shipping L2L: Create Stlt-Remote",
-                                lockGuardFactory.create()
-                                    .read(LockObj.NODES_MAP)
-                                    .write(LockObj.RSC_DFN_MAP)
-                                    .buildDeferred(),
-                                () -> backupL2LSrcHandler.get()
-                                    .createStltRemoteInTransaction(l2lData, nodeForEffectivelyFinal)
-                            )
-                        );
+                    ret = Flux.just(resp.responses);
                 }
                 else
                 {
-                    if (!resp.responses.isEmpty())
-                    {
-                        ret = Flux.just(resp.responses);
-                    }
-                    else
-                    {
-                        ret = Flux.empty();
-                    }
+                    ret = Flux.empty();
                 }
             }
-            if (!node.equals(l2lNodeForShipping) && nextItem.hasNext())
-            {
-                ret = ret.concatWith(startQueuedShippings(node, nextItem));
-            }
         }
-        catch (AccessDeniedException exc)
+        if (!node.equals(l2lNodeForShipping) && nextItem.hasNext())
         {
-            // peerAccessContext comes from stlt which should be privileged
-            throw new ImplementationError(exc);
+            ret = ret.concatWith(startQueuedShippings(node, nextItem));
         }
         return ret;
     }
@@ -621,12 +590,11 @@ public class CtrlBackupQueueInternalCallHandler
      * a shipping needs to be started startShippingInTransaction will be called directly.
      */
     private Flux<ApiCallRc> maxConcurrentShippingsChangedForNodeInTransaction(Node node)
-        throws AccessDeniedException
     {
         Flux<ApiCallRc> flux = Flux.empty();
         PriorityProps prioProps = new PriorityProps(
-            node.getProps(peerAccCtx.get()),
-            sysCfgRepo.getCtrlConfForView(peerAccCtx.get())
+            node.getProps(),
+            sysCfgRepo.getCtrlConfForView()
         );
         String maxBackups = prioProps.getProp(
             ApiConsts.KEY_MAX_CONCURRENT_BACKUPS_PER_NODE,
@@ -642,7 +610,7 @@ public class CtrlBackupQueueInternalCallHandler
             {
                 flux = startMultipleQueuedShippings(
                     node,
-                    new IteratorFromBackupNodeQueue(node, backupInfoMgr, peerAccCtx.get())
+                    new IteratorFromBackupNodeQueue(node, backupInfoMgr)
                 );
             }
         }
@@ -655,20 +623,20 @@ public class CtrlBackupQueueInternalCallHandler
      * This method needs to be called in a scope with all the locks needed for starting a shipping, since in case
      * a shipping needs to be started startShippingInTransaction will be called directly.
      */
-    private Flux<ApiCallRc> maxConcurrentShippingsChangedForCtrlInTransaction() throws AccessDeniedException
+    private Flux<ApiCallRc> maxConcurrentShippingsChangedForCtrlInTransaction()
     {
         Flux<ApiCallRc> flux = Flux.empty();
         AccessContext accCtx = peerAccCtx.get();
-        Collection<Node> nodes = nodeRepo.getMapForView(accCtx).values();
+        Collection<Node> nodes = nodeRepo.getMapForView().values();
         List<Node> nodesToClear = new ArrayList<>();
         List<Node> nodesToStart = new ArrayList<>();
         int toClearCt = 0;
         for (Node node : nodes)
         {
-            ReadOnlyProps nodeProps = node.getProps(accCtx);
+            ReadOnlyProps nodeProps = node.getProps();
             PriorityProps prioProps = new PriorityProps(
                 nodeProps,
-                sysCfgRepo.getCtrlConfForView(accCtx)
+                sysCfgRepo.getCtrlConfForView()
             );
             String maxBackups = prioProps.getProp(
                 ApiConsts.KEY_MAX_CONCURRENT_BACKUPS_PER_NODE,
@@ -722,7 +690,7 @@ public class CtrlBackupQueueInternalCallHandler
                     flux = flux.concatWith(
                         startMultipleQueuedShippings(
                             node,
-                            new IteratorFromBackupNodeQueue(node, backupInfoMgr, accCtx)
+                            new IteratorFromBackupNodeQueue(node, backupInfoMgr)
                         )
                     );
                 }
@@ -792,7 +760,7 @@ public class CtrlBackupQueueInternalCallHandler
                 Boolean access = cachedAccessAllowed.get(node);
                 if (access == null)
                 {
-                    access = node.getObjProt().queryAccess(peerAccCtx.get()) != null;
+                    access = node.getObjProt().queryAccess() != null;
                     cachedAccessAllowed.put(node, access);
                 }
                 if (access)
@@ -817,7 +785,7 @@ public class CtrlBackupQueueInternalCallHandler
     {
         BackupSnapQueuesPojo ret = null;
         // not null means at least VIEW access, snapDfn gets checked in queueItemToPojo
-        if (matches && item.s3orLinRemote.getObjProt().queryAccess(peerAccCtx.get()) != null)
+        if (matches && item.s3orLinRemote.getObjProt().queryAccess() != null)
         {
             List<BackupNodeQueuesPojo> nodes = new ArrayList<>();
             for (String node : queuedOnNodes)
@@ -897,7 +865,7 @@ public class CtrlBackupQueueInternalCallHandler
             Boolean access = cachedAccessAllowed.get(node);
             if (access == null)
             {
-                access = node.getObjProt().queryAccess(peerAccCtx.get()) != null;
+                access = node.getObjProt().queryAccess() != null;
                 cachedAccessAllowed.put(node, access);
             }
             if (access)
@@ -918,7 +886,7 @@ public class CtrlBackupQueueInternalCallHandler
             for (QueueItem item : queueItems)
             {
                 // not null means at least VIEW access
-                if (item.s3orLinRemote.getObjProt().queryAccess(peerAccCtx.get()) != null)
+                if (item.s3orLinRemote.getObjProt().queryAccess() != null)
                 {
                     BackupSnapQueuesPojo queueItemPojo = queueItemToPojo(item, null);
                     // if no access to snapDfn, queueItemPojo is null
@@ -938,7 +906,7 @@ public class CtrlBackupQueueInternalCallHandler
         String startTimeStr = null;
         try
         {
-            startTimeStr = item.snapDfn.getSnapDfnProps(peerAccCtx.get())
+            startTimeStr = item.snapDfn.getSnapDfnProps()
                 .getProp(
                     InternalApiConsts.KEY_BACKUP_START_TIMESTAMP,
                     BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + item.s3orLinRemote.getName().displayValue
@@ -989,33 +957,31 @@ public class CtrlBackupQueueInternalCallHandler
     }
 
     public static class IteratorFromBackupNodeQueue
-        implements ExceptionThrowingIterator<QueueItem, AccessDeniedException>
+        implements ExceptionThrowingIterator<QueueItem>
     {
         private Node node;
         private final BackupInfoManager backupInfoMgr;
-        private final AccessContext accCtx;
 
-        public IteratorFromBackupNodeQueue(Node nodeRef, BackupInfoManager backupInfoMgrRef, AccessContext accCtxRef)
+        public IteratorFromBackupNodeQueue(Node nodeRef, BackupInfoManager backupInfoMgrRef)
         {
             node = nodeRef;
             backupInfoMgr = backupInfoMgrRef;
-            accCtx = accCtxRef;
         }
 
         @Override
-        public boolean hasNext() throws AccessDeniedException
+        public boolean hasNext()
         {
-            return backupInfoMgr.getNextFromQueue(accCtx, node, false) != null;
+            return backupInfoMgr.getNextFromQueue(node, false) != null;
         }
 
         @Override
-        public @Nullable QueueItem next() throws AccessDeniedException
+        public @Nullable QueueItem next()
         {
-            return backupInfoMgr.getNextFromQueue(accCtx, node, true);
+            return backupInfoMgr.getNextFromQueue(node, true);
         }
     }
 
-    private class IteratorFromSingleItem implements ExceptionThrowingIterator<QueueItem, AccessDeniedException>
+    private class IteratorFromSingleItem implements ExceptionThrowingIterator<QueueItem>
     {
         private @Nullable QueueItem item;
 
@@ -1031,7 +997,7 @@ public class CtrlBackupQueueInternalCallHandler
         }
 
         @Override
-        public @Nullable QueueItem next() throws AccessDeniedException
+        public @Nullable QueueItem next()
         {
             @Nullable QueueItem ret = item;
             if (ret != null)

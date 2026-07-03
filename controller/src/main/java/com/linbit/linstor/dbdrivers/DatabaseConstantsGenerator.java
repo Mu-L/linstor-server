@@ -771,7 +771,7 @@ public final class DatabaseConstantsGenerator
             try (IndentLevel genericCreateMethodParams = new IndentLevel("", "", false, false))
             {
                 appendLine("DatabaseTable table,");
-                appendLine("Map<Column, ExceptionThrowingFunction<DATA, Object, AccessDeniedException>> setters,");
+                appendLine("Map<Column, ExceptionThrowingFunction<DATA, Object>> setters,");
                 appendLine("DATA data");
             }
             appendLine(")");

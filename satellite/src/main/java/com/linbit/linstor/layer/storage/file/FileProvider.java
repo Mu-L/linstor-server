@@ -28,7 +28,6 @@ import com.linbit.linstor.layer.storage.utils.StltProviderUtils;
 import com.linbit.linstor.layer.storage.utils.StorageConfigReader;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.AbsStorageVlmData;
@@ -105,7 +104,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     protected void updateStates(List<FileData<Resource>> fileDataList, List<FileData<Snapshot>> snapshots)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         List<FileData<?>> combinedList = new ArrayList<>();
         combinedList.addAll(fileDataList);
@@ -148,11 +147,11 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
             try
             {
                 storDirStr = DeviceLayerUtils.getNamespaceStorDriver(
-                    fileData.getStorPool().getProps(storDriverAccCtx)
+                    fileData.getStorPool().getProps()
                 )
                     .getProp(StorageConstants.CONFIG_FILE_DIRECTORY_KEY);
             }
-            catch (AccessDeniedException | InvalidKeyException exc)
+            catch (InvalidKeyException exc)
             {
                 throw new ImplementationError(exc);
             }
@@ -219,7 +218,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     protected void createLvImpl(FileData<Resource> fileData)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         Path backingFile = fileData.getStorageDirectory().resolve(fileData.getIdentifier());
         FileCommands.createFat(
@@ -246,7 +245,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     protected void resizeLvImpl(FileData<Resource> fileData)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         // no special command for resize, just "re-allocate" to the needed size
         FileCommands.createFat(
@@ -323,14 +322,14 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     protected void deactivateLvImpl(FileData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // noop, not supported
     }
 
     @Override
     protected void createSnapshot(FileData<Resource> fileData, FileData<Snapshot> snapVlmRef, boolean readOnly)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         Path storageDirectory = fileData.getStorageDirectory();
         FileCommands.createSnapshot(
@@ -342,7 +341,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     protected void restoreSnapshot(FileData<Snapshot> sourceSnapVlmDataRef, FileData<Resource> fileDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
 
         Path storageDirectory = fileDataRef.getStorageDirectory();
@@ -357,7 +356,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     protected void deleteSnapshotImpl(FileData<Snapshot> snapVlmRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         Path storageDirectory = getStorageDirectory(snapVlmRef.getStorPool());
         String asSnapLvIdentifier = asSnapLvIdentifier(snapVlmRef);
@@ -372,14 +371,14 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     protected boolean snapshotExists(FileData<Snapshot> snapVlmRef, boolean ignoredForTakeSnapshorRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         return Files.exists(asFullQualifiedPath(snapVlmRef));
     }
 
     @Override
     protected void rollbackImpl(FileData<Resource> fileData, FileData<Snapshot> rollbackToSnapVlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         Path storageDirectory = fileData.getStorageDirectory();
         Path snapPath = asFullQualifiedPath(rollbackToSnapVlmDataRef);
@@ -441,7 +440,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
         List<FileData<Resource>> fileDataList,
         List<FileData<Snapshot>> snapVlmDataList
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // It is possible that the backing file still exists for a logical volume, but the loop-device does not
 
@@ -545,7 +544,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
         try
         {
             String dirStr = DeviceLayerUtils.getNamespaceStorDriver(
-                storPool.getReadOnlyProps(storDriverAccCtx)
+                storPool.getReadOnlyProps()
             )
                 .getProp(StorageConstants.CONFIG_FILE_DIRECTORY_KEY);
             if (dirStr != null)
@@ -557,7 +556,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
                 throw new StorageException("Unset storage directory for " + storPool);
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -571,7 +570,7 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException, AccessDeniedException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException
     {
         Path dir = getStorageDirectory(storPool);
         long capacity = FileProviderUtils.getPoolCapacity(extCmdFactory.create(), dir);
@@ -587,10 +586,10 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     public @Nullable LocalPropsChangePojo checkConfig(StorPoolInfo storPool)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         ReadOnlyProps props = DeviceLayerUtils.getNamespaceStorDriver(
-            storPool.getReadOnlyProps(storDriverAccCtx)
+            storPool.getReadOnlyProps()
         );
         StorageConfigReader.checkFileStorageDirectoryEntry(props);
 
@@ -599,10 +598,10 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
 
     @Override
     public @Nullable LocalPropsChangePojo update(StorPool storPool)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         ReadOnlyProps props = DeviceLayerUtils.getNamespaceStorDriver(
-            storPool.getProps(storDriverAccCtx)
+            storPool.getProps()
         );
         String dirStr = props.getProp(StorageConstants.CONFIG_FILE_DIRECTORY_KEY);
         Path storageDirectory = Paths.get(dirStr);
@@ -620,10 +619,10 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
     // ignoring return values because whether or not a file already existed before the calls is unimportant
     @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     private void updateSnapshotCapabilitiesIfNeeded(StorPool storPool, ReadOnlyProps props)
-        throws StorageException, ImplementationError, TransactionException, AccessDeniedException
+        throws StorageException, ImplementationError, TransactionException
     {
         // try to create a dummy snapshot to verify if we can
-        if (!storPool.isSnapshotSupportedInitialized(storDriverAccCtx))
+        if (!storPool.isSnapshotSupportedInitialized())
         {
             try
             {
@@ -648,11 +647,11 @@ public class FileProvider extends AbsStorageProvider<FileInfo, FileData<Resource
                         dummyVlmPath,
                         dummyTargetPath
                     );
-                    storPool.setSupportsSnapshot(storDriverAccCtx, true);
+                    storPool.setSupportsSnapshot(true);
                 }
                 catch (StorageException ignored)
                 {
-                    storPool.setSupportsSnapshot(storDriverAccCtx, false);
+                    storPool.setSupportsSnapshot(false);
                 }
                 finally
                 {

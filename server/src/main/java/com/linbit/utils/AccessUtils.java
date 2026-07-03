@@ -1,28 +1,20 @@
 package com.linbit.utils;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.security.AccessDeniedException;
 
 public class AccessUtils
 {
-    public static <T> T execPrivileged(ExceptionThrowingSupplier<T, AccessDeniedException> supplier)
+    public static <T> T execPrivileged(ExceptionThrowingSupplier<T> supplier)
         throws ImplementationError
     {
         return execPrivileged(supplier, "Privileged context has not enough privileges");
     }
 
-    public static <T> T execPrivileged(ExceptionThrowingSupplier<T, AccessDeniedException> supplier, String excMessage)
+    public static <T> T execPrivileged(ExceptionThrowingSupplier<T> supplier, String excMessage)
         throws ImplementationError
     {
         T genericReturnVariableNameLongerThanTwoCharacters;
-        try
-        {
-            genericReturnVariableNameLongerThanTwoCharacters = supplier.supply();
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(excMessage);
-        }
+        genericReturnVariableNameLongerThanTwoCharacters = supplier.supply();
         return genericReturnVariableNameLongerThanTwoCharacters;
     }
 
@@ -35,14 +27,7 @@ public class AccessUtils
     public static void execPrivileged(ExceptionThrowingRunnable<AccessDeniedException> runner, String excMessage)
         throws ImplementationError
     {
-        try
-        {
-            runner.run();
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ImplementationError(excMessage);
-        }
+        runner.run();
     }
 
     private AccessUtils()

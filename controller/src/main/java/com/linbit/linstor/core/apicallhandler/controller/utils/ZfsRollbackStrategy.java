@@ -6,8 +6,6 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 public enum ZfsRollbackStrategy
 {
@@ -22,17 +20,16 @@ public enum ZfsRollbackStrategy
     public static ZfsRollbackStrategy getStrat(
         @Nullable String rollbackStratFromClientRef,
         ResourceDefinition rscDfnRef,
-        ReadOnlyProps ctrlPropsRef,
-        AccessContext accCtxRef
+        ReadOnlyProps ctrlPropsRef
     )
-        throws InvalidKeyException, AccessDeniedException
+        throws InvalidKeyException
     {
         return parseStrat(
             rollbackStratFromClientRef != null ?
                 rollbackStratFromClientRef :
                 new PriorityProps(
-                    rscDfnRef.getProps(accCtxRef),
-                    rscDfnRef.getResourceGroup().getProps(accCtxRef),
+                    rscDfnRef.getProps(),
+                    rscDfnRef.getResourceGroup().getProps(),
                     ctrlPropsRef
                 ).getProp(FULL_KEY_USE_ZFS_ROLLBACK_PROP)
         );

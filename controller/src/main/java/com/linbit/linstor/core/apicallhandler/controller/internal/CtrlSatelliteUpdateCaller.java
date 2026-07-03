@@ -2,7 +2,6 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -28,8 +27,6 @@ import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerNotConnectedException;
 import com.linbit.linstor.proto.common.ApiCallResponseOuterClass.ApiCallResponse;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.tasks.RetryResourcesTask;
 
@@ -60,7 +57,6 @@ import reactor.util.function.Tuples;
 @Singleton
 public class CtrlSatelliteUpdateCaller
 {
-    private final AccessContext apiCtx;
     private final CtrlStltSerializer internalComSerializer;
     private final Provider<RetryResourcesTask> retryResourceTaskProvider;
     private final SatelliteConnectorImpl stltConnector;
@@ -69,7 +65,6 @@ public class CtrlSatelliteUpdateCaller
 
     @Inject
     private CtrlSatelliteUpdateCaller(
-        @ApiContext AccessContext apiCtxRef,
         CtrlStltSerializer serializerRef,
         Provider<RetryResourcesTask> retryResourceTaskProviderRef,
         SatelliteConnectorImpl stltConnectorRef,
@@ -77,7 +72,6 @@ public class CtrlSatelliteUpdateCaller
         SatelliteRetcodeDispatcher retcodeDispatcherRef
     )
     {
-        apiCtx = apiCtxRef;
         internalComSerializer = serializerRef;
         retryResourceTaskProvider = retryResourceTaskProviderRef;
         stltConnector = stltConnectorRef;
@@ -100,45 +94,36 @@ public class CtrlSatelliteUpdateCaller
     {
         List<Tuple2<NodeName, Flux<ApiCallRc>>> responses = new ArrayList<>();
 
-        try
+        byte[] changedMessage = internalComSerializer
+            .headerlessBuilder()
+            .changedNode(
+                uuid,
+                nodeName.displayValue
+            )
+            .build();
+        for (Node nodeToContact : nodesToContact)
         {
-            byte[] changedMessage = internalComSerializer
-                .headerlessBuilder()
-                .changedNode(
-                    uuid,
-                    nodeName.displayValue
-                )
-                .build();
-            for (Node nodeToContact : nodesToContact)
+            Peer peer = nodeToContact.getPeer();
+            if (peer != null && peer.getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
             {
-                Peer peer = nodeToContact.getPeer(apiCtx);
-                if (peer != null && peer.getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
-                {
-                    Flux<ApiCallRc> response = updateSatellite(nodeToContact, changedMessage);
+                Flux<ApiCallRc> response = updateSatellite(nodeToContact, changedMessage);
 
-                    responses.add(Tuples.of(nodeToContact.getName(), response));
-                }
+                responses.add(Tuples.of(nodeToContact.getName(), response));
             }
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
         }
 
         return Flux.fromIterable(responses);
     }
 
     private Flux<ApiCallRc> updateSatellite(Node satelliteToUpdate, byte[] changedMessage)
-        throws AccessDeniedException
     {
         return updateSatellite(satelliteToUpdate, InternalApiConsts.API_CHANGED_NODE, changedMessage);
     }
 
     private Flux<ApiCallRc> updateSatellite(Node satelliteToUpdate, String apiCallName, byte[] changedMessage)
-        throws AccessDeniedException
     {
         Flux<ApiCallRc> response;
-        Peer peer = satelliteToUpdate.getPeer(apiCtx);
+        Peer peer = satelliteToUpdate.getPeer();
 
         if (peer.isOnline() && peer.hasFullSyncFailed())
         {
@@ -213,24 +198,17 @@ public class CtrlSatelliteUpdateCaller
     {
         List<Tuple2<NodeName, Flux<ApiCallRc>>> responses = new ArrayList<>();
 
-        try
+        // notify all peers that one of their resources has changed
+        Iterator<Resource> rscIterator = rscDfn.iterateResource();
+        while (rscIterator.hasNext())
         {
-            // notify all peers that one of their resources has changed
-            Iterator<Resource> rscIterator = rscDfn.iterateResource(apiCtx);
-            while (rscIterator.hasNext())
+            Resource currentRsc = rscIterator.next();
+            if (!currentRsc.getNode().isEvicted())
             {
-                Resource currentRsc = rscIterator.next();
-                if (!currentRsc.getNode().isEvicted(apiCtx))
-                {
-                    Flux<ApiCallRc> response = updateResource(currentRsc, notConnectedHandler, nextStep);
+                Flux<ApiCallRc> response = updateResource(currentRsc, notConnectedHandler, nextStep);
 
-                    responses.add(Tuples.of(currentRsc.getNode().getName(), response));
-                }
+                responses.add(Tuples.of(currentRsc.getNode().getName(), response));
             }
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
         }
 
         return Flux.fromIterable(responses);
@@ -242,24 +220,17 @@ public class CtrlSatelliteUpdateCaller
         Set<Node> nodesToUpdate = new HashSet<>();
         nodesToUpdate.add(storPool.getNode());
 
-        try
+        for (VlmProviderObject<Resource> vlmProviderObject : storPool.getVolumes())
         {
-            for (VlmProviderObject<Resource> vlmProviderObject : storPool.getVolumes(apiCtx))
+            ResourceDefinition rscDfn = vlmProviderObject.getRscLayerObject()
+                .getAbsResource()
+                .getResourceDefinition();
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
+            while (rscIt.hasNext())
             {
-                ResourceDefinition rscDfn = vlmProviderObject.getRscLayerObject()
-                    .getAbsResource()
-                    .getResourceDefinition();
-                Iterator<Resource> rscIt = rscDfn.iterateResource(apiCtx);
-                while (rscIt.hasNext())
-                {
-                    Resource rsc = rscIt.next();
-                    nodesToUpdate.add(rsc.getNode());
-                }
+                Resource rsc = rscIt.next();
+                nodesToUpdate.add(rsc.getNode());
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
 
         return updateSatellite(storPool, nodesToUpdate);
@@ -295,39 +266,32 @@ public class CtrlSatelliteUpdateCaller
     {
         Flux<ApiCallRc> response;
 
-        try
+        Peer peerToUpdate = nodeToUpdate.getPeer();
+
+        if (peerToUpdate.isOnline() && peerToUpdate.hasFullSyncFailed())
         {
-            Peer peerToUpdate = nodeToUpdate.getPeer(apiCtx);
-
-            if (peerToUpdate.isOnline() && peerToUpdate.hasFullSyncFailed())
-            {
-                response = Flux.error(new ApiRcException(ResponseUtils.makeFullSyncFailedResponse(peerToUpdate)));
-            }
-            else
-            {
-                response = peerToUpdate
-                    .apiCall(
-                        InternalApiConsts.API_CHANGED_STOR_POOL,
-                        internalComSerializer
-                            .headerlessBuilder()
-                            .changedStorPool(
-                                storPoolUuid,
-                                nodeName.displayValue,
-                                storPoolName.displayValue
-                            )
-                            .build()
-                    )
-
-                    .map(inputStream -> deserializeApiCallRc(nodeName, inputStream))
-
-                    .onErrorMap(PeerNotConnectedException.class, ignored ->
-                        new ApiRcException(ResponseUtils.makeNotConnectedWarning(nodeName))
-                    );
-            }
+            response = Flux.error(new ApiRcException(ResponseUtils.makeFullSyncFailedResponse(peerToUpdate)));
         }
-        catch (AccessDeniedException implError)
+        else
         {
-            throw new ImplementationError(implError);
+            response = peerToUpdate
+                .apiCall(
+                    InternalApiConsts.API_CHANGED_STOR_POOL,
+                    internalComSerializer
+                        .headerlessBuilder()
+                        .changedStorPool(
+                            storPoolUuid,
+                            nodeName.displayValue,
+                            storPoolName.displayValue
+                        )
+                        .build()
+                )
+
+                .map(inputStream -> deserializeApiCallRc(nodeName, inputStream))
+
+                .onErrorMap(PeerNotConnectedException.class, ignored ->
+                    new ApiRcException(ResponseUtils.makeNotConnectedWarning(nodeName))
+                );
         }
 
         return response;
@@ -340,19 +304,12 @@ public class CtrlSatelliteUpdateCaller
     {
         List<Tuple2<NodeName, Flux<ApiCallRc>>> responses = new ArrayList<>();
 
-        try
+        // notify all peers that a snapshot has changed
+        for (Snapshot snapshot : snapshotDfn.getAllSnapshots())
         {
-            // notify all peers that a snapshot has changed
-            for (Snapshot snapshot : snapshotDfn.getAllSnapshots(apiCtx))
-            {
-                Flux<ApiCallRc> response = updateSnapshot(snapshot, notConnectedHandler);
+            Flux<ApiCallRc> response = updateSnapshot(snapshot, notConnectedHandler);
 
-                responses.add(Tuples.of(snapshot.getNodeName(), response));
-            }
-        }
-        catch (AccessDeniedException implError)
-        {
-            throw new ImplementationError(implError);
+            responses.add(Tuples.of(snapshot.getNodeName(), response));
         }
 
         return Flux.fromIterable(responses);
@@ -363,13 +320,12 @@ public class CtrlSatelliteUpdateCaller
         NotConnectedHandler notConnectedHandler,
         @Nullable Publisher<ApiCallRc> nextStepRef
     )
-        throws AccessDeniedException
     {
         Node node = currentRsc.getNode();
         NodeName nodeName = node.getName();
 
         Flux<ApiCallRc> response;
-        Peer currentPeer = node.getPeer(apiCtx);
+        Peer currentPeer = node.getPeer();
 
         if (currentPeer.isOnline() && currentPeer.hasFullSyncFailed())
         {
@@ -427,13 +383,12 @@ public class CtrlSatelliteUpdateCaller
     }
 
     private Flux<ApiCallRc> updateSnapshot(Snapshot snapshot, NotConnectedHandler notConnectedHandler)
-        throws AccessDeniedException
     {
         Node node = snapshot.getNode();
         NodeName nodeName = node.getName();
 
         Flux<ApiCallRc> response;
-        Peer currentPeer = node.getPeer(apiCtx);
+        Peer currentPeer = node.getPeer();
 
         if (currentPeer == null)
         {
@@ -554,13 +509,13 @@ public class CtrlSatelliteUpdateCaller
         )));
     }
 
-    public Flux<Boolean> attemptConnecting(AccessContext accCtx, Node nodeRef, long timeoutMillis)
+    public Flux<Boolean> attemptConnecting(Node nodeRef, long timeoutMillis)
     {
         Object key = new Object();
         return Flux.<Boolean>create(fluxSink ->
             {
                 nodeRef.registerInitialConnectSink(key, fluxSink);
-                stltConnector.startConnecting(nodeRef, accCtx, false);
+                stltConnector.startConnecting(nodeRef, false);
             }
         )
             .timeout(
@@ -608,27 +563,20 @@ public class CtrlSatelliteUpdateCaller
     public Flux<Tuple2<NodeName, Flux<ApiCallRc>>> updateAllSatellites(String apiChangedNodeRef, byte[] message)
     {
         List<Tuple2<NodeName, Flux<ApiCallRc>>> responses = new ArrayList<>();
-        try
+        for (Node nodeToContact : nodeRepo.getMapForView().values())
         {
-            for (Node nodeToContact : nodeRepo.getMapForView(apiCtx).values())
+            Peer satellitePeer = nodeToContact.getPeer();
+
+            if (satellitePeer.isOnline() && !satellitePeer.hasFullSyncFailed())
             {
-                Peer satellitePeer = nodeToContact.getPeer(apiCtx);
+                Flux<ApiCallRc> response = updateSatellite(
+                    nodeToContact,
+                    apiChangedNodeRef,
+                    message
+                );
 
-                if (satellitePeer.isOnline() && !satellitePeer.hasFullSyncFailed())
-                {
-                    Flux<ApiCallRc> response = updateSatellite(
-                        nodeToContact,
-                        apiChangedNodeRef,
-                        message
-                    );
-
-                    responses.add(Tuples.of(nodeToContact.getName(), response));
-                }
+                responses.add(Tuples.of(nodeToContact.getName(), response));
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         return Flux.fromIterable(responses);
     }
@@ -649,18 +597,11 @@ public class CtrlSatelliteUpdateCaller
         NotConnectedHandler notConnectedErrorRef
     )
     {
-        try
-        {
-            return updateSatellites(
-                atomicUpdateDataRef.getInvolvedOnlineNodes(apiCtx),
-                atomicUpdateDataRef,
-                notConnectedErrorRef
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return updateSatellites(
+            atomicUpdateDataRef.getInvolvedOnlineNodes(),
+            atomicUpdateDataRef,
+            notConnectedErrorRef
+        );
     }
 
     /**
@@ -679,32 +620,25 @@ public class CtrlSatelliteUpdateCaller
             .changedData(atomicUpdateDataRef)
             .build();
         List<Tuple2<NodeName, Flux<ApiCallRc>>> responses = new ArrayList<>();
-        try
+        for (Node node : nodesRef)
         {
-            for (Node node : nodesRef)
+            Peer peer = node.getPeer();
+            if (peer != null && peer.getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
             {
-                Peer peer = node.getPeer(apiCtx);
-                if (peer != null && peer.getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
-                {
-                    NodeName nodeName = node.getName();
+                NodeName nodeName = node.getName();
 
-                    Flux<ApiCallRc> response = updateSatellite(
-                        node,
-                        InternalApiConsts.API_CHANGED_DATA,
-                        changedMessage
-                    ).onErrorResume(
-                        PeerNotConnectedException.class,
-                        ignored -> notConnectedHandler.handleNotConnected(nodeName)
-                    );
-                    // TODO we should also consider adding a retryTask for atomic updates
+                Flux<ApiCallRc> response = updateSatellite(
+                    node,
+                    InternalApiConsts.API_CHANGED_DATA,
+                    changedMessage
+                ).onErrorResume(
+                    PeerNotConnectedException.class,
+                    ignored -> notConnectedHandler.handleNotConnected(nodeName)
+                );
+                // TODO we should also consider adding a retryTask for atomic updates
 
-                    responses.add(Tuples.of(nodeName, response));
-                }
+                responses.add(Tuples.of(nodeName, response));
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
         }
         return Flux.fromIterable(responses);
     }

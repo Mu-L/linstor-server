@@ -4,7 +4,6 @@ import com.linbit.InvalidIpAddressException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceGroupName;
 import com.linbit.linstor.core.identifier.ResourceName;
@@ -22,9 +21,6 @@ import com.linbit.linstor.dbdrivers.interfaces.updater.CollectionDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsPersistence;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
@@ -70,7 +66,6 @@ public final class ResourceDefinitionDbDriver
 
     @Inject
     public ResourceDefinitionDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         Provider<TransactionMgr> transMgrProviderRef,
@@ -79,7 +74,7 @@ public final class ResourceDefinitionDbDriver
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.RESOURCE_DEFINITIONS, dbEngineRef, objProtFactoryRef);
+        super(errorReporterRef, GeneratedDatabaseTables.RESOURCE_DEFINITIONS, dbEngineRef, objProtFactoryRef);
         transMgrProvider = transMgrProviderRef;
         propsContainerFactory = propsContainerFactoryRef;
         transObjFactory = transObjFactoryRef;
@@ -87,9 +82,9 @@ public final class ResourceDefinitionDbDriver
         setColumnSetter(UUID, rscDfn -> rscDfn.getUuid().toString());
         setColumnSetter(RESOURCE_NAME, rscDfn -> rscDfn.getName().value);
         setColumnSetter(RESOURCE_DSP_NAME, rscDfn -> rscDfn.getName().displayValue);
-        setColumnSetter(RESOURCE_FLAGS, rscDfn -> rscDfn.getFlags().getFlagsBits(dbCtx));
+        setColumnSetter(RESOURCE_FLAGS, rscDfn -> rscDfn.getFlags().getFlagsBits());
         setColumnSetter(
-            LAYER_STACK, rscDfn -> toString(StringUtils.asStrList(rscDfn.getLayerStack(dbCtxRef)))
+            LAYER_STACK, rscDfn -> toString(StringUtils.asStrList(rscDfn.getLayerStack()))
         );
         setColumnSetter(RESOURCE_GROUP_NAME, rscDfn -> rscDfn.getResourceGroup().getName().value);
         setColumnSetter(SNAPSHOT_NAME, ignored -> DFLT_SNAP_NAME_FOR_RSC);

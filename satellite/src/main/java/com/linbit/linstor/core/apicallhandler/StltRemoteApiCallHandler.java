@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.api.pojo.EbsRemotePojo;
 import com.linbit.linstor.api.pojo.S3RemotePojo;
 import com.linbit.linstor.api.pojo.StltRemotePojo;
@@ -20,8 +19,6 @@ import com.linbit.linstor.core.objects.remotes.S3Remote;
 import com.linbit.linstor.core.objects.remotes.StltRemote;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
 import javax.inject.Inject;
@@ -34,7 +31,6 @@ import java.net.URL;
 public class StltRemoteApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final EbsRemoteSatelliteFactory ebsRemoteFactory;
     private final S3RemoteSatelliteFactory s3remoteFactory;
     private final StltRemoteSatelliteFactory stltRemoteFactory;
@@ -46,7 +42,6 @@ public class StltRemoteApiCallHandler
     @Inject
     StltRemoteApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         DeviceManager deviceManagerRef,
         CoreModule.RemoteMap remoteMapRef,
         S3RemoteSatelliteFactory s3remoteFactoryRef,
@@ -57,7 +52,6 @@ public class StltRemoteApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         deviceManager = deviceManagerRef;
         s3remoteFactory = s3remoteFactoryRef;
         ebsRemoteFactory = ebsRemoteFactoryRef;
@@ -73,7 +67,6 @@ public class StltRemoteApiCallHandler
         try
         {
             S3Remote localS3Remote = s3remoteFactory.getInstanceSatellite(
-                apiCtx,
                 s3remotePojo.getUuid(),
                 LinstorParsingUtils.asRemoteName(s3remotePojo.getRemoteName()),
                 s3remotePojo.getFlags(),
@@ -84,14 +77,14 @@ public class StltRemoteApiCallHandler
                 s3remotePojo.getSecretKey()
             );
 
-            localS3Remote.applyApiData(apiCtx, s3remotePojo);
+            localS3Remote.applyApiData(s3remotePojo);
 
             RemoteName remoteName = localS3Remote.getName();
-            if (localS3Remote.getFlags().isSet(apiCtx, StltRemote.Flags.DELETE))
+            if (localS3Remote.getFlags().isSet(StltRemote.Flags.DELETE))
             {
                 errorReporter.logTrace("S3Remote marked for deletion. Deleting. %s", remoteName);
                 remoteMap.remove(remoteName);
-                localS3Remote.delete(apiCtx);
+                localS3Remote.delete();
             }
             transMgrProvider.get().commit();
 
@@ -111,7 +104,6 @@ public class StltRemoteApiCallHandler
         try
         {
             EbsRemote localEbsRemote = ebsRemoteFactory.getInstanceSatellite(
-                apiCtx,
                 ebsRemotePojo.getUuid(),
                 new RemoteName(ebsRemotePojo.getRemoteName(), true),
                 ebsRemotePojo.getFlags(),
@@ -122,14 +114,14 @@ public class StltRemoteApiCallHandler
                 ebsRemotePojo.getSecretKey()
             );
 
-            localEbsRemote.applyApiData(apiCtx, ebsRemotePojo);
+            localEbsRemote.applyApiData(ebsRemotePojo);
 
             RemoteName remoteName = localEbsRemote.getName();
-            if (localEbsRemote.getFlags().isSet(apiCtx, StltRemote.Flags.DELETE))
+            if (localEbsRemote.getFlags().isSet(StltRemote.Flags.DELETE))
             {
                 errorReporter.logTrace("EbsRemote marked for deletion. Deleting. %s", remoteName);
                 remoteMap.remove(remoteName);
-                localEbsRemote.delete(apiCtx);
+                localEbsRemote.delete();
             }
             transMgrProvider.get().commit();
 
@@ -153,12 +145,12 @@ public class StltRemoteApiCallHandler
             if (remote != null)
             {
                 errorReporter.logTrace("Cleaning up deleted Remote: %s", remoteNameStrRef);
-                remote.delete(apiCtx);
+                remote.delete();
                 remoteMap.remove(remoteName);
                 transMgrProvider.get().commit();
             }
         }
-        catch (InvalidNameException | AccessDeniedException | DatabaseException exc)
+        catch (InvalidNameException | DatabaseException exc)
         {
             errorReporter.reportError(new ImplementationError(exc));
         }
@@ -169,7 +161,6 @@ public class StltRemoteApiCallHandler
         try
         {
             StltRemote localStltRemote = stltRemoteFactory.getInstanceSatellite(
-                apiCtx,
                 stltRemotePojo.getUuid(),
                 new RemoteName(stltRemotePojo.getRemoteName(), true),
                 new RemoteName(stltRemotePojo.getLinRemoteName()),
@@ -180,14 +171,14 @@ public class StltRemoteApiCallHandler
                 stltRemotePojo.useZstd()
             );
 
-            localStltRemote.applyApiData(apiCtx, stltRemotePojo);
+            localStltRemote.applyApiData(stltRemotePojo);
 
             RemoteName remoteName = localStltRemote.getName();
-            if (localStltRemote.getFlags().isSet(apiCtx, StltRemote.Flags.DELETE))
+            if (localStltRemote.getFlags().isSet(StltRemote.Flags.DELETE))
             {
                 errorReporter.logTrace("StltRemote marked for deletion. Deleting. %s", remoteName);
                 remoteMap.remove(remoteName);
-                localStltRemote.delete(apiCtx);
+                localStltRemote.delete();
             }
 
             transMgrProvider.get().commit();
@@ -212,12 +203,12 @@ public class StltRemoteApiCallHandler
             if (remote != null)
             {
                 errorReporter.logTrace("Cleaning up deleted StltRemote: %s", stltRemotePojoRef);
-                remote.delete(apiCtx);
+                remote.delete();
                 remoteMap.remove(remoteName);
                 transMgrProvider.get().commit();
             }
         }
-        catch (InvalidNameException | AccessDeniedException | DatabaseException exc)
+        catch (InvalidNameException | DatabaseException exc)
         {
             errorReporter.reportError(new ImplementationError(exc));
         }

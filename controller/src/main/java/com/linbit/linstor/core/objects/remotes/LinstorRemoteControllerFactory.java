@@ -5,10 +5,6 @@ import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.repository.RemoteRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.LinstorRemoteDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -46,22 +42,20 @@ public class LinstorRemoteControllerFactory
     }
 
     public LinstorRemote create(
-        AccessContext accCtxRef,
         RemoteName nameRef,
         URL url,
         @Nullable byte[] encryptedPassphraseRef,
         @Nullable UUID remoteClusterId
     )
-        throws AccessDeniedException, LinStorDataAlreadyExistsException, DatabaseException
+        throws LinStorDataAlreadyExistsException, DatabaseException
     {
-        if (remoteRepo.get(accCtxRef, nameRef) != null)
+        if (remoteRepo.get(nameRef) != null)
         {
             throw new LinStorDataAlreadyExistsException("This remote name is already registered");
         }
 
         LinstorRemote remote = new LinstorRemote(
             objProtFactory.getInstance(
-                accCtxRef,
                 ObjectProtection.buildPath(nameRef),
                 true
             ),

@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -15,8 +14,6 @@ import com.linbit.linstor.dbdrivers.RawParameters;
 import com.linbit.linstor.dbdrivers.interfaces.LayerCacheVlmDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.LayerResourceIdDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.cache.CacheRscData;
 import com.linbit.linstor.storage.data.adapter.cache.CacheVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
@@ -42,7 +39,6 @@ public class LayerCacheVlmDbDriver
 
     @Inject
     public LayerCacheVlmDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         LayerResourceIdDatabaseDriver rscLayerIdDriverRef,
@@ -50,7 +46,7 @@ public class LayerCacheVlmDbDriver
         Provider<TransactionMgrSQL> transMgrProviderRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.LAYER_CACHE_VOLUMES, dbEngineRef);
+        super(errorReporterRef, GeneratedDatabaseTables.LAYER_CACHE_VOLUMES, dbEngineRef);
         rscLayerIdDriver = rscLayerIdDriverRef;
         transObjFactory = transObjFactoryRef;
         transMgrProvider = transMgrProviderRef;
@@ -126,7 +122,7 @@ public class LayerCacheVlmDbDriver
         RawParameters rawRef,
         VlmParentObjects<VlmDfnLayerObject, CacheRscData<?>, CacheVlmData<?>> parentRef
     )
-        throws ValueOutOfRangeException, InvalidNameException, DatabaseException, AccessDeniedException
+        throws ValueOutOfRangeException, InvalidNameException, DatabaseException
     {
         int lri = rawRef.get(LayerCacheVolumes.LAYER_RESOURCE_ID);
         VolumeNumber vlmNr = rawRef.build(LayerCacheVolumes.VLM_NR, VolumeNumber::new);

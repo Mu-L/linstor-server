@@ -1,6 +1,5 @@
 package com.linbit.linstor.tasks;
 
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.ApiModule;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
@@ -14,8 +13,6 @@ import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 
@@ -42,7 +39,6 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
     private final SystemConfRepository systemConfRepository;
     private final CtrlStorPoolListApiCallHandler ctrlStorPoolListApiCallHandler;
     private final LockGuardFactory lockGuardFactory;
-    private final AccessContext sysCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
 
@@ -56,7 +52,7 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
         SystemConfRepository systemConfRepositoryRef,
         CtrlStorPoolListApiCallHandler ctrlStorPoolListApiCallHandlerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
-        @SystemContext AccessContext sysCtxRef)
+        AccessContext sysCtxRef)
     {
         errRep = errorReporterRef;
         lockGuardFactory = lockGuardFactoryRef;
@@ -66,7 +62,6 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
         ctrlStorPoolListApiCallHandler = ctrlStorPoolListApiCallHandlerRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
-        sysCtx = sysCtxRef;
     }
 
     @Override
@@ -91,27 +86,27 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
                             try
                             {
                                 Volume.Key vlmKey = entry.getKey();
-                                ResourceDefinition rscDfn = rscDefRepo.get(sysCtx, vlmKey.getResourceName());
+                                ResourceDefinition rscDfn = rscDefRepo.get(vlmKey.getResourceName());
                                 if (rscDfn != null)
                                 {
-                                    Resource rsc = rscDfn.getResource(sysCtx, vlmKey.getNodeName());
+                                    Resource rsc = rscDfn.getResource(vlmKey.getNodeName());
                                     if (rsc != null)
                                     {
                                         Volume vlm = rsc.getVolume(vlmKey.getVolumeNumber());
                                         if (vlm != null && !entry.getValue().hasErrors())
                                         {
-                                            if (vlm.isAllocatedSizeSet(sysCtx)) // avoid unboxing NPE
+                                            if (vlm.isAllocatedSizeSet()) // avoid unboxing NPE
                                             {
                                                 // safe some cpu cycles for noops
-                                                if (vlm.getAllocatedSize(sysCtx) != entry.getValue().getAllocatedSize())
+                                                if (vlm.getAllocatedSize() != entry.getValue().getAllocatedSize())
                                                 {
-                                                    vlm.setAllocatedSize(sysCtx, entry.getValue().getAllocatedSize());
+                                                    vlm.setAllocatedSize(entry.getValue().getAllocatedSize());
                                                 }
                                             }
                                             else
                                             {
                                                 // set always if currently null
-                                                vlm.setAllocatedSize(sysCtx, entry.getValue().getAllocatedSize());
+                                                vlm.setAllocatedSize(entry.getValue().getAllocatedSize());
                                             }
                                         }
                                     }
@@ -129,7 +124,7 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
                 ))
             .contextWrite(Context.of(
                 ApiModule.API_CALL_NAME, "UpdateVolumeAllocations",
-                AccessContext.class, sysCtx))
+                AccessContext.class))
             .subscribe();
 
         ctrlStorPoolListApiCallHandler.listStorPools(
@@ -140,13 +135,13 @@ public class UpdateSpaceInfoTask implements TaskScheduleService.Task
         )
             .contextWrite(Context.of(
                 ApiModule.API_CALL_NAME, "UpdateFreeSpaceInfo",
-                AccessContext.class, sysCtx))
+                AccessContext.class))
             .subscribe();
 
         long nextUpdate = Long.parseLong(DEFAULT_UPDATE_SLEEP);
         try (LockGuard ignored = lockGuardFactory.build(READ, CTRL_CONFIG))
         {
-            nextUpdate = Long.parseLong(systemConfRepository.getCtrlConfForView(sysCtx)
+            nextUpdate = Long.parseLong(systemConfRepository.getCtrlConfForView()
                 .getPropWithDefault(ApiConsts.KEY_UPDATE_CACHE_INTERVAL, DEFAULT_UPDATE_SLEEP));
         }
         catch (AccessDeniedException ignored)

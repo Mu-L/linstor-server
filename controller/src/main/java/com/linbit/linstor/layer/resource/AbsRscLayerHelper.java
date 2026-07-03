@@ -28,8 +28,6 @@ import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory.LayerResult;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmDfnLayerObject;
@@ -59,7 +57,6 @@ public abstract class AbsRscLayerHelper<
     protected static boolean loadingFromDatabase = true;
 
     protected final ErrorReporter errorReporter;
-    protected final AccessContext apiCtx;
     protected final LayerDataFactory layerDataFactory;
     protected final DynamicNumberPool layerRscIdPool;
     protected final Class<RSC_LO> rscClass;
@@ -68,7 +65,6 @@ public abstract class AbsRscLayerHelper<
 
     protected AbsRscLayerHelper(
         ErrorReporter errorReporterRef,
-        AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         DynamicNumberPool layerRscIdPoolRef,
         Class<RSC_LO> rscClassRef,
@@ -77,7 +73,6 @@ public abstract class AbsRscLayerHelper<
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         layerDataFactory = layerDataFactoryRef;
         layerRscIdPool = layerRscIdPoolRef;
         rscClass = rscClassRef;
@@ -114,13 +109,13 @@ public abstract class AbsRscLayerHelper<
     )
         throws LinStorException, ValueOutOfRangeException
     {
-        @Nullable RSC_DFN_LO rscDfnData = rscDfn.getLayerData(apiCtx, kind, rscNameSuffix);
+        @Nullable RSC_DFN_LO rscDfnData = rscDfn.getLayerData(kind, rscNameSuffix);
         if (rscDfnData == null)
         {
             rscDfnData = createRscDfnData(rscDfn, rscNameSuffix, payload);
             if (rscDfnData != null)
             {
-                rscDfn.setLayerData(apiCtx, rscDfnData);
+                rscDfn.setLayerData(rscDfnData);
             }
         }
         else
@@ -143,14 +138,14 @@ public abstract class AbsRscLayerHelper<
         String rscNameSuffix,
         LayerPayload payload
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, LinStorException
     {
-        VLM_DFN_LO vlmDfnData = vlmDfn.getLayerData(apiCtx, kind, rscNameSuffix);
+        VLM_DFN_LO vlmDfnData = vlmDfn.getLayerData(kind, rscNameSuffix);
         if (vlmDfnData == null)
         {
             vlmDfnData = createVlmDfnData(vlmDfn, rscNameSuffix, payload);
-            vlmDfn.setLayerData(apiCtx, vlmDfnData);
+            vlmDfn.setLayerData(vlmDfnData);
         }
         else
         {
@@ -191,7 +186,7 @@ public abstract class AbsRscLayerHelper<
         {
             // rootData is able to be null at this point, but should never be null later on which is why it is not
             // marked as nullable
-            AbsRscLayerObject<?> rootData = rscRef.getLayerData(apiCtx);
+            AbsRscLayerObject<?> rootData = rscRef.getLayerData();
             if (rootData != null && !rootData.getClass().equals(rscClass))
             {
                 throw new ImplementationError(
@@ -289,7 +284,7 @@ public abstract class AbsRscLayerHelper<
 
         for (VolumeNumber vlmNr : existingVlmsDataToBeDeleted)
         {
-            rscData.remove(apiCtx, vlmNr);
+            rscData.remove(vlmNr);
         }
 
         return new LayerResult<>(
@@ -437,7 +432,7 @@ public abstract class AbsRscLayerHelper<
         Map<String, String> storpoolRenameMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, LinStorException, InvalidNameException
     {
         ensureResourceDefinitionDataCopiedFromAbsRsc(
@@ -450,7 +445,7 @@ public abstract class AbsRscLayerHelper<
         AbsRscLayerObject<Resource> layerData;
         if (rscParentRef == null)
         {
-            layerData = rsc.getLayerData(apiCtx);
+            layerData = rsc.getLayerData();
         }
         else
         {
@@ -506,18 +501,18 @@ public abstract class AbsRscLayerHelper<
     )
         throws ValueOutOfRangeException, ExhaustedPoolException, ValueInUseException, LinStorException
     {
-        RSC_DFN_LO rscDfnData = rscDfn.getLayerData(apiCtx, kind, fromAbsRscData.getResourceNameSuffix());
+        RSC_DFN_LO rscDfnData = rscDfn.getLayerData(kind, fromAbsRscData.getResourceNameSuffix());
         if (rscDfnData == null)
         {
             rscDfnData = restoreRscDfnData(rscDfn, fromAbsRscData);
             if (rscDfnData != null)
             {
-                rscDfn.setLayerData(apiCtx, rscDfnData);
+                rscDfn.setLayerData(rscDfnData);
             }
             @Nullable List<DeviceLayerKind> layerStack = getLayerStack(fromAbsRscData);
             if (layerStack != null)
             {
-                rscDfn.setLayerStack(apiCtx, layerStack);
+                rscDfn.setLayerStack(layerStack);
             }
         }
         return rscDfnData;
@@ -526,17 +521,16 @@ public abstract class AbsRscLayerHelper<
     private @Nullable <RSC extends AbsResource<RSC>> List<DeviceLayerKind> getLayerStack(
         AbsRscLayerObject<RSC> fromAbsRscData
     )
-        throws AccessDeniedException
     {
         @Nullable List<DeviceLayerKind> layerStack = null;
         RSC absRsc = fromAbsRscData.getAbsResource();
         if (absRsc instanceof Resource)
         {
-            layerStack = absRsc.getResourceDefinition().getLayerStack(apiCtx);
+            layerStack = absRsc.getResourceDefinition().getLayerStack();
         }
         else if (absRsc instanceof Snapshot snap)
         {
-            layerStack = snap.getSnapshotDefinition().getLayerStack(apiCtx);
+            layerStack = snap.getSnapshotDefinition().getLayerStack();
         }
         return layerStack;
     }
@@ -544,11 +538,10 @@ public abstract class AbsRscLayerHelper<
     private <RSC extends AbsResource<RSC>> VLM_DFN_LO ensureVolumeDefinitonDataCopiedFromAbsRsc(
         VolumeDefinition vlmDfn,
         VlmProviderObject<RSC> absRscVlmData
-    ) throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+    ) throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         VLM_DFN_LO vlmDfnData = vlmDfn.getLayerData(
-            apiCtx,
             kind,
             absRscVlmData.getRscLayerObject().getResourceNameSuffix()
         );
@@ -557,7 +550,7 @@ public abstract class AbsRscLayerHelper<
             vlmDfnData = restoreVlmDfnData(vlmDfn, absRscVlmData);
             if (vlmDfnData != null)
             {
-                vlmDfn.setLayerData(apiCtx, vlmDfnData);
+                vlmDfn.setLayerData(vlmDfnData);
             }
         }
         return vlmDfnData;
@@ -569,12 +562,12 @@ public abstract class AbsRscLayerHelper<
      */
     @SuppressWarnings("unused") // exceptions needed by implementations
     public @Nullable StorPool getStorPool(Volume vlmRef, AbsRscLayerObject<Resource> rscDataRef)
-        throws AccessDeniedException, InvalidKeyException, InvalidNameException
+        throws InvalidKeyException, InvalidNameException
     {
         return null;
     }
 
-    protected boolean areAllShared(Set<StorPool> storPools) throws AccessDeniedException
+    protected boolean areAllShared(Set<StorPool> storPools)
     {
         boolean shared = false;
         boolean nonShared = false;
@@ -603,9 +596,9 @@ public abstract class AbsRscLayerHelper<
 
     @SuppressWarnings("unused") // exceptions needed by implementations
     protected abstract List<ChildResourceData> getChildRsc(RSC_LO rscDataRef, List<DeviceLayerKind> layerListRef)
-        throws AccessDeniedException, InvalidKeyException;
+        throws InvalidKeyException;
 
-    protected abstract boolean isExpectedToProvideDevice(RSC_LO rsc) throws AccessDeniedException;
+    protected abstract boolean isExpectedToProvideDevice(RSC_LO rsc);
 
     protected abstract RSC_LO createRscData(
         Resource rscRef,
@@ -614,14 +607,14 @@ public abstract class AbsRscLayerHelper<
         AbsRscLayerObject<Resource> parentObjectRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException, ImplementationError, InvalidNameException, LinStorException;
 
     protected abstract void mergeRscData(
         RSC_LO rscDataRef,
         LayerPayload payload
     )
-        throws AccessDeniedException, DatabaseException, InvalidNameException, ImplementationError,
+        throws DatabaseException, InvalidNameException, ImplementationError,
         ExhaustedPoolException, ValueOutOfRangeException, ValueInUseException;
 
 
@@ -630,17 +623,17 @@ public abstract class AbsRscLayerHelper<
         String rscNameSuffix,
         LayerPayload payload
     )
-        throws AccessDeniedException, DatabaseException, LinStorException, ValueOutOfRangeException;
+        throws DatabaseException, LinStorException, ValueOutOfRangeException;
 
     protected abstract void mergeRscDfnData(RSC_DFN_LO rscDfn, LayerPayload payload)
-        throws DatabaseException, AccessDeniedException, ValueOutOfRangeException;
+        throws DatabaseException, ValueOutOfRangeException;
 
     protected abstract VLM_DFN_LO createVlmDfnData(
         VolumeDefinition vlmDfnRef,
         String rscNameSuffixRef,
         LayerPayload payloadRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, LinStorException;
 
     protected abstract void mergeVlmDfnData(
@@ -649,17 +642,17 @@ public abstract class AbsRscLayerHelper<
     );
 
     protected abstract boolean needsChildVlm(AbsRscLayerObject<Resource> childRscDataRef, Volume vlmRef)
-        throws AccessDeniedException, InvalidKeyException;
+        throws InvalidKeyException;
 
     protected Set<StorPool> getNeededStoragePools(
         Resource rscRef,
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         HashSet<StorPool> storPools = new HashSet<>();
-        Iterator<VolumeDefinition> vlmDfnIt = rscRef.getResourceDefinition().iterateVolumeDfn(apiCtx);
+        Iterator<VolumeDefinition> vlmDfnIt = rscRef.getResourceDefinition().iterateVolumeDfn();
         while (vlmDfnIt.hasNext())
         {
             VolumeDefinition vlmDfn = vlmDfnIt.next();
@@ -675,7 +668,7 @@ public abstract class AbsRscLayerHelper<
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidNameException;
+        throws InvalidNameException;
 
     protected abstract VLM_LO createVlmLayerData(
         RSC_LO rscDataRef,
@@ -683,7 +676,7 @@ public abstract class AbsRscLayerHelper<
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, LinStorException, InvalidKeyException, InvalidNameException;
 
     protected abstract void mergeVlmData(
@@ -692,11 +685,11 @@ public abstract class AbsRscLayerHelper<
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidKeyException, InvalidNameException, DatabaseException,
+        throws InvalidKeyException, InvalidNameException, DatabaseException,
         ValueOutOfRangeException, ExhaustedPoolException, ValueInUseException, LinStorException;
 
     protected abstract void resetStoragePools(AbsRscLayerObject<Resource> rscDataRef)
-        throws AccessDeniedException, DatabaseException, InvalidKeyException;
+        throws DatabaseException, InvalidKeyException;
 
     /**
      * The intention of this method is to (re-)calculate volatile properties as ignoreReason.
@@ -711,7 +704,7 @@ public abstract class AbsRscLayerHelper<
         List<DeviceLayerKind> layerListRef,
         LayerPayload payloadRef
     )
-        throws AccessDeniedException, DatabaseException;
+        throws DatabaseException;
 
     // abstract methods used for restoring data from snapshot
 
@@ -719,7 +712,7 @@ public abstract class AbsRscLayerHelper<
         ResourceDefinition rscDfn,
         AbsRscLayerObject<RSC> fromAbsRscData
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException, LinStorException;
 
     protected abstract <RSC extends AbsResource<RSC>> RSC_LO restoreRscData(
@@ -727,14 +720,14 @@ public abstract class AbsRscLayerHelper<
         AbsRscLayerObject<RSC> fromAbsRscDataRef,
         AbsRscLayerObject<Resource> rscParentRef
     )
-        throws DatabaseException, AccessDeniedException, ExhaustedPoolException, ValueOutOfRangeException,
+        throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException,
         ValueInUseException;
 
     protected abstract <RSC extends AbsResource<RSC>> VLM_DFN_LO restoreVlmDfnData(
         VolumeDefinition vlmDfn,
         VlmProviderObject<RSC> fromAbsRscVlmData
     )
-        throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException;
 
     protected abstract <RSC extends AbsResource<RSC>> VLM_LO restoreVlmData(
@@ -744,5 +737,5 @@ public abstract class AbsRscLayerHelper<
         Map<String, String> storpoolRenameMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws DatabaseException, AccessDeniedException, LinStorException, InvalidNameException;
+        throws DatabaseException, LinStorException, InvalidNameException;
 }

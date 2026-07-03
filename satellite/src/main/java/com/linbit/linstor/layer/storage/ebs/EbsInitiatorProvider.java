@@ -22,7 +22,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.layer.storage.utils.LsBlkUtils;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.LsBlkEntry;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.ebs.EbsData;
@@ -136,14 +135,14 @@ public class EbsInitiatorProvider extends AbsEbsProvider<LsBlkEntry>
         List<EbsData<Resource>> vlmDataListRef,
         List<EbsData<Snapshot>> snapVlmsRef
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         return EbsProviderUtils.getEbsInfo(extCmdFactory.create());
     }
 
     @Override
     protected void updateStates(List<EbsData<Resource>> vlmDataListRef, List<EbsData<Snapshot>> snapVlmsRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         final List<EbsData<?>> combinedList = new ArrayList<>(vlmDataListRef);
         // no snapshots (for now)
@@ -253,13 +252,13 @@ public class EbsInitiatorProvider extends AbsEbsProvider<LsBlkEntry>
 
     @Override
     protected void createLvImpl(EbsData<Resource> vlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         connect(vlmDataRef, true);
     }
 
     private void connect(EbsData<Resource> initiatorVlmDataRef, boolean findDeviceRef)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         AmazonEC2 client = getClient(initiatorVlmDataRef.getStorPool());
 
@@ -305,7 +304,7 @@ public class EbsInitiatorProvider extends AbsEbsProvider<LsBlkEntry>
         List<LsBlkEntry> lsblkPreConnect,
         EbsData<Resource> vlmDataRef
     )
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         String actualDevice = null;
         int searchCount = WAIT_NEW_DEV_APPEAR_COUNT;
@@ -432,7 +431,7 @@ public class EbsInitiatorProvider extends AbsEbsProvider<LsBlkEntry>
         return ret;
     }
 
-    protected PriorityProps getPrioProps(EbsData<Resource> vlmDataRef) throws AccessDeniedException
+    protected PriorityProps getPrioProps(EbsData<Resource> vlmDataRef)
     {
         Volume vlm = (Volume) vlmDataRef.getVolume();
         Resource rsc = vlm.getAbsResource();
@@ -440,21 +439,21 @@ public class EbsInitiatorProvider extends AbsEbsProvider<LsBlkEntry>
         ResourceGroup rscGrp = rscDfn.getResourceGroup();
         VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
         return new PriorityProps(
-            vlm.getProps(storDriverAccCtx),
-            rsc.getProps(storDriverAccCtx),
-            vlmDataRef.getStorPool().getProps(storDriverAccCtx),
+            vlm.getProps(),
+            rsc.getProps(),
+            vlmDataRef.getStorPool().getProps(),
             localNodeProps,
-            vlmDfn.getProps(storDriverAccCtx),
-            rscDfn.getProps(storDriverAccCtx),
-            rscGrp.getVolumeGroupProps(storDriverAccCtx, vlmDfn.getVolumeNumber()),
-            rscGrp.getProps(storDriverAccCtx),
+            vlmDfn.getProps(),
+            rscDfn.getProps(),
+            rscGrp.getVolumeGroupProps(vlmDfn.getVolumeNumber()),
+            rscGrp.getProps(),
             stltConfigAccessor.getReadonlyProps()
         );
     }
 
     @Override
     protected void resizeLvImpl(EbsData<Resource> vlmDataRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         waitUntilResizeFinished(
             getClient(vlmDataRef.getStorPool()),
@@ -501,20 +500,20 @@ public class EbsInitiatorProvider extends AbsEbsProvider<LsBlkEntry>
 
     @Override
     protected void deleteLvImpl(EbsData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         disconnect(vlmDataRef);
     }
 
     @Override
     protected void deactivateLvImpl(EbsData<Resource> vlmDataRef, String lvIdRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         disconnect(vlmDataRef);
     }
 
     private void disconnect(EbsData<Resource> vlmDataRef)
-        throws AccessDeniedException, StorageException, DatabaseException
+        throws StorageException, DatabaseException
     {
         AmazonEC2 client = getClient(vlmDataRef.getStorPool());
         String ebsVlmId = getEbsVlmId(vlmDataRef);
@@ -544,14 +543,14 @@ public class EbsInitiatorProvider extends AbsEbsProvider<LsBlkEntry>
 
     @Override
     public @Nullable LocalPropsChangePojo update(StorPool storPoolRef)
-        throws AccessDeniedException, DatabaseException, StorageException
+        throws DatabaseException, StorageException
     {
         return null;
     }
 
     @Override
     public @Nullable LocalPropsChangePojo checkConfig(StorPoolInfo storPoolRef)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         return null;
     }

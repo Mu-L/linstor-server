@@ -3,7 +3,6 @@ package com.linbit.linstor.core.objects.utils;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -17,8 +16,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
@@ -50,18 +47,16 @@ import java.util.TreeSet;
 @Singleton
 public class MixedStorPoolHelper
 {
-    private final AccessContext sysCtx;
     private final SystemConfRepository systemConfRepository;
 
     @Inject
-    public MixedStorPoolHelper(@SystemContext AccessContext sysCtxRef, SystemConfRepository systemConfRepositoryRef)
+    public MixedStorPoolHelper(AccessContext sysCtxRef, SystemConfRepository systemConfRepositoryRef)
     {
-        sysCtx = sysCtxRef;
         systemConfRepository = systemConfRepositoryRef;
     }
 
     public void handleMixedStoragePools(Volume vlmRef)
-        throws AccessDeniedException, DatabaseException, ImplementationError, StorageException
+        throws DatabaseException, ImplementationError, StorageException
     {
         VolumeDefinition vlmDfn = vlmRef.getVolumeDefinition();
         ResourceDefinition rscDfn = vlmDfn.getResourceDefinition();
@@ -72,20 +67,20 @@ public class MixedStorPoolHelper
             ensureNoGrossSize(vlmDfn);
             try
             {
-                rscDfn.getProps(sysCtx)
+                rscDfn.getProps()
                     .setProp(
                         InternalApiConsts.KEY_FORCE_INITIAL_SYNC_PERMA,
                         ApiConsts.VAL_TRUE,
                         ApiConsts.NAMESPC_DRBD_OPTIONS
                     );
             }
-            catch (AccessDeniedException | InvalidKeyException | InvalidValueException exc)
+            catch (InvalidKeyException | InvalidValueException exc)
             {
                 throw new ImplementationError(exc);
             }
         }
 
-        Props vlmDfnProps = vlmDfn.getProps(sysCtx);
+        Props vlmDfnProps = vlmDfn.getProps();
 
         try
         {
@@ -119,79 +114,64 @@ public class MixedStorPoolHelper
 
     private void ensureNoGrossSize(VolumeDefinition vlmDfnRef)
     {
-        try
+        // TODO: moving the size-calculations to the server project is NOT enough to remove this check
+        // To properly remove this check, we need DRBD support to set the specific size of the DRBD device
+        // regardless of the size of the backing disk
+        if (vlmDfnRef.getFlags().isSet(VolumeDefinition.Flags.GROSS_SIZE))
         {
-            // TODO: moving the size-calculations to the server project is NOT enough to remove this check
-            // To properly remove this check, we need DRBD support to set the specific size of the DRBD device
-            // regardless of the size of the backing disk
-            if (vlmDfnRef.getFlags().isSet(sysCtx, VolumeDefinition.Flags.GROSS_SIZE))
-            {
-                throw new ApiRcException(
-                    ApiCallRcImpl.simpleEntry(
-                        ApiConsts.FAIL_SP_MIXING_NOT_ALLOWED,
-                        "Mixed Storage pools is (currently) not allowed with gross-sizes"
-                    )
-                );
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_SP_MIXING_NOT_ALLOWED,
+                    "Mixed Storage pools is (currently) not allowed with gross-sizes"
+                )
+            );
         }
     }
 
     private void ensureAllStltsHaveDrbdVersion(Set<StorPool> storPoolSetRef)
     {
-        try
+        for (StorPool sp : storPoolSetRef)
         {
-            for (StorPool sp : storPoolSetRef)
+            ExtToolsManager extToolsMgr = sp.getNode()
+                .getPeer()
+                .getExtToolsManager();
+            ExtToolsInfo info = extToolsMgr.getExtToolInfo(ExtTools.DRBD9_KERNEL);
+            if (info == null)
             {
-                ExtToolsManager extToolsMgr = sp.getNode()
-                    .getPeer(sysCtx)
-                    .getExtToolsManager();
-                ExtToolsInfo info = extToolsMgr.getExtToolInfo(ExtTools.DRBD9_KERNEL);
-                if (info == null)
-                {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.simpleEntry(
-                            ApiConsts.FAIL_STLT_DOES_NOT_SUPPORT_LAYER,
-                            sp.getNode() + " does not support DRBD9!"
-                        )
-                    );
-                }
-                if (!DeviceProviderKind.doesDrbdVersionSupportStorPoolMixing(info.getVersion()))
-                {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.simpleEntry(
-                            ApiConsts.FAIL_STLT_DOES_NOT_SUPPORT_LAYER,
-                            String.format(
-                                "%s has DRBD version %s, but version %s (or higher) is required",
-                                sp.getNode(),
-                                info.getVersion(),
-                                info.getVersionMinor() == 1 ?
-                                    DeviceProviderKind.SP_MIXING_REQ_DRBD91_MIN_VERISON :
-                                    DeviceProviderKind.SP_MIXING_REQ_DRBD92_MIN_VERISON
-                            )
-                        )
-                    );
-                }
+                throw new ApiRcException(
+                    ApiCallRcImpl.simpleEntry(
+                        ApiConsts.FAIL_STLT_DOES_NOT_SUPPORT_LAYER,
+                        sp.getNode() + " does not support DRBD9!"
+                    )
+                );
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            if (!DeviceProviderKind.doesDrbdVersionSupportStorPoolMixing(info.getVersion()))
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.simpleEntry(
+                        ApiConsts.FAIL_STLT_DOES_NOT_SUPPORT_LAYER,
+                        String.format(
+                            "%s has DRBD version %s, but version %s (or higher) is required",
+                            sp.getNode(),
+                            info.getVersion(),
+                            info.getVersionMinor() == 1 ?
+                                DeviceProviderKind.SP_MIXING_REQ_DRBD91_MIN_VERISON :
+                                DeviceProviderKind.SP_MIXING_REQ_DRBD92_MIN_VERISON
+                        )
+                    )
+                );
+            }
         }
     }
 
     private Set<StorPool> getAllStorPools(ResourceDefinition resourceDefinitionRef)
-        throws AccessDeniedException
     {
         Set<StorPool> ret = new HashSet<>();
-        Iterator<Resource> rscIt = resourceDefinitionRef.iterateResource(sysCtx);
+        Iterator<Resource> rscIt = resourceDefinitionRef.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
-            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, sysCtx, false);
+            Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc, false);
             ret.addAll(storPools);
         }
         return ret;
@@ -215,32 +195,32 @@ public class MixedStorPoolHelper
                     if (!kind.equals(DeviceProviderKind.DISKLESS))
                     {
                         allocationGranularities.add(
-                            sp.getProps(sysCtx)
+                            sp.getProps()
                                 .getProp(InternalApiConsts.ALLOCATION_GRANULARITY, StorageConstants.NAMESPACE_INTERNAL)
                         );
                     }
                 }
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
         return usesMixedSkipInitSync || allocationGranularities.size() > 1;
     }
 
-    private boolean usesMixedSkipInitialSync(ResourceDefinition rscDfnRef) throws AccessDeniedException
+    private boolean usesMixedSkipInitialSync(ResourceDefinition rscDfnRef)
     {
         boolean doesNotUseSkipInitSync = false;
         boolean usesSkipInitSync = false;
-        Iterator<Resource> rscIt = rscDfnRef.iterateResource(sysCtx);
+        Iterator<Resource> rscIt = rscDfnRef.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
-            if (!rsc.getStateFlags().isSet(sysCtx, Resource.Flags.DRBD_DISKLESS))
+            if (!rsc.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS))
             {
                 Set<AbsRscLayerObject<Resource>> drbdRscDataSet = LayerRscUtils.getRscDataByLayer(
-                    rsc.getLayerData(sysCtx),
+                    rsc.getLayerData(),
                     DeviceLayerKind.DRBD
                 );
                 for (AbsRscLayerObject<Resource> rscData : drbdRscDataSet)
@@ -248,7 +228,7 @@ public class MixedStorPoolHelper
                     DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) rscData;
                     for (DrbdVlmData<Resource> drbdVlmData : drbdRscData.getVlmLayerObjects().values())
                     {
-                        if (DrbdLayerUtils.skipInitSync(sysCtx, drbdVlmData))
+                        if (DrbdLayerUtils.skipInitSync(drbdVlmData))
                         {
                             usesSkipInitSync = true;
                         }
@@ -264,7 +244,7 @@ public class MixedStorPoolHelper
     }
 
     private @Nullable Long getLeastCommonExtentSizeInKib(Volume vlmRef)
-        throws AccessDeniedException, StorageException, InterruptedException
+        throws StorageException, InterruptedException
     {
         SortedSet<Long> minGranularities = new TreeSet<>();
         @Nullable Long vlmDfnExtentSize = getCurrentVlmDfnExtentSize(vlmRef.getVolumeDefinition());
@@ -297,12 +277,11 @@ public class MixedStorPoolHelper
     }
 
     private @Nullable Long getCurrentVlmDfnExtentSize(VolumeDefinition vlmDfnRef)
-        throws AccessDeniedException
     {
         String currentGranularityStr;
         try
         {
-            currentGranularityStr = vlmDfnRef.getProps(sysCtx)
+            currentGranularityStr = vlmDfnRef.getProps()
                 .getProp(
                     InternalApiConsts.ALLOCATION_GRANULARITY,
                     StorageConstants.NAMESPACE_INTERNAL
@@ -316,11 +295,11 @@ public class MixedStorPoolHelper
     }
 
     private Set<Long> extractStorPoolAndVlmExtentSizes(Volume vlmRef)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         Set<Long> extentSizes = new HashSet<>();
 
-        AbsRscLayerObject<Resource> rscData = vlmRef.getAbsResource().getLayerData(sysCtx);
+        AbsRscLayerObject<Resource> rscData = vlmRef.getAbsResource().getLayerData();
         Set<AbsRscLayerObject<Resource>> storRscDataSet = LayerRscUtils.getRscDataByLayer(
             rscData,
             DeviceLayerKind.STORAGE,
@@ -331,7 +310,7 @@ public class MixedStorPoolHelper
             for (VlmProviderObject<Resource> vlmData : storRscData.getVlmLayerObjects().values())
             {
                 StorPool sp = vlmData.getStorPool();
-                String spGranu = sp.getProps(sysCtx)
+                String spGranu = sp.getProps()
                     .getProp(
                         InternalApiConsts.ALLOCATION_GRANULARITY,
                         StorageConstants.NAMESPACE_INTERNAL
@@ -359,8 +338,7 @@ public class MixedStorPoolHelper
                     case ZFS_THIN:
                         vlmExtentSize = ZfsPropsUtils.extractZfsVolBlockSizePrivileged(
                             (ZfsData<?>) vlmData,
-                            sysCtx,
-                            systemConfRepository.getStltConfForView(sysCtx)
+                            systemConfRepository.getStltConfForView()
                         );
                         break;
                     case FAIL_BECAUSE_NOT_A_VLM_PROVIDER_BUT_A_VLM_LAYER:

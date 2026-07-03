@@ -9,9 +9,6 @@ import com.linbit.linstor.core.types.LsIpAddress;
 import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.NetInterfaceDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -39,18 +36,16 @@ public class NetInterfaceFactory
     }
 
     public NetInterface create(
-        AccessContext accCtx,
         Node node,
         NetInterfaceName netName,
         LsIpAddress addr,
         @Nullable TcpPortNumber port,
         @Nullable EncryptionType encrType
     )
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException
+        throws DatabaseException, LinStorDataAlreadyExistsException
     {
-        node.getObjProt().requireAccess(accCtx, AccessType.CHANGE);
 
-        NetInterface netData = node.getNetInterface(accCtx, netName);
+        NetInterface netData = node.getNetInterface(netName);
 
         if (netData != null)
         {
@@ -69,13 +64,12 @@ public class NetInterfaceFactory
             transMgrProvider
         );
         driver.create(netData);
-        node.addNetInterface(accCtx, netData);
+        node.addNetInterface(netData);
 
         return netData;
     }
 
     public NetInterface getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         Node node,
         NetInterfaceName netName,
@@ -87,7 +81,7 @@ public class NetInterfaceFactory
         NetInterface netData;
         try
         {
-            netData = node.getNetInterface(accCtx, netName);
+            netData = node.getNetInterface(netName);
             if (netData == null)
             {
                 /*
@@ -107,7 +101,7 @@ public class NetInterfaceFactory
                     transObjFactory,
                     transMgrProvider
                 );
-                node.addNetInterface(accCtx, netData);
+                node.addNetInterface(netData);
             }
         }
         catch (Exception exc)

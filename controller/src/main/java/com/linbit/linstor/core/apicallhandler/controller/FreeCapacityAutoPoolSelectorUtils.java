@@ -12,8 +12,6 @@ import com.linbit.linstor.core.objects.SnapshotVolume;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 
 import java.util.Collection;
@@ -32,11 +30,10 @@ public class FreeCapacityAutoPoolSelectorUtils
         boolean includeThin,
         StorPoolName storPoolName,
         Node node,
-        ReadOnlyProps ctrlPropsRef,
-        AccessContext apiCtx
+        ReadOnlyProps ctrlPropsRef
     )
     {
-        StorPool storPool = getStorPoolPrivileged(apiCtx, node, storPoolName);
+        StorPool storPool = getStorPoolPrivileged(node, storPoolName);
 
         Optional<Boolean> usable;
         if (storPool.getDeviceProviderKind().usesThinProvisioning() && !includeThin)
@@ -46,7 +43,6 @@ public class FreeCapacityAutoPoolSelectorUtils
         else
         {
             usable = getFreeCapacityCurrentEstimationPrivileged(
-                apiCtx,
                 freeCapacities,
                 storPool,
                 ctrlPropsRef,
@@ -57,20 +53,12 @@ public class FreeCapacityAutoPoolSelectorUtils
     }
 
     private static StorPool getStorPoolPrivileged(
-        AccessContext sysCtxRef,
         Node nodeRef,
         StorPoolName storPoolNameRef
     )
     {
         StorPool storPool;
-        try
-        {
-            storPool = nodeRef.getStorPool(sysCtxRef, storPoolNameRef);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        storPool = nodeRef.getStorPool(storPoolNameRef);
         return storPool;
     }
 
@@ -92,7 +80,6 @@ public class FreeCapacityAutoPoolSelectorUtils
      *
      */
     public static Optional<Long> getFreeCapacityCurrentEstimationPrivileged(
-        AccessContext sysCtxRef,
         @Nullable Map<StorPool.Key, Long> thinFreeCapacities,
         StorPool storPoolRef,
         ReadOnlyProps ctrlPropRef,
@@ -100,14 +87,14 @@ public class FreeCapacityAutoPoolSelectorUtils
     )
     {
         final Optional<Long> ret;
-        final Long freeSpace = getFreeSpacePrivileged(sysCtxRef, thinFreeCapacities, storPoolRef);
+        final Long freeSpace = getFreeSpacePrivileged(thinFreeCapacities, storPoolRef);
         if (!includeOversubscriptionRatioRef)
         {
             ret = Optional.ofNullable(freeSpace);
         }
         else
         {
-            Long capacity = getCapacityPrivilged(sysCtxRef, storPoolRef);
+            Long capacity = getCapacityPrivilged(storPoolRef);
             if (freeSpace == null || capacity == null)
             {
                 ret = Optional.empty();
@@ -115,12 +102,10 @@ public class FreeCapacityAutoPoolSelectorUtils
             else
             {
                 final double maxOversubRatio = getMaxOversubscriptionRatioPrivileged(
-                    sysCtxRef,
                     storPoolRef,
                     ctrlPropRef
                 );
                 Double maxFreeRatio = getFreeCapacityOversubscriptionRatioPrivileged(
-                    sysCtxRef,
                     storPoolRef,
                     ctrlPropRef
                 );
@@ -129,7 +114,6 @@ public class FreeCapacityAutoPoolSelectorUtils
                     maxFreeRatio = maxOversubRatio;
                 }
                 Double maxCapacityRatio = getTotalCapacityOversubscriptionRatioPrivileged(
-                    sysCtxRef,
                     storPoolRef,
                     ctrlPropRef
                 );
@@ -140,7 +124,7 @@ public class FreeCapacityAutoPoolSelectorUtils
 
                 final long freeSpaceBased = calculateOverProvisionedSpace(freeSpace, maxFreeRatio);
 
-                final long reservedCapacity = getReservedCapacityPrivileged(sysCtxRef, storPoolRef);
+                final long reservedCapacity = getReservedCapacityPrivileged(storPoolRef);
                 final long totalSpaceBased = calculateOverProvisionedSpace(capacity, maxCapacityRatio);
 
                 ret = Optional.of(
@@ -175,7 +159,6 @@ public class FreeCapacityAutoPoolSelectorUtils
      *
      */
     private static @Nullable Long getFreeSpacePrivileged(
-        AccessContext sysCtxRef,
         @Nullable Map<StorPool.Key, Long> thinFreeCapacitiesRef,
         StorPool storPoolRef
     )
@@ -187,43 +170,22 @@ public class FreeCapacityAutoPoolSelectorUtils
         }
         if (ret == null)
         {
-            try
-            {
-                ret = storPoolRef.getFreeSpaceTracker().getFreeCapacityLastUpdated(sysCtxRef).orElse(null);
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
+            ret = storPoolRef.getFreeSpaceTracker().getFreeCapacityLastUpdated().orElse(null);
         }
         return ret;
     }
 
-    private static @Nullable Long getCapacityPrivilged(AccessContext sysCtxRef, StorPool storPoolRef)
+    private static @Nullable Long getCapacityPrivilged(StorPool storPoolRef)
     {
-        try
-        {
-            return storPoolRef.getFreeSpaceTracker().getTotalCapacity(sysCtxRef).orElse(null);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return storPoolRef.getFreeSpaceTracker().getTotalCapacity().orElse(null);
     }
 
-    private static long getReservedCapacityPrivileged(AccessContext sysCtxRef, StorPool storPoolRef)
+    private static long getReservedCapacityPrivileged(StorPool storPoolRef)
     {
         long reservedCapacity;
-        try
-        {
-            reservedCapacity = storPoolRef.getFreeSpaceTracker().getPendingAllocatedSum(sysCtxRef);
-            reservedCapacity += getReservedSum(storPoolRef.getVolumes(sysCtxRef));
-            reservedCapacity += getReservedSum(storPoolRef.getSnapVolumes(sysCtxRef));
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        reservedCapacity = storPoolRef.getFreeSpaceTracker().getPendingAllocatedSum();
+        reservedCapacity += getReservedSum(storPoolRef.getVolumes());
+        reservedCapacity += getReservedSum(storPoolRef.getSnapVolumes());
         return reservedCapacity;
     }
 
@@ -247,7 +209,6 @@ public class FreeCapacityAutoPoolSelectorUtils
     }
 
     private static @Nullable Double getRatioPrivileged(
-        AccessContext sysCtxRef,
         StorPool storPoolRef,
         ReadOnlyProps ctrlPropRef,
         String propKeyRef
@@ -258,8 +219,8 @@ public class FreeCapacityAutoPoolSelectorUtils
         try
         {
             val = new PriorityProps(
-                storPoolRef.getProps(sysCtxRef),
-                storPoolRef.getDefinition(sysCtxRef).getProps(sysCtxRef),
+                storPoolRef.getProps(),
+                storPoolRef.getDefinition().getProps(),
                 ctrlPropRef
             ).getProp(propKeyRef);
             if (val != null)
@@ -271,7 +232,7 @@ public class FreeCapacityAutoPoolSelectorUtils
                 ret = null;
             }
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -283,31 +244,21 @@ public class FreeCapacityAutoPoolSelectorUtils
     }
 
     public static double getMaxOversubscriptionRatioPrivileged(
-        AccessContext sysCtxRef,
         StorPool storPoolRef,
         @Nullable ReadOnlyProps ctrlPropsRef
     )
     {
         double osRatio;
-        try
-        {
-            osRatio = storPoolRef.getOversubscriptionRatio(sysCtxRef, ctrlPropsRef);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        osRatio = storPoolRef.getOversubscriptionRatio(ctrlPropsRef);
         return osRatio;
     }
 
     public static @Nullable Double getFreeCapacityOversubscriptionRatioPrivileged(
-        AccessContext sysCtxRef,
         StorPool storPoolRef,
         ReadOnlyProps ctrlPropRef
     )
     {
         return getRatioPrivileged(
-            sysCtxRef,
             storPoolRef,
             ctrlPropRef,
             ApiConsts.KEY_STOR_POOL_MAX_FREE_CAPACITY_OVERSUBSCRIPTION_RATIO
@@ -315,13 +266,11 @@ public class FreeCapacityAutoPoolSelectorUtils
     }
 
     public static @Nullable Double getTotalCapacityOversubscriptionRatioPrivileged(
-        AccessContext sysCtxRef,
         StorPool storPoolRef,
         ReadOnlyProps ctrlPropRef
     )
     {
         return getRatioPrivileged(
-            sysCtxRef,
             storPoolRef,
             ctrlPropRef,
             ApiConsts.KEY_STOR_POOL_MAX_TOTAL_CAPACITY_OVERSUBSCRIPTION_RATIO

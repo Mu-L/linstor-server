@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -20,8 +19,6 @@ import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.repository.StorPoolDefinitionRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.utils.ComparatorUtils;
 
 import javax.inject.Inject;
@@ -41,20 +38,17 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlQueryMaxVlmSizeHelper
 {
-    private final AccessContext apiCtx;
     private final Autoplacer autoplacer;
     private final StorPoolDefinitionRepository storPoolDfnRepo;
     private final SystemConfRepository sysCfgRepo;
 
     @Inject
     public CtrlQueryMaxVlmSizeHelper(
-        @ApiContext AccessContext apiCtxRef,
         Autoplacer autoplacerRef,
         StorPoolDefinitionRepository storPoolDfnRepoRef,
         SystemConfRepository sysCfgRepoRef
     )
     {
-        apiCtx = apiCtxRef;
         autoplacer = autoplacerRef;
         storPoolDfnRepo = storPoolDfnRepoRef;
         sysCfgRepo = sysCfgRepoRef;
@@ -122,7 +116,6 @@ public class CtrlQueryMaxVlmSizeHelper
 
                     Optional<Long> freeCapacityCurrentEstimation =
                         FreeCapacityAutoPoolSelectorUtils.getFreeCapacityCurrentEstimationPrivileged(
-                            apiCtx,
                             thinFreeCapacities,
                             sp,
                             ctrlProps,
@@ -159,17 +152,10 @@ public class CtrlQueryMaxVlmSizeHelper
     private List<String> getStorPoolNamesAsStringPrivileged()
     {
         List<String> storPoolNamesStr = new ArrayList<>();
-        try
+        Set<StorPoolName> storPoolNames = storPoolDfnRepo.getMapForView().keySet();
+        for (StorPoolName spName : storPoolNames)
         {
-            Set<StorPoolName> storPoolNames = storPoolDfnRepo.getMapForView(apiCtx).keySet();
-            for (StorPoolName spName : storPoolNames)
-            {
-                storPoolNamesStr.add(spName.displayValue);
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
+            storPoolNamesStr.add(spName.displayValue);
         }
         return storPoolNamesStr;
     }
@@ -177,41 +163,20 @@ public class CtrlQueryMaxVlmSizeHelper
     private StorPoolDefinition getStorPoolDfnPrivileged(StorPool storPool)
     {
         StorPoolDefinition storPoolDfn;
-        try
-        {
-            storPoolDfn = storPool.getDefinition(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        storPoolDfn = storPool.getDefinition();
         return storPoolDfn;
     }
 
     private StorPoolDefinitionApi getStorPoolDfnApiDataPrivileged(StorPoolDefinition storPoolDfn)
     {
         StorPoolDefinitionApi apiData;
-        try
-        {
-            apiData = storPoolDfn.getApiData(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        apiData = storPoolDfn.getApiData();
         return apiData;
     }
 
     private ReadOnlyProps getCtrlPropsPrivileged()
     {
-        try
-        {
-            return sysCfgRepo.getCtrlConfForView(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return sysCfgRepo.getCtrlConfForView();
     }
 
     private ApiCallRcWith<List<MaxVlmSizeCandidatePojo>> makeResponse(List<MaxVlmSizeCandidatePojo> candidates)

@@ -5,10 +5,6 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.CoreModule.ScheduleMap;
 import com.linbit.linstor.core.identifier.ScheduleName;
 import com.linbit.linstor.core.objects.Schedule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -19,7 +15,6 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class ScheduleProtectionRepository implements ScheduleRepository
 {
     private final CoreModule.ScheduleMap scheduleMap;
-    private ObjectProtection scheduleMapObjProt;
 
     // can't initialize objProt in constructor because of chicken-egg-problem
     @SuppressFBWarnings("NP_NONNULL_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
@@ -29,60 +24,47 @@ public class ScheduleProtectionRepository implements ScheduleRepository
         scheduleMap = scheduleMapRef;
     }
 
-    public void setObjectProtection(ObjectProtection scheduleMapObjProtRef)
+    public void setObjectProtection()
     {
         if (scheduleMapObjProt != null)
         {
             throw new IllegalStateException("Object protection already set");
         }
-        scheduleMapObjProt = scheduleMapObjProtRef;
-    }
-
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        checkProtSet();
-        return scheduleMapObjProt;
     }
 
     @SuppressFBWarnings("UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
     @Override
-    public void requireAccess(AccessContext accCtx, AccessType requested) throws AccessDeniedException
+    public void requireAccess(AccessType requested)
     {
         // suppressed spotbugs-warning because checkProtSet() does exactly what is needed
         checkProtSet();
-        scheduleMapObjProt.requireAccess(accCtx, requested);
     }
 
     @Override
-    public @Nullable Schedule get(AccessContext accCtx, ScheduleName scheduleNameRef) throws AccessDeniedException
+    public @Nullable Schedule get(ScheduleName scheduleNameRef)
     {
         checkProtSet();
-        requireAccess(accCtx, AccessType.VIEW);
         return scheduleMap.get(scheduleNameRef);
     }
 
     @Override
-    public void put(AccessContext accCtx, Schedule scheduleRef) throws AccessDeniedException
+    public void put(Schedule scheduleRef)
     {
         checkProtSet();
-        requireAccess(accCtx, AccessType.CHANGE);
         scheduleMap.put(scheduleRef.getName(), scheduleRef);
     }
 
     @Override
-    public void remove(AccessContext accCtx, ScheduleName scheduleNameRef) throws AccessDeniedException
+    public void remove(ScheduleName scheduleNameRef)
     {
         checkProtSet();
-        requireAccess(accCtx, AccessType.CHANGE);
         scheduleMap.remove(scheduleNameRef);
     }
 
     @Override
-    public ScheduleMap getMapForView(AccessContext accCtx) throws AccessDeniedException
+    public ScheduleMap getMapForView()
     {
         checkProtSet();
-        requireAccess(accCtx, AccessType.VIEW);
         return scheduleMap;
     }
 

@@ -2,15 +2,12 @@ package com.linbit.linstor.core;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.ApiModule;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.api.protobuf.internal.IntAuthResponse;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
@@ -18,8 +15,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerClosingConnectionException;
 import com.linbit.linstor.netcom.PeerNotConnectedException;
 import com.linbit.linstor.netcom.TcpConnectorPeer;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.PingTask;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -45,8 +40,6 @@ public class CtrlAuthenticator
     private final SystemConfRepository systemConfRepository;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerAccCtx;
-    private final AccessContext apiCtx;
     private final IntAuthResponse intAuthResponse;
     private final PingTask pingTask;
 
@@ -57,8 +50,6 @@ public class CtrlAuthenticator
         SystemConfRepository systemConfRepositoryRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
-        @SystemContext AccessContext apiCtxRef,
         IntAuthResponse intAuthResponseRef,
         PingTask pingTaskRef
     )
@@ -68,8 +59,6 @@ public class CtrlAuthenticator
         systemConfRepository = systemConfRepositoryRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
-        peerAccCtx = peerAccCtxRef;
-        apiCtx = apiCtxRef;
         intAuthResponse = intAuthResponseRef;
         pingTask = pingTaskRef;
     }
@@ -121,7 +110,7 @@ public class CtrlAuthenticator
             // TODO make the shared secret customizable
             try
             {
-                Peer peer = node.getPeer(peerAccCtx.get());
+                Peer peer = node.getPeer();
                 if (peer instanceof TcpConnectorPeer tcpPeer)
                 {
                     errorReporter.logDebug("Adding peer to PingTask: '" + node.getName() + "'");
@@ -135,7 +124,7 @@ public class CtrlAuthenticator
                                 node.getName().getDisplayName(),
                                 "Hello, LinStor!".getBytes(StandardCharsets.UTF_8),
                                 UUID.fromString(
-                                    systemConfRepository.getCtrlConfForView(apiCtx)
+                                    systemConfRepository.getCtrlConfForView()
                                         .getProp(
                                             InternalApiConsts.KEY_CLUSTER_LOCAL_ID,
                                             ApiConsts.NAMESPC_CLUSTER
@@ -188,7 +177,6 @@ public class CtrlAuthenticator
         {
             errorReporter.reportError(
                 ioExc,
-                apiCtx,
                 peer,
                 "An IO exception occurred while parsing the authentication response"
             );
@@ -200,14 +188,7 @@ public class CtrlAuthenticator
     private Peer getPeerPrivileged(Node node)
     {
         Peer peer;
-        try
-        {
-            peer = node.getPeer(apiCtx);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        peer = node.getPeer();
         return peer;
     }
 }

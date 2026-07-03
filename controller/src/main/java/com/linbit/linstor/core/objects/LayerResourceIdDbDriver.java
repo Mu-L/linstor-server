@@ -6,7 +6,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
@@ -21,8 +20,6 @@ import com.linbit.linstor.dbdrivers.interfaces.LayerResourceIdCtrlDatabaseDriver
 import com.linbit.linstor.dbdrivers.interfaces.updater.SingleColumnDatabaseDriver;
 import com.linbit.linstor.layer.LayerIgnoreReason;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.AbsRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
@@ -60,12 +57,11 @@ public class LayerResourceIdDbDriver extends AbsDatabaseDriver<AbsRscLayerObject
 
     @Inject
     public LayerResourceIdDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef
     )
     {
-        super(dbCtxRef, errorReporterRef, GeneratedDatabaseTables.LAYER_RESOURCE_IDS, dbEngineRef);
+        super(errorReporterRef, GeneratedDatabaseTables.LAYER_RESOURCE_IDS, dbEngineRef);
 
         setColumnSetter(LAYER_RESOURCE_ID, rlo -> rlo.getRscLayerId());
         setColumnSetter(LAYER_RESOURCE_KIND, rlo -> rlo.getLayerKind().name());
@@ -373,20 +369,20 @@ public class LayerResourceIdDbDriver extends AbsDatabaseDriver<AbsRscLayerObject
         }
 
         @Override
-        public RscLayerDataApi asPojo(AccessContext accCtxRef) throws AccessDeniedException
+        public RscLayerDataApi asPojo()
         {
             throw new ImplementationError(IMPL_ERR_TEXT);
         }
 
         @Override
-        public void delete(AccessContext accCtxRef) throws AccessDeniedException, DatabaseException
+        public void delete() throws DatabaseException
         {
             throw new ImplementationError(IMPL_ERR_TEXT);
         }
 
         @Override
-        public void remove(AccessContext accCtxRef, VolumeNumber vlmNrRef)
-            throws AccessDeniedException, DatabaseException
+        public void remove(VolumeNumber vlmNrRef)
+            throws DatabaseException
         {
             throw new ImplementationError(IMPL_ERR_TEXT);
         }

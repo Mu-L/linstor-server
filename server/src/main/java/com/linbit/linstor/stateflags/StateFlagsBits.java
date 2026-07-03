@@ -3,10 +3,6 @@ package com.linbit.linstor.stateflags;
 import com.linbit.ErrorCheck;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.transaction.AbsTransactionObject;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 
@@ -66,39 +62,34 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
         persistence = persistenceRef;
     }
 
-    private void requireAccess(AccessContext accCtx, AccessType accessType)
-        throws AccessDeniedException
+    private void requireAccess(AccessType accessType)
     {
         for (ObjectProtection objProt : objProts)
         {
-            objProt.requireAccess(accCtx, accessType);
         }
     }
 
     @Override
-    public void enableAllFlags(final AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void enableAllFlags()
+        throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.CHANGE);
 
         setFlags(changedStateFlags | mask);
     }
 
     @Override
-    public void disableAllFlags(final AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException
+    public void disableAllFlags()
+        throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.CHANGE);
 
         setFlags(0L);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public void enableFlags(final AccessContext accCtx, final FLAG... flags)
-        throws AccessDeniedException, DatabaseException
+    public void enableFlags(final FLAG... flags)
+        throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.CHANGE);
 
         final long flagsBits = getMask(flags);
         setFlags((changedStateFlags | flagsBits) & mask);
@@ -106,9 +97,8 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
 
     @SuppressWarnings("unchecked")
     @Override
-    public void resetFlagsTo(AccessContext accCtx, FLAG... flags) throws AccessDeniedException, DatabaseException
+    public void resetFlagsTo(FLAG... flags) throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.CHANGE);
 
         final long flagsBits = getMask(flags);
         setFlags(flagsBits & mask);
@@ -116,10 +106,9 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
 
     @SuppressWarnings("unchecked")
     @Override
-    public void disableFlags(final AccessContext accCtx, final FLAG... flags)
-        throws AccessDeniedException, DatabaseException
+    public void disableFlags(final FLAG... flags)
+        throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.CHANGE);
 
         final long flagsBits = getMask(flags);
         setFlags(changedStateFlags & ~flagsBits);
@@ -127,10 +116,9 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
 
     @SuppressWarnings("unchecked")
     @Override
-    public void enableFlagsExcept(final AccessContext accCtx, final FLAG... flags)
-        throws AccessDeniedException, DatabaseException
+    public void enableFlagsExcept(final FLAG... flags)
+        throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.CHANGE);
 
         final long flagsBits = getMask(flags);
         setFlags(changedStateFlags | (mask & ~flagsBits));
@@ -138,10 +126,9 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
 
     @SuppressWarnings("unchecked")
     @Override
-    public void disableFlagsExcept(final AccessContext accCtx, final FLAG... flags)
-        throws AccessDeniedException, DatabaseException
+    public void disableFlagsExcept(final FLAG... flags)
+        throws DatabaseException
     {
-        requireAccess(accCtx, AccessType.CHANGE);
 
         final long flagsBits = getMask(flags);
         setFlags(changedStateFlags & flagsBits);
@@ -149,10 +136,8 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
 
     @SuppressWarnings("unchecked")
     @Override
-    public boolean isSet(final AccessContext accCtx, final FLAG... flags)
-        throws AccessDeniedException
+    public boolean isSet(final FLAG... flags)
     {
-        requireAccess(accCtx, AccessType.VIEW);
 
         final long flagsBits = getMask(flags);
         return (changedStateFlags & flagsBits) == flagsBits;
@@ -160,10 +145,8 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
 
     @SuppressWarnings("unchecked")
     @Override
-    public boolean isUnset(final AccessContext accCtx, final FLAG... flags)
-        throws AccessDeniedException
+    public boolean isUnset(final FLAG... flags)
     {
-        requireAccess(accCtx, AccessType.VIEW);
 
         final long flagsBits = getMask(flags);
         return (changedStateFlags & flagsBits) == 0L;
@@ -171,10 +154,8 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
 
     @SuppressWarnings("unchecked")
     @Override
-    public boolean isSomeSet(final AccessContext accCtx, final FLAG... flags)
-        throws AccessDeniedException
+    public boolean isSomeSet(final FLAG... flags)
     {
-        requireAccess(accCtx, AccessType.VIEW);
 
         final long flagsBits = getMask(flags);
         return (changedStateFlags & flagsBits) != 0L;
@@ -182,20 +163,16 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
 
     @SuppressWarnings("unchecked")
     @Override
-    public boolean isSomeUnset(final AccessContext accCtx, final FLAG... flags)
-        throws AccessDeniedException
+    public boolean isSomeUnset(final FLAG... flags)
     {
-        requireAccess(accCtx, AccessType.VIEW);
 
         final long flagsBits = getMask(flags);
         return (changedStateFlags & flagsBits) != flagsBits;
     }
 
     @Override
-    public long getFlagsBits(final AccessContext accCtx)
-        throws AccessDeniedException
+    public long getFlagsBits()
     {
-        requireAccess(accCtx, AccessType.VIEW);
 
         return changedStateFlags;
     }
@@ -225,10 +202,8 @@ public class StateFlagsBits<PRIMARY_KEY, FLAG extends Flags> extends AbsTransact
     }
 
     @Override
-    public long getValidFlagsBits(final AccessContext accCtx)
-        throws AccessDeniedException
+    public long getValidFlagsBits()
     {
-        requireAccess(accCtx, AccessType.VIEW);
 
         return mask;
     }

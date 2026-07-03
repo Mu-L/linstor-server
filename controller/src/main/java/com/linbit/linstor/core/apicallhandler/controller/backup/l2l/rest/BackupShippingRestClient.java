@@ -17,8 +17,6 @@ import com.linbit.linstor.core.apicallhandler.controller.backup.l2l.rest.data.Ba
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.objects.remotes.LinstorRemote;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.utils.RestClient.RestOp;
 import com.linbit.linstor.storage.utils.RestHttpClient;
@@ -59,8 +57,7 @@ public class BackupShippingRestClient
 
     public Flux<BackupShippingResponsePrevSnap> sendPrevSnapRequest(
         BackupShippingRequestPrevSnap data,
-        LinstorRemote remote,
-        AccessContext accCtx
+        LinstorRemote remote
     )
     {
         return Flux.create(fluxSink ->
@@ -69,7 +66,7 @@ public class BackupShippingRestClient
             {
                 try
                 {
-                    String restURL = remote.getUrl(accCtx).toExternalForm() +
+                    String restURL = remote.getUrl().toExternalForm() +
                         "/v1/internal/backups/requestPrevSnap";
                     RestResponse<BackupShippingResponsePrevSnap> response = restClient.execute(
                         null,
@@ -93,7 +90,7 @@ public class BackupShippingRestClient
                         fluxSink.complete();
                     }
                 }
-                catch (AccessDeniedException | StorageException | IOException exc)
+                catch (StorageException | IOException exc)
                 {
                     errorReporter.reportError(exc);
                     fluxSink.error(exc);
@@ -103,7 +100,7 @@ public class BackupShippingRestClient
         });
     }
 
-    public Flux<BackupShippingResponse> sendBackupRequest(BackupShippingSrcData data, AccessContext accCtx)
+    public Flux<BackupShippingResponse> sendBackupRequest(BackupShippingSrcData data)
     {
         return Flux.create(fluxSink ->
         {
@@ -118,7 +115,7 @@ public class BackupShippingRestClient
                         data.getStltRemote().getName(),
                         data
                     );
-                    String restURL = data.getLinstorRemote().getUrl(accCtx).toExternalForm() +
+                    String restURL = data.getLinstorRemote().getUrl().toExternalForm() +
                         "/v1/internal/backups/requestShip";
                     RestResponse<BackupShippingResponse> response = restClient.execute(
                         null,
@@ -165,7 +162,7 @@ public class BackupShippingRestClient
                         fluxSink.complete();
                     }
                 }
-                catch (StorageException | IOException | AccessDeniedException exc)
+                catch (StorageException | IOException exc)
                 {
                     errorReporter.reportError(exc);
                     fluxSink.error(exc);
@@ -191,22 +188,14 @@ public class BackupShippingRestClient
 
     public Flux<JsonGenTypes.ApiCallRc> sendPrepareAbortRequest(
         BackupShippingPrepareAbortRequest data,
-        LinstorRemote remote,
-        AccessContext accCtx
+        LinstorRemote remote
     )
     {
-        try
-        {
-            return sendRequest(
-                data,
-                remote.getUrl(accCtx).toExternalForm() + "/v1/internal/backups/requestPrepareAbort",
-                remote.getName().displayValue
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        return sendRequest(
+            data,
+            remote.getUrl().toExternalForm() + "/v1/internal/backups/requestPrepareAbort",
+            remote.getName().displayValue
+        );
     }
 
     private <T> Flux<JsonGenTypes.ApiCallRc> sendRequest(T data, String restURL, String remoteName)

@@ -13,9 +13,6 @@ import com.linbit.linstor.core.objects.ResourceControllerFactory;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.LayerPayload;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.utils.Pair;
 
@@ -55,7 +52,7 @@ public class ResourceTestFactory
     }
 
     public Resource get(String nodeName, String rscName, boolean createIfNotExists)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, LinStorException
     {
         Resource rsc = rscMap.get(new Pair<>(nodeName.toUpperCase(), rscName.toUpperCase()));
@@ -66,7 +63,7 @@ public class ResourceTestFactory
         return rsc;
     }
 
-    public ResourceTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public ResourceTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -91,14 +88,14 @@ public class ResourceTestFactory
     }
 
     public Resource create(Node node, ResourceDefinition rscDfn)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, LinStorException
     {
         return builder(node.getName().displayValue, rscDfn.getName().displayValue).build();
     }
 
     public Resource create(String nodeName, String rscName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, LinStorException
     {
         return builder(nodeName, rscName).build();
@@ -111,7 +108,6 @@ public class ResourceTestFactory
 
     public class ResourceBuilder
     {
-        private AccessContext accCtx;
         private String nodeName;
         private String rscName;
         private LayerPayload payload;
@@ -123,7 +119,6 @@ public class ResourceTestFactory
             nodeName = nodeNameRef;
             rscName = rscNameRef;
 
-            accCtx = dfltAccCtx;
             payload = dfltPayload;
             flags = dfltFlags;
             layerStack = copyOrNull(dfltLayerStack);
@@ -142,12 +137,11 @@ public class ResourceTestFactory
         }
 
         public Resource build()
-            throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException,
+            throws DatabaseException, LinStorDataAlreadyExistsException,
             ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, InvalidNameException,
             LinStorException
         {
             Resource rsc = rscFact.create(
-                accCtx,
                 rscDfnFact.get(rscName, true),
                 nodeFact.get(nodeName, true),
                 payload,

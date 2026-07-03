@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -20,7 +19,6 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCal
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -41,8 +39,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.layer.resource.RscStorageLayerHelper;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -83,7 +79,6 @@ public class CtrlRscMakeAvailableApiCallHandler
     private final ResponseConverter responseConverter;
     private final FreeCapacityFetcher freeCapacityFetcher;
     private final LockGuardFactory lockGuardFactory;
-    private final Provider<AccessContext> peerCtxProvider;
     private final CtrlRscCrtApiCallHandler ctrlRscCrtApiCallHandler;
     private final CtrlApiDataLoader dataLoader;
     private final Autoplacer autoplacer;
@@ -102,7 +97,6 @@ public class CtrlRscMakeAvailableApiCallHandler
         ResponseConverter responseConverterRef,
         LockGuardFactory lockGuardFactoryRef,
         FreeCapacityFetcher freeCapacityFetcherRef,
-        @PeerContext Provider<AccessContext> peerCtxProviderRef,
         CtrlRscCrtApiCallHandler ctrlRscCrtApiCallHandlerRef,
         CtrlApiDataLoader dataLoaderRef,
         Autoplacer autoplacerRef,
@@ -120,7 +114,6 @@ public class CtrlRscMakeAvailableApiCallHandler
         responseConverter = responseConverterRef;
         lockGuardFactory = lockGuardFactoryRef;
         freeCapacityFetcher = freeCapacityFetcherRef;
-        peerCtxProvider = peerCtxProviderRef;
         ctrlRscCrtApiCallHandler = ctrlRscCrtApiCallHandlerRef;
         dataLoader = dataLoaderRef;
         autoplacer = autoplacerRef;
@@ -257,7 +250,7 @@ public class CtrlRscMakeAvailableApiCallHandler
                             rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData()
                         ),
                         rscDfn,
-                        CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn, peerCtxProvider.get())
+                        CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn)
                     );
                     StorPool sp = getStorPoolOrFail(storPoolSet, nodeNameRef, false);
 
@@ -426,25 +419,14 @@ public class CtrlRscMakeAvailableApiCallHandler
     {
         Resource activeRsc = null;
         ResourceDefinition rscDfn = myRsc.getResourceDefinition();
-        try
+        TreeSet<Resource> sharedResources = sharedRscMgr.getSharedResources(myRsc);
+        for (Resource rsc : sharedResources)
         {
-            TreeSet<Resource> sharedResources = sharedRscMgr.getSharedResources(myRsc);
-            for (Resource rsc : sharedResources)
+            if (!myRsc.equals(rsc) && !rsc.getStateFlags().isSet(Resource.Flags.INACTIVE))
             {
-                if (!myRsc.equals(rsc) && !rsc.getStateFlags().isSet(peerCtxProvider.get(), Resource.Flags.INACTIVE))
-                {
-                    activeRsc = rsc;
-                    break;
-                }
+                activeRsc = rsc;
+                break;
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "finding active resource " + CtrlRscDfnApiCallHandler.getRscDfnDescription(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         return activeRsc;
     }
@@ -452,26 +434,15 @@ public class CtrlRscMakeAvailableApiCallHandler
     private @Nullable Resource getActiveRsc(ResourceWithPayloadApi rscToCreate, Node node, ResourceDefinition rscDfn)
     {
         Resource activeRsc = null;
-        try
+        Set<SharedStorPoolName> sharedSpNames = getSharedSpNamesByRscCreateApi(rscToCreate, node, rscDfn);
+        TreeSet<Resource> sharedResources = sharedRscMgr.getSharedResources(sharedSpNames, rscDfn);
+        for (Resource rsc : sharedResources)
         {
-            Set<SharedStorPoolName> sharedSpNames = getSharedSpNamesByRscCreateApi(rscToCreate, node, rscDfn);
-            TreeSet<Resource> sharedResources = sharedRscMgr.getSharedResources(sharedSpNames, rscDfn);
-            for (Resource rsc : sharedResources)
+            if (!rsc.getStateFlags().isSet(Resource.Flags.INACTIVE))
             {
-                if (!rsc.getStateFlags().isSet(peerCtxProvider.get(), Resource.Flags.INACTIVE))
-                {
-                    activeRsc = rsc;
-                    break;
-                }
+                activeRsc = rsc;
+                break;
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "finding active resource " + CtrlRscDfnApiCallHandler.getRscDfnDescription(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         return activeRsc;
     }
@@ -481,7 +452,6 @@ public class CtrlRscMakeAvailableApiCallHandler
         Node node,
         ResourceDefinition rscDfn
     )
-        throws AccessDeniedException
     {
         HashSet<SharedStorPoolName> ret = new HashSet<>();
         try
@@ -496,14 +466,13 @@ public class CtrlRscMakeAvailableApiCallHandler
                 prioMaps.add(rscToCreateRef.getRscApi().getProps());
                 prioMaps.add(
                     rscDfn.getVolumeDfn(
-                        peerCtx,
                         LinstorParsingUtils.asVlmNr(vlmApi.getVlmNr())
                     )
-                        .getProps(peerCtx).map()
+                        .getProps().map()
                 );
-                prioMaps.add(rscDfn.getProps(peerCtx).map());
-                prioMaps.add(rscDfn.getResourceGroup().getProps(peerCtx).map());
-                prioMaps.add(node.getProps(peerCtx).map());
+                prioMaps.add(rscDfn.getProps().map());
+                prioMaps.add(rscDfn.getResourceGroup().getProps().map());
+                prioMaps.add(node.getProps().map());
 
                 String poolName = get(prioMaps, ApiConsts.KEY_STOR_POOL_NAME);
 
@@ -521,7 +490,7 @@ public class CtrlRscMakeAvailableApiCallHandler
 
             for (String storPoolName : storPoolNames)
             {
-                StorPool sp = node.getStorPool(peerCtx, new StorPoolName(storPoolName));
+                StorPool sp = node.getStorPool(new StorPoolName(storPoolName));
                 ret.add(sp.getSharedStorPoolName());
             }
         }
@@ -550,15 +519,7 @@ public class CtrlRscMakeAvailableApiCallHandler
     {
         try
         {
-            rsc.getStateFlags().enableFlags(peerCtxProvider.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "enabling flags of " + CtrlRscApiCallHandler.getRscDescription(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
+            rsc.getStateFlags().enableFlags(flags);
         }
         catch (DatabaseException exc)
         {
@@ -658,34 +619,22 @@ public class CtrlRscMakeAvailableApiCallHandler
                     Node node = dataLoader.loadNode(nodeNameRef, true);
                     boolean isEbsInitSupported;
                     boolean hasEbsTargetWithoutInit = false;
-                    try
-                    {
-                        isEbsInitSupported = node.getPeer(peerAccCtx).getExtToolsManager()
-                            .isProviderSupported(DeviceProviderKind.EBS_INIT);
-                    }
-                    catch (AccessDeniedException exc)
-                    {
-                        throw new ApiAccessDeniedException(
-                            exc,
-                            "checking for EBS_INIT support",
-                            ApiConsts.FAIL_ACC_DENIED_NODE
-                        );
-                    }
+                    isEbsInitSupported = node.getPeer().getExtToolsManager()
+                        .isProviderSupported(DeviceProviderKind.EBS_INIT);
                     if (isEbsInitSupported)
                     {
                         String nodeName = node.getName().displayValue;
                         Iterator<StorPool> spIt;
                         try
                         {
-                            spIt = node.iterateStorPools(peerAccCtx);
+                            spIt = node.iterateStorPools();
                             while (spIt.hasNext() && !hasEbsTargetWithoutInit)
                             {
                                 StorPool sp = spIt.next();
                                 if (sp.getDeviceProviderKind().equals(DeviceProviderKind.EBS_INIT))
                                 {
-                                    String az = RscStorageLayerHelper.getAvailabilityZone(peerAccCtx, remoteMap, sp);
+                                    String az = RscStorageLayerHelper.getAvailabilityZone(remoteMap, sp);
                                     Resource targetEbsResource = RscStorageLayerHelper.findTargetEbsResource(
-                                        peerAccCtx,
                                         remoteMap,
                                         rscDfn,
                                         az,
@@ -743,7 +692,7 @@ public class CtrlRscMakeAvailableApiCallHandler
                 rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData()
             ),
             rscDfn,
-            CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn, peerAccCtx)
+            CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn)
         );
 
         @Nullable StorPool sp = getStorPoolOrNull(storPoolSet);
@@ -755,7 +704,7 @@ public class CtrlRscMakeAvailableApiCallHandler
                 storPoolSet = autoplacer.autoPlace(
                     autoSelect,
                     rscDfn,
-                    CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn, peerAccCtx)
+                    CtrlRscAutoPlaceApiCallHandler.calculateResourceDefinitionSize(rscDfn)
                 );
                 sp = getStorPoolOrNull(storPoolSet);
             }
@@ -796,18 +745,7 @@ public class CtrlRscMakeAvailableApiCallHandler
     private boolean hasDrbdDiskfulPeer(ResourceDefinition rscDfnRef)
     {
         boolean ret;
-        try
-        {
-            ret = !ResourceUtils.filterResourcesDrbdDiskfulActive(rscDfnRef, peerCtxProvider.get()).isEmpty();
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "checking active diskful DRBD peers for resource-definition: " + rscDfnRef.getName(),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        ret = !ResourceUtils.filterResourcesDrbdDiskfulActive(rscDfnRef).isEmpty();
         return ret;
     }
 
@@ -835,148 +773,137 @@ public class CtrlRscMakeAvailableApiCallHandler
     private @Nullable ResourceWithPayloadApi getSharedResourceCreationPojo(ResourceDefinition rscDfnRef, Node nodeRef)
     {
         @Nullable ResourceWithPayloadApi ret = null;
-        try
+        // build Map<SharedStorPoolName, StorPool> of current node
+        Map<SharedStorPoolName, StorPool> nodeStorPoolMap = new HashMap<>();
         {
-            // build Map<SharedStorPoolName, StorPool> of current node
-            Map<SharedStorPoolName, StorPool> nodeStorPoolMap = new HashMap<>();
+            Iterator<StorPool> spIt = nodeRef.iterateStorPools();
+            while (spIt.hasNext())
             {
-                Iterator<StorPool> spIt = nodeRef.iterateStorPools(peerCtxProvider.get());
-                while (spIt.hasNext())
-                {
-                    StorPool sp = spIt.next();
-                    nodeStorPoolMap.put(sp.getSharedStorPoolName(), sp);
-                }
+                StorPool sp = spIt.next();
+                nodeStorPoolMap.put(sp.getSharedStorPoolName(), sp);
             }
+        }
 
-            Iterator<Resource> rscIt = rscDfnRef.iterateResource(peerCtxProvider.get());
-            while (rscIt.hasNext() && ret == null)
+        Iterator<Resource> rscIt = rscDfnRef.iterateResource();
+        while (rscIt.hasNext() && ret == null)
+        {
+            Resource rsc = rscIt.next();
+            boolean allVolumesShared = true;
+            Iterator<Volume> vlmsIt = rsc.iterateVolumes();
+
+            List<VolumeApi> vlmApiList = new ArrayList<>();
+
+            while (vlmsIt.hasNext() && allVolumesShared)
             {
-                Resource rsc = rscIt.next();
-                boolean allVolumesShared = true;
-                Iterator<Volume> vlmsIt = rsc.iterateVolumes();
+                Volume vlm = vlmsIt.next();
 
-                List<VolumeApi> vlmApiList = new ArrayList<>();
+                Map<String, StorPool> storPoolMap = LayerVlmUtils.getStorPoolMap(vlm);
 
-                while (vlmsIt.hasNext() && allVolumesShared)
+                // we need to ensure DATA and (if exists) DRBD_META paths are shared. the other storage pools can be
+                // recreated
+
+                StorPool dataSp = storPoolMap.get(RscLayerSuffixes.SUFFIX_DATA);
+                StorPool drbdMetaSp = storPoolMap.get(RscLayerSuffixes.SUFFIX_DRBD_META);
+
+                StorPool sharedDataSpFromNode = nodeStorPoolMap.get(dataSp.getSharedStorPoolName());
+                StorPool sharedDrbdMetaSpFromNode = null;
+                if (drbdMetaSp != null)
                 {
-                    Volume vlm = vlmsIt.next();
+                    sharedDrbdMetaSpFromNode = nodeStorPoolMap.get(drbdMetaSp.getSharedStorPoolName());
+                }
 
-                    Map<String, StorPool> storPoolMap = LayerVlmUtils.getStorPoolMap(vlm, peerCtxProvider.get());
-
-                    // we need to ensure DATA and (if exists) DRBD_META paths are shared. the other storage pools can be
-                    // recreated
-
-                    StorPool dataSp = storPoolMap.get(RscLayerSuffixes.SUFFIX_DATA);
-                    StorPool drbdMetaSp = storPoolMap.get(RscLayerSuffixes.SUFFIX_DRBD_META);
-
-                    StorPool sharedDataSpFromNode = nodeStorPoolMap.get(dataSp.getSharedStorPoolName());
-                    StorPool sharedDrbdMetaSpFromNode = null;
+                Map<String, String> vlmsProps = new HashMap<>();
+                if (sharedDataSpFromNode != null)
+                {
+                    vlmsProps.put(
+                        ApiConsts.KEY_STOR_POOL_NAME,
+                        sharedDataSpFromNode.getName().displayValue
+                    );
                     if (drbdMetaSp != null)
                     {
-                        sharedDrbdMetaSpFromNode = nodeStorPoolMap.get(drbdMetaSp.getSharedStorPoolName());
-                    }
-
-                    Map<String, String> vlmsProps = new HashMap<>();
-                    if (sharedDataSpFromNode != null)
-                    {
-                        vlmsProps.put(
-                            ApiConsts.KEY_STOR_POOL_NAME,
-                            sharedDataSpFromNode.getName().displayValue
-                        );
-                        if (drbdMetaSp != null)
+                        if (sharedDrbdMetaSpFromNode != null)
                         {
-                            if (sharedDrbdMetaSpFromNode != null)
-                            {
-                                vlmsProps.put(
-                                    ApiConsts.KEY_STOR_POOL_DRBD_META_NAME,
-                                    sharedDrbdMetaSpFromNode.getName().displayValue
-                                );
-                            }
-                            else
-                            {
-                                allVolumesShared = false;
-                            }
+                            vlmsProps.put(
+                                ApiConsts.KEY_STOR_POOL_DRBD_META_NAME,
+                                sharedDrbdMetaSpFromNode.getName().displayValue
+                            );
+                        }
+                        else
+                        {
+                            allVolumesShared = false;
                         }
                     }
-                    else
-                    {
-                        allVolumesShared = false;
-                    }
-                    if (allVolumesShared)
-                    {
-                        vlmApiList.add(
-                            new VlmPojo(
-                                null,
-                                null,
-                                null,
-                                vlm.getVolumeNumber().value,
-                                0,
-                                vlmsProps,
-                                Optional.empty(),
-                                Optional.empty(),
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        );
-                    }
+                }
+                else
+                {
+                    allVolumesShared = false;
                 }
                 if (allVolumesShared)
                 {
-                    Integer nodeId = null;
-                    {
-                        Set<AbsRscLayerObject<Resource>> drbdRscData = LayerRscUtils.getRscDataByLayer(
-                            rsc.getLayerData(peerCtxProvider.get()),
-                            DeviceLayerKind.DRBD
-                        );
-                        if (drbdRscData.size() == 1)
-                        {
-                            nodeId = ((DrbdRscData<Resource>) drbdRscData.iterator().next()).getNodeId().value;
-                        }
-                        else if (drbdRscData.size() > 1)
-                        {
-                            throw new ImplementationError("Unexpected drbdRscData count: " + drbdRscData.size());
-                        }
-                    }
-                    ret = new ResourceWithPayloadPojo(
-                        new RscPojo(
-                            rscDfnRef.getName().displayValue,
-                            nodeRef.getName().displayValue,
+                    vlmApiList.add(
+                        new VlmPojo(
                             null,
                             null,
                             null,
+                            vlm.getVolumeNumber().value,
                             0,
-                            Collections.emptyMap(),
-                            vlmApiList,
-                            null,
-                            null,
-                            null,
+                            vlmsProps,
+                            Optional.empty(),
+                            Optional.empty(),
                             null,
                             null,
                             null,
                             null
-                        ),
-                        LayerRscUtils.getLayerStack(rsc, peerCtxProvider.get()).stream()
-                            .map(DeviceLayerKind::name).collect(Collectors.toList()),
-                        nodeId,
-                        null,
-                        null,
-                        // rscs via make-available are always treated as drbd-clients, unless they are shared-resources
-                        // in that case they should not be diskless at all, but shared diskful (regardless if DRBD is
-                        // used or not)
-                        null
+                        )
                     );
                 }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "looking for shared resources of " + CtrlRscDfnApiCallHandler.getRscDfnDescription(rscDfnRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
+            if (allVolumesShared)
+            {
+                Integer nodeId = null;
+                {
+                    Set<AbsRscLayerObject<Resource>> drbdRscData = LayerRscUtils.getRscDataByLayer(
+                        rsc.getLayerData(),
+                        DeviceLayerKind.DRBD
+                    );
+                    if (drbdRscData.size() == 1)
+                    {
+                        nodeId = ((DrbdRscData<Resource>) drbdRscData.iterator().next()).getNodeId().value;
+                    }
+                    else if (drbdRscData.size() > 1)
+                    {
+                        throw new ImplementationError("Unexpected drbdRscData count: " + drbdRscData.size());
+                    }
+                }
+                ret = new ResourceWithPayloadPojo(
+                    new RscPojo(
+                        rscDfnRef.getName().displayValue,
+                        nodeRef.getName().displayValue,
+                        null,
+                        null,
+                        null,
+                        0,
+                        Collections.emptyMap(),
+                        vlmApiList,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    ),
+                    LayerRscUtils.getLayerStack(rsc).stream()
+                        .map(DeviceLayerKind::name).collect(Collectors.toList()),
+                    nodeId,
+                    null,
+                    null,
+                    // rscs via make-available are always treated as drbd-clients, unless they are shared-resources
+                    // in that case they should not be diskless at all, but shared diskful (regardless if DRBD is
+                    // used or not)
+                    null
+                );
+            }
         }
         return ret;
     }
@@ -1043,18 +970,7 @@ public class CtrlRscMakeAvailableApiCallHandler
     private List<DeviceLayerKind> getDeployedLayerStack(Resource rscRef)
     {
         List<DeviceLayerKind> layerStack;
-        try
-        {
-            layerStack = LayerRscUtils.getLayerStack(rscRef, peerCtxProvider.get());
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "getting layer stack of resource " + CtrlRscApiCallHandler.getRscDescription(rscRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        layerStack = LayerRscUtils.getLayerStack(rscRef);
         return layerStack;
     }
 
@@ -1063,18 +979,7 @@ public class CtrlRscMakeAvailableApiCallHandler
         List<DeviceLayerKind> layerStack;
         if (layerStackStr == null || layerStackStr.isEmpty())
         {
-            try
-            {
-                layerStack = rscDfnRef.getLayerStack(peerCtxProvider.get());
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ApiAccessDeniedException(
-                    exc,
-                    "accessing layer list of rscDfn " + rscDfnRef.getName(),
-                    ApiConsts.FAIL_ACC_DENIED_RSC
-                );
-            }
+            layerStack = rscDfnRef.getLayerStack();
         }
         else
         {
@@ -1091,46 +996,21 @@ public class CtrlRscMakeAvailableApiCallHandler
     private Iterator<Resource> getRscIter(ResourceDefinition rscDfnRef)
     {
         Iterator<Resource> rscIt;
-        try
-        {
-            rscIt = rscDfnRef.iterateResource(peerCtxProvider.get());
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "accessing resources of rscDfn " + rscDfnRef.getName(),
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        rscIt = rscDfnRef.iterateResource();
         return rscIt;
     }
 
     private boolean isFlagSet(Resource rsc, Resource.Flags... flags)
     {
         boolean isSet;
-        try
-        {
-            isSet = rsc.getStateFlags().isSet(peerCtxProvider.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "checking resource flags", ApiConsts.FAIL_ACC_DENIED_RSC);
-        }
+        isSet = rsc.getStateFlags().isSet(flags);
         return isSet;
     }
 
     private boolean isAnyFlagSet(Resource rsc, Resource.Flags... flags)
     {
         boolean isSet;
-        try
-        {
-            isSet = rsc.getStateFlags().isSomeSet(peerCtxProvider.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "checking resource flags", ApiConsts.FAIL_ACC_DENIED_RSC);
-        }
+        isSet = rsc.getStateFlags().isSomeSet(flags);
         return isSet;
     }
 
@@ -1138,11 +1018,7 @@ public class CtrlRscMakeAvailableApiCallHandler
     {
         try
         {
-            rsc.getStateFlags().disableFlags(peerCtxProvider.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "disabling resource flags", ApiConsts.FAIL_ACC_DENIED_RSC);
+            rsc.getStateFlags().disableFlags(flags);
         }
         catch (DatabaseException exc)
         {
@@ -1155,11 +1031,7 @@ public class CtrlRscMakeAvailableApiCallHandler
     {
         try
         {
-            vlm.getFlags().disableFlags(peerCtxProvider.get(), flags);
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(exc, "disabling volume flags", ApiConsts.FAIL_ACC_DENIED_VLM);
+            vlm.getFlags().disableFlags(flags);
         }
         catch (DatabaseException exc)
         {

@@ -13,7 +13,6 @@ import com.linbit.linstor.netcom.IllegalMessageStateException;
 import com.linbit.linstor.netcom.MessageProcessor;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.TcpConnectorService;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.net.ssl.SSLContext;
 
@@ -94,8 +93,6 @@ public class SslTcpConnectorService extends TcpConnectorService
         final CommonSerializer commonSerializer,
         final MessageProcessor msgProcessorRef,
         final SocketAddress bindAddress,
-        final AccessContext peerAccCtxRef,
-        final AccessContext privAccCtxRef,
         final ConnectionObserver connObserverRef,
         final ModularCryptoProvider cryptoProviderRef,
         final String sslProtocol,
@@ -113,7 +110,6 @@ public class SslTcpConnectorService extends TcpConnectorService
             commonSerializer,
             msgProcessorRef,
             bindAddress,
-            peerAccCtxRef,
             privAccCtxRef,
             connObserverRef
         );

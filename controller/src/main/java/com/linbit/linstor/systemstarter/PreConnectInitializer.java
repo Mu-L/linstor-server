@@ -4,7 +4,6 @@ import com.linbit.SystemServiceStartException;
 import com.linbit.linstor.InitializationException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.LinStorScope;
 import com.linbit.linstor.backupshipping.BackupShippingUtils;
@@ -14,8 +13,6 @@ import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.transaction.manager.TransactionMgrGenerator;
 import com.linbit.linstor.transaction.manager.TransactionMgrUtil;
 
@@ -29,20 +26,17 @@ public class PreConnectInitializer implements StartupInitializer
 {
     private final ResourceDefinitionRepository rscDfnRepo;
     private final CtrlTransactionHelper ctrlTransactionHelper;
-    private final AccessContext sysCtx;
     private final LinStorScope apiCallScope;
     private final TransactionMgrGenerator transactionMgrGenerator;
 
     @Inject
     public PreConnectInitializer(
-        @SystemContext AccessContext sysCtxRef,
         ResourceDefinitionRepository rscDfnRepoRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         LinStorScope apiCallScopeRef,
         TransactionMgrGenerator transactionMgrGeneratorRef
     )
     {
-        sysCtx = sysCtxRef;
         rscDfnRepo = rscDfnRepoRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         apiCallScope = apiCallScopeRef;
@@ -51,19 +45,19 @@ public class PreConnectInitializer implements StartupInitializer
 
     @Override
     public void initialize()
-        throws InitializationException, AccessDeniedException, DatabaseException, SystemServiceStartException
+        throws InitializationException, DatabaseException, SystemServiceStartException
     {
         try (LinStorScope.ScopeAutoCloseable close = apiCallScope.enter())
         {
             TransactionMgrUtil.seedTransactionMgr(apiCallScope, transactionMgrGenerator.startTransaction());
 
-            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView(sysCtx).values())
+            for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
             {
-                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns(sysCtx))
+                for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
                 {
-                    if (BackupShippingUtils.isAnyShippingInProgress(snapDfn, sysCtx))
+                    if (BackupShippingUtils.isAnyShippingInProgress(snapDfn))
                     {
-                        @Nullable Props backupProps = snapDfn.getSnapDfnProps(sysCtx)
+                        @Nullable Props backupProps = snapDfn.getSnapDfnProps()
                             .getNamespace(ApiConsts.NAMESPC_BACKUP_SHIPPING);
                         // this should not be able to be null, since there is at least one shipping in progress, but
                         // check anyways
@@ -74,8 +68,7 @@ public class PreConnectInitializer implements StartupInitializer
                                 dstProps != null && BackupShippingUtils.hasShippingStatus(
                                     snapDfn,
                                     null,
-                                    InternalApiConsts.VALUE_SHIPPING,
-                                    sysCtx
+                                    InternalApiConsts.VALUE_SHIPPING
                                 )
                             )
                             {
@@ -100,8 +93,7 @@ public class PreConnectInitializer implements StartupInitializer
                                             BackupShippingUtils.hasShippingStatus(
                                                 snapDfn,
                                                 remoteName,
-                                                InternalApiConsts.VALUE_SHIPPING,
-                                                sysCtx
+                                                InternalApiConsts.VALUE_SHIPPING
                                             )
                                         )
                                         {

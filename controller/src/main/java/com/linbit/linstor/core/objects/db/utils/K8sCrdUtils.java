@@ -4,8 +4,6 @@ import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,12 +27,11 @@ public class K8sCrdUtils
      *
      */
     public static <T, RSC extends AbsResource<RSC>> Map<Integer, T> getCheckedVlmMap(
-        AccessContext accCtx,
         RSC absRsc,
         HashMap<Integer, HashMap<Integer, T>> cachedMap,
         int layerResourceId
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         Map<Integer, T> vlmMap = cachedMap.get(layerResourceId);
 
@@ -44,13 +41,13 @@ public class K8sCrdUtils
             String expectedType;
             if (absRsc instanceof Resource)
             {
-                expectedVlmCount = absRsc.getResourceDefinition().getVolumeDfnCount(accCtx);
+                expectedVlmCount = absRsc.getResourceDefinition().getVolumeDfnCount();
                 expectedType = "volume-definitions";
             }
             else
             {
                 expectedVlmCount = ((Snapshot) absRsc).getSnapshotDefinition()
-                    .getAllSnapshotVolumeDefinitions(accCtx).size();
+                    .getAllSnapshotVolumeDefinitions().size();
                 expectedType = "snapshot-volume-definitions";
             }
 

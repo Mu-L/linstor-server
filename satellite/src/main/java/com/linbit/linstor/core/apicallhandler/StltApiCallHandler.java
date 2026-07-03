@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.PlatformStlt;
 import com.linbit.extproc.ChildProcessHandler;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -61,8 +60,6 @@ import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.proto.common.StltConfigOuterClass;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.ExtTools;
@@ -101,7 +98,6 @@ import org.slf4j.event.Level;
 public class StltApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final StltConfig stltCfg;
 
     private final ControllerPeerConnector controllerPeerConnector;
@@ -152,7 +148,6 @@ public class StltApiCallHandler
     @Inject
     public StltApiCallHandler(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         StltConfig stltCfgRef,
         ControllerPeerConnector controllerPeerConnectorRef,
         UpdateMonitor updateMonitorRef,
@@ -192,7 +187,6 @@ public class StltApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        apiCtx = apiCtxRef;
         stltCfg = stltCfgRef;
         controllerPeerConnector = controllerPeerConnectorRef;
         updateMonitor = updateMonitorRef;
@@ -278,7 +272,7 @@ public class StltApiCallHandler
                 )
             );
         }
-        catch (AccessDeniedException | InvalidKeyException | InvalidValueException | DatabaseException exc)
+        catch (InvalidKeyException | InvalidValueException | DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -351,7 +345,7 @@ public class StltApiCallHandler
                  * At least openflex stor pools need the properties of the localnode in order to
                  * query freeSpace (which is triggered by storPoolHandler.applyChanges)
                  */
-                deviceManager.applyChangedNodeProps(controllerPeerConnector.getLocalNode().getProps(apiCtx));
+                deviceManager.applyChangedNodeProps(controllerPeerConnector.getLocalNode().getProps());
 
                 for (StorPoolPojo storPool : storPools)
                 {
@@ -606,7 +600,7 @@ public class StltApiCallHandler
             // local nodename needed by openflex driver
             stltConf.setProp(LinStor.KEY_NODE_NAME, controllerPeerConnector.getLocalNodeName().displayValue);
 
-            ReadOnlyProps nodeProps = controllerPeerConnector.getLocalNode().getProps(apiCtx);
+            ReadOnlyProps nodeProps = controllerPeerConnector.getLocalNode().getProps();
             ChildProcessHandler.applyTimeoutProps(nodeProps, stltConf);
 
             LvmUtils.updateCacheTime(stltConf, nodeProps);
@@ -623,7 +617,7 @@ public class StltApiCallHandler
 
             deviceManager.controllerUpdateApplied(slctRsc);
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             // TODO: kill connection?
             errorReporter.reportError(exc);
@@ -657,52 +651,45 @@ public class StltApiCallHandler
 
     private void reconfigureAllStorageDrivers(boolean runSpUpdatesRef)
     {
-        try
+        @Nullable Node localNode = controllerPeerConnector.getLocalNode();
+        if (localNode != null)
         {
-            @Nullable Node localNode = controllerPeerConnector.getLocalNode();
-            if (localNode != null)
+            for (StorPoolDefinition spd : storPoolDfnMap.values())
             {
-                for (StorPoolDefinition spd : storPoolDfnMap.values())
+                try
                 {
-                    try
+                    @Nullable StorPool sp = spd.getStorPool(controllerPeerConnector.getLocalNodeName());
+                    // storage pool probably not deployed on this node
+                    if (sp != null)
                     {
-                        @Nullable StorPool sp = spd.getStorPool(apiCtx, controllerPeerConnector.getLocalNodeName());
-                        // storage pool probably not deployed on this node
-                        if (sp != null)
+                        DeviceProvider deviceProvider = deviceProviderMapper.getDeviceProviderBy(sp);
+                        if (runSpUpdatesRef)
                         {
-                            DeviceProvider deviceProvider = deviceProviderMapper.getDeviceProviderBy(sp);
-                            if (runSpUpdatesRef)
+                            @Nullable LocalPropsChangePojo pojo = deviceProvider.update(sp);
+                            if (pojo != null)
                             {
-                                @Nullable LocalPropsChangePojo pojo = deviceProvider.update(sp);
-                                if (pojo != null)
-                                {
-                                    controllerPeerConnector.getControllerPeer()
-                                    .sendMessage(
-                                        interComSerializer
-                                                .onewayBuilder(InternalApiConsts.API_UPDATE_LOCAL_PROPS_FROM_STLT)
-                                                .updateLocalProps(pojo)
-                                                .build(),
-                                        InternalApiConsts.API_UPDATE_LOCAL_PROPS_FROM_STLT
-                                        );
-                                }
+                                controllerPeerConnector.getControllerPeer()
+                                .sendMessage(
+                                    interComSerializer
+                                            .onewayBuilder(InternalApiConsts.API_UPDATE_LOCAL_PROPS_FROM_STLT)
+                                            .updateLocalProps(pojo)
+                                            .build(),
+                                    InternalApiConsts.API_UPDATE_LOCAL_PROPS_FROM_STLT
+                                    );
                             }
-                            deviceProvider.checkConfig(sp);
                         }
-                    }
-                    catch (StorageException exc)
-                    {
-                        errorReporter.reportError(exc);
-                    }
-                    catch (DatabaseException exc)
-                    {
-                        throw new ImplementationError(exc);
+                        deviceProvider.checkConfig(sp);
                     }
                 }
+                catch (StorageException exc)
+                {
+                    errorReporter.reportError(exc);
+                }
+                catch (DatabaseException exc)
+                {
+                    throw new ImplementationError(exc);
+                }
             }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError("Privileged API context has insufficient privileges");
         }
     }
 
@@ -850,7 +837,7 @@ public class StltApiCallHandler
                     errorReporter.reportError(exc);
                     try
                     {
-                        controllerPeerConnector.getLocalNode().getPeer(apiCtx).closeConnection();
+                        controllerPeerConnector.getLocalNode().getPeer().closeConnection();
                         // there is nothing else we can safely do.
                         // skipping the update might cause data-corruption
                         // not skipping will queue the new data packets but will not apply those as the
@@ -921,8 +908,7 @@ public class StltApiCallHandler
         boolean successFlag = false;
         try
         {
-            errorReporter.setLogLevel(
-                apiCtx, Level.valueOf(logLevel.toUpperCase()), Level.valueOf(logLevelLinstor.toUpperCase())
+            errorReporter.setLogLevel(Level.valueOf(logLevel.toUpperCase()), Level.valueOf(logLevelLinstor.toUpperCase())
             );
             successFlag = true;
         }

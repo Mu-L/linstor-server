@@ -3,7 +3,6 @@ package com.linbit.linstor.debug;
 import com.linbit.InvalidNameException;
 import com.linbit.ServiceName;
 import com.linbit.SystemService;
-import com.linbit.linstor.security.AccessContext;
 
 import javax.inject.Inject;
 
@@ -53,7 +52,6 @@ public class CmdEndService extends BaseDebugCmd
     public void execute(
         PrintStream debugOut,
         PrintStream debugErr,
-        AccessContext accCtx,
         Map<String, String> parameters
     ) throws Exception
     {

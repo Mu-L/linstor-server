@@ -1,16 +1,13 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -27,8 +24,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 
 import static com.linbit.locks.LockGuardFactory.LockObj.NODES_MAP;
@@ -52,40 +47,34 @@ import reactor.core.publisher.Flux;
 class CtrlRscConnectionApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final CtrlRscConnectionHelper ctrlRscConnectionHelper;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
 
     @Inject
     CtrlRscConnectionApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
         CtrlRscConnectionHelper ctrlRscConnectionHelperRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         ErrorReporter errorReporterRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         ctrlRscConnectionHelper = ctrlRscConnectionHelperRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         errorReporter = errorReporterRef;
@@ -122,7 +111,7 @@ class CtrlRscConnectionApiCallHandler
             ctrlTransactionHelper.commit();
 
             responseConverter.addWithOp(apiCallRcs, context, ApiSuccessUtils.defaultCreatedEntry(
-                rscConn.getUuid(), getResourceConnectionDescriptionInline(apiCtx, rscConn)));
+                rscConn.getUuid(), getResourceConnectionDescriptionInline(rscConn)));
 
             fluxes = updateSatellites(rscConn);
         }
@@ -212,7 +201,6 @@ class CtrlRscConnectionApiCallHandler
                         String netIfName = overrideProps.get(key);
                         Node node = rscConn.getNode(new NodeName(nodeName));
                         NetInterface netInterface = node.getNetInterface(
-                            peerAccCtx.get(),
                             new NetInterfaceName(netIfName)
                         );
                         if (netInterface == null)
@@ -264,7 +252,7 @@ class CtrlRscConnectionApiCallHandler
             ctrlTransactionHelper.commit();
 
             responseConverter.addWithOp(apiCallRcs, context, ApiSuccessUtils.defaultModifiedEntry(
-                rscConn.getUuid(), getResourceConnectionDescriptionInline(apiCtx, rscConn)));
+                rscConn.getUuid(), getResourceConnectionDescriptionInline(rscConn)));
 
             if (notifyStlts)
             {
@@ -321,18 +309,7 @@ class CtrlRscConnectionApiCallHandler
     private Props getProps(ResourceConnection rscConn)
     {
         Props props;
-        try
-        {
-            props = rscConn.getProps(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access properties of " + getResourceConnectionDescriptionInline(apiCtx, rscConn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
-            );
-        }
+        props = rscConn.getProps();
         return props;
     }
 
@@ -340,22 +317,15 @@ class CtrlRscConnectionApiCallHandler
     {
         List<Flux<Flux<ApiCallRc>>> fluxes = new ArrayList<>();
 
-        try
-        {
-            fluxes.add(Flux.just(ctrlSatelliteUpdateCaller
-                .updateSatellites(rscConn.getSourceResource(apiCtx), Flux.empty())
-                .flatMap(updateTuple -> updateTuple == null ? Flux.empty() : updateTuple.getT2())
-            ));
+        fluxes.add(Flux.just(ctrlSatelliteUpdateCaller
+            .updateSatellites(rscConn.getSourceResource(), Flux.empty())
+            .flatMap(updateTuple -> updateTuple == null ? Flux.empty() : updateTuple.getT2())
+        ));
 
-            fluxes.add(Flux.just(ctrlSatelliteUpdateCaller
-                .updateSatellites(rscConn.getTargetResource(apiCtx), Flux.empty())
-                .flatMap(updateTuple -> updateTuple == null ? Flux.empty() : updateTuple.getT2())
-            ));
-        }
-        catch (AccessDeniedException implErr)
-        {
-            throw new ImplementationError(implErr);
-        }
+        fluxes.add(Flux.just(ctrlSatelliteUpdateCaller
+            .updateSatellites(rscConn.getTargetResource(), Flux.empty())
+            .flatMap(updateTuple -> updateTuple == null ? Flux.empty() : updateTuple.getT2())
+        ));
 
         return fluxes;
     }
@@ -364,15 +334,7 @@ class CtrlRscConnectionApiCallHandler
     {
         try
         {
-            rscConn.delete(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "delete " + getResourceConnectionDescriptionInline(apiCtx, rscConn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
-            );
+            rscConn.delete();
         }
         catch (DatabaseException sqlExc)
         {
@@ -386,21 +348,14 @@ class CtrlRscConnectionApiCallHandler
             nodeName2 + " for resource " + rscName;
     }
 
-    public static String getResourceConnectionDescriptionInline(AccessContext accCtx, ResourceConnection rscConn)
+    public static String getResourceConnectionDescriptionInline(ResourceConnection rscConn)
     {
         String descriptionInline;
-        try
-        {
-            descriptionInline = getResourceConnectionDescriptionInline(
-                rscConn.getSourceResource(accCtx).getNode().getName().displayValue,
-                rscConn.getTargetResource(accCtx).getNode().getName().displayValue,
-                rscConn.getSourceResource(accCtx).getResourceDefinition().getName().displayValue
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError(exc);
-        }
+        descriptionInline = getResourceConnectionDescriptionInline(
+            rscConn.getSourceResource().getNode().getName().displayValue,
+            rscConn.getTargetResource().getNode().getName().displayValue,
+            rscConn.getSourceResource().getResourceDefinition().getName().displayValue
+        );
         return descriptionInline;
     }
 

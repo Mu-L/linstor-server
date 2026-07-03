@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -19,7 +18,6 @@ import com.linbit.linstor.core.apicallhandler.controller.autoplacer.SelectionExc
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.SelectionManager;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils.DrbdResourceResult;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
@@ -38,8 +36,6 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.ExtTools;
@@ -82,7 +78,6 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
     private final SystemConfRepository systemConfRepository;
     private final CtrlRscLayerDataFactory layerDataHelper;
     private final CtrlRscCrtApiHelper rscCrtApiHelper;
-    private final Provider<AccessContext> peerCtx;
     private final ScopeRunner scopeRunner;
     private final ReadWriteLock nodesMapLock;
     private final ReadWriteLock rscDfnMapLock;
@@ -98,7 +93,6 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         SystemConfRepository systemConfRepositoryRef,
         ScopeRunner scopeRunnerRef,
         CtrlRscLayerDataFactory layerDataHelperRef,
-        @PeerContext Provider<AccessContext> peerCtxRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
         @Named(CoreModule.RSC_DFN_MAP_LOCK) ReadWriteLock rscDfnMapLockRef,
         CtrlRscCrtApiHelper rscCrtApiHelperRef,
@@ -112,7 +106,6 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         systemConfRepository = systemConfRepositoryRef;
         scopeRunner = scopeRunnerRef;
         layerDataHelper = layerDataHelperRef;
-        peerCtx = peerCtxRef;
         nodesMapLock = nodesMapLockRef;
         rscDfnMapLock = rscDfnMapLockRef;
         rscCrtApiHelper = rscCrtApiHelperRef;
@@ -147,7 +140,7 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                 if (tieBreaker == null)
                 {
                     Resource takeover = null;
-                    Iterator<Resource> rscIt = ctx.rscDfn.iterateResource(peerCtx.get());
+                    Iterator<Resource> rscIt = ctx.rscDfn.iterateResource();
                     while (rscIt.hasNext())
                     {
                         Resource rsc = rscIt.next();
@@ -248,7 +241,7 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                 else
                 {
                     if (isFlagSet(tieBreaker, Resource.Flags.DRBD_DELETE) &&
-                        tieBreaker.getNode().getFlags().isUnset(peerCtx.get(), Node.Flags.EVACUATE))
+                        tieBreaker.getNode().getFlags().isUnset(Node.Flags.EVACUATE))
                     {
                         // user requested to delete tiebreaker.
                         if (ctx.keepTiebreaker)
@@ -260,7 +253,7 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                         else
                         {
                             tieBreaker.getResourceDefinition()
-                                .getProps(peerCtx.get())
+                                .getProps()
                                 .setProp(
                                     KEY_DRBD_AUTO_ADD_QUORUM_TIEBREAKER,
                                     VAL_FALSE,
@@ -282,12 +275,12 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
             {
                 if (tieBreaker != null)
                 {
-                    @Nullable Peer tiePeer = tieBreaker.getNode().getPeer(peerCtx.get());
+                    @Nullable Peer tiePeer = tieBreaker.getNode().getPeer();
                     // only delete the tiebreaker if node is online
                     if (tiePeer != null && tiePeer.isFullSyncApplied() && tiePeer.isOnline())
                     {
                         // this cannot be the last diskful rsc of any rscDfn, so no need to notify scheduled shipping
-                        tieBreaker.markDeleted(peerCtx.get());
+                        tieBreaker.markDeleted();
                         ctx.responses.addEntries(
                             ApiCallRcImpl.singleApiCallRc(
                                 ApiConsts.INFO_TIE_BREAKER_DELETING,
@@ -301,14 +294,6 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                 }
             }
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "managing auto-quorum feature " + getRscDfnDescriptionInline(ctx.rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
         catch (DatabaseException exc)
         {
             throw new ApiDatabaseException(exc);
@@ -319,16 +304,15 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         }
     }
 
-    private boolean couldTakeover(Resource rscRef, AutoHelperContext ctxRef) throws AccessDeniedException
+    private boolean couldTakeover(Resource rscRef, AutoHelperContext ctxRef)
     {
         boolean couldTakeover = false;
-        final AccessContext peerAccCtx = peerCtx.get();
 
-        if (rscRef.getStateFlags().isSet(peerAccCtx, Resource.Flags.DRBD_DISKLESS))
+        if (rscRef.getStateFlags().isSet(Resource.Flags.DRBD_DISKLESS))
         {
             final ResourceDefinition rscDfn = ctxRef.rscDfn;
             final Predicate<StorPool> isEligibleTieBreakerStorPool = getEligibleTieBreakerStorPoolPredicate(rscDfn);
-            couldTakeover = LayerVlmUtils.getStorPools(rscRef, peerAccCtx)
+            couldTakeover = LayerVlmUtils.getStorPools(rscRef)
                 .stream()
                 .allMatch(isEligibleTieBreakerStorPool);
         }
@@ -352,23 +336,22 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
     )
     {
         StateFlags<Flags> flags = rsc.getStateFlags();
-        AccessContext accCtx = peerCtx.get();
         try
         {
-            flags.disableFlags(accCtx, Resource.Flags.DRBD_DELETE, Resource.Flags.DELETE);
-            DrbdLayerUtils.setClientFlag(accCtx, rsc, false);
+            flags.disableFlags(Resource.Flags.DRBD_DELETE, Resource.Flags.DELETE);
+            DrbdLayerUtils.setClientFlag(rsc, false);
 
             Iterator<Volume> vlmsIt = rsc.iterateVolumes();
             while (vlmsIt.hasNext())
             {
                 Volume vlm = vlmsIt.next();
-                vlm.getFlags().disableFlags(accCtx, Volume.Flags.DRBD_DELETE, Volume.Flags.DELETE);
+                vlm.getFlags().disableFlags(Volume.Flags.DRBD_DELETE, Volume.Flags.DELETE);
             }
 
             // just to be sure
             ResourceDataUtils.recalculateVolatileRscData(layerDataHelper, rsc);
 
-            if (flags.isSet(accCtx, Resource.Flags.DRBD_DISKLESS))
+            if (flags.isSet(Resource.Flags.DRBD_DISKLESS))
             {
                 ctx.additionalFluxList.add(setTiebreakerFlag(rsc));
                 ctx.requiresUpdateFlux = true;
@@ -399,14 +382,6 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                 )
             );
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "accessing flags of " + getRscDescriptionInline(rsc),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
         catch (DatabaseException exc)
         {
             throw new ApiDatabaseException(exc);
@@ -426,14 +401,6 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         {
             throw new ImplementationError(exc);
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "checking auto-quorum / auto-tiebreaker feature " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
         return autoTieBreakerEnabled;
     }
 
@@ -441,7 +408,7 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
     {
         try
         {
-            ctxRef.rscDfn.getProps(peerCtx.get())
+            ctxRef.rscDfn.getProps()
                 .setProp(KEY_DRBD_AUTO_ADD_QUORUM_TIEBREAKER, VAL_TRUE, NAMESPC_DRBD_OPTIONS);
             ctxRef.responses.add(
                 ApiCallRcImpl.simpleEntry(
@@ -454,71 +421,50 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         {
             throw new ImplementationError(exc);
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "enabling auto-tiebreaker feature " + getRscDfnDescriptionInline(ctxRef.rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
     }
 
     private @Nullable Resource getTieBreaker(ResourceDefinition rscDfn)
     {
         Resource tieBreaker = null;
-        try
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
+        while (rscIt.hasNext())
         {
-            Iterator<Resource> rscIt = rscDfn.iterateResource(peerCtx.get());
-            while (rscIt.hasNext())
+            Resource rsc = rscIt.next();
+            if (rsc.getStateFlags().isSet(Resource.Flags.TIE_BREAKER))
             {
-                Resource rsc = rscIt.next();
-                if (rsc.getStateFlags().isSet(peerCtx.get(), Resource.Flags.TIE_BREAKER))
-                {
-                    tieBreaker = rsc;
-                    break;
-                }
+                tieBreaker = rsc;
+                break;
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access resources of resource definition " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
         }
         return tieBreaker;
     }
 
-    private boolean shouldTieBreakerExist(ResourceDefinition rscDfn) throws AccessDeniedException
+    private boolean shouldTieBreakerExist(ResourceDefinition rscDfn)
     {
         long diskfulDrbdCount = 0;
         long disklessDrbdCount = 0;
-
-        AccessContext peerAccCtx = peerCtx.get();
 
         if (CtrlRscAutoQuorumHelper.isQuorumEnabled(getPrioProps(rscDfn)) ||
             CtrlRscAutoQuorumHelper.isAutoQuorumEnabled(getPrioProps(rscDfn)))
         {
             Predicate<StorPool> isEligibleTieBreakerStorPool = getEligibleTieBreakerStorPoolPredicate(rscDfn);
 
-            Iterator<Resource> rscIt = rscDfn.iterateResource(peerAccCtx);
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
 
                 StateFlags<Resource.Flags> rscFlags = rsc.getStateFlags();
 
-                if (isDrbdResource(peerAccCtx, rsc))
+                if (isDrbdResource(rsc))
                 {
-                    if (rscFlags.isSet(peerAccCtx, Resource.Flags.DRBD_DISKLESS))
+                    if (rscFlags.isSet(Resource.Flags.DRBD_DISKLESS))
                     {
-                        boolean eligibleStoragePool = LayerVlmUtils.getStorPools(rsc, peerAccCtx)
+                        boolean eligibleStoragePool = LayerVlmUtils.getStorPools(rsc)
                             .stream()
                             .allMatch(isEligibleTieBreakerStorPool);
-                        if (eligibleStoragePool && !rscFlags.isSet(peerAccCtx, Resource.Flags.TIE_BREAKER) &&
-                            !DrbdLayerUtils.isDrbdClient(peerAccCtx, rsc))
+                        if (eligibleStoragePool && !rscFlags.isSet(Resource.Flags.TIE_BREAKER) &&
+                            !DrbdLayerUtils.isDrbdClient(rsc))
                         {
                             // We only count non-tie-breaker diskless resource, which are also "eligible"
                             // to be tiebreakers, i.e. the autoplacer could have chosen this node, assuming
@@ -537,17 +483,15 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
     }
 
     private Predicate<StorPool> getEligibleTieBreakerStorPoolPredicate(ResourceDefinition rscDfn)
-        throws AccessDeniedException
     {
         List<Node> alreadyDeployedDiskfulNodes = new ArrayList<>();
 
-        AccessContext peerAccCtx = peerCtx.get();
-        Iterator<Resource> rscIt = rscDfn.iterateResource(peerAccCtx);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
 
-            if (!rsc.isDiskless(peerAccCtx))
+            if (!rsc.isDiskless())
             {
                 alreadyDeployedDiskfulNodes.add(rsc.getNode());
             }
@@ -568,7 +512,6 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         try
         {
             final SelectionManager selectionManager = new SelectionManager(
-                peerAccCtx,
                 errorReporter,
                 mergedAutoSelectFilter,
                 alreadyDeployedDiskfulNodes,
@@ -581,19 +524,7 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                 true,
                 BlockSizeConsts.DFLT_PHY_IO_SIZE
             );
-            ret = storPool ->
-            {
-                boolean isAllowed = false;
-                try
-                {
-                    isAllowed = selectionManager.isAllowed(storPool);
-                }
-                catch (AccessDeniedException e)
-                {
-                    // Ignore -> not allowed
-                }
-                return isAllowed;
-            };
+            ret = selectionManager::isAllowed;
         }
         catch (SelectionException selExc)
         {
@@ -614,24 +545,23 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         return ret;
     }
 
-    private boolean isDrbdResource(AccessContext peerAccCtx, Resource rsc) throws AccessDeniedException
+    private boolean isDrbdResource(Resource rsc)
     {
-        final DrbdResourceResult result = ResourceDataUtils.isDrbdResource(rsc, peerAccCtx);
+        final DrbdResourceResult result = ResourceDataUtils.isDrbdResource(rsc);
         final StateFlags<Resource.Flags> rscFlags = rsc.getStateFlags();
 
         return result != DrbdResourceResult.NO_DRBD &&
-            rscFlags.isUnset(peerAccCtx, Resource.Flags.DELETE) &&
-            rscFlags.isUnset(peerAccCtx, Resource.Flags.DRBD_DELETE) &&
-            rscFlags.isUnset(peerAccCtx, Resource.Flags.INACTIVE);
+            rscFlags.isUnset(Resource.Flags.DELETE) &&
+            rscFlags.isUnset(Resource.Flags.DRBD_DELETE) &&
+            rscFlags.isUnset(Resource.Flags.INACTIVE);
     }
 
-    private PriorityProps getPrioProps(ResourceDefinition rscDfn) throws AccessDeniedException
+    private PriorityProps getPrioProps(ResourceDefinition rscDfn)
     {
-        AccessContext accCtx = peerCtx.get();
         return new PriorityProps(
-            rscDfn.getProps(accCtx),
-            rscDfn.getResourceGroup().getProps(accCtx),
-            systemConfRepository.getCtrlConfForView(accCtx)
+            rscDfn.getProps(),
+            rscDfn.getResourceGroup().getProps(),
+            systemConfRepository.getCtrlConfForView()
         );
     }
 
@@ -641,112 +571,98 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         @Nullable Set<String> relaxedReplicasOnSameKeysOut
     )
     {
-        StorPool storPool = null;
+        @Nullable StorPool storPool = null;
         // --replicas-on-same keys that the autoplacer reported as undecidable and that we therefore drop
         // when retrying the placement (see the catch (SelectionException) below). "Any node is better than
         // no tie breaker" when the resource group's rules are already violated by the deployed resources.
         Set<String> relaxedReplicasOnSameKeys = new HashSet<>();
 
-        try
+        List<String> filterNodeNamesList = new ArrayList<>();
+        if (nodesToChooseFromRef != null)
         {
-            AccessContext peerAccCtx = peerCtx.get();
-
-            List<String> filterNodeNamesList = new ArrayList<>();
-            if (nodesToChooseFromRef != null)
+            for (Node node : nodesToChooseFromRef)
             {
-                for (Node node : nodesToChooseFromRef)
-                {
-                    filterNodeNamesList.add(node.getName().displayValue);
-                }
-
-            }
-
-            while (storPool == null)
-            {
-                AutoSelectFilterApi apiData = ctx.rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData();
-                @Nullable Map<String, Integer> xReplicasOnDifferentMap = apiData.getXReplicasOnDifferentMap();
-                @Nullable Map<String, Integer> xReplOnDiffCopyOrNull;
-                if (xReplicasOnDifferentMap != null)
-                {
-                    xReplOnDiffCopyOrNull = new HashMap<>(xReplicasOnDifferentMap);
-                    // in order to force the tiebreaker to be put on a new datacenter, we want to (temporarily) override
-                    // all values of the xReplicasOnDifferentMap with 1
-                    for (Entry<String, Integer> entry : xReplOnDiffCopyOrNull.entrySet())
-                    {
-                        entry.setValue(1);
-                    }
-                }
-                else
-                {
-                    xReplOnDiffCopyOrNull = null;
-                }
-                AutoSelectFilterPojo mergedAutoSelectFilterPojo = AutoSelectFilterPojo.merge(
-                    new AutoSelectFilterBuilder()
-                        .setPlaceCount(0)
-                        .setAdditionalPlaceCount(1)
-                        .setNodeNameList(filterNodeNamesList)
-                        .setSkipAlreadyPlacedOnNodeNamesCheck(
-                            filterNodeNamesList.isEmpty() ? null : filterNodeNamesList
-                        )
-                        .setDoNotPlaceWithRscList(Collections.singletonList(ctx.rscDfn.getName().displayValue))
-                        .setLayerStackList(Collections.singletonList(DeviceLayerKind.DRBD))
-                        .setDisklessType(Resource.Flags.DRBD_DISKLESS.name())
-                        .setXReplicasOnDifferentMap(xReplOnDiffCopyOrNull)
-                        .build(),
-                    ctx.rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData(),
-                    ctx.selectFilter
-                );
-                /*
-                 * There are two possibilities:
-                 * 1) we just autoplaced at least 1 diskful resource so we reached the 2 diskful + 0 diskless condition
-                 * that we now place a tiebreaker. That means that if the ctx.selectFilter.getStorPoolNamesList is not
-                 * null it will contain the name(s) of disk*ful* storage pool(s). We need to ignore those as otherwise
-                 * we will not be able to find a diskless storage pool for our tiebreaker
-                 * 2) we just autoplaced at least 1 diskless resource. In this case, the condition of 2 diskful and
-                 * *0* diskless cannot be fulfilled, so we cannot be here :)
-                 *
-                 * That means, it should be always safe to also ignore the storPoolNameList of the ctx.selectFilter as
-                 * well as from the resourcegroup (i.e. the merged result)
-                 */
-                // TODO: This is no longer true...
-                mergedAutoSelectFilterPojo.setStorPoolNameList(null);
-
-                @Nullable Set<StorPool> autoplaceResult = autoplaceWithRelaxedRetries(
-                    ctx,
-                    relaxedReplicasOnSameKeys,
-                    mergedAutoSelectFilterPojo
-                );
-
-                if (autoplaceResult != null && !autoplaceResult.isEmpty())
-                {
-                    storPool = autoplaceResult.iterator().next();
-                    if (!supportsTieBreaker(peerAccCtx, storPool.getNode()))
-                    {
-                        /*
-                         * autoplacer only checks if DRBD >= 9 is supported, but we need >= 9.0.19
-                         */
-                        filterNodeNamesList.remove(storPool.getNode().getName().displayValue);
-                        storPool = null;
-                    }
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            if (storPool != null && relaxedReplicasOnSameKeysOut != null)
-            {
-                relaxedReplicasOnSameKeysOut.addAll(relaxedReplicasOnSameKeys);
+                filterNodeNamesList.add(node.getName().displayValue);
             }
         }
-        catch (AccessDeniedException accDeniedExc)
+
+        while (storPool == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access nodes map ",
-                ApiConsts.FAIL_ACC_DENIED_NODE
+            AutoSelectFilterApi apiData = ctx.rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData();
+            @Nullable Map<String, Integer> xReplicasOnDifferentMap = apiData.getXReplicasOnDifferentMap();
+            @Nullable Map<String, Integer> xReplOnDiffCopyOrNull;
+            if (xReplicasOnDifferentMap != null)
+            {
+                xReplOnDiffCopyOrNull = new HashMap<>(xReplicasOnDifferentMap);
+                // in order to force the tiebreaker to be put on a new datacenter, we want to (temporarily) override
+                // all values of the xReplicasOnDifferentMap with 1
+                for (Entry<String, Integer> entry : xReplOnDiffCopyOrNull.entrySet())
+                {
+                    entry.setValue(1);
+                }
+            }
+            else
+            {
+                xReplOnDiffCopyOrNull = null;
+            }
+            AutoSelectFilterPojo mergedAutoSelectFilterPojo = AutoSelectFilterPojo.merge(
+                new AutoSelectFilterBuilder()
+                    .setPlaceCount(0)
+                    .setAdditionalPlaceCount(1)
+                    .setNodeNameList(filterNodeNamesList)
+                    .setSkipAlreadyPlacedOnNodeNamesCheck(
+                        filterNodeNamesList.isEmpty() ? null : filterNodeNamesList
+                    )
+                    .setDoNotPlaceWithRscList(Collections.singletonList(ctx.rscDfn.getName().displayValue))
+                    .setLayerStackList(Collections.singletonList(DeviceLayerKind.DRBD))
+                    .setDisklessType(Resource.Flags.DRBD_DISKLESS.name())
+                    .setXReplicasOnDifferentMap(xReplOnDiffCopyOrNull)
+                    .build(),
+                ctx.rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData(),
+                ctx.selectFilter
             );
+            /*
+             * There are two possibilities:
+             * 1) we just autoplaced at least 1 diskful resource so we reached the 2 diskful + 0 diskless condition
+             * that we now place a tiebreaker. That means that if the ctx.selectFilter.getStorPoolNamesList is not
+             * null it will contain the name(s) of disk*ful* storage pool(s). We need to ignore those as otherwise
+             * we will not be able to find a diskless storage pool for our tiebreaker
+             * 2) we just autoplaced at least 1 diskless resource. In this case, the condition of 2 diskful and
+             * *0* diskless cannot be fulfilled, so we cannot be here :)
+             *
+             * That means, it should be always safe to also ignore the storPoolNameList of the ctx.selectFilter as
+             * well as from the resourcegroup (i.e. the merged result)
+             */
+            // TODO: This is no longer true...
+            mergedAutoSelectFilterPojo.setStorPoolNameList(null);
+
+            @Nullable Set<StorPool> autoplaceResult = autoplaceWithRelaxedRetries(
+                ctx,
+                relaxedReplicasOnSameKeys,
+                mergedAutoSelectFilterPojo
+            );
+
+            if (autoplaceResult != null && !autoplaceResult.isEmpty())
+            {
+                storPool = autoplaceResult.iterator().next();
+                if (!supportsTieBreaker(storPool.getNode()))
+                {
+                    /*
+                     * autoplacer only checks if DRBD >= 9 is supported, but we need >= 9.0.19
+                     */
+                    filterNodeNamesList.remove(storPool.getNode().getName().displayValue);
+                    storPool = null;
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if (storPool != null && relaxedReplicasOnSameKeysOut != null)
+        {
+            relaxedReplicasOnSameKeysOut.addAll(relaxedReplicasOnSameKeys);
         }
         return storPool;
     }
@@ -821,9 +737,9 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
         }
     }
 
-    private boolean supportsTieBreaker(AccessContext peerAccCtx, Node node) throws AccessDeniedException
+    private boolean supportsTieBreaker(Node node)
     {
-        return node.getPeer(peerAccCtx)
+        return node.getPeer()
             .getExtToolsManager()
             .getExtToolInfo(ExtTools.DRBD9_KERNEL)
             .isSupportedAndHasVersionOrHigher(new ExtToolsInfo.Version(9, 0, 19));
@@ -832,54 +748,21 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
     private boolean isFlagSet(Resource rsc, Resource.Flags... flags)
     {
         boolean isFlagSet;
-        try
-        {
-            isFlagSet = rsc.getStateFlags().isSet(peerCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "checking flag state of " + rsc,
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        isFlagSet = rsc.getStateFlags().isSet(flags);
         return isFlagSet;
     }
 
     private boolean isSomeFlagSet(Resource rsc, Resource.Flags... flags)
     {
         boolean isFlagSet;
-        try
-        {
-            isFlagSet = rsc.getStateFlags().isSomeSet(peerCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "checking flag state of " + rsc,
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
-        }
+        isFlagSet = rsc.getStateFlags().isSomeSet(flags);
         return isFlagSet;
     }
 
     private boolean isSomeFlagSet(Node node, Node.Flags... flags)
     {
         boolean isFlagSet;
-        try
-        {
-            isFlagSet = node.getFlags().isSomeSet(peerCtx.get(), flags);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "checking flag state of " + node,
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        isFlagSet = node.getFlags().isSomeSet(flags);
         return isFlagSet;
     }
 
@@ -909,17 +792,9 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
     {
         try
         {
-            tiebreakerRef.getStateFlags().enableFlags(peerCtx.get(), Resource.Flags.TIE_BREAKER);
+            tiebreakerRef.getStateFlags().enableFlags(Resource.Flags.TIE_BREAKER);
 
             ctrlTransactionHelper.commit();
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "marking resource as tiebreaker " + tiebreakerRef,
-                ApiConsts.FAIL_ACC_DENIED_RSC
-            );
         }
         catch (DatabaseException exc)
         {

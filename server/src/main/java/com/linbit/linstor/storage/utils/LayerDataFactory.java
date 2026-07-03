@@ -4,7 +4,6 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -33,8 +32,6 @@ import com.linbit.linstor.dbdrivers.interfaces.LayerWritecacheRscDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.LayerWritecacheVlmDatabaseDriver;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheRscData;
 import com.linbit.linstor.storage.data.adapter.bcache.BCacheVlmData;
 import com.linbit.linstor.storage.data.adapter.cache.CacheRscData;
@@ -77,7 +74,6 @@ import java.util.TreeMap;
 @Singleton
 public class LayerDataFactory
 {
-    private final AccessContext sysCtx;
 
     private final LayerResourceIdDatabaseDriver layerRscIdDatabaseDriver;
 
@@ -112,7 +108,6 @@ public class LayerDataFactory
 
     @Inject
     public LayerDataFactory(
-        @SystemContext AccessContext sysCtxRef,
         LayerResourceIdDatabaseDriver layerRscIdDatabaseDriverRef,
         LayerLuksRscDatabaseDriver layerLuksRscDbDriverRef,
         LayerLuksVlmDatabaseDriver layerLuksVlmDbDriverRef,
@@ -134,7 +129,6 @@ public class LayerDataFactory
         TransactionObjectFactory transObjFactoryRef
     )
     {
-        sysCtx = sysCtxRef;
         layerRscIdDatabaseDriver = layerRscIdDatabaseDriverRef;
         layerLuksRscDbDriver = layerLuksRscDbDriverRef;
         layerLuksVlmDbDriver = layerLuksVlmDbDriverRef;
@@ -171,8 +165,7 @@ public class LayerDataFactory
         @Nullable Long alStripeSize,
         long initFlags
     )
-        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException, ValueInUseException,
-        AccessDeniedException
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException, ValueInUseException
     {
         DrbdRscData<RSC> drbdRscData = new DrbdRscData<>(
             rscLayerId,
@@ -189,7 +182,7 @@ public class LayerDataFactory
             alStripes,
             alStripeSize,
             initFlags,
-            rsc.getNode().getTcpPortPool(sysCtx),
+            rsc.getNode().getTcpPortPool(),
             layerDrbdRscDbDriver,
             layerDrbdVlmDbDriver,
             transObjFactory,

@@ -8,7 +8,6 @@ import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.CtrlStorPoolResolveHelper;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -41,8 +40,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
@@ -84,7 +81,6 @@ public class RscStorageLayerHelper extends
     @Inject
     RscStorageLayerHelper(
         ErrorReporter errorReporterRef,
-        @ApiContext AccessContext apiCtxRef,
         LayerDataFactory layerDataFactoryRef,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL)  DynamicNumberPool layerRscIdPoolRef,
         Provider<CtrlRscLayerDataFactory> rscLayerDataFactory,
@@ -95,7 +91,6 @@ public class RscStorageLayerHelper extends
     {
         super(
             errorReporterRef,
-            apiCtxRef,
             layerDataFactoryRef,
             layerRscIdPoolRef,
             // StorageRscData.class cannot directly be casted to Class<StorageRscData<Resource>>. because java.
@@ -152,7 +147,7 @@ public class RscStorageLayerHelper extends
         AbsRscLayerObject<Resource> parentObjectRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException
     {
         return layerDataFactory.createStorageRscData(
@@ -168,7 +163,7 @@ public class RscStorageLayerHelper extends
         StorageRscData<Resource> rscDataRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         return Collections.emptyList(); // no children.
     }
@@ -181,7 +176,7 @@ public class RscStorageLayerHelper extends
 
     @Override
     protected boolean needsChildVlm(AbsRscLayerObject<Resource> childRscDataRef, Volume vlmRef)
-        throws AccessDeniedException, InvalidKeyException
+        throws InvalidKeyException
     {
         throw new ImplementationError("Storage layer should not have child volumes to be asked for");
     }
@@ -193,13 +188,13 @@ public class RscStorageLayerHelper extends
         LayerPayload payloadRef,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, InvalidNameException
+        throws InvalidNameException
     {
         Set<StorPool> neededStorPools = new HashSet<>();
 
         boolean resolveSp = false;
 
-        AbsRscLayerObject<Resource> rscData = rsc.getLayerData(apiCtx);
+        AbsRscLayerObject<Resource> rscData = rsc.getLayerData();
         /*
          * If we are creating a (diskless?) resource, we might need to resolve storage pool or not.
          * If we are toggling disk we *must* resolve storage pools
@@ -220,7 +215,6 @@ public class RscStorageLayerHelper extends
         {
             CtrlRscLayerDataFactory ctrlRscLayerDataFactory = layerDataHelperProvider.get();
             StorPool resolvedStorPool = storPoolResolveHelper.resolveStorPool(
-                apiCtx,
                 rsc,
                 vlmDfn,
                 ctrlRscLayerDataFactory.isDiskless(rsc) && !ctrlRscLayerDataFactory.isDiskAddRequested(rsc),
@@ -243,7 +237,7 @@ public class RscStorageLayerHelper extends
         LayerPayload payload,
         List<DeviceLayerKind> layerListRef
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
             ValueInUseException, LinStorException, InvalidKeyException, InvalidNameException
     {
         StorPool storPool = layerDataHelperProvider.get().getStorPool(vlm, rscData, payload);
@@ -260,7 +254,7 @@ public class RscStorageLayerHelper extends
                 case DISKLESS:
                     vlmData = layerDataFactory.createDisklessData(
                         vlm,
-                        vlmDfn.getVolumeSize(apiCtx),
+                        vlmDfn.getVolumeSize(),
                         rscData,
                         storPool
                     );
@@ -305,7 +299,6 @@ public class RscStorageLayerHelper extends
                     break;
                 case EBS_INIT:
                     PairNonNull<String, Resource> unusedTargetEbsPair = findUnusedTargetEbsPair(
-                        apiCtx,
                         remoteMap,
                         rscData,
                         vlm,
@@ -321,12 +314,12 @@ public class RscStorageLayerHelper extends
                     );
                     try
                     {
-                        vlm.getProps(apiCtx).setProp(
+                        vlm.getProps().setProp(
                             InternalApiConsts.KEY_EBS_VLM_ID + rscData.getResourceNameSuffix(),
                             unusedTargetEbsVlmId,
                             ApiConsts.NAMESPC_STLT + "/" + ApiConsts.NAMESPC_EBS
                         );
-                        Props rscProp = targetRsc.getProps(apiCtx);
+                        Props rscProp = targetRsc.getProps();
                         // double check, just to be sure
                         String connectedInitNodeName = rscProp.getProp(
                             InternalApiConsts.KEY_EBS_CONNECTED_INIT_NODE_NAME,
@@ -358,29 +351,25 @@ public class RscStorageLayerHelper extends
                 default:
                     throw new ImplementationError("Unexpected kind: " + kind);
             }
-            storPool.putVolume(apiCtx, vlmData);
+            storPool.putVolume(vlmData);
         }
         return vlmData;
     }
 
     public static @Nullable String getEbsVlmId(
-        AccessContext accCtxRef,
         StorageRscData<Resource> rscDataRef,
         Volume vlmRef
     )
-        throws AccessDeniedException
     {
-        return getEbsVlmId(accCtxRef, rscDataRef.getResourceNameSuffix(), vlmRef);
+        return getEbsVlmId(rscDataRef.getResourceNameSuffix(), vlmRef);
     }
 
     private static @Nullable String getEbsVlmId(
-        AccessContext accCtxRef,
         String rscNameSuffix,
         Volume vlmRef
     )
-        throws AccessDeniedException
     {
-        return vlmRef.getProps(accCtxRef).getProp(
+        return vlmRef.getProps().getProp(
             InternalApiConsts.KEY_EBS_VLM_ID + rscNameSuffix,
             ApiConsts.NAMESPC_STLT + "/" + ApiConsts.NAMESPC_EBS
         );
@@ -397,22 +386,20 @@ public class RscStorageLayerHelper extends
      *
      */
     public static @Nullable Resource findTargetEbsResource(
-        AccessContext accCtx,
         RemoteMap remoteMap,
         ResourceDefinition rscDfn,
         String availabilityZone,
         @Nullable String nodeName
     )
-        throws AccessDeniedException
     {
         Resource ret = null;
-        Iterator<Resource> rscIt = rscDfn.iterateResource(accCtx);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
 
             Node targetNode = rsc.getNode();
-            if (targetNode.getNodeType(accCtx).equals(Node.Type.EBS_TARGET))
+            if (targetNode.getNodeType().equals(Node.Type.EBS_TARGET))
             {
                 if (targetNode.getStorPoolCount() != 1)
                 {
@@ -420,12 +407,12 @@ public class RscStorageLayerHelper extends
                         "EBS target node has unexpectedly many storage pools: " + targetNode.getStorPoolCount()
                     );
                 }
-                StorPool ebsStorPool = targetNode.iterateStorPools(accCtx).next();
-                String ebsStorPoolAZ = getAvailabilityZone(accCtx, remoteMap, ebsStorPool);
+                StorPool ebsStorPool = targetNode.iterateStorPools().next();
+                String ebsStorPoolAZ = getAvailabilityZone(remoteMap, ebsStorPool);
 
                 if (ebsStorPoolAZ.equals(availabilityZone))
                 {
-                    ReadOnlyProps rscProp = rsc.getProps(accCtx);
+                    ReadOnlyProps rscProp = rsc.getProps();
                     String connectedInitiator = rscProp.getProp(
                         InternalApiConsts.KEY_EBS_CONNECTED_INIT_NODE_NAME,
                         ApiConsts.NAMESPC_STLT + "/" + ApiConsts.NAMESPC_EBS
@@ -442,15 +429,15 @@ public class RscStorageLayerHelper extends
         return ret;
     }
 
-    public static String getAvailabilityZone(AccessContext accCtx, RemoteMap remoteMap, StorPool ebsStorPool)
-        throws AccessDeniedException, ImplementationError
+    public static String getAvailabilityZone(RemoteMap remoteMap, StorPool ebsStorPool)
+        throws ImplementationError
     {
         AbsRemote remote;
         try
         {
             remote = remoteMap.get(
                 new RemoteName(
-                    ebsStorPool.getProps(accCtx).getProp(
+                    ebsStorPool.getProps().getProp(
                         ApiConsts.NAMESPC_STORAGE_DRIVER + "/" + ApiConsts.NAMESPC_EBS + "/" +
                             ApiConsts.KEY_REMOTE
                     ),
@@ -470,19 +457,18 @@ public class RscStorageLayerHelper extends
                     remote.getClass().getSimpleName())
             );
         }
-        return ebsRemote.getAvailabilityZone(accCtx);
+        return ebsRemote.getAvailabilityZone();
     }
 
     private static PairNonNull<String, Resource> findUnusedTargetEbsPair(
-        AccessContext accCtxRef,
         RemoteMap remoteMap,
         StorageRscData<Resource> rscDataRef,
         Volume vlmRef,
         StorPool storPool
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
-        String storedEbsVlmId = getEbsVlmId(accCtxRef, rscDataRef, vlmRef);
+        String storedEbsVlmId = getEbsVlmId(rscDataRef, vlmRef);
         PairNonNull<String, Resource> ret;
 
         if (storedEbsVlmId != null)
@@ -492,10 +478,9 @@ public class RscStorageLayerHelper extends
         else
         {
             Resource targetRsc = findTargetEbsResource(
-                accCtxRef,
                 remoteMap,
                 vlmRef.getResourceDefinition(),
-                getAvailabilityZone(accCtxRef, remoteMap, storPool),
+                getAvailabilityZone(remoteMap, storPool),
                 vlmRef.getAbsResource().getNode().getName().displayValue
             );
 
@@ -510,7 +495,7 @@ public class RscStorageLayerHelper extends
             }
 
             Volume targetVlm = targetRsc.getVolume(vlmRef.getVolumeNumber());
-            String targetEbsVlmId = targetVlm.getProps(accCtxRef).getProp(
+            String targetEbsVlmId = targetVlm.getProps().getProp(
                 InternalApiConsts.KEY_EBS_VLM_ID + rscDataRef.getResourceNameSuffix(),
                 ApiConsts.NAMESPC_STLT + "/" + ApiConsts.NAMESPC_EBS
             );
@@ -555,7 +540,7 @@ public class RscStorageLayerHelper extends
                 VolumeNumber vlmNr = vlmData.getVlmNr();
                 // Remove the old data, which also ensures that createVlmLayerData doesn't just return the existing
                 // object.
-                storageRscData.remove(apiCtx, vlmNr);
+                storageRscData.remove(vlmNr);
                 // if the kind changes, we basically need a new vlmData
                 vlmData = createVlmLayerData(
                     storageRscData,
@@ -567,14 +552,14 @@ public class RscStorageLayerHelper extends
             }
             else
             {
-                vlmDataRef.setStorPool(apiCtx, newStorPool);
+                vlmDataRef.setStorPool(newStorPool);
             }
         }
     }
 
     @Override
     protected void resetStoragePools(AbsRscLayerObject<Resource> rscDataRef)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         // changing storage pools allows other DeviceProviders than before. Therefore we simply delete
         // all storage volumes as they will be re-created soon
@@ -582,17 +567,17 @@ public class RscStorageLayerHelper extends
         HashSet<VolumeNumber> vlmNrs = new HashSet<>(rscDataRef.getVlmLayerObjects().keySet());
         for (VolumeNumber vlmNr : vlmNrs)
         {
-            rscDataRef.remove(apiCtx, vlmNr);
+            rscDataRef.remove(vlmNr);
         }
     }
 
     private boolean ignoreLockedSEDResources(StorageRscData<Resource> rscData)
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         boolean ret = false;
         for (VlmProviderObject<Resource> vlmData : rscData.getVlmLayerObjects().values())
         {
-            ReadOnlyProps storPoolProps = vlmData.getStorPool().getProps(apiCtx);
+            ReadOnlyProps storPoolProps = vlmData.getStorPool().getProps();
             if (storPoolProps.getNamespace(ApiConsts.NAMESPC_SED) != null && !secObjs.areAllSet())
             {
                 CtrlRscLayerDataFactory ctrlRscLayerDataFactory = layerDataHelperProvider.get();
@@ -611,7 +596,7 @@ public class RscStorageLayerHelper extends
         List<DeviceLayerKind> layerListRef,
         LayerPayload payloadRef
     )
-        throws AccessDeniedException, DatabaseException
+        throws DatabaseException
     {
         Resource rsc = rscDataRef.getAbsResource();
 
@@ -647,7 +632,7 @@ public class RscStorageLayerHelper extends
         }
 
         StateFlags<Flags> rscFlags = rsc.getStateFlags();
-        if (rscFlags.isSet(apiCtx, Resource.Flags.INACTIVE) && rscFlags.isUnset(apiCtx, Resource.Flags.INACTIVATING))
+        if (rscFlags.isSet(Resource.Flags.INACTIVE) && rscFlags.isUnset(Resource.Flags.INACTIVATING))
         {
             // do not propagate the reason while we are still inactivating the resource.
             changed |= addIgnoreReason(rscDataRef, LayerIgnoreReason.RSC_INACTIVE, true, false, true);
@@ -693,7 +678,7 @@ public class RscStorageLayerHelper extends
         boolean isSet = false;
         try
         {
-            isSet = vlm.getFlags().isSet(apiCtx, flags);
+            isSet = vlm.getFlags().isSet(flags);
         }
         catch (AccessDeniedException ignored)
         {
@@ -706,7 +691,7 @@ public class RscStorageLayerHelper extends
         boolean isSet = false;
         try
         {
-            isSet = vlm.getFlags().isSomeSet(apiCtx, flags);
+            isSet = vlm.getFlags().isSomeSet(flags);
         }
         catch (AccessDeniedException ignored)
         {
@@ -715,7 +700,7 @@ public class RscStorageLayerHelper extends
     }
 
     @Override
-    protected boolean isExpectedToProvideDevice(StorageRscData<Resource> storageRscData) throws AccessDeniedException
+    protected boolean isExpectedToProvideDevice(StorageRscData<Resource> storageRscData)
     {
         return !storageRscData.hasAnyPreventExecutionIgnoreReason();
     }
@@ -764,13 +749,12 @@ public class RscStorageLayerHelper extends
         Map<String, String> storpoolRenameMap,
         @Nullable ApiCallRc apiCallRc
     )
-        throws DatabaseException, AccessDeniedException, LinStorException, InvalidNameException
+        throws DatabaseException, LinStorException, InvalidNameException
     {
         VlmProviderObject<Resource> vlmData;
 
         DeviceProviderKind providerKind = snapVlmData.getProviderKind();
         StorPool storPool = AbsLayerHelperUtils.getStorPool(
-            apiCtx,
             vlmRef,
             storRscData,
             snapVlmData.getStorPool(),
@@ -817,7 +801,7 @@ public class RscStorageLayerHelper extends
             default:
                 throw new ImplementationError("Unexpected kind: " + kind);
         }
-        storPool.putVolume(apiCtx, vlmData);
+        storPool.putVolume(vlmData);
         return vlmData;
     }
 }

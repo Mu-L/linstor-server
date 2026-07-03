@@ -7,11 +7,6 @@ import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.api.pojo.builder.AutoSelectFilterBuilder;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.ResourceGroupDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.transaction.BaseTransactionObject;
@@ -33,7 +28,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 public class AutoSelectorConfig extends BaseTransactionObject
-    implements DbgInstanceUuid, ProtectedObject
+    implements DbgInstanceUuid
 {
     private final UUID dbgInstanceId;
     private final ResourceGroup rscGrp;
@@ -199,20 +194,13 @@ public class AutoSelectorConfig extends BaseTransactionObject
         return dbgInstanceId;
     }
 
-    @Override
-    public ObjectProtection getObjProt()
-    {
-        return rscGrp.getObjProt();
-    }
-
     public ResourceGroup getResourceGroup()
     {
         return rscGrp;
     }
 
-    public int getReplicaCount(AccessContext accCtx) throws AccessDeniedException
+    public int getReplicaCount()
     {
-        getObjProt().requireAccess(accCtx, AccessType.VIEW);
         @Nullable Integer replCt = replicaCount.get();
         if (replCt == null)
         {
@@ -221,58 +209,58 @@ public class AutoSelectorConfig extends BaseTransactionObject
         return replCt;
     }
 
-    public List<String> getNodeNameList(AccessContext accCtx) throws AccessDeniedException
+    public List<String> getNodeNameList()
     {
-        return protectedList(accCtx, nodeNameList);
+        return protectedList(nodeNameList);
     }
 
-    public List<String> getStorPoolNameList(AccessContext accCtx) throws AccessDeniedException
+    public List<String> getStorPoolNameList()
     {
-        return protectedList(accCtx, storPoolNameList);
+        return protectedList(storPoolNameList);
     }
 
-    public List<String> getStorPoolDisklessNameList(AccessContext accCtx) throws AccessDeniedException
+    public List<String> getStorPoolDisklessNameList()
     {
-        return protectedList(accCtx, storPoolDisklessNameList);
+        return protectedList(storPoolDisklessNameList);
     }
 
-    public List<String> getDoNotPlaceWithRscList(AccessContext accCtx) throws AccessDeniedException
+    public List<String> getDoNotPlaceWithRscList()
     {
-        return protectedList(accCtx, doNotPlaceWithRscList);
+        return protectedList(doNotPlaceWithRscList);
     }
 
-    public String getDoNotPlaceWithRscRegex(AccessContext accCtx) throws AccessDeniedException
+    public String getDoNotPlaceWithRscRegex()
     {
         return doNotPlaceWithRscRegex.get();
     }
 
-    public List<String> getReplicasOnSameList(AccessContext accCtx) throws AccessDeniedException
+    public List<String> getReplicasOnSameList()
     {
-        return protectedList(accCtx, replicasOnSameList);
+        return protectedList(replicasOnSameList);
     }
 
-    public List<String> getReplicasOnDifferentList(AccessContext accCtx) throws AccessDeniedException
+    public List<String> getReplicasOnDifferentList()
     {
-        return protectedList(accCtx, replicasOnDifferentList);
+        return protectedList(replicasOnDifferentList);
     }
 
-    public Map<String, Integer> getXReplicasOnDifferentMap(AccessContext accCtx) throws AccessDeniedException
+    public Map<String, Integer> getXReplicasOnDifferentMap()
     {
-        return protectedMap(accCtx, xReplicasOnDifferentMap);
+        return protectedMap(xReplicasOnDifferentMap);
     }
 
-    public List<DeviceLayerKind> getLayerStackList(AccessContext accCtx) throws AccessDeniedException
+    public List<DeviceLayerKind> getLayerStackList()
     {
-        return protectedList(accCtx, layerStack);
+        return protectedList(layerStack);
     }
 
 
-    public List<DeviceProviderKind> getProviderList(AccessContext accCtx) throws AccessDeniedException
+    public List<DeviceProviderKind> getProviderList()
     {
-        return protectedList(accCtx, allowedProviderList);
+        return protectedList(allowedProviderList);
     }
 
-    public Boolean getDisklessOnRemaining(AccessContext accCtxRef) throws AccessDeniedException
+    public Boolean getDisklessOnRemaining()
     {
         return disklessOnRemaining.get();
     }
@@ -343,16 +331,13 @@ public class AutoSelectorConfig extends BaseTransactionObject
     }
 
     private <T> List<T> protectedList(
-        AccessContext accCtx,
         List<T> list
     )
-        throws AccessDeniedException
     {
         ObjectProtection objProt = getObjProt();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         List<T> ret;
-        AccessType queryAccess = objProt.queryAccess(accCtx);
+        AccessType queryAccess = objProt.queryAccess();
 
         if (queryAccess.hasAccess(AccessType.CHANGE))
         {
@@ -365,14 +350,12 @@ public class AutoSelectorConfig extends BaseTransactionObject
         return ret;
     }
 
-    private <K, V> Map<K, V> protectedMap(AccessContext accCtx, Map<K, V> map)
-        throws AccessDeniedException
+    private <K, V> Map<K, V> protectedMap(Map<K, V> map)
     {
         ObjectProtection objProt = getObjProt();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
 
         Map<K, V> ret;
-        AccessType queryAccess = objProt.queryAccess(accCtx);
+        AccessType queryAccess = objProt.queryAccess();
 
         if (queryAccess.hasAccess(AccessType.CHANGE))
         {

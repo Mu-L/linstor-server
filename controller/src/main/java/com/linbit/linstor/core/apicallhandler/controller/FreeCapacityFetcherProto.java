@@ -4,15 +4,12 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.SpaceInfo;
 import com.linbit.linstor.api.protobuf.ProtoDeserializationUtils;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.objects.Node;
@@ -23,8 +20,6 @@ import com.linbit.linstor.netcom.PeerNotConnectedException;
 import com.linbit.linstor.proto.common.ApiCallResponseOuterClass.ApiCallResponse;
 import com.linbit.linstor.proto.common.StorPoolFreeSpaceOuterClass.StorPoolFreeSpace;
 import com.linbit.linstor.proto.javainternal.s2c.MsgIntFreeSpaceOuterClass.MsgIntFreeSpace;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -55,32 +50,26 @@ import reactor.util.function.Tuples;
 @Singleton
 public class FreeCapacityFetcherProto implements FreeCapacityFetcher
 {
-    private final AccessContext apiCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final NodeRepository nodeRepository;
-    private final Provider<AccessContext> peerAccCtx;
 
     @Inject
     public FreeCapacityFetcherProto(
-        @SystemContext AccessContext apiCtxRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
-        NodeRepository nodeRepositoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef
+        NodeRepository nodeRepositoryRef
     )
     {
-        apiCtx = apiCtxRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         nodeRepository = nodeRepositoryRef;
-        peerAccCtx = peerAccCtxRef;
     }
 
     @Override
@@ -130,19 +119,17 @@ public class FreeCapacityFetcherProto implements FreeCapacityFetcher
     }
 
     private Flux<Tuple2<NodeName, ByteArrayInputStream>> assembleRequests(Set<NodeName> nodesFilter)
-        throws AccessDeniedException
     {
         Stream<Node> nodeStream = nodesFilter.isEmpty() ?
-            nodeRepository.getMapForView(peerAccCtx.get()).values().stream() :
+            nodeRepository.getMapForView().values().stream() :
             nodesFilter.stream().map(nodeName -> ctrlApiDataLoader.loadNode(nodeName, true));
 
         return buildFreeSpaceRequests(nodeStream);
     }
 
     private Flux<Tuple2<NodeName, ByteArrayInputStream>> assembleRequests(List<Pattern> nodeNameFilters)
-        throws AccessDeniedException
     {
-        Stream<Node> nodeStream = nodeRepository.getMapForView(peerAccCtx.get()).values().stream()
+        Stream<Node> nodeStream = nodeRepository.getMapForView().values().stream()
             .filter(node -> RegexMatcher.matchesAny(nodeNameFilters, node.getName().displayValue));
 
         return buildFreeSpaceRequests(nodeStream);
@@ -186,36 +173,14 @@ public class FreeCapacityFetcherProto implements FreeCapacityFetcher
     private Stream<StorPool> streamStorPools(Node node)
     {
         Stream<StorPool> storPoolStream;
-        try
-        {
-            storPoolStream = node.streamStorPools(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accessDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accessDeniedExc,
-                "stream storage pools of " + node,
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        storPoolStream = node.streamStorPools();
         return storPoolStream;
     }
 
     private @Nullable Peer getPeer(Node node)
     {
         Peer peer;
-        try
-        {
-            peer = node.getPeer(peerAccCtx.get());
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "access peer for node '" + node.getName().displayValue + "'",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        peer = node.getPeer();
         return peer;
     }
 
@@ -279,13 +244,13 @@ public class FreeCapacityFetcherProto implements FreeCapacityFetcher
                 );
 
                 // also update storage pool's freespacemanager
-                StorPool storPool = nodeRepository.get(apiCtx, nodeName).getStorPool(apiCtx, storPoolName);
-                storPool.getFreeSpaceTracker().setCapacityInfo(apiCtx, freeCapacity, totalCapacity);
+                StorPool storPool = nodeRepository.get(nodeName).getStorPool(storPoolName);
+                storPool.getFreeSpaceTracker().setCapacityInfo(freeCapacity, totalCapacity);
 
                 ctrlTransactionHelper.commit();
             }
         }
-        catch (IOException | InvalidNameException | AccessDeniedException exc)
+        catch (IOException | InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }

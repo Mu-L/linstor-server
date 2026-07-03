@@ -10,8 +10,6 @@ import com.linbit.linstor.core.cfg.StltConfig;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.satellitestate.SatelliteState;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 
 import javax.net.ssl.SSLException;
@@ -94,7 +92,7 @@ public class PeerOffline implements Peer
     }
 
     @Override
-    public void setAccessContext(AccessContext privilegedCtx, AccessContext newAccCtx) throws AccessDeniedException
+    public void setAccessContext(AccessContext newAccCtx)
     {
     }
 

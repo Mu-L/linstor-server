@@ -11,8 +11,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.LayerObject;
 import com.linbit.linstor.storage.interfaces.layers.State;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -72,8 +70,7 @@ public interface VlmProviderObject<RSC extends AbsResource<RSC>> extends LayerOb
 
     AbsRscLayerObject<RSC> getRscLayerObject();
 
-    default long getParentAllocatedSizeOrElse(ExceptionThrowingSupplier<Long, AccessDeniedException> orElse)
-        throws AccessDeniedException
+    default long getParentAllocatedSizeOrElse(ExceptionThrowingSupplier<Long> orElse)
     {
         long ret;
         AbsRscLayerObject<RSC> parent = getRscLayerObject().getParent();
@@ -102,14 +99,14 @@ public interface VlmProviderObject<RSC extends AbsResource<RSC>> extends LayerOb
 
     String getIdentifier();
 
-    VlmLayerDataApi asPojo(AccessContext accCtxRef) throws AccessDeniedException;
+    VlmLayerDataApi asPojo();
 
     // TODO: remove the nullable from this method and every overriding method once the sb-issue regarding nullable on
     // generic types is solved. Issue link: https://github.com/spotbugs/spotbugs/issues/3340
     @Nullable
     StorPool getStorPool();
 
-    void setStorPool(AccessContext accCtxRef, StorPool storPoolRef) throws DatabaseException, AccessDeniedException;
+    void setStorPool(StorPool storPoolRef) throws DatabaseException;
 
     long getDiscGran();
 
@@ -124,13 +121,13 @@ public interface VlmProviderObject<RSC extends AbsResource<RSC>> extends LayerOb
         // ignored (unless overridden) as this layer only considers Resource.Flags.INACTIVE, not per-vlmData
     }
 
-    default boolean isActive(AccessContext accCtx) throws AccessDeniedException
+    default boolean isActive()
     {
         boolean isActive = true; // snapshots are active by default
         if (getVolume().getAbsResource() instanceof Resource)
         {
             isActive = !((Resource) getVolume().getAbsResource()).getStateFlags()
-                .isSet(accCtx, Resource.Flags.INACTIVE);
+                .isSet(Resource.Flags.INACTIVE);
         }
         return isActive;
     }

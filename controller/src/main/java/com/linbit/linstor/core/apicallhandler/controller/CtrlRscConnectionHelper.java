@@ -3,10 +3,8 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.NodeName;
@@ -16,8 +14,6 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceConnection;
 import com.linbit.linstor.core.objects.ResourceConnectionControllerFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscConnectionApiCallHandler.getResourceConnectionDescriptionInline;
 
@@ -32,18 +28,15 @@ class CtrlRscConnectionHelper
 {
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final ResourceConnectionControllerFactory resourceConnectionFactory;
-    private final Provider<AccessContext> peerAccCtx;
 
     @Inject
     CtrlRscConnectionHelper(
         CtrlApiDataLoader ctrlApiDataLoaderRef,
-        ResourceConnectionControllerFactory resourceConnectionFactoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef
+        ResourceConnectionControllerFactory resourceConnectionFactoryRef
     )
     {
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         resourceConnectionFactory = resourceConnectionFactoryRef;
-        peerAccCtx = peerAccCtxRef;
     }
 
     public ResourceConnection loadOrCreateRscConn(
@@ -97,22 +90,9 @@ class CtrlRscConnectionHelper
         try
         {
             rscConn = resourceConnectionFactory.create(
-                peerAccCtx.get(),
                 rsc1,
                 rsc2,
                 initFlags
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "create " + getResourceConnectionDescriptionInline(
-                    rsc1.getNode().getName().displayValue,
-                    rsc2.getNode().getName().displayValue,
-                    rsc1.getResourceDefinition().getName().displayValue
-                ),
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
             );
         }
         catch (LinStorDataAlreadyExistsException dataAlreadyExistsExc)
@@ -149,33 +129,22 @@ class CtrlRscConnectionHelper
         Resource rsc2 = ctrlApiDataLoader.loadRsc(nodeName2, rscName, failIfNull);
 
         ResourceConnection rscConn = null;
-        try
+        if (rsc1 != null && rsc2 != null)
         {
-            if (rsc1 != null && rsc2 != null)
-            {
-                rscConn = rsc1.getAbsResourceConnection(peerAccCtx.get(), rsc2);
-            }
-
-            if (failIfNull && rscConn == null)
-            {
-                throw new ApiRcException(
-                    ApiCallRcImpl.simpleEntry(
-                        ApiConsts.FAIL_NOT_FOUND_RSC_CONN,
-                        String.format("Resource connection between node '%s' and '%s' not found for resource '%s'.",
-                            nodeName1Str,
-                            nodeName2Str,
-                            rscNameStr
-                        )
-                    )
-                );
-            }
+            rscConn = rsc1.getAbsResourceConnection(rsc2);
         }
-        catch (AccessDeniedException accDeniedExc)
+
+        if (failIfNull && rscConn == null)
         {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "load " + getResourceConnectionDescriptionInline(nodeName1Str, nodeName2Str, rscNameStr),
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_NOT_FOUND_RSC_CONN,
+                    String.format("Resource connection between node '%s' and '%s' not found for resource '%s'.",
+                        nodeName1Str,
+                        nodeName2Str,
+                        rscNameStr
+                    )
+                )
             );
         }
         return rscConn;

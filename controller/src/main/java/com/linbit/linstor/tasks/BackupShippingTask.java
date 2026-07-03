@@ -14,8 +14,6 @@ import com.linbit.linstor.core.objects.remotes.S3Remote;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerTask;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.tasks.ScheduleBackupService.BackupShippingtaskConfig;
 import com.linbit.linstor.tasks.ScheduleBackupService.ScheduledShippingConfig;
 import com.linbit.linstor.tasks.TaskScheduleService.Task;
@@ -60,7 +58,7 @@ public class BackupShippingTask implements TaskScheduleService.Task
         AccessContext accCtx = cfg.getAccCtx();
 
         scheduleBackupService.removeSingleTask(conf, true);
-        Peer peer = new PeerTask("BackupShippingTaskPeer", accCtx);
+        Peer peer = new PeerTask("BackupShippingTaskPeer");
 
         String rscName = cfg.getRscName();
         String nodeName = cfg.getNodeName();
@@ -118,7 +116,6 @@ public class BackupShippingTask implements TaskScheduleService.Task
                 new RunConfig<>(
                     "scheduled backup shipping of resource: " + rscName + "(" + (inc ? "incremental" : "full") + ")",
                     flux,
-                    accCtx,
                     getNodesToLock(rscName),
                     true
                 )
@@ -139,8 +136,7 @@ public class BackupShippingTask implements TaskScheduleService.Task
                                             scheduledAt,
                                             false,
                                             false,
-                                            conf.lastInc,
-                                            accCtx
+                                            conf.lastInc
                                         );
                                     }
                                     catch (AccessDeniedException exc)
@@ -162,8 +158,7 @@ public class BackupShippingTask implements TaskScheduleService.Task
                                     scheduledAt,
                                     false,
                                     false,
-                                    conf.lastInc,
-                                    accCtx
+                                    conf.lastInc
                                 );
                             }
                             catch (AccessDeniedException exc)
@@ -184,8 +179,8 @@ public class BackupShippingTask implements TaskScheduleService.Task
         try (LockGuard lg = cfg.getLockGuardFactory().build(LockType.READ, LockObj.NODES_MAP, LockObj.RSC_DFN_MAP))
         {
             AccessContext accCtx = cfg.getAccCtx();
-            ResourceDefinition rscDfn = cfg.getRscDfnRepo().get(accCtx, new ResourceName(rscNameRef));
-            Iterator<Resource> rscIt = rscDfn.iterateResource(accCtx);
+            ResourceDefinition rscDfn = cfg.getRscDfnRepo().get(new ResourceName(rscNameRef));
+            Iterator<Resource> rscIt = rscDfn.iterateResource();
             while (rscIt.hasNext())
             {
                 Resource rsc = rscIt.next();
@@ -195,7 +190,7 @@ public class BackupShippingTask implements TaskScheduleService.Task
                 }
             }
         }
-        catch (AccessDeniedException | InvalidNameException exc)
+        catch (InvalidNameException exc)
         {
             throw new ImplementationError(exc);
         }

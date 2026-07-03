@@ -13,7 +13,6 @@ import com.linbit.linstor.layer.storage.zfs.utils.ZfsCommands;
 import com.linbit.linstor.layer.storage.zfs.utils.ZfsUtils;
 import com.linbit.linstor.layer.storage.zfs.utils.ZfsUtils.ZfsInfo;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageConstants;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.data.provider.zfs.ZfsData;
@@ -62,10 +61,10 @@ public class ZfsThinProvider extends ZfsProvider
         String zPool;
         try
         {
-            zPool = DeviceLayerUtils.getNamespaceStorDriver(storPool.getReadOnlyProps(storDriverAccCtx))
+            zPool = DeviceLayerUtils.getNamespaceStorDriver(storPool.getReadOnlyProps())
                 .getProp(StorageConstants.CONFIG_ZFS_THIN_POOL_KEY);
         }
-        catch (InvalidKeyException | AccessDeniedException exc)
+        catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
@@ -74,7 +73,7 @@ public class ZfsThinProvider extends ZfsProvider
 
     @Override
     public @Nullable LocalPropsChangePojo checkConfig(StorPoolInfo storPool)
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         String thinZpoolName = getZPool(storPool);
         if (thinZpoolName == null)
@@ -98,7 +97,7 @@ public class ZfsThinProvider extends ZfsProvider
     }
 
     @Override
-    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException, AccessDeniedException
+    public SpaceInfo getSpaceInfo(StorPoolInfo storPool) throws StorageException
     {
         String zPool = getZPool(storPool);
         if (zPool == null)

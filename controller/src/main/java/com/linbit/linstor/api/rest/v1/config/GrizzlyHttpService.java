@@ -6,7 +6,6 @@ import com.linbit.ServiceName;
 import com.linbit.SystemService;
 import com.linbit.SystemServiceStartException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.rest.v1.utils.ApiCallRcRestUtils;
@@ -18,8 +17,6 @@ import com.linbit.linstor.core.repository.AuthTokenRepository;
 import com.linbit.linstor.core.repository.NodeRepository;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 
@@ -101,7 +98,6 @@ public class GrizzlyHttpService implements SystemService
     private final Path restAccessLogPath;
     private final SystemConfRepository systemConfRepository;
     private final NodeRepository nodeRepository;
-    private final AccessContext sysCtx;
     private final LockGuardFactory lockGuardFactory;
     private final String webUiDirectory;
 
@@ -150,7 +146,7 @@ public class GrizzlyHttpService implements SystemService
         restResourceConfig.register(new CORSFilter());
         SystemConfRepository sysConfRepo = injector.getInstance(SystemConfRepository.class);
         AuthTokenRepository authTokenRepository = injector.getInstance(AuthTokenRepository.class);
-        restResourceConfig.register(new AuthenticationFilter(authTokenRepository, sysConfRepo, sysCtx, errorReporter));
+        restResourceConfig.register(new AuthenticationFilter(authTokenRepository, sysConfRepo, errorReporter));
         registerExceptionMappers(restResourceConfig);
         lockGuardFactory = injector.getInstance(LockGuardFactory.class);
         systemConfRepository = injector.getInstance(SystemConfRepository.class);
@@ -186,7 +182,7 @@ public class GrizzlyHttpService implements SystemService
         boolean disableHttpMetrics = false;
         try (LockGuard ignored = lockGuardFactory.build(READ, CTRL_CONFIG))
         {
-            disableHttpMetrics = systemConfRepository.getCtrlConfForView(sysCtx)
+            disableHttpMetrics = systemConfRepository.getCtrlConfForView()
                 .getPropWithDefault(ApiConsts.KEY_DISABLE_HTTP_METRICS, ApiConsts.NAMESPC_REST, "false")
                 .equalsIgnoreCase("true");
         }
@@ -208,7 +204,7 @@ public class GrizzlyHttpService implements SystemService
         try (LockGuard ignored = lockGuardFactory.build(READ, CTRL_CONFIG))
         {
             @Nullable String autoHttps = systemConfRepository
-                .getCtrlConfForView(sysCtx)
+                .getCtrlConfForView()
                 .getProp(ApiConsts.KEY_AUTO_HTTPS, ApiConsts.NAMESPC_REST);
             return Boolean.parseBoolean(autoHttps);
         }
@@ -360,9 +356,9 @@ public class GrizzlyHttpService implements SystemService
 
         try
         {
-            for (Node node : nodeRepository.getMapForView(sysCtx).values())
+            for (Node node : nodeRepository.getMapForView().values())
             {
-                Node.Type nodeType = node.getNodeType(sysCtx);
+                Node.Type nodeType = node.getNodeType();
                 if (nodeType == Node.Type.CONTROLLER || nodeType == Node.Type.COMBINED)
                 {
                     String nodeName = node.getName().displayValue;
@@ -370,10 +366,10 @@ public class GrizzlyHttpService implements SystemService
                     {
                         sans.add("dns:" + nodeName);
                     }
-                    Iterator<NetInterface> netIfs = node.iterateNetInterfaces(sysCtx);
+                    Iterator<NetInterface> netIfs = node.iterateNetInterfaces();
                     while (netIfs.hasNext())
                     {
-                        String addr = netIfs.next().getAddress(sysCtx).getAddress();
+                        String addr = netIfs.next().getAddress().getAddress();
                         if (addr != null && !addr.isEmpty())
                         {
                             sans.add((isIpLiteral(addr) ? "ip:" : "dns:") + addr);

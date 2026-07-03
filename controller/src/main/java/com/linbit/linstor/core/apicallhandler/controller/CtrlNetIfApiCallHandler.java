@@ -3,16 +3,13 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.SatelliteConnector;
 import com.linbit.linstor.core.SpecialSatelliteProcessManager;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdater;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -29,8 +26,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import static com.linbit.linstor.api.ApiConsts.FAIL_INVLD_ENCRYPT_TYPE;
 import static com.linbit.linstor.api.ApiConsts.FAIL_INVLD_NET_PORT;
@@ -50,7 +45,6 @@ import java.util.UUID;
 @Singleton
 class CtrlNetIfApiCallHandler
 {
-    private final AccessContext apiCtx;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final NetInterfaceFactory netInterfaceFactory;
@@ -58,13 +52,11 @@ class CtrlNetIfApiCallHandler
     private final CtrlSatelliteUpdater ctrlSatelliteUpdater;
     private final ResponseConverter responseConverter;
     private final Provider<Peer> peer;
-    private final Provider<AccessContext> peerAccCtx;
     private final SpecialSatelliteProcessManager specStltTargetProcMgr;
     private final DynamicNumberPool specStltTargetPortPool;
 
     @Inject
     CtrlNetIfApiCallHandler(
-        @ApiContext AccessContext apiCtxRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         NetInterfaceFactory netInterfaceFactoryRef,
@@ -72,12 +64,10 @@ class CtrlNetIfApiCallHandler
         CtrlSatelliteUpdater ctrlSatelliteUpdaterRef,
         ResponseConverter responseConverterRef,
         Provider<Peer> peerRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         SpecialSatelliteProcessManager specStltTargetProcMgrRef,
         @Named(NumberPoolModule.SPECIAL_SATELLTE_PORT_POOL) DynamicNumberPool specStltTargetPortPoolRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         netInterfaceFactory = netInterfaceFactoryRef;
@@ -85,7 +75,6 @@ class CtrlNetIfApiCallHandler
         ctrlSatelliteUpdater = ctrlSatelliteUpdaterRef;
         responseConverter = responseConverterRef;
         peer = peerRef;
-        peerAccCtx = peerAccCtxRef;
         specStltTargetProcMgr = specStltTargetProcMgrRef;
         specStltTargetPortPool = specStltTargetPortPoolRef;
     }
@@ -112,29 +101,29 @@ class CtrlNetIfApiCallHandler
         {
             Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
 
-            if (node.getNodeType(apiCtx).isSpecial())
+            if (node.getNodeType().isSpecial())
             {
                 throw new ApiRcException(
                     ApiCallRcImpl.simpleEntry(
                         FAIL_INVLD_NODE_TYPE,
-                        "Only one network interface allowed for '" + node.getNodeType(apiCtx).name() + "' nodes" // FIXME?
+                        "Only one network interface allowed for '" + node.getNodeType().name() + "' nodes" // FIXME?
                     )
                 );
             }
             NetInterfaceName netIfName = LinstorParsingUtils.asNetInterfaceName(netIfNameStr);
             NetInterface netIf = createNetIf(node, netIfName, address, stltPort, stltEncrType);
 
-            if (node.getActiveStltConn(peerAccCtx.get()) == null || setActive)
+            if (node.getActiveStltConn() == null || setActive)
             {
                 if (stltPort != null && stltEncrType != null)
                 {
-                    @Nullable Peer curPeer = node.getPeer(peerAccCtx.get());
+                    @Nullable Peer curPeer = node.getPeer();
                     if (curPeer != null)
                     {
                         curPeer.closeConnection(false);
                     }
-                    node.setActiveStltConn(apiCtx, netIf);
-                    satelliteConnector.startConnecting(node, apiCtx);
+                    node.setActiveStltConn(netIf);
+                    satelliteConnector.startConnecting(node);
                 }
                 else
                 if (setActive)
@@ -150,7 +139,7 @@ class CtrlNetIfApiCallHandler
 
             ctrlTransactionHelper.commit();
 
-            if (node.getActiveStltConn(peerAccCtx.get()) == null)
+            if (node.getActiveStltConn() == null)
             {
                 throw new ApiRcException(ApiCallRcImpl.simpleEntry(
                     ApiConsts.WARN_NO_STLT_CONN_DEFINED,
@@ -190,9 +179,9 @@ class CtrlNetIfApiCallHandler
         {
             NetInterface netIf = loadNetIf(nodeNameStr, netIfNameStr);
             Node node = netIf.getNode();
-            Node.Type nodeType = netIf.getNode().getNodeType(apiCtx);
+            Node.Type nodeType = netIf.getNode().getNodeType();
             boolean isModifyingActiveStltConn =
-                netIf.getUuid().equals(node.getActiveStltConn(peerAccCtx.get()).getUuid());
+                netIf.getUuid().equals(node.getActiveStltConn().getUuid());
 
             final boolean setActive = setActivePrm != null ? setActivePrm : false;
 
@@ -220,7 +209,7 @@ class CtrlNetIfApiCallHandler
 
             if (stltPort != null && stltEncrType != null)
             {
-                TcpPortNumber oldPort = netIf.getStltConnPort(apiCtx);
+                TcpPortNumber oldPort = netIf.getStltConnPort();
                 boolean needsStartProc = false;
 
                 if (oldPort != null && stltPort != oldPort.value && nodeType.isSpecial())
@@ -239,9 +228,9 @@ class CtrlNetIfApiCallHandler
 
             if (setActive)
             {
-                if (netIf.isUsableAsStltConn(peerAccCtx.get()))
+                if (netIf.isUsableAsStltConn())
                 {
-                    node.setActiveStltConn(peerAccCtx.get(), netIf);
+                    node.setActiveStltConn(netIf);
                 }
                 else
                 {
@@ -261,12 +250,12 @@ class CtrlNetIfApiCallHandler
 
             if (needsReconnect)
             {
-                node.getPeer(apiCtx).closeConnection();
-                satelliteConnector.startConnecting(node, apiCtx);
+                node.getPeer().closeConnection();
+                satelliteConnector.startConnecting(node);
             }
             responseConverter.addWithDetail(responses, context, ctrlSatelliteUpdater.updateSatellites(node));
 
-            if (node.getActiveStltConn(peerAccCtx.get()) == null)
+            if (node.getActiveStltConn() == null)
             {
                 throw new ApiRcException(ApiCallRcImpl.simpleEntry(
                     ApiConsts.WARN_NO_STLT_CONN_DEFINED,
@@ -314,7 +303,7 @@ class CtrlNetIfApiCallHandler
             {
                 Node node = netIf.getNode();
 
-                NetInterface activeStltConn = node.getActiveStltConn(peerAccCtx.get());
+                NetInterface activeStltConn = node.getActiveStltConn();
                 boolean closeConnection = activeStltConn != null && netIf.getUuid().equals(activeStltConn.getUuid());
 
                 UUID uuid = netIf.getUuid();
@@ -326,21 +315,21 @@ class CtrlNetIfApiCallHandler
                     // when the sending takes too long, the connection will be already closed (next statement)
                     // for now, just close the connection. once a new connection is established, the
                     // satellite gets a full sync anyways
-                    node.getPeer(peerAccCtx.get()).closeConnection();
+                    node.getPeer().closeConnection();
 
                     // look for another net interface configured as satellite connection and set it as active
-                    Iterator<NetInterface> netIfIterator = node.iterateNetInterfaces(peerAccCtx.get());
+                    Iterator<NetInterface> netIfIterator = node.iterateNetInterfaces();
                     while (netIfIterator.hasNext())
                     {
                         NetInterface netInterface = netIfIterator.next();
                         if (
                             !netInterface.equals(netIf) &&
                                 // netIf is going to be deleted soon, do not consider it as a replacement for itself
-                                netInterface.isUsableAsStltConn(peerAccCtx.get())
+                                netInterface.isUsableAsStltConn()
                         )
                         {
-                            node.setActiveStltConn(peerAccCtx.get(), netInterface);
-                            satelliteConnector.startConnecting(node, apiCtx);
+                            node.setActiveStltConn(netInterface);
+                            satelliteConnector.startConnecting(node);
                             break;
                         }
                     }
@@ -353,9 +342,9 @@ class CtrlNetIfApiCallHandler
                     uuid, getNetIfDescriptionInline(nodeNameStr, netIfNameStr)));
 
                 // no active satellite connection configured
-                if (node.getActiveStltConn(peerAccCtx.get()) == null)
+                if (node.getActiveStltConn() == null)
                 {
-                    node.getPeer(apiCtx).setConnectionStatus(ApiConsts.ConnectionStatus.NO_STLT_CONN);
+                    node.getPeer().setConnectionStatus(ApiConsts.ConnectionStatus.NO_STLT_CONN);
 
                     throw new ApiRcException(ApiCallRcImpl.simpleEntry(
                         ApiConsts.WARN_NO_STLT_CONN_DEFINED,
@@ -398,20 +387,11 @@ class CtrlNetIfApiCallHandler
             }
 
             netIf = netInterfaceFactory.create(
-                peerAccCtx.get(),
                 node,
                 netIfName,
                 LinstorParsingUtils.asLsIpAddress(address),
                 port,
                 type
-            );
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "register " + getNetIfDescriptionInline(nodeNameStr, netIfNameStr),
-                ApiConsts.FAIL_ACC_DENIED_NODE
             );
         }
         catch (LinStorDataAlreadyExistsException exc)
@@ -455,31 +435,19 @@ class CtrlNetIfApiCallHandler
     {
         Node node = ctrlApiDataLoader.loadNode(nodeNameStr, failIfNull);
         NetInterface netIf = null;
-        try
+        if (node != null)
         {
-            if (node != null)
-            {
-                netIf = node.getNetInterface(
-                    peerAccCtx.get(),
-                    LinstorParsingUtils.asNetInterfaceName(netIfNameStr)
-                );
-            }
-
-            if (failIfNull && netIf == null)
-            {
-                throw new ApiRcException(ApiCallRcImpl.simpleEntry(
-                    ApiConsts.FAIL_NOT_FOUND_NET_IF,
-                    "Node '" + nodeNameStr + "' has no network interface named '" + netIfNameStr + "'."
-                ));
-            }
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "load " + getNetIfDescriptionInline(nodeNameStr, netIfNameStr),
-                ApiConsts.FAIL_ACC_DENIED_NODE
+            netIf = node.getNetInterface(
+                LinstorParsingUtils.asNetInterfaceName(netIfNameStr)
             );
+        }
+
+        if (failIfNull && netIf == null)
+        {
+            throw new ApiRcException(ApiCallRcImpl.simpleEntry(
+                ApiConsts.FAIL_NOT_FOUND_NET_IF,
+                "Node '" + nodeNameStr + "' has no network interface named '" + netIfNameStr + "'."
+            ));
         }
         return netIf;
     }
@@ -488,15 +456,7 @@ class CtrlNetIfApiCallHandler
     {
         try
         {
-            netIf.setAddress(peerAccCtx.get(), LinstorParsingUtils.asLsIpAddress(addressStr));
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "set address of " + getNetIfDescriptionInline(netIf),
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
+            netIf.setAddress(LinstorParsingUtils.asLsIpAddress(addressStr));
         }
         catch (DatabaseException exc)
         {
@@ -510,17 +470,8 @@ class CtrlNetIfApiCallHandler
         try
         {
             changed = netIf.setStltConn(
-                peerAccCtx.get(),
                 LinstorParsingUtils.asTcpPortNumber(stltPort),
                 asEncryptionType(stltEncrType)
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "modify the satellite connection port and / or encryption type",
-                ApiConsts.FAIL_ACC_DENIED_NODE
             );
         }
         catch (DatabaseException sqlExc)
@@ -534,15 +485,7 @@ class CtrlNetIfApiCallHandler
     {
         try
         {
-            netIf.delete(peerAccCtx.get());
-        }
-        catch (AccessDeniedException exc)
-        {
-            throw new ApiAccessDeniedException(
-                exc,
-                "delete " + getNetIfDescriptionInline(netIf),
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
+            netIf.delete();
         }
         catch (DatabaseException exc)
         {

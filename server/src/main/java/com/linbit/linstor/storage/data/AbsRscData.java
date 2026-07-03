@@ -11,8 +11,6 @@ import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.LayerResourceIdDatabaseDriver;
 import com.linbit.linstor.layer.LayerIgnoreReason;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -168,12 +166,12 @@ public abstract class AbsRscData<RSC extends AbsResource<RSC>, VLM_TYPE extends 
     }
 
     @Override
-    public void remove(AccessContext accCtx, VolumeNumber vlmNrRef)
-        throws DatabaseException, AccessDeniedException
+    public void remove(VolumeNumber vlmNrRef)
+        throws DatabaseException
     {
         for (AbsRscLayerObject<RSC> rscLayerObject : children)
         {
-            rscLayerObject.remove(accCtx, vlmNrRef);
+            rscLayerObject.remove(vlmNrRef);
         }
         VLM_TYPE vlmData = vlmMap.remove(vlmNrRef);
         if (vlmData != null)
@@ -189,11 +187,11 @@ public abstract class AbsRscData<RSC extends AbsResource<RSC>, VLM_TYPE extends 
                 StorPool storPool = vlmData.getStorPool();
                 if (vlmData.getVolume() instanceof Volume)
                 {
-                    storPool.removeVolume(accCtx, (VlmProviderObject<Resource>) vlmData);
+                    storPool.removeVolume((VlmProviderObject<Resource>) vlmData);
                 }
                 else
                 {
-                    storPool.removeSnapshotVolume(accCtx, (VlmProviderObject<Snapshot>) vlmData);
+                    storPool.removeSnapshotVolume((VlmProviderObject<Snapshot>) vlmData);
                 }
             }
             deleteVlmFromDatabase(vlmData);
@@ -205,28 +203,28 @@ public abstract class AbsRscData<RSC extends AbsResource<RSC>, VLM_TYPE extends 
     protected abstract void deleteRscFromDatabase() throws DatabaseException;
 
     @Override
-    public void delete(AccessContext accCtx) throws DatabaseException, AccessDeniedException
+    public void delete() throws DatabaseException
     {
         for (AbsRscLayerObject<RSC> rscLayerObject : children)
         {
-            rscLayerObject.delete(accCtx);
+            rscLayerObject.delete();
         }
         // copy to avoid concurrentModificationException
         List<VolumeNumber> vlmNrsToRemove = new ArrayList<>(vlmMap.keySet());
         for (VolumeNumber vlmNr : vlmNrsToRemove)
         {
-            remove(accCtx, vlmNr);
+            remove(vlmNr);
         }
         deleteRscFromDatabase();
         dbDriver.delete(this);
     }
 
-    protected List<RscLayerDataApi> getChildrenPojos(AccessContext accCtx) throws AccessDeniedException
+    protected List<RscLayerDataApi> getChildrenPojos()
     {
         List<RscLayerDataApi> childrenPojos = new ArrayList<>();
         for (AbsRscLayerObject<RSC> rscLayerObject : children)
         {
-            childrenPojos.add(rscLayerObject.asPojo(accCtx));
+            childrenPojos.add(rscLayerObject.asPojo());
         }
         return childrenPojos;
     }

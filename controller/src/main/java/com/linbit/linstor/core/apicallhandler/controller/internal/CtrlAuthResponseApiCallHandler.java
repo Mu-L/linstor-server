@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRc.RcEntry;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -23,10 +22,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.proto.common.StltConfigOuterClass.StltConfig;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.Identity;
-import com.linbit.linstor.security.Privilege;
 import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo;
 import com.linbit.linstor.tasks.ReconnectorTask;
@@ -47,7 +42,6 @@ import reactor.core.publisher.Flux;
 public class CtrlAuthResponseApiCallHandler
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext sysCtx;
 
     private final CtrlFullSyncApiCallHandler ctrlFullSyncApiCallHandler;
     private final CtrlAuthHandler ctrlAuthHandler;
@@ -60,7 +54,6 @@ public class CtrlAuthResponseApiCallHandler
     @Inject
     public CtrlAuthResponseApiCallHandler(
         ErrorReporter errorReporterRef,
-        @SystemContext AccessContext sysCtxRef,
         CtrlFullSyncApiCallHandler ctrlFullSyncApiCallHandlerRef,
         CtrlAuthHandler ctrlAuthHandlerRef,
         ReconnectorTask reconnectorTaskRef,
@@ -71,7 +64,6 @@ public class CtrlAuthResponseApiCallHandler
     )
     {
         errorReporter = errorReporterRef;
-        sysCtx = sysCtxRef;
         ctrlFullSyncApiCallHandler = ctrlFullSyncApiCallHandlerRef;
         ctrlAuthHandler = ctrlAuthHandlerRef;
         reconnectorTask = reconnectorTaskRef;
@@ -126,18 +118,18 @@ public class CtrlAuthResponseApiCallHandler
     }
 
     private void updateUnameMap(Peer peer, String nodeUname)
-        throws AccessDeniedException, InvalidValueException, DatabaseException
+        throws InvalidValueException, DatabaseException
     {
         Node node = peer.getNode();
-        Props nodeProps = node.getProps(sysCtx);
+        Props nodeProps = node.getProps();
         @Nullable String oldUname = nodeProps.getProp(InternalApiConsts.NODE_UNAME);
-        @Nullable NodeName curNodeName = nodeRepo.getUname(sysCtx, nodeUname);
+        @Nullable NodeName curNodeName = nodeRepo.getUname(nodeUname);
         if (!nodeUname.equals(oldUname))
         {
             if (oldUname != null)
             {
                 // uname change, cleanup old uname
-                nodeRepo.removeUname(sysCtx, oldUname);
+                nodeRepo.removeUname(oldUname);
             }
             if (curNodeName != null)
             {
@@ -158,7 +150,7 @@ public class CtrlAuthResponseApiCallHandler
             {
                 // new node added
                 nodeProps.setProp(InternalApiConsts.NODE_UNAME, nodeUname);
-                nodeRepo.putUname(sysCtx, nodeUname, node.getName());
+                nodeRepo.putUname(nodeUname, node.getName());
             }
         }
         else
@@ -166,7 +158,7 @@ public class CtrlAuthResponseApiCallHandler
             if (curNodeName == null)
             {
                 // reconnect node
-                nodeRepo.putUname(sysCtx, nodeUname, node.getName());
+                nodeRepo.putUname(nodeUname, node.getName());
             }
         }
 
@@ -257,7 +249,7 @@ public class CtrlAuthResponseApiCallHandler
                     );
                     // Disable all privileges on the Satellite's access context permanently
                     newCtx.getLimitPrivs().disablePrivileges(Privilege.PRIV_SYS_ALL);
-                    peer.setAccessContext(privCtx, newCtx);
+                    peer.setAccessContext(newCtx);
 
                     updateUnameMap(peer, nodeUname);
 
@@ -294,7 +286,7 @@ public class CtrlAuthResponseApiCallHandler
 
                 try
                 {
-                    if (!node.getNodeType(sysCtx).isSpecial() &&
+                    if (!node.getNodeType().isSpecial() &&
                         !nodeUname.equalsIgnoreCase(node.getName().displayValue))
                     {
                         flux = flux.concatWith(

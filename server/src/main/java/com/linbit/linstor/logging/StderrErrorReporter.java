@@ -3,7 +3,6 @@ package com.linbit.linstor.logging;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.netcom.Peer;
-import com.linbit.linstor.security.AccessContext;
 
 import java.io.PrintStream;
 import java.nio.file.Path;
@@ -91,41 +90,37 @@ public class StderrErrorReporter extends BaseErrorReporter implements ErrorRepor
     @Override
     public @Nullable String reportError(
         Throwable errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         String contextInfo
     )
     {
-        return reportImpl(errorInfo, accCtx, client, contextInfo, true);
+        return reportImpl(errorInfo, client, contextInfo, true);
     }
 
     @Override
     public @Nullable String reportError(
         Level logLevel,
         Throwable errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         @Nullable String contextInfo
     )
     {
-        return reportImpl(errorInfo, accCtx, client, contextInfo, true);
+        return reportImpl(errorInfo, client, contextInfo, true);
     }
 
     @Override
     public @Nullable String reportProblem(
         Level logLevel,
         LinStorException errorInfo,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         String contextInfo
     )
     {
-        return reportImpl(errorInfo, accCtx, client, contextInfo, false);
+        return reportImpl(errorInfo, client, contextInfo, false);
     }
 
     private @Nullable String reportImpl(
         Throwable errorInfoRef,
-        @Nullable AccessContext accCtx,
         @Nullable Peer client,
         @Nullable String contextInfo,
         boolean includeStackTrace
@@ -152,7 +147,6 @@ public class StderrErrorReporter extends BaseErrorReporter implements ErrorRepor
             renderReport(
                 errRepRenderer,
                 reportNr,
-                accCtx,
                 client,
                 errorInfo,
                 errorTime,

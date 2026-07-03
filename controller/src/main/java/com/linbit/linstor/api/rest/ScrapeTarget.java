@@ -1,14 +1,10 @@
 package com.linbit.linstor.api.rest;
 
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.rest.v1.RequestHelper;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apis.NodeApi;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.repository.NodeRepository;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 
@@ -34,7 +30,6 @@ public class ScrapeTarget
 {
     private static final int DEFAULT_REACTOR_METRICS_PORT = 9942;
     private final RequestHelper requestHelper;
-    private final Provider<AccessContext> peerAccCtx;
     private final LockGuardFactory lockGuardFactory;
     private final NodeRepository nodeRepository;
     private final ObjectMapper objectMapper;
@@ -42,13 +37,11 @@ public class ScrapeTarget
     @Inject
     public ScrapeTarget(
         RequestHelper requestHelperRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         LockGuardFactory lockGuardFactoryRef,
         NodeRepository nodeRepositoryRef
     )
     {
         requestHelper = requestHelperRef;
-        peerAccCtx = peerAccCtxRef;
         lockGuardFactory = lockGuardFactoryRef;
         nodeRepository = nodeRepositoryRef;
         objectMapper = new ObjectMapper();
@@ -65,9 +58,9 @@ public class ScrapeTarget
                 LockGuardFactory.LockObj.NODES_MAP))
             {
                 List<String> nodeScrapeAddrs = new ArrayList<>();
-                for (var node : nodeRepository.getMapForView(peerAccCtx.get()).values())
+                for (var node : nodeRepository.getMapForView().values())
                 {
-                    NodeApi nodeApi = node.getApiData(peerAccCtx.get(), null, null);
+                    NodeApi nodeApi = node.getApiData(null, null);
                     if (nodeApi.getType().equalsIgnoreCase(Node.Type.SATELLITE.name()) ||
                         nodeApi.getType().equalsIgnoreCase(Node.Type.COMBINED.name()))
                     {
@@ -81,11 +74,6 @@ public class ScrapeTarget
                     .status(Response.Status.OK)
                     .entity(objectMapper.writeValueAsString(result))
                     .build();
-            }
-            catch (AccessDeniedException accExc)
-            {
-                throw new ApiAccessDeniedException(
-                    accExc, "Unable to access node list", ApiConsts.FAIL_ACC_DENIED_NODE);
             }
         }, false);
     }

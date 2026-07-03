@@ -9,8 +9,6 @@ import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.LayerNvmeRscDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.AbsRscData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.RscDfnLayerObject;
@@ -96,12 +94,12 @@ public class NvmeRscData<RSC extends AbsResource<RSC>>
         parent.set(parentObj);
     }
 
-    public boolean isInitiator(AccessContext accCtx) throws AccessDeniedException
+    public boolean isInitiator()
     {
         boolean isDiskless = false;
         if (rsc instanceof Resource resource)
         {
-            isDiskless = resource.getStateFlags().isSet(accCtx, Resource.Flags.NVME_INITIATOR);
+            isDiskless = resource.getStateFlags().isSet(Resource.Flags.NVME_INITIATOR);
         }
         return isDiskless;
     }
@@ -144,16 +142,16 @@ public class NvmeRscData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public RscLayerDataApi asPojo(AccessContext accCtx) throws AccessDeniedException
+    public RscLayerDataApi asPojo()
     {
         List<NvmeVlmPojo> vlmPojos = new ArrayList<>();
         for (NvmeVlmData<RSC> nvmeVlmData : vlmMap.values())
         {
-            vlmPojos.add(nvmeVlmData.asPojo(accCtx));
+            vlmPojos.add(nvmeVlmData.asPojo());
         }
         return new NvmeRscPojo(
             rscLayerId,
-            getChildrenPojos(accCtx),
+            getChildrenPojos(),
             getResourceNameSuffix(),
             vlmPojos,
             suspend.get(),

@@ -7,8 +7,6 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.utils.StringUtils;
 
@@ -43,15 +41,13 @@ public class CtrlRscAutoBalanceHelper
 
     public Flux<ApiCallRc> balanceAfterOperation(
         ResourceDefinition rscDfn,
-        AccessContext accCtx,
         String propKey,
         String propNamespace
     )
-        throws AccessDeniedException
     {
-        Props rscGrpProps = rscDfn.getResourceGroup().getProps(accCtx);
+        Props rscGrpProps = rscDfn.getResourceGroup().getProps();
         PriorityProps prioProps = new PriorityProps(
-            rscDfn.getProps(accCtx), rscGrpProps, systemConfRepository.getCtrlConfForView(accCtx)
+            rscDfn.getProps(), rscGrpProps, systemConfRepository.getCtrlConfForView()
         );
         Flux<ApiCallRc> flux = Flux.empty();
         if (StringUtils.propTrueOrYes(prioProps.getProp(propKey, propNamespace, "false")))

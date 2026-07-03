@@ -6,10 +6,6 @@ import com.linbit.linstor.api.pojo.EbsRemotePojo;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.remotes.EbsRemoteDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ObjectProtection;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.TransactionSimpleObject;
@@ -41,7 +37,6 @@ public class EbsRemote extends AbsRemote
     private final StateFlags<Flags> flags;
 
     public EbsRemote(
-        ObjectProtection objProtRef,
         UUID objIdRef,
         EbsRemoteDatabaseDriver dbDriverRef,
         RemoteName remoteNameRef,
@@ -119,119 +114,103 @@ public class EbsRemote extends AbsRemote
         return RemoteType.EBS;
     }
 
-    public String getAvailabilityZone(AccessContext accCtx) throws AccessDeniedException
+    public String getAvailabilityZone()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return availabilityZone.get();
     }
 
-    public void setAvailabilityZone(AccessContext accCtx, String availaibilityZoneRef)
-        throws AccessDeniedException, DatabaseException
+    public void setAvailabilityZone(String availaibilityZoneRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         availabilityZone.set(availaibilityZoneRef);
     }
 
-    public String getRegion(AccessContext accCtx) throws AccessDeniedException
+    public String getRegion()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return region.get();
     }
 
-    public void setRegion(AccessContext accCtx, String regionRef)
-        throws AccessDeniedException, DatabaseException
+    public void setRegion(String regionRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         region.set(regionRef);
     }
 
-    public URL getUrl(AccessContext accCtx) throws AccessDeniedException
+    public URL getUrl()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return url.get();
     }
 
-    public void setUrl(AccessContext accCtx, URL urlRef) throws AccessDeniedException, DatabaseException
+    public void setUrl(URL urlRef) throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         url.set(urlRef);
     }
 
-    public @Nullable byte[] getEncryptedAccessKey(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable byte[] getEncryptedAccessKey()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return encryptedAccessKey.get();
     }
 
-    public void setEncryptedAccessKey(AccessContext accCtx, byte[] encryptedAccessKeyRef)
-        throws AccessDeniedException, DatabaseException
+    public void setEncryptedAccessKey(byte[] encryptedAccessKeyRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         encryptedAccessKey.set(encryptedAccessKeyRef);
     }
 
-    public String getDecryptedAccessKey(AccessContext accCtx) throws AccessDeniedException
+    public String getDecryptedAccessKey()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return decryptedAccessKey.get();
     }
 
-    public void setDecryptedAccessKey(AccessContext accCtx, String decryptedAccessKeyRef)
-        throws AccessDeniedException, DatabaseException
+    public void setDecryptedAccessKey(String decryptedAccessKeyRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         decryptedAccessKey.set(decryptedAccessKeyRef);
     }
 
-    public @Nullable byte[] getEncryptedSecretKey(AccessContext accCtx) throws AccessDeniedException
+    public @Nullable byte[] getEncryptedSecretKey()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return encryptedSecretKey.get();
     }
 
-    public void setEncryptedSecretKey(AccessContext accCtx, byte[] encryptedSecretKeyRef)
-        throws AccessDeniedException, DatabaseException
+    public void setEncryptedSecretKey(byte[] encryptedSecretKeyRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         encryptedSecretKey.set(encryptedSecretKeyRef);
     }
 
-    public String getDecryptedSecretKey(AccessContext accCtx) throws AccessDeniedException
+    public String getDecryptedSecretKey()
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return decryptedSecretKey.get();
     }
 
-    public void setDecryptedSecretKey(AccessContext accCtx, String decryptedSecretKeyRef)
-        throws AccessDeniedException, DatabaseException
+    public void setDecryptedSecretKey(String decryptedSecretKeyRef)
+        throws DatabaseException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         decryptedSecretKey.set(decryptedSecretKeyRef);
     }
 
-    public EbsRemotePojo getApiData(AccessContext accCtx, @Nullable Long fullSyncId, @Nullable Long updateId)
-        throws AccessDeniedException
+    public EbsRemotePojo getApiData(@Nullable Long fullSyncId, @Nullable Long updateId)
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.VIEW);
         return new EbsRemotePojo(
             objId,
             remoteName.displayValue,
-            flags.getFlagsBits(accCtx),
+            flags.getFlagsBits(),
             url.get().toString(),
             availabilityZone.get(),
             region.get(),
@@ -241,28 +220,26 @@ public class EbsRemote extends AbsRemote
             updateId
         );
     }
-    public void applyApiData(AccessContext accCtx, EbsRemotePojo apiData)
-        throws AccessDeniedException, DatabaseException, MalformedURLException
+    public void applyApiData(EbsRemotePojo apiData)
+        throws DatabaseException, MalformedURLException
     {
         checkDeleted();
-        objProt.requireAccess(accCtx, AccessType.CHANGE);
         url.set(new URL(apiData.getUrl()));
         availabilityZone.set(apiData.getAvailabilityZone());
         region.set(apiData.getRegion());
         encryptedAccessKey.set(apiData.getAccessKey());
         encryptedSecretKey.set(apiData.getSecretKey());
 
-        flags.resetFlagsTo(accCtx, Flags.restoreFlags(apiData.getFlags()));
+        flags.resetFlagsTo(Flags.restoreFlags(apiData.getFlags()));
     }
 
     @Override
-    public void delete(AccessContext accCtx) throws AccessDeniedException, DatabaseException
+    public void delete() throws DatabaseException
     {
         if (!deleted.get())
         {
-            objProt.requireAccess(accCtx, AccessType.CONTROL);
 
-            objProt.delete(accCtx);
+            objProt.delete();
 
             activateTransMgr();
 

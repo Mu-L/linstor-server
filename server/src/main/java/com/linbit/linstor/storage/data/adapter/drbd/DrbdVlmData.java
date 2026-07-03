@@ -7,7 +7,6 @@ import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.LayerDrbdVlmDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.storage.data.AbsVlmData;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -250,7 +249,7 @@ public class DrbdVlmData<RSC extends AbsResource<RSC>>
     }
 
     @Override
-    public DrbdVlmPojo asPojo(AccessContext accCtxRef)
+    public DrbdVlmPojo asPojo()
     {
         String externalMetaDataStorPoolName = null;
         if (getExternalMetaDataStorPool() != null)
@@ -258,7 +257,7 @@ public class DrbdVlmData<RSC extends AbsResource<RSC>>
             externalMetaDataStorPoolName = getExternalMetaDataStorPool().getName().displayValue;
         }
         return new DrbdVlmPojo(
-            vlmDfnData.getApiData(accCtxRef),
+            vlmDfnData.getApiData(),
             devicePath.get(),
             getDataDevice(),
             externalMetaDataStorPoolName,

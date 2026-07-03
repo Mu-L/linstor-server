@@ -3,13 +3,11 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils.DrbdResourceResult;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
@@ -21,8 +19,6 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo;
@@ -56,16 +52,13 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
     private static final String PROP_VAL_QUORUM_OFF = "off";
 
     private final SystemConfRepository systemConfRepository;
-    private final Provider<AccessContext> peerCtx;
 
     @Inject
     CtrlRscAutoQuorumHelper(
-        SystemConfRepository systemConfRepositoryRef,
-        @PeerContext Provider<AccessContext> peerCtxRef
+        SystemConfRepository systemConfRepositoryRef
     )
     {
         systemConfRepository = systemConfRepositoryRef;
-        peerCtx = peerCtxRef;
     }
 
     @Override
@@ -81,8 +74,8 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
         {
             try
             {
-                Set<Node> involvedNodesWithoutQuorumSupport = getNodesNotSupportingQuorum(peerCtx.get(), ctx.rscDfn);
-                Props props = ctx.rscDfn.getProps(peerCtx.get());
+                Set<Node> involvedNodesWithoutQuorumSupport = getNodesNotSupportingQuorum(ctx.rscDfn);
+                Props props = ctx.rscDfn.getProps();
 
                 if (isQuorumFeasible(ctx.rscDfn))
                 {
@@ -110,14 +103,6 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
                     deactivateQuorum(ctx.responses, props, " as there are not enough resources for quorum");
                 }
             }
-            catch (AccessDeniedException accDeniedExc)
-            {
-                throw new ApiAccessDeniedException(
-                    accDeniedExc,
-                    "checking auto-quorum feature " + getRscDfnDescriptionInline(ctx.rscDfn),
-                    ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-                );
-            }
             catch (InvalidKeyException | InvalidValueException exc)
             {
                 throw new ImplementationError(exc);
@@ -138,17 +123,17 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
     {
         try
         {
-            var quorumSetBy = getQuorumSetByProp(getPrioProps(rscDfn, peerCtx.get()));
+            var quorumSetBy = getQuorumSetByProp(getPrioProps(rscDfn));
             if (!InternalApiConsts.SET_BY_VALUE_LINSTOR.equalsIgnoreCase(quorumSetBy.objA))
             {
-                Props rscDfnProps = rscDfn.getProps(peerCtx.get());
+                Props rscDfnProps = rscDfn.getProps();
                 String oldQuorumProp = rscDfnProps.getProp(PROP_KEY_QUORUM, NAMESPC_DRBD_RESOURCE_OPTIONS);
                 String quorumProp = quorumSetBy.objB == null ? null :
                     quorumSetBy.objB.getProp(PROP_KEY_QUORUM, NAMESPC_DRBD_RESOURCE_OPTIONS);
                 quorumProp = quorumProp == null ? PROP_VAL_QUORUM_MAJORITY : quorumProp;
                 if (!quorumProp.equalsIgnoreCase(oldQuorumProp))
                 {
-                    rscDfn.getProps(peerCtx.get()).setProp(PROP_KEY_QUORUM, quorumProp, NAMESPC_DRBD_RESOURCE_OPTIONS);
+                    rscDfn.getProps().setProp(PROP_KEY_QUORUM, quorumProp, NAMESPC_DRBD_RESOURCE_OPTIONS);
 
                     apiCallRc.addEntry(
                         ApiCallRcImpl.simpleEntry(
@@ -165,14 +150,6 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
                 }
             }
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "checking auto-quorum feature " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
         catch (InvalidKeyException | InvalidValueException exc)
         {
             throw new ImplementationError(exc);
@@ -184,7 +161,7 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
     }
 
     private void activateQuorum(ApiCallRcImpl apiCallRcImpl, Props props)
-        throws InvalidValueException, AccessDeniedException, DatabaseException
+        throws InvalidValueException, DatabaseException
     {
         String oldQuorum = props.setProp(
             PROP_KEY_QUORUM,
@@ -210,7 +187,7 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
     }
 
     private void deactivateQuorum(ApiCallRcImpl apiCallRcImpl, Props props, String reason)
-        throws InvalidKeyException, AccessDeniedException, DatabaseException, InvalidValueException
+        throws InvalidKeyException, DatabaseException, InvalidValueException
     {
         String oldQuorum = props.setProp(PROP_KEY_QUORUM, PROP_VAL_QUORUM_OFF, NAMESPC_DRBD_RESOURCE_OPTIONS);
 
@@ -235,52 +212,43 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
         String quorumSetBy;
         try
         {
-            quorumSetBy = getQuorumSetByProp(getPrioProps(rscDfn, peerCtx.get())).objA;
+            quorumSetBy = getQuorumSetByProp(getPrioProps(rscDfn)).objA;
         }
         catch (InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "checking auto-quorum feature " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
-        }
         return InternalApiConsts.SET_BY_VALUE_LINSTOR.equalsIgnoreCase(quorumSetBy);
     }
 
-    private PriorityProps getPrioProps(ResourceDefinition rscDfn, AccessContext peerAccCtx)
-        throws AccessDeniedException
+    private PriorityProps getPrioProps(ResourceDefinition rscDfn)
     {
         return new PriorityProps(
-            rscDfn.getProps(peerAccCtx),
-            rscDfn.getResourceGroup().getProps(peerAccCtx),
-            systemConfRepository.getCtrlConfForView(peerAccCtx)
+            rscDfn.getProps(),
+            rscDfn.getResourceGroup().getProps(),
+            systemConfRepository.getCtrlConfForView()
         );
     }
 
-    private boolean isQuorumFeasible(ResourceDefinition rscDfn) throws AccessDeniedException
+    private boolean isQuorumFeasible(ResourceDefinition rscDfn)
     {
         int diskfulDrbdCount = 0;
         int disklessDrbdCount = 0;
         AccessContext peerAccCtx = peerCtx.get();
-        Iterator<Resource> rscIt = rscDfn.iterateResource(peerAccCtx);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
         while (rscIt.hasNext())
         {
             Resource rsc = rscIt.next();
             StateFlags<Flags> rscFlags = rsc.getStateFlags();
 
-            DrbdResourceResult result = ResourceDataUtils.isDrbdResource(rsc, peerAccCtx);
+            DrbdResourceResult result = ResourceDataUtils.isDrbdResource(rsc);
 
             if (result != DrbdResourceResult.NO_DRBD &&
-                rscFlags.isUnset(peerAccCtx, Resource.Flags.DELETE) &&
-                rscFlags.isUnset(peerAccCtx, Resource.Flags.INACTIVE)
+                rscFlags.isUnset(Resource.Flags.DELETE) &&
+                rscFlags.isUnset(Resource.Flags.INACTIVE)
             )
             {
-                if (rscFlags.isSet(peerAccCtx, Resource.Flags.DRBD_DISKLESS))
+                if (rscFlags.isSet(Resource.Flags.DRBD_DISKLESS))
                 {
                     disklessDrbdCount++;
                 }
@@ -323,21 +291,19 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
             ApiConsts.KEY_QUORUM_SET_BY, ApiConsts.NAMESPC_INTERNAL_DRBD, InternalApiConsts.SET_BY_VALUE_LINSTOR);
     }
 
-    public static boolean isQuorumSupportedByAllNodes(AccessContext accCtx, ResourceDefinition rscDfn)
-        throws AccessDeniedException
+    public static boolean isQuorumSupportedByAllNodes(ResourceDefinition rscDfn)
     {
-        return getNodesNotSupportingQuorum(accCtx, rscDfn).isEmpty();
+        return getNodesNotSupportingQuorum(rscDfn).isEmpty();
     }
 
-    public static Set<Node> getNodesNotSupportingQuorum(AccessContext accCtx, ResourceDefinition rscDfn)
-        throws AccessDeniedException
+    public static Set<Node> getNodesNotSupportingQuorum(ResourceDefinition rscDfn)
     {
         Set<Node> ret = new TreeSet<>();
-        Iterator<Resource> rscIt = rscDfn.iterateResource(accCtx);
+        Iterator<Resource> rscIt = rscDfn.iterateResource();
         while (rscIt.hasNext())
         {
             Node node = rscIt.next().getNode();
-            if (!supportsQuorum(accCtx, node))
+            if (!supportsQuorum(node))
             {
                 ret.add(node);
             }
@@ -345,9 +311,9 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
         return ret;
     }
 
-    public static boolean supportsQuorum(AccessContext accCtx, Node node) throws AccessDeniedException
+    public static boolean supportsQuorum(Node node)
     {
-        ExtToolsInfo drbdInfo = node.getPeer(accCtx)
+        ExtToolsInfo drbdInfo = node.getPeer()
             .getExtToolsManager()
             .getExtToolInfo(ExtTools.DRBD9_KERNEL);
         return drbdInfo != null && drbdInfo
@@ -361,25 +327,17 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
      * @param rscDfn RD to check and delete the quorum prop if necessary
      * @param accCtx access context
      */
-    public static void removeQuorumPropIfSetByLinstor(ResourceDefinition rscDfn, AccessContext accCtx)
+    public static void removeQuorumPropIfSetByLinstor(ResourceDefinition rscDfn)
     {
         try
         {
-            Props props = rscDfn.getProps(accCtx);
+            Props props = rscDfn.getProps();
             String quorumSetByLinstor = props.getPropWithDefault(
                 ApiConsts.KEY_QUORUM_SET_BY, ApiConsts.NAMESPC_INTERNAL_DRBD, InternalApiConsts.SET_BY_VALUE_LINSTOR);
             if (quorumSetByLinstor.equalsIgnoreCase(InternalApiConsts.SET_BY_VALUE_LINSTOR))
             {
                 props.removeProp(InternalApiConsts.KEY_DRBD_QUORUM, ApiConsts.NAMESPC_DRBD_RESOURCE_OPTIONS);
             }
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "cleanup Linstor set quorum property " + getRscDfnDescriptionInline(rscDfn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
-            );
         }
         catch (DatabaseException exc)
         {

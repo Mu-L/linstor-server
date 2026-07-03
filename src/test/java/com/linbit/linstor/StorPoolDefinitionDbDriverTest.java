@@ -12,7 +12,6 @@ import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.objects.StorPoolDefinitionDbDriver;
 import com.linbit.linstor.core.objects.TestFactory;
 import com.linbit.linstor.security.GenericDbBase;
-import com.linbit.linstor.security.ObjectProtection;
 
 import javax.inject.Inject;
 
@@ -34,7 +33,6 @@ public class StorPoolDefinitionDbDriverTest extends GenericDbBase
 
     private StorPoolName spName;
     private java.util.UUID uuid;
-    private ObjectProtection objProt;
 
     private StorPoolDefinition spdd;
 
@@ -54,7 +52,7 @@ public class StorPoolDefinitionDbDriverTest extends GenericDbBase
 
         uuid = randomUUID();
         spName = new StorPoolName("TestStorPool");
-        objProt = objectProtectionFactory.getInstance(SYS_CTX, ObjectProtection.buildPath(spName), true);
+        objProt = objectProtectionFactory.getInstance(ObjectProtection.buildPath(spName), true);
         spdd = TestFactory.createStorPoolDefinition(
             uuid,
             objProt,
@@ -89,7 +87,7 @@ public class StorPoolDefinitionDbDriverTest extends GenericDbBase
     @Test
     public void testPersistGetInstance() throws Exception
     {
-        StorPoolDefinition spd = storPoolDefinitionFactory.create(SYS_CTX, spName);
+        StorPoolDefinition spd = storPoolDefinitionFactory.create(spName);
         commit();
 
         assertNotNull(spd);
@@ -158,7 +156,7 @@ public class StorPoolDefinitionDbDriverTest extends GenericDbBase
     {
         driver.create(spdd);
         StorPoolName spName2 = new StorPoolName("StorPoolName2");
-        storPoolDefinitionFactory.create(SYS_CTX, spName2);
+        storPoolDefinitionFactory.create(spName2);
 
         Map<StorPoolDefinition, StorPoolDefinition.InitMaps> storpools = driver.loadAll(null);
 
@@ -177,6 +175,6 @@ public class StorPoolDefinitionDbDriverTest extends GenericDbBase
     {
         driver.create(spdd);
         storPoolDfnMap.put(spName, spdd);
-        storPoolDefinitionFactory.create(SYS_CTX, spName);
+        storPoolDefinitionFactory.create(spName);
     }
 }

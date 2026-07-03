@@ -4,7 +4,6 @@ import com.linbit.crypto.SecretGenerator;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinStorRuntimeException;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
@@ -12,7 +11,6 @@ import com.linbit.linstor.api.rest.v1.serializer.JsonGenTypes;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiException;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
@@ -23,8 +21,6 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerNotConnectedException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.proto.javainternal.s2c.MsgPhysicalDevicesOuterClass.MsgPhysicalDevices;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.LsBlkEntry;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.storage.kinds.RaidLevel;
@@ -54,7 +50,6 @@ public class CtrlPhysicalStorageApiCallHandler
 {
     private static final int SED_PASSWORD_LENGTH = 20;
     private final ErrorReporter errorReporter;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlStltSerializer ctrlStltSerializer;
@@ -67,7 +62,6 @@ public class CtrlPhysicalStorageApiCallHandler
     @Inject
     public CtrlPhysicalStorageApiCallHandler(
         ErrorReporter errorReporterRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlStltSerializer ctrlStltSerializerRef,
@@ -78,7 +72,6 @@ public class CtrlPhysicalStorageApiCallHandler
     )
     {
         this.errorReporter = errorReporterRef;
-        this.peerAccCtx = peerAccCtxRef;
         this.scopeRunner = scopeRunnerRef;
         this.lockGuardFactory = lockGuardFactoryRef;
         this.ctrlStltSerializer = ctrlStltSerializerRef;
@@ -95,7 +88,7 @@ public class CtrlPhysicalStorageApiCallHandler
             lockGuardFactory.buildDeferred(LockGuardFactory.LockType.READ, LockGuardFactory.LockObj.NODES_MAP),
             () -> {
                 Node node = ctrlApiDataLoader.loadNode(nodeName, true);
-                return getPhysicalStorageForPeer(node.getPeer(peerAccCtx.get()));
+                return getPhysicalStorageForPeer(node.getPeer());
             }
         );
     }
@@ -124,9 +117,9 @@ public class CtrlPhysicalStorageApiCallHandler
         try
         {
             ArrayList<Peer> peers = new ArrayList<>();
-            for (Node node : nodeRepository.getMapForView(peerAccCtx.get()).values())
+            for (Node node : nodeRepository.getMapForView().values())
             {
-                peers.add(node.getPeer(peerAccCtx.get()));
+                peers.add(node.getPeer());
             }
 
             flux = Flux
@@ -270,7 +263,7 @@ public class CtrlPhysicalStorageApiCallHandler
                 }
             }
 
-            response = node.getPeer(peerAccCtx.get())
+            response = node.getPeer()
                 .apiCall(
                     InternalApiConsts.API_CREATE_DEVICE_POOL,
                     ctrlStltSerializer.headerlessBuilder()
@@ -292,14 +285,6 @@ public class CtrlPhysicalStorageApiCallHandler
                 )
                 .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty())
                 .map(answer -> CtrlSatelliteUpdateCaller.deserializeApiCallRc(node.getName(), answer));
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ApiAccessDeniedException(
-                accExc,
-                "get peer from node",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
         }
         catch (LinStorException exc)
         {
@@ -338,29 +323,18 @@ public class CtrlPhysicalStorageApiCallHandler
         Flux<ApiCallRc> response;
         Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
 
-        try
-        {
-            response = node.getPeer(peerAccCtx.get())
-                .apiCall(
-                    InternalApiConsts.API_DELETE_DEVICE_POOL,
-                    ctrlStltSerializer.headerlessBuilder()
-                        .deleteDevicePool(
-                            devicePaths,
-                            providerKindRef,
-                            poolName
-                        ).build()
-                )
-                .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty())
-                .map(answer -> CtrlSatelliteUpdateCaller.deserializeApiCallRc(node.getName(), answer));
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ApiAccessDeniedException(
-                accExc,
-                "get peer from node",
-                ApiConsts.FAIL_ACC_DENIED_NODE
-            );
-        }
+        response = node.getPeer()
+            .apiCall(
+                InternalApiConsts.API_DELETE_DEVICE_POOL,
+                ctrlStltSerializer.headerlessBuilder()
+                    .deleteDevicePool(
+                        devicePaths,
+                        providerKindRef,
+                        poolName
+                    ).build()
+            )
+            .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty())
+            .map(answer -> CtrlSatelliteUpdateCaller.deserializeApiCallRc(node.getName(), answer));
 
         return response;
     }

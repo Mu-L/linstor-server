@@ -8,8 +8,6 @@ import com.linbit.linstor.core.objects.Resource.Flags;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.InvalidKeyException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
@@ -30,15 +28,14 @@ public class DrbdLayerUtils
     {
     }
 
-    public static boolean isAnyDrbdResourceExpected(AccessContext accCtx, Resource rscRef)
-        throws AccessDeniedException
+    public static boolean isAnyDrbdResourceExpected(Resource rscRef)
     {
         boolean ret = false;
         Set<AbsRscLayerObject<Resource>> drbdRscSet = LayerRscUtils
-            .getRscDataByLayer(rscRef.getLayerData(accCtx), DeviceLayerKind.DRBD);
+            .getRscDataByLayer(rscRef.getLayerData(), DeviceLayerKind.DRBD);
         for (AbsRscLayerObject<Resource> drbdRsc : drbdRscSet)
         {
-            if (isDrbdResourceExpected(accCtx, (DrbdRscData<Resource>) drbdRsc))
+            if (isDrbdResourceExpected((DrbdRscData<Resource>) drbdRsc))
             {
                 ret = true;
                 break;
@@ -47,20 +44,19 @@ public class DrbdLayerUtils
         return ret;
     }
 
-    public static boolean isDrbdResourceExpected(AccessContext accCtx, DrbdRscData<Resource> rscData)
-        throws AccessDeniedException
+    public static boolean isDrbdResourceExpected(DrbdRscData<Resource> rscData)
     {
         boolean isDevExpected = true;
 
         StateFlags<Flags> rscFlags = rscData.getAbsResource().getStateFlags();
-        if (rscFlags.isSet(accCtx, Resource.Flags.DRBD_DISKLESS))
+        if (rscFlags.isSet(Resource.Flags.DRBD_DISKLESS))
         {
             isDevExpected = true;
         }
         else
         {
             boolean hasNvmeBelow = !LayerRscUtils.getRscDataByLayer(rscData, DeviceLayerKind.NVME).isEmpty();
-            boolean isNvmeTarget = !rscFlags.isSet(accCtx, Resource.Flags.NVME_INITIATOR);
+            boolean isNvmeTarget = !rscFlags.isSet(Resource.Flags.NVME_INITIATOR);
             boolean isEbsTarget = false;
             for (AbsRscLayerObject<Resource> storRscData : LayerRscUtils.getRscDataByLayer(
                 rscData,
@@ -80,7 +76,7 @@ public class DrbdLayerUtils
                     break;
                 }
             }
-            boolean isInactive = rscFlags.isSet(accCtx, Resource.Flags.INACTIVE);
+            boolean isInactive = rscFlags.isSet(Resource.Flags.INACTIVE);
             if ((hasNvmeBelow && isNvmeTarget) || isEbsTarget || isInactive)
             {
                 // target NVME or inactive resource will never return a device, so drbd will not exist
@@ -98,27 +94,24 @@ public class DrbdLayerUtils
         );
     }
 
-    public static boolean isForceInitialSyncSet(AccessContext accCtx, DrbdRscData<Resource> drbdRscData)
-        throws InvalidKeyException,
-        AccessDeniedException
+    public static boolean isForceInitialSyncSet(DrbdRscData<Resource> drbdRscData)
+        throws InvalidKeyException
     {
-        return isForceInitialSyncSet(accCtx, drbdRscData.getAbsResource().getResourceDefinition());
+        return isForceInitialSyncSet(drbdRscData.getAbsResource().getResourceDefinition());
     }
 
-    public static boolean isForceInitialSyncSet(AccessContext accCtx, ResourceDefinition rscDfn)
-        throws InvalidKeyException,
-        AccessDeniedException
+    public static boolean isForceInitialSyncSet(ResourceDefinition rscDfn)
+        throws InvalidKeyException
     {
-        @Nullable String forceSync = rscDfn.getProps(accCtx)
+        @Nullable String forceSync = rscDfn.getProps()
             .getProp(InternalApiConsts.KEY_FORCE_INITIAL_SYNC_PERMA, ApiConsts.NAMESPC_DRBD_OPTIONS);
         return forceSync != null && Boolean.parseBoolean(forceSync);
     }
 
-    public static boolean skipInitSync(AccessContext accCtxRef, DrbdVlmData<Resource> drbdVlmDataRef)
-        throws AccessDeniedException
+    public static boolean skipInitSync(DrbdVlmData<Resource> drbdVlmDataRef)
     {
         boolean skipInitSync;
-        if (DrbdLayerUtils.isForceInitialSyncSet(accCtxRef, drbdVlmDataRef.getRscLayerObject()))
+        if (DrbdLayerUtils.isForceInitialSyncSet(drbdVlmDataRef.getRscLayerObject()))
         {
             skipInitSync = false;
         }
@@ -139,50 +132,50 @@ public class DrbdLayerUtils
         return skipInitSync;
     }
 
-    public static boolean isTiebreaker(AccessContext accCtxRef, Resource rscRef) throws AccessDeniedException
+    public static boolean isTiebreaker(Resource rscRef)
     {
         StateFlags<Flags> flags = rscRef.getStateFlags();
-        return flags.isSet(accCtxRef, Resource.Flags.TIE_BREAKER);
+        return flags.isSet(Resource.Flags.TIE_BREAKER);
     }
 
-    public static boolean setTiebreaker(AccessContext accCtx, Resource tiebreakerRef, boolean enableRef)
-        throws AccessDeniedException, DatabaseException
+    public static boolean setTiebreaker(Resource tiebreakerRef, boolean enableRef)
+        throws DatabaseException
     {
         StateFlags<Flags> flags = tiebreakerRef.getStateFlags();
-        boolean changed = enableRef != flags.isSet(accCtx, Resource.Flags.TIE_BREAKER);
+        boolean changed = enableRef != flags.isSet(Resource.Flags.TIE_BREAKER);
         if (changed)
         {
             if (enableRef)
             {
-                flags.enableFlags(accCtx, Resource.Flags.TIE_BREAKER);
+                flags.enableFlags(Resource.Flags.TIE_BREAKER);
             }
             else
             {
-                flags.disableFlags(accCtx, Resource.Flags.TIE_BREAKER);
-                flags.enableFlags(accCtx, Resource.Flags.DRBD_DISKLESS);
+                flags.disableFlags(Resource.Flags.TIE_BREAKER);
+                flags.enableFlags(Resource.Flags.DRBD_DISKLESS);
             }
         }
         return changed;
     }
 
-    public static boolean setClientFlag(AccessContext accCtxRef, Resource rscRef, boolean enableRef)
-        throws AccessDeniedException, DatabaseException
+    public static boolean setClientFlag(Resource rscRef, boolean enableRef)
+        throws DatabaseException
     {
         boolean changed;
-        AbsRscLayerObject<Resource> rscData = rscRef.getLayerData(accCtxRef);
+        AbsRscLayerObject<Resource> rscData = rscRef.getLayerData();
         if (rscData instanceof DrbdRscData<Resource> drbdRscData)
         {
             StateFlags<DrbdRscObject.DrbdRscFlags> flags = drbdRscData.getFlags();
-            changed = enableRef != flags.isSet(accCtxRef, DrbdRscObject.DrbdRscFlags.CLIENT);
+            changed = enableRef != flags.isSet(DrbdRscObject.DrbdRscFlags.CLIENT);
             if (changed)
             {
                 if (enableRef)
                 {
-                    flags.enableFlags(accCtxRef, DrbdRscObject.DrbdRscFlags.CLIENT);
+                    flags.enableFlags(DrbdRscObject.DrbdRscFlags.CLIENT);
                 }
                 else
                 {
-                    flags.disableFlags(accCtxRef, DrbdRscObject.DrbdRscFlags.CLIENT);
+                    flags.disableFlags(DrbdRscObject.DrbdRscFlags.CLIENT);
                 }
             }
         }
@@ -193,14 +186,14 @@ public class DrbdLayerUtils
         return changed;
     }
 
-    public static boolean isDrbdClient(AccessContext accCtxRef, Resource rscRef) throws AccessDeniedException
+    public static boolean isDrbdClient(Resource rscRef)
     {
         boolean ret = false;
-        AbsRscLayerObject<Resource> rscData = rscRef.getLayerData(accCtxRef);
+        AbsRscLayerObject<Resource> rscData = rscRef.getLayerData();
         if (rscData instanceof DrbdRscData<Resource> drbdRscData)
         {
             StateFlags<DrbdRscObject.DrbdRscFlags> flags = drbdRscData.getFlags();
-            ret = flags.isSet(accCtxRef, DrbdRscObject.DrbdRscFlags.CLIENT);
+            ret = flags.isSet(DrbdRscObject.DrbdRscFlags.CLIENT);
         }
         return ret;
     }

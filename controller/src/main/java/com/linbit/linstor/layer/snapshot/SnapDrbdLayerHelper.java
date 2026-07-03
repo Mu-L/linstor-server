@@ -4,7 +4,6 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
@@ -28,8 +27,6 @@ import com.linbit.linstor.layer.AbsLayerHelperUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscDfnData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmData;
@@ -57,14 +54,12 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
     @Inject
     SnapDrbdLayerHelper(
         ErrorReporter errorReporter,
-        @ApiContext AccessContext apiCtx,
         LayerDataFactory layerDataFactory,
         @Named(NumberPoolModule.LAYER_RSC_ID_POOL) DynamicNumberPool layerRscIdPool
     )
     {
         super(
             errorReporter,
-            apiCtx,
             layerDataFactory,
             layerRscIdPool,
             DRBD
@@ -76,11 +71,10 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
         SnapshotDefinition snapDfn,
         String rscNameSuffix
     )
-        throws AccessDeniedException, DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         DrbdRscDfnData<Resource> rscDfnData = snapDfn.getResourceDefinition().getLayerData(
-            apiCtx,
             DRBD,
             rscNameSuffix
         );
@@ -103,7 +97,7 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
         SnapshotVolumeDefinition snapVlmDfn,
         String rscNameSuffix
     )
-        throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         return layerDataFactory.createDrbdVlmDfnData(
@@ -113,7 +107,7 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
             rscNameSuffix,
             snapVlmDfn.getVolumeNumber(),
             DrbdVlmDfnData.SNAPSHOT_MINOR,
-            snapVlmDfn.getSnapshotDefinition().getLayerData(apiCtx, DRBD, rscNameSuffix)
+            snapVlmDfn.getSnapshotDefinition().getLayerData(DRBD, rscNameSuffix)
         );
     }
 
@@ -123,12 +117,11 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
         AbsRscLayerObject<Resource> rscDataRef,
         AbsRscLayerObject<Snapshot> parentObjectRef
     )
-        throws AccessDeniedException, DatabaseException, ExhaustedPoolException, ValueOutOfRangeException,
+        throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException,
         ValueInUseException
     {
         DrbdRscData<Resource> drbdRscData = (DrbdRscData<Resource>) rscDataRef;
         DrbdRscDfnData<Snapshot> snapDfnData = snapRef.getSnapshotDefinition().getLayerData(
-            apiCtx,
             DRBD,
             drbdRscData.getResourceNameSuffix()
         );
@@ -145,7 +138,7 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
             drbdRscData.getPeerSlots(),
             drbdRscData.getAlStripes(),
             drbdRscData.getAlStripeSize(),
-            drbdRscData.getFlags().getFlagsBits(apiCtx) // TODO not sure if we should persist this...
+            drbdRscData.getFlags().getFlagsBits() // TODO not sure if we should persist this...
         );
     }
 
@@ -155,7 +148,7 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
         DrbdRscData<Snapshot> drbdSnapDataRef,
         VlmProviderObject<Resource> vlmDataRef
     )
-        throws DatabaseException, AccessDeniedException
+        throws DatabaseException
     {
         DrbdVlmData<Resource> drbdVlmData = (DrbdVlmData<Resource>) vlmDataRef;
 
@@ -163,7 +156,7 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
             snapVlmRef,
             drbdVlmData.getExternalMetaDataStorPool(),
             drbdSnapDataRef,
-            snapVlmRef.getSnapshotVolumeDefinition().getLayerData(apiCtx, DRBD, drbdSnapDataRef.getResourceNameSuffix())
+            snapVlmRef.getSnapshotVolumeDefinition().getLayerData(DRBD, drbdSnapDataRef.getResourceNameSuffix())
         );
     }
 
@@ -198,7 +191,7 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
         VlmLayerDataApi vlmLayerDataApiRef,
         Map<String, String> renameStorPoolMapRef
     )
-        throws DatabaseException, AccessDeniedException, ValueOutOfRangeException, ExhaustedPoolException,
+        throws DatabaseException, ValueOutOfRangeException, ExhaustedPoolException,
         ValueInUseException
     {
         DrbdVlmPojo drbdVlmPojo = (DrbdVlmPojo) vlmLayerDataApiRef;
@@ -210,7 +203,7 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
             drbdVlmDfnPojo.getRscNameSuffix(),
             snapVlmDfn.getVolumeNumber(),
             DrbdVlmDfnData.SNAPSHOT_MINOR,
-            snapVlmDfn.getSnapshotDefinition().getLayerData(apiCtx, DRBD, drbdVlmDfnPojo.getRscNameSuffix())
+            snapVlmDfn.getSnapshotDefinition().getLayerData(DRBD, drbdVlmDfnPojo.getRscNameSuffix())
         );
     }
 
@@ -221,11 +214,10 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
         @Nullable AbsRscLayerObject<Snapshot> parentRef,
         Map<String, String> renameStorPoolMapRef
     )
-        throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException, AccessDeniedException, ValueInUseException
+        throws DatabaseException, ExhaustedPoolException, ValueOutOfRangeException, ValueInUseException
     {
         DrbdRscPojo drbdRscPojo = (DrbdRscPojo) rscLayerDataApiRef;
         DrbdRscDfnData<Snapshot> snapDfnData = snapRef.getSnapshotDefinition().getLayerData(
-            apiCtx,
             DRBD,
             drbdRscPojo.getRscNameSuffix()
         );
@@ -256,7 +248,7 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
         Map<String, String> renameStorPoolMapRef,
         @Nullable ApiCallRc apiCallRc
     )
-        throws AccessDeniedException, InvalidNameException, DatabaseException
+        throws InvalidNameException, DatabaseException
     {
         DrbdVlmPojo drbdVlmPojo = (DrbdVlmPojo) vlmLayerDataApiRef;
 
@@ -265,7 +257,6 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
         if (externalMetaDataStorPool != null)
         {
             extMdStorPool = AbsLayerHelperUtils.getStorPool(
-                apiCtx,
                 snapVlmRef,
                 snapDataRef,
                 externalMetaDataStorPool,
@@ -279,7 +270,6 @@ class SnapDrbdLayerHelper extends AbsSnapLayerHelper<
             extMdStorPool,
             snapDataRef,
             snapVlmRef.getSnapshotVolumeDefinition().getLayerData(
-                apiCtx,
                 DRBD,
                 snapDataRef.getResourceNameSuffix()
             )

@@ -2,7 +2,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -28,8 +27,6 @@ import com.linbit.linstor.core.repository.ResourceDefinitionRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.utils.RegexMatcher;
 
@@ -58,7 +55,6 @@ public class CtrlSnapshotApiCallHandler
 {
     private final ErrorReporter logger;
     private final ResourceDefinitionRepository resourceDefinitionRepository;
-    private final Provider<AccessContext> peerAccCtx;
     private final ScopeRunner scopeRunner;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final LockGuardFactory lockGuardFactory;
@@ -69,7 +65,6 @@ public class CtrlSnapshotApiCallHandler
     @Inject
     public CtrlSnapshotApiCallHandler(
         ResourceDefinitionRepository resourceDefinitionRepositoryRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef,
         ErrorReporter loggerRef,
         ScopeRunner scopeRunnerRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
@@ -80,7 +75,6 @@ public class CtrlSnapshotApiCallHandler
     )
     {
         resourceDefinitionRepository = resourceDefinitionRepositoryRef;
-        peerAccCtx = peerAccCtxRef;
         logger = loggerRef;
         scopeRunner = scopeRunnerRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
@@ -118,16 +112,16 @@ public class CtrlSnapshotApiCallHandler
 
         try
         {
-            for (ResourceDefinition rscDfn : resourceDefinitionRepository.getMapForView(peerAccCtx.get()).values())
+            for (ResourceDefinition rscDfn : resourceDefinitionRepository.getMapForView().values())
             {
                 if (RegexMatcher.matchesAny(rscDfnsFilter, rscDfn.getName().displayValue))
                 {
-                    for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns(peerAccCtx.get()))
+                    for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())
                     {
                         try
                         {
                             final SnapshotDefinitionListItemApi snapItem =
-                                snapshotDfn.getListItemApiData(peerAccCtx.get());
+                                snapshotDfn.getListItemApiData();
                             if (shouldIncludeSnapshot(snapItem, nodesFilter))
                             {
                                 snapshotDfns.add(snapItem);
@@ -217,16 +211,16 @@ public class CtrlSnapshotApiCallHandler
         ApiCallRcImpl apiCallRcs = new ApiCallRcImpl();
         try
         {
-            @Nullable ResourceDefinition rscDfn = resourceDefinitionRepository.get(peerAccCtx.get(), rscName);
+            @Nullable ResourceDefinition rscDfn = resourceDefinitionRepository.get(rscName);
 
             if (rscDfn != null)
             {
-                @Nullable SnapshotDefinition snapDfn = rscDfn.getSnapshotDfn(peerAccCtx.get(), snapshotName);
+                @Nullable SnapshotDefinition snapDfn = rscDfn.getSnapshotDfn(snapshotName);
                 if (snapDfn != null)
                 {
                     if (!overrideProps.isEmpty() || !deletePropKeys.isEmpty())
                     {
-                        Props snapDfnProps = snapDfn.getSnapDfnProps(peerAccCtx.get());
+                        Props snapDfnProps = snapDfn.getSnapDfnProps();
 
                         List<String> prefixesIgnoringWhitelistCheck = new ArrayList<>();
                         prefixesIgnoringWhitelistCheck.add(ApiConsts.NAMESPC_EBS + "/" + ApiConsts.NAMESPC_TAGS + "/");

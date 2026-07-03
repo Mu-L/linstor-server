@@ -5,10 +5,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.dbdrivers.interfaces.AbsResourceDatabaseDriver;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.ProtectedObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.TransactionSimpleObject;
@@ -27,7 +23,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 public abstract class AbsResource<RSC extends AbsResource<RSC>>
     extends AbsCoreObj<AbsResource<RSC>>
-    implements ProtectedObject
+
 {
     // use special epoch time to mark this as a new resource which will get set on resource apply
     // mysql/mariadb do not allow 0 here, so I choose 1000, as it doesn't matter
@@ -78,11 +74,10 @@ public abstract class AbsResource<RSC extends AbsResource<RSC>>
         return Optional.ofNullable(createTimestamp.get());
     }
 
-    public void setCreateTimestamp(AccessContext accCtx, Instant creationDate)
-        throws AccessDeniedException, DatabaseException
+    public void setCreateTimestamp(Instant creationDate)
+        throws DatabaseException
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.CHANGE);
         createTimestamp.set(creationDate);
     }
 
@@ -90,19 +85,16 @@ public abstract class AbsResource<RSC extends AbsResource<RSC>>
     // either have the rscDataFactory call createRscData instead of ensureRscDataExists
     // or supply the Resource-ctor with a rscFactory so it can create its own rscData
     @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
-    public AbsRscLayerObject<RSC> getLayerData(AccessContext accCtx)
-        throws AccessDeniedException
+    public AbsRscLayerObject<RSC> getLayerData()
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.USE);
         return rootLayerData.get();
     }
 
-    public void setLayerData(AccessContext accCtx, AbsRscLayerObject<RSC> layerData)
-        throws AccessDeniedException, DatabaseException
+    public void setLayerData(AbsRscLayerObject<RSC> layerData)
+        throws DatabaseException
     {
         checkDeleted();
-        getObjProt().requireAccess(accCtx, AccessType.USE);
         rootLayerData.set(layerData);
     }
 
@@ -114,11 +106,11 @@ public abstract class AbsResource<RSC extends AbsResource<RSC>>
 
     public abstract ResourceDefinition getResourceDefinition();
 
-    public abstract void markDeleted(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException;
+    public abstract void markDeleted()
+        throws DatabaseException;
 
     @Override
-    public abstract void delete(AccessContext accCtx)
-        throws AccessDeniedException, DatabaseException;
+    public abstract void delete()
+        throws DatabaseException;
 
 }

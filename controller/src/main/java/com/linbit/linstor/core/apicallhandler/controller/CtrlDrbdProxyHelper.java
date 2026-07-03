@@ -4,12 +4,9 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.ImplementationError;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
-import com.linbit.linstor.annotation.ApiContext;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.objects.ResourceConnection;
@@ -17,8 +14,6 @@ import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlRscConnectionApiCallHandler.getResourceConnectionDescriptionInline;
 
@@ -31,20 +26,14 @@ import java.util.UUID;
 @Singleton
 public class CtrlDrbdProxyHelper
 {
-    private final AccessContext apiCtx;
     private final CtrlRscConnectionHelper ctrlRscConnectionHelper;
-    private final Provider<AccessContext> peerAccCtx;
 
     @Inject
     public CtrlDrbdProxyHelper(
-        @ApiContext AccessContext apiCtxRef,
-        CtrlRscConnectionHelper ctrlRscConnectionHelperRef,
-        @PeerContext Provider<AccessContext> peerAccCtxRef
+        CtrlRscConnectionHelper ctrlRscConnectionHelperRef
     )
     {
-        apiCtx = apiCtxRef;
         ctrlRscConnectionHelper = ctrlRscConnectionHelperRef;
-        peerAccCtx = peerAccCtxRef;
     }
 
     public ResourceConnection enableProxy(
@@ -85,22 +74,22 @@ public class CtrlDrbdProxyHelper
             {
                 if (srcPort)
                 {
-                    rscConnRef.autoAllocateDrbdProxyPortSource(peerAccCtx.get());
+                    rscConnRef.autoAllocateDrbdProxyPortSource();
                 }
                 else
                 {
-                    rscConnRef.autoAllocateDrbdProxyPortTarget(peerAccCtx.get());
+                    rscConnRef.autoAllocateDrbdProxyPortTarget();
                 }
             }
             else
             {
                 if (srcPort)
                 {
-                    rscConnRef.setDrbdProxyPortSource(peerAccCtx.get(), new TcpPortNumber(port));
+                    rscConnRef.setDrbdProxyPortSource(new TcpPortNumber(port));
                 }
                 else
                 {
-                    rscConnRef.setDrbdProxyPortTarget(peerAccCtx.get(), new TcpPortNumber(port));
+                    rscConnRef.setDrbdProxyPortTarget(new TcpPortNumber(port));
                 }
             }
         }
@@ -112,15 +101,6 @@ public class CtrlDrbdProxyHelper
                     "Could not find free TCP port"
                 ),
                 exc
-            );
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                (port == null ? "auto-allocate" : "set") + " TCP port for " +
-                    getResourceConnectionDescriptionInline(apiCtx, rscConnRef),
-                ApiConsts.FAIL_ACC_DENIED_RSC_DFN
             );
         }
         catch (DatabaseException exc)
@@ -151,15 +131,7 @@ public class CtrlDrbdProxyHelper
     {
         try
         {
-            rscConn.getProps(peerAccCtx.get()).setProp(key, value, namespace);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "accessing properties of " + getResourceConnectionDescriptionInline(apiCtx, rscConn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
-            );
+            rscConn.getProps().setProp(key, value, namespace);
         }
         catch (InvalidKeyException | InvalidValueException exc)
         {
@@ -175,15 +147,7 @@ public class CtrlDrbdProxyHelper
     {
         try
         {
-            rscConn.getStateFlags().enableFlags(peerAccCtx.get(), ResourceConnection.Flags.LOCAL_DRBD_PROXY);
-        }
-        catch (AccessDeniedException accDeniedExc)
-        {
-            throw new ApiAccessDeniedException(
-                accDeniedExc,
-                "enable local proxy flag of " + getResourceConnectionDescriptionInline(apiCtx, rscConn),
-                ApiConsts.FAIL_ACC_DENIED_RSC_CONN
-            );
+            rscConn.getStateFlags().enableFlags(ResourceConnection.Flags.LOCAL_DRBD_PROXY);
         }
         catch (DatabaseException exc)
         {

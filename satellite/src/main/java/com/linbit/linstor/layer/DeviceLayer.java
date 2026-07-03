@@ -24,7 +24,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.layer.storage.StorageLayer;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
@@ -54,7 +53,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
         Set<AbsRscLayerObject<Resource>> rscObjList,
         Set<AbsRscLayerObject<Snapshot>> snapObjList
     )
-        throws StorageException, AccessDeniedException, DatabaseException;
+        throws StorageException, DatabaseException;
 
     /**
      * Processes the given resource layer data.
@@ -66,7 +65,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
      *
      */
     void processResource(AbsRscLayerObject<Resource> rscLayerData, ApiCallRcImpl apiCallRc)
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException, DatabaseException,
+        throws StorageException, ResourceException, VolumeException, DatabaseException,
         AbortLayerProcessingException;
 
     /**
@@ -82,8 +81,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
      *
      */
     default boolean processSnapshot(AbsRscLayerObject<Snapshot> snapLayerData, ApiCallRcImpl apiCallRc)
-        throws StorageException, ResourceException, VolumeException, AccessDeniedException,
-        DatabaseException, AbortLayerProcessingException
+        throws StorageException, ResourceException, VolumeException, DatabaseException, AbortLayerProcessingException
     {
         // noop
         return false;
@@ -92,9 +90,9 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
     void clearCache() throws StorageException;
 
     @Nullable
-    LocalPropsChangePojo setLocalNodeProps(Props localNodeProps) throws StorageException, AccessDeniedException;
+    LocalPropsChangePojo setLocalNodeProps(Props localNodeProps) throws StorageException;
 
-    boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef) throws AccessDeniedException;
+    boolean resourceFinished(AbsRscLayerObject<Resource> layerDataRef);
 
     /**
      * Returns whether this layer supports suspend IO.
@@ -116,8 +114,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
      * Performs a suspend-io
      */
     void suspendIo(AbsRscLayerObject<Resource> rscDataRef, boolean asRootLayerRef)
-        throws ExtCmdFailedException, StorageException, ChildProcessTimeoutException, IOException,
-        AccessDeniedException;
+        throws ExtCmdFailedException, StorageException, ChildProcessTimeoutException, IOException;
 
     /*
      * Performs a resume-io
@@ -130,7 +127,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
      * For example it does not make sense for DRBD diskless
      *
      */
-    default boolean isDiscGranFeasible(AbsRscLayerObject<Resource> rscLayerObjectRef) throws AccessDeniedException
+    default boolean isDiscGranFeasible(AbsRscLayerObject<Resource> rscLayerObjectRef)
     {
         return true;
     }
@@ -141,7 +138,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
      *
      */
     default @Nullable LocalPropsChangePojo checkStorPool(StorPoolInfo storPoolInfoRef, boolean update)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         // no-op, no change in props
         return null;
@@ -154,7 +151,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
      *
      */
     default SpaceInfo getStoragePoolSpaceInfo(StorPoolInfo storPoolInfoRef)
-        throws AccessDeniedException, StorageException
+        throws StorageException
     {
         throw new ImplementationError(
             "Layer " + getClass().getSimpleName() + " does not directly handle (free / total) space information!"
@@ -245,7 +242,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
         }
     }
 
-    boolean isDeleteFlagSet(AbsRscLayerObject<?> rscDataRef) throws AccessDeniedException;
+    boolean isDeleteFlagSet(AbsRscLayerObject<?> rscDataRef);
 
     enum CloneSupportResult
     {
@@ -272,7 +269,7 @@ public interface DeviceLayer extends Comparable<DeviceLayer>
      *     null, <code>vlm</code> is the target volume.
      */
     default void openDeviceForClone(VlmProviderObject<?> vlm, @Nullable String targetRscNameRef)
-        throws StorageException, AccessDeniedException, DatabaseException
+        throws StorageException, DatabaseException
     {
         throw new StorageException("Not supported");
     }

@@ -18,9 +18,6 @@ import com.linbit.linstor.core.objects.VolumeControllerFactory;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.LayerPayload;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.TestAccessContextProvider;
 import com.linbit.linstor.storage.data.RscLayerSuffixes;
 import com.linbit.utils.Triple;
 
@@ -66,7 +63,7 @@ public class VolumeTestFactory
     }
 
     public Volume get(String nodeName, String rscName, int vlmNr, boolean createIfNotExists)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, MdException, IllegalStorageDriverException,
         LinStorException
     {
@@ -78,7 +75,7 @@ public class VolumeTestFactory
         return vlm;
     }
 
-    public VolumeTestFactory setDfltAccCtx(AccessContext dfltAccCtxRef)
+    public VolumeTestFactory setDfltAccCtx()
     {
         dfltAccCtx = dfltAccCtxRef;
         return this;
@@ -109,7 +106,7 @@ public class VolumeTestFactory
     }
 
     public Volume create(Node node, VolumeDefinition vlmDfn)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, MdException, IllegalStorageDriverException,
         LinStorException
     {
@@ -117,7 +114,7 @@ public class VolumeTestFactory
     }
 
     public Volume create(String nodeName, String rscName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, MdException, IllegalStorageDriverException,
         LinStorException
     {
@@ -125,7 +122,7 @@ public class VolumeTestFactory
     }
 
     public Volume create(String nodeName, String rscName, int vlmNr)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, MdException, IllegalStorageDriverException,
         LinStorException
     {
@@ -133,7 +130,7 @@ public class VolumeTestFactory
     }
 
     public VolumeBuilder builder(Node node, VolumeDefinition vlmDfn)
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException,
+        throws DatabaseException, LinStorDataAlreadyExistsException,
         IllegalStorageDriverException, InvalidNameException, LinStorException
     {
         return new VolumeBuilder(
@@ -144,7 +141,7 @@ public class VolumeTestFactory
     }
 
     public VolumeBuilder builder(Node node, String rscName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, IllegalStorageDriverException,
         LinStorException
     {
@@ -156,7 +153,7 @@ public class VolumeTestFactory
     }
 
     public VolumeBuilder builder(String nodeName, String rscName)
-        throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
+        throws DatabaseException, LinStorDataAlreadyExistsException, ValueOutOfRangeException,
         ValueInUseException, ExhaustedPoolException, InvalidNameException, IllegalStorageDriverException,
         LinStorException
     {
@@ -168,7 +165,7 @@ public class VolumeTestFactory
     }
 
     public VolumeBuilder builder(String nodeName, String rscName, int vlmNr)
-        throws AccessDeniedException, DatabaseException, LinStorDataAlreadyExistsException,
+        throws DatabaseException, LinStorDataAlreadyExistsException,
         IllegalStorageDriverException, InvalidNameException, LinStorException
     {
         return new VolumeBuilder(nodeName, rscName, vlmNr);
@@ -180,20 +177,17 @@ public class VolumeTestFactory
         private String rscName;
         private int vlmNr;
 
-        private AccessContext accCtx;
         private Flags[] flags;
         private LayerPayload payload;
         private Long vlmSize;
 
-        public VolumeBuilder(String nodeNameRef, String rscNameRef, int vlmNrRef) throws AccessDeniedException,
-            DatabaseException, LinStorDataAlreadyExistsException, IllegalStorageDriverException, InvalidNameException,
+        public VolumeBuilder(String nodeNameRef, String rscNameRef, int vlmNrRef) throws DatabaseException, LinStorDataAlreadyExistsException, IllegalStorageDriverException, InvalidNameException,
             LinStorException
         {
             nodeName = nodeNameRef;
             rscName = rscNameRef;
             vlmNr = vlmNrRef;
 
-            accCtx = dfltAccCtx;
             flags = dfltFlags;
 
             payload = TestFactoryUtils.createCopy(dfltPayload);
@@ -218,9 +212,8 @@ public class VolumeTestFactory
             return this;
         }
 
-        public VolumeBuilder setAccCtx(AccessContext accCtxRef)
+        public VolumeBuilder setAccCtx()
         {
-            accCtx = accCtxRef;
             return this;
         }
 
@@ -254,7 +247,7 @@ public class VolumeTestFactory
                 try
                 {
                     // not perfect, but should work
-                    vlmDfnFact.get(rscName, vlmNr, vlmSize, true).getProps(accCtx)
+                    vlmDfnFact.get(rscName, vlmNr, vlmSize, true).getProps()
                         .setProp(
                             ApiConsts.KEY_STOR_POOL_DRBD_META_NAME,
                             sp.getName().displayValue
@@ -277,12 +270,11 @@ public class VolumeTestFactory
         }
 
         public Volume build()
-            throws DatabaseException, AccessDeniedException, LinStorDataAlreadyExistsException,
+            throws DatabaseException, LinStorDataAlreadyExistsException,
             ValueOutOfRangeException, ValueInUseException, ExhaustedPoolException, InvalidNameException, MdException,
             LinStorException
         {
             Volume vlm = vlmFact.create(
-                accCtx,
                 rscFact.get(nodeName, rscName, true),
                 vlmDfnFact.get(rscName, vlmNr, vlmSize, true),
                 flags,

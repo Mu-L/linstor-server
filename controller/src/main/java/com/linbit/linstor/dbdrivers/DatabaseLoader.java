@@ -11,7 +11,6 @@ import com.linbit.linstor.InitializationException;
 import com.linbit.linstor.LinStorDBRuntimeException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.ControllerCoreModule;
 import com.linbit.linstor.core.CoreModule;
@@ -89,10 +88,6 @@ import com.linbit.linstor.layer.resource.AbsRscLayerHelper;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.DbCoreObjProtInitializer;
-import com.linbit.linstor.security.SecDatabaseLoader;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -146,7 +141,6 @@ public class DatabaseLoader implements DatabaseDriver
         }
     }
 
-    private final AccessContext dbCtx;
     private final SecDatabaseLoader securityDbLoader;
     private final DbCoreObjProtInitializer dbCoreObjProtInitializer;
     private final PropsCtrlDatabaseDriver propsDriver;
@@ -195,7 +189,6 @@ public class DatabaseLoader implements DatabaseDriver
 
     @Inject
     public DatabaseLoader(
-        @SystemContext AccessContext privCtx,
         SecDatabaseLoader securityDbLoaderRef,
         DbCoreObjProtInitializer dbCoreObjProtInitializerRef,
         PropsCtrlDatabaseDriver propsDriverRef,
@@ -242,7 +235,6 @@ public class DatabaseLoader implements DatabaseDriver
         CoreModule.ScheduleMap scheduleMapRef
     )
     {
-        dbCtx = privCtx;
         securityDbLoader = securityDbLoaderRef;
         dbCoreObjProtInitializer = dbCoreObjProtInitializerRef;
         propsDriver = propsDriverRef;
@@ -398,18 +390,18 @@ public class DatabaseLoader implements DatabaseDriver
                 loadedNodesMap.get(node).getNetIfMap()
                     .put(netIf.getName(), netIf);
 
-                String curStltConnName = node.getProps(dbCtx).getProp(ApiConsts.KEY_CUR_STLT_CONN_NAME);
+                String curStltConnName = node.getProps().getProp(ApiConsts.KEY_CUR_STLT_CONN_NAME);
                 if (netIf.getName().value.equalsIgnoreCase(curStltConnName))
                 {
-                    node.setActiveStltConn(dbCtx, netIf);
+                    node.setActiveStltConn(netIf);
                 }
             }
 
             List<NodeConnection> loadedNodeConns = nodeConnDriver.loadAllAsList(tmpNodesMap);
             for (NodeConnection nodeConn : loadedNodeConns)
             {
-                Node sourceNode = nodeConn.getSourceNode(dbCtx);
-                Node targetNode = nodeConn.getTargetNode(dbCtx);
+                Node sourceNode = nodeConn.getSourceNode();
+                Node targetNode = nodeConn.getTargetNode();
                 loadedNodesMap.get(sourceNode).getNodeConnMap().put(targetNode.getName(), nodeConn);
                 loadedNodesMap.get(targetNode).getNodeConnMap().put(sourceNode.getName(), nodeConn);
             }
@@ -428,7 +420,7 @@ public class DatabaseLoader implements DatabaseDriver
             {
                 loadedNodesMap.get(storPool.getNode()).getStorPoolMap()
                     .put(storPool.getName(), storPool);
-                loadedStorPoolDfnsMap.get(storPool.getDefinition(dbCtx)).getStorPoolMap()
+                loadedStorPoolDfnsMap.get(storPool.getDefinition()).getStorPoolMap()
                     .put(storPool.getNode().getName(), storPool);
             }
             // loading free space managers
@@ -461,8 +453,8 @@ public class DatabaseLoader implements DatabaseDriver
             List<ResourceConnection> loadedRscConns = rscConnDriver.loadAllAsList(tmpRscMap);
             for (ResourceConnection rscConn : loadedRscConns)
             {
-                Resource sourceResource = rscConn.getSourceResource(dbCtx);
-                Resource targetResource = rscConn.getTargetResource(dbCtx);
+                Resource sourceResource = rscConn.getSourceResource();
+                Resource targetResource = rscConn.getTargetResource();
                 loadedResources.get(sourceResource).getRscConnMap().put(targetResource.getKey(), rscConn);
                 loadedResources.get(targetResource).getRscConnMap().put(sourceResource.getKey(), rscConn);
             }
@@ -512,8 +504,8 @@ public class DatabaseLoader implements DatabaseDriver
             List<VolumeConnection> loadedVlmConns = vlmConnDriver.loadAllAsList(tmpVlmMap);
             for (VolumeConnection vlmConn : loadedVlmConns)
             {
-                Volume sourceVolume = vlmConn.getSourceVolume(dbCtx);
-                Volume targetVolume = vlmConn.getTargetVolume(dbCtx);
+                Volume sourceVolume = vlmConn.getSourceVolume();
+                Volume targetVolume = vlmConn.getTargetVolume();
                 loadedVolumes.get(sourceVolume).getVolumeConnections().put(targetVolume.getKey(), vlmConn);
                 loadedVolumes.get(targetVolume).getVolumeConnections().put(sourceVolume.getKey(), vlmConn);
             }
@@ -667,10 +659,6 @@ public class DatabaseLoader implements DatabaseDriver
 
             propsDriver.clearCache();
         }
-        catch (AccessDeniedException exc)
-        {
-            throw new ImplementationError("dbCtx has not enough privileges", exc);
-        }
         catch (InvalidKeyException exc)
         {
             throw new ImplementationError("Invalid hardcoded props key", exc);
@@ -709,7 +697,7 @@ public class DatabaseLoader implements DatabaseDriver
         Map<Triple<NodeName, ResourceName, SnapshotName>, Snapshot> tmpSnapMapRef,
         Map<PairNonNull<NodeName, StorPoolName>, PairNonNull<StorPool, StorPool.InitMaps>> tmpStorPoolMapWithInitMapsRef
     )
-        throws DatabaseException, AccessDeniedException, ImplementationError, InvalidNameException,
+        throws DatabaseException, ImplementationError, InvalidNameException,
         ValueOutOfRangeException, InvalidIpAddressException, MdException
     {
         // load RscDfnLayerObjects and VlmDfnLayerObjects
@@ -735,7 +723,7 @@ public class DatabaseLoader implements DatabaseDriver
                 // snamshotName != null means this is a snapshot, not a resource.
                 return rli.getSnapName() != null ?
                     null :
-                    tmpRscDfnMapRef.get(rli.getResourceName()).getResource(dbCtx, rli.getNodeName());
+                    tmpRscDfnMapRef.get(rli.getResourceName()).getResource(rli.getNodeName());
             }
         );
 
@@ -756,7 +744,7 @@ public class DatabaseLoader implements DatabaseDriver
                     );
                     if (snapshotDefinition != null)
                     {
-                        snap = snapshotDefinition.getSnapshot(dbCtx, rli.getNodeName());
+                        snap = snapshotDefinition.getSnapshot(rli.getNodeName());
                     }
                 }
                 return snap;
@@ -783,7 +771,7 @@ public class DatabaseLoader implements DatabaseDriver
         {
             LayerPayload payload = new LayerPayload();
             // initialize all non-persisted, but later serialized variables
-            List<DeviceLayerKind> layerStack = LayerUtils.getLayerStack(rsc, dbCtx);
+            List<DeviceLayerKind> layerStack = LayerUtils.getLayerStack(rsc);
             rscLayerDataHelper.ensureStackDataExists(rsc, layerStack, payload);
         }
     }
@@ -821,9 +809,9 @@ public class DatabaseLoader implements DatabaseDriver
 
     private <RSC extends AbsResource<RSC>> Set<RSC> loadLayerData(
         ParentObjects parentObjectsRef,
-        ExceptionThrowingFunction<AbsRscLayerObject<?>, RSC, AccessDeniedException> getter
+        ExceptionThrowingFunction<AbsRscLayerObject<?>, RSC> getter
     )
-        throws DatabaseException, AccessDeniedException, ImplementationError, InvalidNameException,
+        throws DatabaseException, ImplementationError, InvalidNameException,
         ValueOutOfRangeException, InvalidIpAddressException, MdException
     {
         Set<Integer> parentIds = null;
@@ -913,7 +901,7 @@ public class DatabaseLoader implements DatabaseDriver
                         .put(rlo.getRscLayerId(), new Pair<>(rscLayerObject, rscLayerObjectPair.objB));
                     if (parent == null)
                     {
-                        rsc.setLayerData(dbCtx, rscLayerObject);
+                        rsc.setLayerData(rscLayerObject);
                     }
                     else
                     {

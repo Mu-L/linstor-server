@@ -6,7 +6,6 @@ import com.linbit.InvalidNameException;
 import com.linbit.ValueInUseException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -21,8 +20,6 @@ import com.linbit.linstor.dbdrivers.interfaces.LayerDrbdVlmDfnDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.NumberPoolModule;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdRscDfnData;
 import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmDfnData;
 import com.linbit.linstor.transaction.manager.TransactionMgrSQL;
@@ -43,7 +40,6 @@ public class LayerDrbdVlmDfnDbDriver
 
     @Inject
     public LayerDrbdVlmDfnDbDriver(
-        @SystemContext AccessContext dbCtxRef,
         ErrorReporter errorReporterRef,
         DbEngine dbEngineRef,
         @Named(NumberPoolModule.MINOR_NUMBER_POOL) DynamicNumberPool minorPoolRef,
@@ -51,7 +47,6 @@ public class LayerDrbdVlmDfnDbDriver
     )
     {
         super(
-            dbCtxRef,
             errorReporterRef,
             GeneratedDatabaseTables.LAYER_DRBD_VOLUME_DEFINITIONS,
             dbEngineRef
@@ -100,7 +95,7 @@ public class LayerDrbdVlmDfnDbDriver
         AbsLayerVlmDfnDataDbDriver.VlmDfnParentObjects<DrbdRscDfnData<?>> parentRef
     )
         throws DatabaseException, InvalidNameException, ValueOutOfRangeException, InvalidIpAddressException,
-        MdException, AccessDeniedException, ExhaustedPoolException, ValueInUseException
+        MdException, ExhaustedPoolException, ValueInUseException
     {
         DrbdVlmDfnData<?> drbdVlmDfnData;
 
@@ -110,7 +105,7 @@ public class LayerDrbdVlmDfnDbDriver
         String rscNameSuffix = raw.get(LayerDrbdVolumeDefinitions.RESOURCE_NAME_SUFFIX);
         String snapNameStr = raw.get(LayerDrbdVolumeDefinitions.SNAPSHOT_NAME);
 
-        VolumeDefinition vlmDfn = parentRef.rscDfnMap.get(rscName).getVolumeDfn(dbCtx, vlmNr);
+        VolumeDefinition vlmDfn = parentRef.rscDfnMap.get(rscName).getVolumeDfn(vlmNr);
 
         SuffixedResourceName suffixedResourceName;
 

@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.dbdrivers.interfaces.VolumeDefinitionDatabaseDriver;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -37,7 +36,6 @@ public class VolumeDefinitionSatelliteFactory
     }
 
     public VolumeDefinition getInstanceSatellite(
-        AccessContext accCtx,
         UUID vlmDfnUuid,
         ResourceDefinition rscDfn,
         VolumeNumber vlmNr,
@@ -49,7 +47,7 @@ public class VolumeDefinitionSatelliteFactory
         VolumeDefinition vlmDfnData;
         try
         {
-            vlmDfnData = (VolumeDefinition) rscDfn.getVolumeDfn(accCtx, vlmNr);
+            vlmDfnData = (VolumeDefinition) rscDfn.getVolumeDfn(vlmNr);
             if (vlmDfnData == null)
             {
                 vlmDfnData = new VolumeDefinition(
@@ -65,7 +63,7 @@ public class VolumeDefinitionSatelliteFactory
                     new TreeMap<>(),
                     new TreeMap<>()
                 );
-                ((ResourceDefinition) rscDfn).putVolumeDefinition(accCtx, vlmDfnData);
+                ((ResourceDefinition) rscDfn).putVolumeDefinition(vlmDfnData);
             }
         }
         catch (Exception exc)

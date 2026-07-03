@@ -7,8 +7,6 @@ import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.dbdrivers.interfaces.NodeDatabaseDriver;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.PropsContainerFactory;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.ObjectProtectionFactory;
 import com.linbit.linstor.stateflags.StateFlagsBits;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -52,7 +50,6 @@ public class NodeSatelliteFactory
     }
 
     public Node getInstanceSatellite(
-        AccessContext accCtx,
         UUID uuid,
         NodeName nameRef,
         Node.Type typeRef,
@@ -70,7 +67,6 @@ public class NodeSatelliteFactory
                 node = new Node(
                     uuid,
                     objectProtectionFactory.getInstance(
-                        accCtx,
                         "",
                         true
                     ),

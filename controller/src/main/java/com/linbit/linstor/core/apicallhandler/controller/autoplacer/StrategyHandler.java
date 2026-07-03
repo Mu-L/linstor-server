@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller.autoplacer;
 
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.AutoplaceStrategy.MinMax;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.AutoplaceStrategy.RatingAdditionalInfo;
@@ -13,8 +12,6 @@ import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.ReadOnlyProps;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -31,7 +28,6 @@ class StrategyHandler
 {
     private final List<AutoplaceStrategy> strategies;
     private final SystemConfRepository sysCfgRep;
-    private final AccessContext apiCtx;
     private final ErrorReporter errorReporter;
 
     private final Map<AutoplaceStrategy, Double> dfltWeights;
@@ -39,7 +35,6 @@ class StrategyHandler
     @Inject
     StrategyHandler(
         SystemConfRepository sysCfgRepRef,
-        @SystemContext AccessContext apiCtxRef,
         MaximumFreeSpaceStrategy freeSpaceStratRef,
         MinimumReservedSpaceStrategy minReservedSpaceStratRef,
         MinimumResourceCountStrategy minRscCountStratRef,
@@ -48,7 +43,6 @@ class StrategyHandler
     {
         strategies = Arrays.asList(freeSpaceStratRef, minReservedSpaceStratRef, minRscCountStratRef);
         sysCfgRep = sysCfgRepRef;
-        apiCtx = apiCtxRef;
         errorReporter = errorReporterRef;
 
         dfltWeights = new HashMap<>();
@@ -67,7 +61,7 @@ class StrategyHandler
         }
     }
 
-    public Collection<StorPoolWithScore> rate(Collection<StorPool> storPoolListRef) throws AccessDeniedException
+    public Collection<StorPoolWithScore> rate(Collection<StorPool> storPoolListRef)
     {
         return rate(storPoolListRef, "Autoplacer");
     }
@@ -76,7 +70,6 @@ class StrategyHandler
         Collection<StorPool> storPoolListRef,
         String logDescriptorRef
     )
-        throws AccessDeniedException
     {
         RatingAdditionalInfo additionalInfo = new RatingAdditionalInfo();
 
@@ -149,11 +142,10 @@ class StrategyHandler
     }
 
     private Map<AutoplaceStrategy, Double> getWeights(String logDescriptorRef)
-        throws AccessDeniedException
     {
         Map<AutoplaceStrategy, Double> weights = new HashMap<>(dfltWeights);
 
-        ReadOnlyProps ctrlProps = sysCfgRep.getCtrlConfForView(apiCtx);
+        ReadOnlyProps ctrlProps = sysCfgRep.getCtrlConfForView();
         @Nullable ReadOnlyProps weightsNs = ctrlProps.getNamespace(ApiConsts.NAMESPC_AUTOPLACER_WEIGHTS);
         if (weightsNs != null)
         {

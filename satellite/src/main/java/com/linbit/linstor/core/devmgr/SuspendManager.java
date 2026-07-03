@@ -3,7 +3,6 @@ package com.linbit.linstor.core.devmgr;
 import com.linbit.ChildProcessTimeoutException;
 import com.linbit.ImplementationError;
 import com.linbit.extproc.ExtCmdFailedException;
-import com.linbit.linstor.annotation.DeviceManagerContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.core.objects.Resource;
@@ -12,8 +11,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.DeviceLayer;
 import com.linbit.linstor.layer.LayerFactory;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.stateflags.StateFlags;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -31,18 +28,15 @@ import java.util.List;
 public class SuspendManager
 {
     private final ErrorReporter errorReporter;
-    private final AccessContext wrkCtx;
     private @Nullable ExceptionHandler excHandler;
     private final LayerFactory layerFactory;
 
     @Inject
     public SuspendManager(
-        @DeviceManagerContext AccessContext wrkCtxRef,
         ErrorReporter errorReporterRef,
         LayerFactory layerFactoryRef
     )
     {
-        wrkCtx = wrkCtxRef;
         errorReporter = errorReporterRef;
         layerFactory = layerFactoryRef;
     }
@@ -77,7 +71,7 @@ public class SuspendManager
                  * is expected to take quite some time
                  */
                 ManageSuspendIoResult suspendIoResult = manageSuspendIoIfNeeded(
-                    rsc.getLayerData(wrkCtx),
+                    rsc.getLayerData(),
                     resumeOnlyRef,
                     true
                 );
@@ -93,10 +87,6 @@ public class SuspendManager
                         break;
                 }
             }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
-            }
             catch (StorageException exc)
             {
                 failedRscs.put(rsc, excHandler.handleException(rsc, exc));
@@ -110,14 +100,10 @@ public class SuspendManager
             {
                 // since the root layers are already suspended, there is no need to parallelize this step
                 manageSuspendIoIfNeeded(
-                    rsc.getLayerData(wrkCtx),
+                    rsc.getLayerData(),
                     resumeOnlyRef,
                     false
                 );
-            }
-            catch (AccessDeniedException exc)
-            {
-                throw new ImplementationError(exc);
             }
             catch (StorageException exc)
             {
@@ -132,7 +118,7 @@ public class SuspendManager
         boolean resumeOnlyRef,
         boolean rootOnlyRef
     )
-        throws StorageException, AccessDeniedException
+        throws StorageException
     {
         ManageSuspendIoResult result = ManageSuspendIoResult.NOOP;
         if (isManageSuspendNeeded(rscLayerObjectRef))
@@ -198,18 +184,17 @@ public class SuspendManager
                 exc
             );
         }
-        catch (AccessDeniedException | DatabaseException exc)
+        catch (DatabaseException exc)
         {
             throw new ImplementationError(exc);
         }
         return result;
     }
 
-    private boolean isManageSuspendNeeded(AbsRscLayerObject<Resource> rscDataRef) throws AccessDeniedException
+    private boolean isManageSuspendNeeded(AbsRscLayerObject<Resource> rscDataRef)
     {
         StateFlags<Flags> flags = rscDataRef.getAbsResource().getStateFlags();
         boolean isRscInactive = flags.isSet(
-            wrkCtx,
             Resource.Flags.INACTIVE,
             Resource.Flags.INACTIVE_PERMANENTLY,
             Resource.Flags.INACTIVATING
