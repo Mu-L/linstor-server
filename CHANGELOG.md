@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed LDAP sign-in using the configured `search_filter` as the LDAP search base; the configured `search_base` was never used, so restricting sign-in via a search filter did not work as documented
+
 ## [1.34.1] - 2026-07-09
 
 ### Added

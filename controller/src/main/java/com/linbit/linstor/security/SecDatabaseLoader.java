@@ -1,7 +1,6 @@
 package com.linbit.linstor.security;
 
 import com.linbit.ImplementationError;
-import com.linbit.StringConv;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.CoreModule.ObjProtMap;
 import com.linbit.linstor.dbdrivers.DatabaseException;
@@ -84,8 +83,7 @@ public class SecDatabaseLoader
             {
                 case SecurityDbConsts.KEY_AUTH_REQ ->
                 {
-                    boolean authRequired = StringConv.getDfltBoolean(secConfigDbEntry.value, true);
-                    Authentication.setLoadedConfig(authRequired);
+                    // obsolete - client authentication policy is no longer configurable
                 }
                 case SecurityDbConsts.KEY_SEC_LEVEL -> SecurityLevel.setLoadedSecLevel(secConfigDbEntry.value);
                 default -> throw new ImplementationError(

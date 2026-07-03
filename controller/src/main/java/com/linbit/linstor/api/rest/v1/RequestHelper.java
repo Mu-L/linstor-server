@@ -1,13 +1,9 @@
 package com.linbit.linstor.api.rest.v1;
 
-import com.linbit.ImplementationError;
-import com.linbit.InvalidNameException;
-import com.linbit.linstor.ControllerDatabase;
 import com.linbit.linstor.annotation.ErrorReporterContext;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.annotation.PeerContext;
 import com.linbit.linstor.annotation.PublicContext;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -22,10 +18,7 @@ import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerREST;
 import com.linbit.linstor.prometheus.LinstorControllerMetrics;
 import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.CtrlAuthentication;
-import com.linbit.linstor.security.IdentityName;
-import com.linbit.linstor.security.Privilege;
+import com.linbit.linstor.security.LdapAuthentication;
 import com.linbit.linstor.security.SignInException;
 import com.linbit.linstor.transaction.TransactionException;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -61,29 +54,26 @@ public class RequestHelper
 {
     protected final ErrorReporter errorReporter;
     private final LinStorScope apiCallScope;
-    private final AccessContext sysContext;
     private final AccessContext publicContext;
     private final TransactionMgrGenerator transactionMgrGenerator;
-    private final CtrlAuthentication<ControllerDatabase> authentication;
+    private final LdapAuthentication ldapAuthentication;
     private final CtrlConfig linstorConfig;
 
     @Inject
     public RequestHelper(
         ErrorReporter errorReporterRef,
         LinStorScope apiCallScopeRef,
-        @SystemContext AccessContext sysContextRef,
         @PublicContext AccessContext accessContextRef,
         TransactionMgrGenerator transactionMgrGeneratorRef,
-        CtrlAuthentication<ControllerDatabase> authenticationRef,
+        LdapAuthentication ldapAuthenticationRef,
         CtrlConfig linstorConfigRef
     )
     {
         errorReporter = errorReporterRef;
         apiCallScope = apiCallScopeRef;
-        sysContext = sysContextRef;
         publicContext = accessContextRef;
         transactionMgrGenerator = transactionMgrGeneratorRef;
-        authentication = authenticationRef;
+        ldapAuthentication = ldapAuthenticationRef;
         linstorConfig = linstorConfigRef;
     }
 
@@ -131,7 +121,7 @@ public class RequestHelper
         return Tuples.of(user, password);
     }
 
-    private void checkLDAPAuth(Peer peer, String authHeader)
+    private void checkLDAPAuth(PeerREST peer, String authHeader)
     {
         if (linstorConfig.isLdapEnabled())
         {
@@ -144,25 +134,8 @@ public class RequestHelper
 
                 try
                 {
-                    AccessContext clientCtx = authentication.signIn(
-                        new IdentityName(user),
-                        password.getBytes(StandardCharsets.UTF_8)
-                    );
-                    AccessContext privCtx = sysContext.clone();
-                    privCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_SYS_ALL);
-                    peer.setAccessContext(privCtx, clientCtx);
-                }
-                catch (AccessDeniedException accExc)
-                {
-                    throw new ImplementationError(
-                        "Enabling privileges on the system context failed",
-                        accExc
-                    );
-                }
-                catch (InvalidNameException nameExc)
-                {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.singleApiCallRc(ApiConsts.FAIL_SIGN_IN, nameExc.getMessage())
+                    peer.setAuthenticatedUser(
+                        ldapAuthentication.authenticate(user, password.getBytes(StandardCharsets.UTF_8))
                     );
                 }
                 catch (SignInException signIgnExc)
@@ -193,7 +166,7 @@ public class RequestHelper
             MDC.put(ErrorReporter.LOGID, ErrorReporter.getNewLogId());
         }
         final String userAgent = request.getHeader("User-Agent");
-        Peer peer = new PeerREST(request.getRemoteAddr(), userAgent, publicContext);
+        PeerREST peer = new PeerREST(request.getRemoteAddr(), userAgent, publicContext);
 
         checkLDAPAuth(peer, request.getAuthorization());
 
