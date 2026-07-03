@@ -51,7 +51,6 @@ import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.security.Privilege;
 import com.linbit.linstor.security.SatelliteSecurityModule;
 import com.linbit.linstor.security.SecurityModule;
-import com.linbit.linstor.security.StltCoreObjProtInitializer;
 import com.linbit.linstor.systemstarter.NetComInitializer;
 import com.linbit.linstor.systemstarter.ServiceStarter;
 import com.linbit.linstor.systemstarter.StartupInitializer;
@@ -117,7 +116,6 @@ public final class Satellite
     private final BackupShippingMgr backShipMgr;
 
     private final SatelliteNetComInitializer satelliteNetComInitializer;
-    private final StltCoreObjProtInitializer stltCoreObjProtInitializer;
     private final StltConfig stltCfg;
 
     private final DrbdVersion vsnCheck;
@@ -140,7 +138,6 @@ public final class Satellite
         DrbdEventService drbdEventSvcRef,
         BackupShippingMgr backShipMgrRef,
         SatelliteNetComInitializer satelliteNetComInitializerRef,
-        StltCoreObjProtInitializer stltCoreObjProtInitializerRef,
         StltConfig stltCfgRef,
         CloneService cloneServiceRef,
         DrbdVersion drbdVersionRef,
@@ -160,7 +157,6 @@ public final class Satellite
         drbdEventSvc = drbdEventSvcRef;
         backShipMgr = backShipMgrRef;
         satelliteNetComInitializer = satelliteNetComInitializerRef;
-        stltCoreObjProtInitializer = stltCoreObjProtInitializerRef;
         stltCfg = stltCfgRef;
         cloneService = cloneServiceRef;
         vsnCheck = drbdVersionRef;
@@ -241,7 +237,6 @@ public final class Satellite
 
             startOrderlist.add(new ServiceStarter(devMgrService));
             startOrderlist.add(new ServiceStarter(cloneService));
-            startOrderlist.add(stltCoreObjProtInitializer);
             errorReporter.logInfo("Initializing main network communications service");
             startOrderlist.add(netComInitializer);
 
@@ -352,23 +347,7 @@ public final class Satellite
             errorReporter.reportError(error);
         }
 
-        try
-        {
-            AccessContext shutdownCtx = sysCtx.clone();
-            // Just in case that someone removed the access control list entry
-            // for the system's role or changed the security type for shutdown,
-            // override access controls with the system context's privileges
-            shutdownCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_OBJ_USE, Privilege.PRIV_MAC_OVRD);
-            applicationLifecycleManager.shutdown(shutdownCtx);
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ImplementationError(
-                "Cannot shutdown() using the system's security context. " +
-                "Suspected removal of privileges from the system context.",
-                accExc
-            );
-        }
+        applicationLifecycleManager.shutdown();
     }
 
     public static void main(String[] args)

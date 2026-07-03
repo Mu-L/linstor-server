@@ -830,7 +830,7 @@ public class StltApiCallHandler
                             )
                         );
                         // critical error. shutdown and fix this implementation error
-                        applicationLifecycleManager.shutdown(apiCtx);
+                        applicationLifecycleManager.shutdown();
                     }
 
                     Entry<Long, ApplyData> nextEntry;

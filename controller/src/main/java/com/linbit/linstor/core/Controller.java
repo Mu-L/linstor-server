@@ -412,23 +412,7 @@ public final class Controller
             errorReporter.reportError(error);
         }
 
-        try
-        {
-            AccessContext shutdownCtx = sysCtx.clone();
-            // Just in case that someone removed the access control list entry
-            // for the system's role or changed the security type for shutdown,
-            // override access controls with the system context's privileges
-            shutdownCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_OBJ_USE, Privilege.PRIV_MAC_OVRD);
-            applicationLifecycleManager.shutdown(shutdownCtx);
-        }
-        catch (AccessDeniedException accExc)
-        {
-            throw new ImplementationError(
-                "Cannot shutdown() using the system's security context. " +
-                "Suspected removal of privileges from the system context.",
-                accExc
-            );
-        }
+        applicationLifecycleManager.shutdown();
     }
 
     public static DatabaseDriverInfo.DatabaseType checkDatabaseConfig(

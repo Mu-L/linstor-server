@@ -5,13 +5,7 @@ import com.linbit.SystemServiceStartException;
 import com.linbit.WorkerPool;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.annotation.SystemContext;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.security.AccessContext;
-import com.linbit.linstor.security.AccessDeniedException;
-import com.linbit.linstor.security.AccessType;
-import com.linbit.linstor.security.Privilege;
-import com.linbit.linstor.security.ShutdownProtHolder;
 import com.linbit.linstor.systemstarter.StartupInitializer;
 import com.linbit.utils.CollectionUtils;
 
@@ -37,9 +31,7 @@ public class ApplicationLifecycleManager
 
     private static final Object SHUTDOWN_SYNC_OBJ = new Object();
 
-    private final AccessContext sysCtx;
     private final ErrorReporter errorReporter;
-    private final ShutdownProtHolder shutdownProtHolder;
     private final ReadWriteLock reconfigurationLock;
 
     private @Nullable WorkerPool workerThrPool;
@@ -50,25 +42,20 @@ public class ApplicationLifecycleManager
 
     @Inject
     public ApplicationLifecycleManager(
-        @SystemContext AccessContext sysCtxRef,
         ErrorReporter errorReporterRef,
-        ShutdownProtHolder shutdownProtHolderRef,
         @Named(CoreModule.RECONFIGURATION_LOCK)
         ReadWriteLock reconfigurationLockRef,
         @Nullable WorkerPool workerThrPoolRef
     )
     {
-        sysCtx = sysCtxRef;
         errorReporter = errorReporterRef;
-        shutdownProtHolder = shutdownProtHolderRef;
         reconfigurationLock = reconfigurationLockRef;
         workerThrPool = workerThrPoolRef;
     }
 
     public void installShutdownHook()
     {
-        AccessContext shutdownCtx = sysCtx.clone();
-        Runtime.getRuntime().addShutdownHook(new ModuleShutdownHook(shutdownCtx, this));
+        Runtime.getRuntime().addShutdownHook(new ModuleShutdownHook(this));
     }
 
     public void startSystemServices(ArrayList<StartupInitializer> servicesRef)
@@ -138,28 +125,9 @@ public class ApplicationLifecycleManager
         }
     }
 
-    /**
-     * Checks if the AccessContext has shutdown permissions.
-     * Throws AccessDeniedException if the accCtx doesn't have access. otherwise runs as noop.
-     *
-     * @param accCtx AccessContext to check.
-     * @throws AccessDeniedException if accCtx doesn't have shutdown access.
-     */
-    public void requireShutdownAccess(AccessContext accCtx) throws AccessDeniedException
+    public void shutdown()
     {
-        shutdownProtHolder.getObjProt().requireAccess(accCtx, AccessType.USE);
-    }
-
-    public void shutdown(AccessContext accCtx) throws AccessDeniedException
-    {
-        requireShutdownAccess(accCtx);
-
-        errorReporter.logInfo(
-            String.format(
-                "Shutdown request by subject '%s' using role '%s'\n",
-                accCtx.getIdentity(), accCtx.getRole()
-            )
-        );
+        errorReporter.logInfo("Shutdown requested");
 
         // The executeShutdown() method is invoked by ModuleShutdownHook
         System.exit(InternalApiConsts.EXIT_CODE_SHUTDOWN);
@@ -283,26 +251,16 @@ public class ApplicationLifecycleManager
 
     static class ModuleShutdownHook extends Thread
     {
-        private AccessContext shutdownCtx;
         private ApplicationLifecycleManager lfCycMgr;
 
-        private ModuleShutdownHook(AccessContext privCtx, ApplicationLifecycleManager lfCycMgrRef)
+        private ModuleShutdownHook(ApplicationLifecycleManager lfCycMgrRef)
         {
-            shutdownCtx = privCtx;
             lfCycMgr = lfCycMgrRef;
         }
 
         @Override
         public void run()
         {
-            try (var ignore = MDC.putCloseable(ErrorReporter.LOGID, ErrorReporter.getNewLogId()))
-            {
-                shutdownCtx.getEffectivePrivs().enablePrivileges(Privilege.PRIV_MAC_OVRD, Privilege.PRIV_OBJ_USE);
-            }
-            catch (AccessDeniedException ignored)
-            {
-            }
-
             try (var ignore = MDC.putCloseable(ErrorReporter.LOGID, ErrorReporter.getNewLogId()))
             {
                 lfCycMgr.executeShutdown();

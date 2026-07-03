@@ -33,7 +33,6 @@ public class DbCoreObjProtInitializer implements StartupInitializer
     private final ExternalFileProtectionRepository externalFileProtectionRepository;
     private final RemoteProtectionRepository remoteProtectionRepository;
     private final ScheduleProtectionRepository scheduleProtectionRepository;
-    private final ShutdownProtHolder shutdownProtHolder;
     private final Provider<TransactionMgr> transMgrProvider;
 
     @Inject
@@ -50,7 +49,6 @@ public class DbCoreObjProtInitializer implements StartupInitializer
         ExternalFileProtectionRepository externalFileProtectionRepositoryRef,
         RemoteProtectionRepository remoteProtectionRepositoryRef,
         ScheduleProtectionRepository scheduleProtectionRepositoryRef,
-        ShutdownProtHolder shutdownProtHolderRef,
         Provider<TransactionMgr> transMgrProviderRef
     )
     {
@@ -66,7 +64,6 @@ public class DbCoreObjProtInitializer implements StartupInitializer
         externalFileProtectionRepository = externalFileProtectionRepositoryRef;
         remoteProtectionRepository = remoteProtectionRepositoryRef;
         scheduleProtectionRepository = scheduleProtectionRepositoryRef;
-        shutdownProtHolder = shutdownProtHolderRef;
         transMgrProvider = transMgrProviderRef;
     }
 
@@ -134,20 +131,6 @@ public class DbCoreObjProtInitializer implements StartupInitializer
                 ObjectProtection.buildPathController("conf"),
                 true
             ));
-
-            ObjectProtection shutdownProt = objectProtectionFactory.getInstance(
-                initCtx,
-                ObjectProtection.buildPathController("shutdown"),
-                true
-            );
-
-            // Set CONTROL access for the SYSTEM role on shutdown
-            if (!shutdownProt.getAcl().getEntry(initCtx).hasAccess(AccessType.CONTROL))
-            {
-                shutdownProt.addAclEntry(initCtx, initCtx.getRole(), AccessType.CONTROL);
-            }
-
-            shutdownProtHolder.setShutdownProt(shutdownProt);
 
             transMgr.commit();
         }
