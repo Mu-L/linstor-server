@@ -42,7 +42,7 @@ public class CmdShutdown extends BaseDebugCmd
         Map<String, String> parameters
     ) throws Exception
     {
-        applicationLifecycleManager.shutdown(accCtx);
+        applicationLifecycleManager.shutdown();
         debugCon.exitConsole();
     }
 }
