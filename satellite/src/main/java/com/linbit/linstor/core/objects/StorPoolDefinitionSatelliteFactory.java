@@ -49,7 +49,6 @@ public class StorPoolDefinitionSatelliteFactory
 
         try
         {
-            // we should be system-context here, so we skip the objProt-check
             storPoolDfn = (StorPoolDefinition) storPoolDfnMap.get(storPoolName);
             if (storPoolDfn == null)
             {

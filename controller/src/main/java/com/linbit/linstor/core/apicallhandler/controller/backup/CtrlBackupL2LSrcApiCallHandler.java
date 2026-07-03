@@ -434,7 +434,7 @@ public class CtrlBackupL2LSrcApiCallHandler
                     lockGuardFactory.create()
                         .read(LockObj.NODES_MAP)
                         .write(LockObj.RSC_DFN_MAP)
-                        // Creating the stlt-remote modifies the global RemoteMap and ObjProtMap. Lock REMOTE_MAP to
+                        // Creating the stlt-remote modifies the global RemoteMap. Lock REMOTE_MAP to
                         // serialize against concurrent (stlt-)remote create/delete on those shared maps.
                         .write(LockObj.REMOTE_MAP)
                         .buildDeferred(),

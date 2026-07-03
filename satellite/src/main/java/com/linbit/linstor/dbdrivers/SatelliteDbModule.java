@@ -46,9 +46,6 @@ public class SatelliteDbModule extends AbstractModule
     @Override
     protected void configure()
     {
-        // we need to override objProtFactory so that every requested objProt already exists without needing to change
-        // the "failIfNotExists" everywhere in production code
-
         bind(DatabaseDriver.class).to(SatelliteDbDriver.class);
 
         bind(PropsDatabaseDriver.class).to(SatellitePropDriver.class);

@@ -112,8 +112,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
     // Map to the other endpoint of a node connection (this is NOT necessarily the source!)
     private final TransactionMap<Node, NodeName, NodeConnection> nodeConnections;
 
-    // Access controls for this object
-
     // Properties container for this node
     private final Props nodeProps;
     private final ReadOnlyProps roNodeProps;

@@ -57,7 +57,6 @@ public class NodeSatelliteFactory
         Node node = null;
         try
         {
-            // we should have system context anyways, so we skip the objProt check
             node = nodesMap.get(nameRef);
             if (node == null)
             {

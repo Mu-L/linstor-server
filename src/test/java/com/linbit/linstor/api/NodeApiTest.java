@@ -233,37 +233,6 @@ public class NodeApiTest extends ApiTestBase
         assertThat(responses.get(0).stderr_utf8).isEqualTo("stderr-value");
     }
 
-/*
-    FIXME: After making the modify-calls synchronous these tests fail, because the scope is now entered in
-     CtrlNodeApiCallHandler instead of Nodes, which is farther down the call hierarchy and
-     causes the scope to be entered twice (see method bodies).
-     This can be fixed when the user-access-stuff in being properly reworked.
-
-    @Test
-    public void modSuccess() throws Exception
-    {
-        enterScope();
-        evaluateTest(
-            new ModifyNodeCall(ApiConsts.MODIFIED) // nothing to do
-        );
-    }
-
-    @Test
-    @DoNotSeedDefaultPeer
-    public void modDifferentUserAccDenied() throws Exception
-    {
-        enterScope();
-
-        DummySecurityInitializer.setSecurityLevel(SecurityLevel.MAC);
-
-        testScope.seed(Peer.class, mockPeer);
-        Mockito.when().thenReturn(GenericDbBase.PUBLIC_CTX);
-
-        evaluateTest(
-            new ModifyNodeCall(ApiConsts.FAIL_ACC_DENIED_NODE)
-        );
-    }
-*/
 
     private class CreateNodeCall extends AbsApiCallTester
     {

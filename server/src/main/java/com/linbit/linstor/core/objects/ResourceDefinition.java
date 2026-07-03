@@ -86,8 +86,6 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
     // State flags
     private final StateFlags<Flags> flags;
 
-    // Object access controls
-
     // Properties container for this resource definition
     private final Props rscDfnProps;
 

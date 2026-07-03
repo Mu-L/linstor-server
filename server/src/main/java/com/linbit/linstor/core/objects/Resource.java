@@ -70,8 +70,6 @@ public class Resource extends AbsResource<Resource>
     private final TransactionMap<Resource, Resource.ResourceKey, ResourceConnection> resourceConnections;
     private final TransactionMap<Resource, VolumeNumber, Volume> vlmMap;
 
-    // Access control for this resource
-
     private final ResourceDatabaseDriver dbDriver;
 
     private final ResourceKey rscKey;

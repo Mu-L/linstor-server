@@ -53,7 +53,6 @@ public class ResourceDefinitionSatelliteFactory
         ResourceDefinition rscDfn;
         try
         {
-            // we should have system context anyways, so we skip the objProt-check
             rscDfn = rscDfnMap.get(rscName);
             if (rscDfn == null)
             {

@@ -163,10 +163,6 @@ public class TcpConnectorService implements Runnable, TcpConnector
     // Server socket for accepting incoming connections
     private @Nullable ServerSocketChannel serverSocket;
 
-    // Default access context for a newly connected peer
-
-    // Privileged access context for e.g. setting peer to node
-
     // Selector for all connections
     @Nullable Selector serverSelector;
 
