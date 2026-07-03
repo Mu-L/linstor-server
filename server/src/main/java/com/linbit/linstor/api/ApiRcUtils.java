@@ -192,7 +192,6 @@ public class ApiRcUtils
         tmpMap.put(ApiConsts.UNKNOWN_API_CALL, "UNKNOWN_API_CALL");
         tmpMap.put(ApiConsts.API_CALL_AUTH_REQ, "API_CALL_AUTH_REQ");
         tmpMap.put(ApiConsts.API_CALL_PARSE_ERROR, "API_CALL_PARSE_ERROR");
-        tmpMap.put(ApiConsts.SUCCESS_SIGN_IN, "SUCCESS_SIGN_IN");
         tmpMap.put(ApiConsts.FAIL_SIGN_IN, "FAIL_SIGN_IN");
         RET_CODES_ACTION = Collections.unmodifiableMap(tmpMap);
     }
