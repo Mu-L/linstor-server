@@ -20,7 +20,7 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 
 import static com.linbit.linstor.dbdrivers.derby.DbConstants.DATABASE_SCHEMA_NAME;
-import static com.linbit.linstor.dbdrivers.derby.DbConstants.TBL_SEC_CONFIGURATION;
+import static com.linbit.linstor.dbdrivers.derby.DbConstants.TBL_PROPS_CONTAINERS;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -431,7 +431,7 @@ public class DbConnectionPool implements ControllerSQLDatabase
         {
             conn = getConnection();
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT 1 FROM " + TBL_SEC_CONFIGURATION);
+            ResultSet rs = stmt.executeQuery("SELECT 1 FROM " + TBL_PROPS_CONTAINERS);
             rs.close();
             stmt.close();
         }

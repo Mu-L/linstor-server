@@ -9,7 +9,7 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.utils.StringUtils;
 
-import static com.linbit.linstor.dbdrivers.derby.DbConstants.TBL_SEC_CONFIGURATION;
+import static com.linbit.linstor.dbdrivers.derby.DbConstants.TBL_PROPS_CONTAINERS;
 
 import javax.inject.Inject;
 
@@ -23,7 +23,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class DbConnectionPoolInitializer implements DbInitializer
 {
     private static final String DERBY_CONNECTION_TEST_SQL =
-        "SELECT 1 FROM " + TBL_SEC_CONFIGURATION;
+        "SELECT 1 FROM " + TBL_PROPS_CONTAINERS;
 
     private final ErrorReporter errorLog;
     private final DbConnectionPool dbConnPool;
