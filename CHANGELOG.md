@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the access-control security subsystem (object protection, ACLs, security identities/roles/types and the protobuf sign-in API); it had always been running at `NO_SECURITY` level. The `SEC_*` database tables are dropped on upgrade, which makes a downgrade to older versions impossible. LDAP authentication for the REST API, satellite connection authentication, auth tokens and HTTPS client certificates are unaffected. Error reports no longer contain an access-context section and log lines are no longer prefixed with the security identity
 - SOS reports now include DRBD statistics (e.g. out-of-sync): `drbdsetup status` and `drbdsetup events2` are collected with `--statistics`, plus a new `drbd-status.json` from `drbdsetup status --json`
 - Improved trace logging of DevMgrRuns when creating/merging/deleting core objects
 - If resources already violate resource-group's autoplacer settings (like --replicas-on-same), a tiebreaker ignores the violated --replicas-on-same limitation. "Place anywhere is better than nowhere".  

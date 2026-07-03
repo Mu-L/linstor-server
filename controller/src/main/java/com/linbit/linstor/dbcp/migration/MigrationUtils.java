@@ -566,6 +566,34 @@ public class MigrationUtils
         return sql;
     }
 
+    public static String dropView(DbProduct dbProductRef, String viewNameRef)
+    {
+        String sql;
+        switch (dbProductRef)
+        {
+            case ASE:
+            case DB2:
+            case DB2_I:
+            case DB2_Z:
+            case DERBY:
+            case MSFT_SQLSERVER:
+                sql = String.format("DROP VIEW %s", viewNameRef);
+                break;
+            case H2:
+            case INFORMIX:
+            case MARIADB:
+            case MYSQL:
+            case ORACLE_RDBMS:
+            case POSTGRESQL:
+                sql = String.format("DROP VIEW IF EXISTS %s", viewNameRef);
+                break;
+            case UNKNOWN:
+            default:
+                throw new ImplementationError("Unexpected database type: " + dbProductRef);
+        }
+        return sql;
+    }
+
     public static String addColumnConstraintPrimaryKey(
         DbProduct dbProductRef,
         String tableName,

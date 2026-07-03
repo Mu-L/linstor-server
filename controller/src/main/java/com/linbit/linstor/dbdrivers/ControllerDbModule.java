@@ -307,10 +307,7 @@ public class ControllerDbModule extends AbstractModule
 
         // sanity check
         Set<DatabaseTable> ignoredDatabaseTables = new HashSet<>();
-        // we ignore SEC_ACCESS_TYPES since that db table only contains the 4 entries VIEW, USE, CHANGE and CONTROL
-        // which already exist as a java enum, so there is no need for a dedicated database driver for that
-        ignoredDatabaseTables.add(GeneratedDatabaseTables.SEC_ACCESS_TYPES);
-        // we also ignore tables for space tracking. if the drivers are present, good. If not, we can skip them.
+        // we ignore tables for space tracking. if the drivers are present, good. If not, we can skip them.
         ignoredDatabaseTables.add(GeneratedDatabaseTables.SATELLITES_CAPACITY);
         ignoredDatabaseTables.add(GeneratedDatabaseTables.SPACE_HISTORY);
         ignoredDatabaseTables.add(GeneratedDatabaseTables.TRACKING_DATE);
