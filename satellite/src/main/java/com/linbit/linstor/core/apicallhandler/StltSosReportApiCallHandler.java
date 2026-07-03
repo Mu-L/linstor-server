@@ -347,8 +347,9 @@ public class StltSosReportApiCallHandler
      * <style>table tr td { padding-right: 10px; }</style>
      * <tr><th>Filename</th><th>Content</th></tr>
      * <tr><td>linstorInfo</td><td>'uname -a' + Linstor internal information</td></tr>
-     * <tr><td>drbd-status</td><td>'drbdset status -vvv'</td></tr>
-     * <tr><td>drbd-events2</td><td>'drbdset status -vvv'</td></tr>
+     * <tr><td>drbd-status</td><td>'drbdsetup status -vvv --statistics'</td></tr>
+     * <tr><td>drbd-status.json</td><td>'drbdsetup status --json'</td></tr>
+     * <tr><td>drbd-events2</td><td>'drbdsetup events2 all --now --statistics'</td></tr>
      * <tr><td>modinfo</td><td>'modinfo drbd'</td></tr>
      * <tr><td>proc-drbd</td><td>'cat /proc/drbd'</td></tr>
      * <tr><td>lvm.conf</td><td>'cat /etc/lvm/lvm.conf'</td></tr>
@@ -383,8 +384,11 @@ public class StltSosReportApiCallHandler
             )
         );
 
-        reportTypes.add(new SosCommandType("drbd-status", now,  "drbdsetup", "status", "-vvv"));
-        reportTypes.add(new SosCommandType("drbd-events2", now,  "drbdsetup", "events2", "all", "--now"));
+        reportTypes.add(new SosCommandType("drbd-status", now,  "drbdsetup", "status", "-vvv", "--statistics"));
+        reportTypes.add(new SosCommandType("drbd-status.json", now,  "drbdsetup", "status", "--json"));
+        reportTypes.add(
+            new SosCommandType("drbd-events2", now,  "drbdsetup", "events2", "all", "--now", "--statistics")
+        );
         reportTypes.add(new SosCommandType("modinfo", now,  "modinfo", "drbd"));
         reportTypes.add(new SosCommandType("proc-drbd", now, "cat", "/proc/drbd"));
         reportTypes.add(new SosCommandType("proc-sys-kernel-tainted", now, "cat", "/proc/sys/kernel/tainted"));

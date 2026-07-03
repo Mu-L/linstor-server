@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- SOS reports now include DRBD statistics (e.g. out-of-sync): `drbdsetup status` and `drbdsetup events2` are collected with `--statistics`, plus a new `drbd-status.json` from `drbdsetup status --json`
+
 ### Fixed
 
 - Fixed ArrayIndexOutOfBoundsException in the file storage provider when parsing `losetup` output, which broke the device manager whenever a loop device was present
