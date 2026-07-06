@@ -960,6 +960,13 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
             pendingResponseSinks.clear();
         }
 
+        errLog.logTrace(
+            "Dispatching to device handlers - nodes: %s, resources: %s, snapshots: %s",
+            dispatchNodes.keySet(),
+            dispatchRscs.keySet(),
+            dispatchSnaps.keySet()
+        );
+
         // BEGIN DEBUG
         // ((DrbdDeviceHandler) drbdHnd).debugListSatelliteObjects();
         // END DEBUG
@@ -1611,6 +1618,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                         for (Resource delRsc : rscMap.values())
                         {
                             Node peerNode = delRsc.getNode();
+                            errLog.logTrace("Removing resource '%s' from the satellite's model", delRsc);
                             delRsc.delete(wrkCtx);
                             if (!peerNode.equals(controllerPeerConnector.getLocalNode()))
                             {
@@ -1631,6 +1639,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                         // delete the resource definition as well as long as it has no snapDfns depending on it
                         if (curRscDfn.getSnapshotDfns(wrkCtx).isEmpty())
                         {
+                            errLog.logTrace("Removing rscDfn '%s' from the satellite's model", curRscName);
                             curRscDfn.delete(wrkCtx); // just to be sure
                             rscDfnMap.remove(curRscName);
                             if (!rscGrp.hasResourceDefinitions(wrkCtx))
@@ -1652,6 +1661,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                         // divergent UUID exception when the "same" remote resource gets
                         // recreated
                         Node remoteNode = remoteRsc.getNode();
+                        errLog.logTrace("Removing remote resource '%s' from the satellite's model", remoteRsc);
                         remoteRsc.delete(wrkCtx);
 
                         StltNodeApiCallHandler.deleteRemoteNodeIfNeeded(
@@ -1675,6 +1685,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                         VolumeDefinition curVlmDfn = curRscDfn.getVolumeDfn(wrkCtx, volumeKey.vlmNr);
                         if (curVlmDfn != null)
                         {
+                            errLog.logTrace("Removing vlmDfn '%s' from the satellite's model", curVlmDfn);
                             curVlmDfn.delete(wrkCtx);
                         }
                     }

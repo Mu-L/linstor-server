@@ -239,7 +239,7 @@ class StltRscApiCallHandler
             rscDfnProps.map().putAll(rscRawData.getRscDfnProps());
             rscDfnProps.keySet().retainAll(rscRawData.getRscDfnProps().keySet());
             errorReporter.logTrace(
-                "resetting flags of local rscdfn (%s) to %s",
+                "resetting flags of rscdfn (%s) to %s",
                 rscDfn,
                 FlagsHelper.toStringList(ResourceDefinition.Flags.class, rscRawData.getRscDfnFlags())
             );
@@ -254,6 +254,8 @@ class StltRscApiCallHandler
                     VolumeDefinition.Flags[] vlmDfnFlags = VolumeDefinition.Flags.restoreFlags(vlmDfnRaw.getFlags());
                     VolumeNumber vlmNr = new VolumeNumber(vlmDfnRaw.getVolumeNr());
 
+                    boolean vlmDfnExisted = rscDfn.getVolumeDfn(apiCtx, vlmNr) != null;
+
                     VolumeDefinition vlmDfn = volumeDefinitionFactory.getInstanceSatellite(
                         apiCtx,
                         vlmDfnRaw.getUuid(),
@@ -262,6 +264,14 @@ class StltRscApiCallHandler
                         vlmDfnRaw.getSize(),
                         VolumeDefinition.Flags.restoreFlags(vlmDfnRaw.getFlags())
                     );
+                    if (!vlmDfnExisted)
+                    {
+                        errorReporter.logTrace(
+                            "created vlmDfn (%s) with flags %s",
+                            vlmDfn,
+                            FlagsHelper.toStringList(VolumeDefinition.Flags.class, vlmDfnRaw.getFlags())
+                        );
+                    }
                     checkUuid(vlmDfn, vlmDfnRaw, rscName.displayValue);
                     Props vlmDfnProps = vlmDfn.getProps(apiCtx);
                     vlmDfnProps.map().putAll(vlmDfnRaw.getProps());
@@ -271,6 +281,11 @@ class StltRscApiCallHandler
 
                     // corresponding volumes will be created later when iterating over (local|remote)vlmApis
 
+                    errorReporter.logTrace(
+                        "resetting flags of vlmDfn (%s) to %s",
+                        vlmDfn,
+                        FlagsHelper.toStringList(VolumeDefinition.Flags.class, vlmDfnRaw.getFlags())
+                    );
                     vlmDfn.getFlags().resetFlagsTo(apiCtx, vlmDfnFlags);
 
                     if (Arrays.asList(vlmDfnFlags).contains(VolumeDefinition.Flags.DELETE))
@@ -282,6 +297,7 @@ class StltRscApiCallHandler
                 for (Entry<VolumeNumber, VolumeDefinition> entry : vlmDfnsToDelete.entrySet())
                 {
                      VolumeDefinition vlmDfn = entry.getValue();
+                    errorReporter.logTrace("marking vlmDfn (%s) and its volumes as deleted", vlmDfn);
                     Iterator<Volume> iterateVolumes = vlmDfn.iterateVolumes(apiCtx);
                      while (iterateVolumes.hasNext())
                      {
@@ -387,7 +403,7 @@ class StltRscApiCallHandler
 
                         if (localVlm != null)
                         {
-                            mergeVlm(localVlm, vlmApi, false);
+                            mergeVlm(localVlm, vlmApi);
                         }
                         else
                         {
@@ -503,7 +519,7 @@ class StltRscApiCallHandler
                                 }
                                 else
                                 {
-                                    mergeVlm(remoteVlm, remoteVlmApi, true);
+                                    mergeVlm(remoteVlm, remoteVlmApi);
                                 }
                             }
                         }
@@ -772,14 +788,22 @@ class StltRscApiCallHandler
             Volume.Flags.restoreFlags(vlmApi.getFlags())
         );
 
+        errorReporter.logTrace(
+            "created %s vlm (%s) with flags %s",
+            isRemoteRsc(rsc) ? "remote" : "local",
+            vlm,
+            FlagsHelper.toStringList(Volume.Flags.class, vlmApi.getFlags())
+        );
+
         vlm.getProps(apiCtx).map().putAll(vlmApi.getVlmProps());
 
         // XXX check if vlm really has expected layerStack (stack cannot be changed!)
     }
 
-    private void mergeVlm(Volume vlm, VolumeApi vlmApi, boolean remoteRsc)
+    private void mergeVlm(Volume vlm, VolumeApi vlmApi)
         throws AccessDeniedException, DatabaseException, InvalidNameException
     {
+        boolean remoteRsc = isRemoteRsc(vlm.getAbsResource());
         if (!remoteRsc)
         {
             checkUuid(vlm, vlmApi);
@@ -795,6 +819,15 @@ class StltRscApiCallHandler
             FlagsHelper.toStringList(Volume.Flags.class, vlmApi.getFlags())
         );
         vlm.getFlags().resetFlagsTo(apiCtx, Volume.Flags.restoreFlags(vlmApi.getFlags()));
+    }
+
+    /**
+     * A resource is "remote" from this satellite's point of view if it belongs to a node
+     * other than the local node that this satellite manages.
+     */
+    private boolean isRemoteRsc(Resource rsc)
+    {
+        return !rsc.getNode().getName().equals(controllerPeerConnector.getLocalNodeName());
     }
 
     private void checkUuid(Node node, OtherRscPojo otherRsc)

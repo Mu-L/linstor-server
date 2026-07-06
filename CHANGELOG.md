@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - SOS reports now include DRBD statistics (e.g. out-of-sync): `drbdsetup status` and `drbdsetup events2` are collected with `--statistics`, plus a new `drbd-status.json` from `drbdsetup status --json`
+- Improved trace logging of DevMgrRuns when creating/merging/deleting core objects
 
 ### Fixed
 
