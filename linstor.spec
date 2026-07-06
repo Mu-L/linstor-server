@@ -109,6 +109,18 @@ Linstor controller manages linstor satellites and persistant data storage.
 %dir /var/lib/linstor
 %dir /var/log/linstor-controller
 
+%pre controller
+# Older setups may have /var/lib/linstor set immutable (chattr +i), which was
+# previously recommended in the LINSTOR User's Guide. rpm cannot relabel/unpack
+# the packaged %dir entry against an immutable directory, so the upgrade
+# transaction fails. Clear the flag here (runs before the files are unpacked).
+# We intentionally do not restore it: the flag is no longer recommended. Note:
+# the directory path itself contains an 'i', so isolate the attribute field
+# before grepping.
+if [ -d /var/lib/linstor ] && lsattr -d /var/lib/linstor 2>/dev/null | awk '{print $1}' | grep -q i; then
+    chattr -i /var/lib/linstor || :
+fi
+
 %posttrans controller
 %{LS_PREFIX}/bin/controller.postinst.sh
 %systemd_post linstor-controller.service

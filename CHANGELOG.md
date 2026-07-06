@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed AutoHTTPS certificate never being renewed, now valid for 5 years and automatically renews at controller startup within 90 days of expiry
 - Fixed missing 3370 -> 3371 redirect for the /ui endpoint with AutoHTTPS enabled
 - Fixed manual resource creation no longer fails during a setup which already violates resource-group's autoplacer settings (like --replicas-on-same)
+- Fixed controller package upgrade failing when `/var/lib/linstor` was set immutable (`chattr +i`); the immutable flag is now cleared before unpacking
 
 ## [1.34.0] - 2026-06-29
 
