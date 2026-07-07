@@ -64,6 +64,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -172,7 +173,8 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                     }
                     else
                     {
-                        StorPool storPool = getStorPoolForTieBreaker(ctx, null);
+                        Set<String> relaxedReplicasOnSameKeys = new HashSet<>();
+                        @Nullable StorPool storPool = getStorPoolForTieBreaker(ctx, null, relaxedReplicasOnSameKeys);
                         if (storPool == null)
                         {
                             ctx.responses.addEntries(
@@ -188,6 +190,23 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                         }
                         else
                         {
+                            if (!relaxedReplicasOnSameKeys.isEmpty())
+                            {
+                                ctx.responses.addEntries(
+                                    ApiCallRcImpl.singleApiCallRc(
+                                        ApiConsts.WARN_TIE_BREAKER_RULE_RELAXED,
+                                        String.format(
+                                            "Tie breaker for '%s' is being placed on node '%s' while ignoring the " +
+                                                "--replicas-on-same rule(s) %s, because the already deployed " +
+                                                "resources already violate that rule. The tie breaker should be " +
+                                                "moved to a compliant node once the violation is resolved.",
+                                            ctx.rscDfn.getName().displayValue,
+                                            storPool.getNode().getName().displayValue,
+                                            relaxedReplicasOnSameKeys
+                                        )
+                                    )
+                                );
+                            }
                             // we can ignore the .objA of the returned pair as we are just about to create
                             // a tiebreaker
                             tieBreaker = rscCrtApiHelper.createResourceDb(
@@ -319,7 +338,8 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
             // find a new node for the tiebreaker
             @Nullable StorPool storPoolForTieBreaker = getStorPoolForTieBreaker(
                 ctxRef,
-                Collections.singleton(rscRef.getNode())
+                Collections.singleton(rscRef.getNode()),
+                null
             );
             couldTakeover = storPoolForTieBreaker != null;
         }
@@ -617,10 +637,15 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
 
     private @Nullable StorPool getStorPoolForTieBreaker(
         AutoHelperContext ctx,
-        @Nullable Collection<Node> nodesToChooseFromRef
+        @Nullable Collection<Node> nodesToChooseFromRef,
+        @Nullable Set<String> relaxedReplicasOnSameKeysOut
     )
     {
         StorPool storPool = null;
+        // --replicas-on-same keys that the autoplacer reported as undecidable and that we therefore drop
+        // when retrying the placement (see the catch (SelectionException) below). "Any node is better than
+        // no tie breaker" when the resource group's rules are already violated by the deployed resources.
+        Set<String> relaxedReplicasOnSameKeys = new HashSet<>();
 
         try
         {
@@ -686,10 +711,10 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                 // TODO: This is no longer true...
                 mergedAutoSelectFilterPojo.setStorPoolNameList(null);
 
-                Set<StorPool> autoplaceResult = autoplacer.autoPlace(
-                    mergedAutoSelectFilterPojo,
-                    ctx.rscDfn,
-                    0 // doesn't matter as we are diskless
+                @Nullable Set<StorPool> autoplaceResult = autoplaceWithRelaxedRetries(
+                    ctx,
+                    relaxedReplicasOnSameKeys,
+                    mergedAutoSelectFilterPojo
                 );
 
                 if (autoplaceResult != null && !autoplaceResult.isEmpty())
@@ -709,6 +734,11 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
                     break;
                 }
             }
+
+            if (storPool != null && relaxedReplicasOnSameKeysOut != null)
+            {
+                relaxedReplicasOnSameKeysOut.addAll(relaxedReplicasOnSameKeys);
+            }
         }
         catch (AccessDeniedException accDeniedExc)
         {
@@ -719,6 +749,76 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
             );
         }
         return storPool;
+    }
+
+    private Set<StorPool> autoplaceWithRelaxedRetries(
+        AutoHelperContext ctx,
+        Set<String> relaxedReplicasOnSameKeys,
+        AutoSelectFilterPojo mergedAutoSelectFilterPojo
+    )
+    {
+        // If a previous iteration hit an undecidable --replicas-on-same rule, drop the offending
+        // key(s) before retrying. All other rules (e.g. --replicas-on-different) stay in effect.
+        if (!relaxedReplicasOnSameKeys.isEmpty())
+        {
+            dropReplicasOnSameKeys(mergedAutoSelectFilterPojo, relaxedReplicasOnSameKeys);
+        }
+
+        @Nullable Set<StorPool> autoplaceResult = null;
+        boolean retryAutoplace = true;
+        while (retryAutoplace)
+        {
+            retryAutoplace = false;
+            try
+            {
+                autoplaceResult = autoplacer.autoPlace(
+                    mergedAutoSelectFilterPojo,
+                    ctx.rscDfn,
+                    0 // doesn't matter as we are diskless
+                );
+            }
+            catch (SelectionException selExc)
+            {
+                Set<String> conflictingKeys = selExc.getConflictingKeys(
+                    SelectionException.RuleType.REPLICAS_ON_SAME
+                );
+                // Only retry if there is a *new* key to relax. If we already relaxed everything the
+                // autoplacer complains about (or the conflict is one we do not know how to relax),
+                // propagate the exception instead of looping forever.
+                if (conflictingKeys.isEmpty() || relaxedReplicasOnSameKeys.containsAll(conflictingKeys))
+                {
+                    throw selExc;
+                }
+                relaxedReplicasOnSameKeys.addAll(conflictingKeys);
+                dropReplicasOnSameKeys(mergedAutoSelectFilterPojo, relaxedReplicasOnSameKeys);
+                retryAutoplace = true;
+            }
+        }
+
+        return autoplaceResult;
+    }
+
+    /**
+     * Removes all entries of the given keys from the filter's {@code --replicas-on-same} list, matching both
+     * bare {@code key} and {@code key=value} forms.
+     */
+    private static void dropReplicasOnSameKeys(AutoSelectFilterPojo filterPojo, Set<String> keysToDrop)
+    {
+        @Nullable List<String> replicasOnSameList = filterPojo.getReplicasOnSameList();
+        if (replicasOnSameList != null)
+        {
+            List<String> reduced = new ArrayList<>();
+            for (String entry : replicasOnSameList)
+            {
+                int assignIdx = entry.indexOf("=");
+                String key = assignIdx == -1 ? entry : entry.substring(0, assignIdx);
+                if (!keysToDrop.contains(key))
+                {
+                    reduced.add(entry);
+                }
+            }
+            filterPojo.setReplicasOnSameList(reduced);
+        }
     }
 
     private boolean supportsTieBreaker(AccessContext peerAccCtx, Node node) throws AccessDeniedException

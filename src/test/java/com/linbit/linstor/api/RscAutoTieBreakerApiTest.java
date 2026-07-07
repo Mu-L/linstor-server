@@ -67,6 +67,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 
@@ -176,6 +177,51 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
         // ... and no tiebreaker was created (odd diskful count -> none needed)
         assertNull("no tiebreaker must exist for an odd diskful count", findTieBreaker());
         assertEquals("expected exactly 3 diskful resources", 3, countDiskful());
+    }
+
+    @Test
+    public void tieBreakerIsPlacedByRelaxingReplicasOnSame() throws Exception
+    {
+        // 1 diskful pre-seeded on nodeA (role=data); we manually add a 2nd diskful on nodeB (role=different).
+        // That makes 2 (even) diskful with conflicting --replicas-on-same values, so a tiebreaker is needed but the
+        // autoplacer cannot honour the rule. It must relax the rule and place the tiebreaker on the only free node
+        // (nodeC), emitting WARN_TIE_BREAKER_RULE_RELAXED.
+        createStlt("nodeA").withProp(ROLE_KEY, "data").build();
+        createStlt("nodeB").withProp(ROLE_KEY, "different").build();
+        createStlt("nodeC").withProp(ROLE_KEY, "data").build();
+
+        createRscDfn();
+        setReplicasOnSame(ROLE_KEY);
+
+        preSeedResource("nodeA");
+
+        ApiCallRc rc = manualCreateDiskful("nodeB");
+
+        assertFalse(
+            "manual create must not fail with FAIL_UNDECIDABLE_AUTOPLACMENT",
+            containsRc(rc, ApiConsts.FAIL_UNDECIDABLE_AUTOPLACMENT)
+        );
+        assertTrue(
+            "a WARN_TIE_BREAKER_RULE_RELAXED response must be present, got:" + dump(rc),
+            containsRc(rc, ApiConsts.WARN_TIE_BREAKER_RULE_RELAXED)
+        );
+        assertTrue(
+            "an INFO_TIE_BREAKER_CREATED response must be present, got:" + dump(rc),
+            containsRc(rc, ApiConsts.INFO_TIE_BREAKER_CREATED)
+        );
+
+        Resource tieBreaker = findTieBreaker();
+        assertNotNull("a tiebreaker resource must have been created", tieBreaker);
+        assertEquals(
+            "the tiebreaker must have been placed on the only free node (nodeC)",
+            "nodeC",
+            tieBreaker.getNode().getName().displayValue
+        );
+        assertTrue(
+            "the tiebreaker must be diskless",
+            tieBreaker.getStateFlags().isSet(GenericDbBase.SYS_CTX, Resource.Flags.DRBD_DISKLESS)
+        );
+        assertEquals("expected exactly 2 diskful resources", 2, countDiskful());
     }
 
     // -------------------------------------------------------------------------------------------------------------
@@ -434,6 +480,19 @@ public class RscAutoTieBreakerApiTest extends ApiTestBase
             .toStream()
             .forEach(apiCallRc::addEntries);
         return apiCallRc;
+    }
+
+    private static String dump(ApiCallRc rc)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (RcEntry entry : rc)
+        {
+            sb.append("\n  [0x")
+                .append(Long.toHexString(entry.getReturnCode()))
+                .append("] ")
+                .append(entry.getMessage());
+        }
+        return sb.toString();
     }
 
     // return codes carry the "raw" code (severity + number) plus object/operation context masks (e.g. MASK_RSC,
