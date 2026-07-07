@@ -15,6 +15,7 @@ import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCallHandler.ToggleOp;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
+import com.linbit.linstor.core.apicallhandler.controller.autoplacer.SelectionException;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.SelectionManager;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils.DrbdResourceResult;
@@ -543,33 +544,54 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
             rscDfn.getResourceGroup().getAutoPlaceConfig().getApiData()
         );
 
-        SelectionManager selectionManager = new SelectionManager(
-            peerAccCtx,
-            errorReporter,
-            mergedAutoSelectFilter,
-            alreadyDeployedDiskfulNodes,
-            alreadyDeployedDiskfulNodes.size(),
-            0,
-            Collections.emptyList(),
-            Collections.emptyMap(),
-            NO_SORTED_SPS,
-            false, // not that it matters for tiebreaker selection
-            true,
-            BlockSizeConsts.DFLT_PHY_IO_SIZE
-        );
+        Predicate<StorPool> ret;
+        try
+        {
+            final SelectionManager selectionManager = new SelectionManager(
+                peerAccCtx,
+                errorReporter,
+                mergedAutoSelectFilter,
+                alreadyDeployedDiskfulNodes,
+                alreadyDeployedDiskfulNodes.size(),
+                0,
+                Collections.emptyList(),
+                Collections.emptyMap(),
+                NO_SORTED_SPS,
+                false, // not that it matters for tiebreaker selection
+                true,
+                BlockSizeConsts.DFLT_PHY_IO_SIZE
+            );
+            ret = storPool ->
+            {
+                boolean isAllowed = false;
+                try
+                {
+                    isAllowed = selectionManager.isAllowed(storPool);
+                }
+                catch (AccessDeniedException e)
+                {
+                    // Ignore -> not allowed
+                }
+                return isAllowed;
+            };
+        }
+        catch (SelectionException selExc)
+        {
+            // The resource group's autoplace rules are currently undecidable - e.g. a --replicas-on-same
+            // property is already violated by the deployed diskful resources. This eligibility check must never
+            // abort the operation that triggered it (e.g. a manual 'resource create'), so we degrade gracefully
+            // and treat no storage pool as an eligible tiebreaker location. Actually placing a tiebreaker in such
+            // a situation - by relaxing the offending rule - is handled separately in getStorPoolForTieBreaker.
+            errorReporter.logTrace(
+                "Auto-tiebreaker: cannot evaluate tiebreaker eligibility for %s because the autoplace rules are " +
+                    "currently undecidable: %s",
+                getRscDfnDescriptionInline(rscDfn),
+                selExc.getMessage()
+            );
+            ret = ignoredStorPool -> false;
+        }
 
-        return storPool -> {
-            boolean isAllowed = false;
-            try
-            {
-                isAllowed = selectionManager.isAllowed(storPool);
-            }
-            catch (AccessDeniedException e)
-            {
-                // Ignore -> not allowed
-            }
-            return isAllowed;
-        };
+        return ret;
     }
 
     private boolean isDrbdResource(AccessContext peerAccCtx, Resource rsc) throws AccessDeniedException

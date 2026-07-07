@@ -2,11 +2,8 @@ package com.linbit.linstor.core.apicallhandler.controller.autoplacer;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
-import com.linbit.linstor.api.ApiCallRcImpl;
-import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer.StorPoolWithScore;
-import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.StorPool;
@@ -157,6 +154,7 @@ public class SelectionManager
         throws AccessDeniedException
     {
         final HashMap<String, String> initSameProps = new HashMap<>();
+        final List<SelectionException.Conflict> conflicts = new ArrayList<>();
 
         if (selectFilterRef.getReplicasOnSameList() != null)
         {
@@ -168,15 +166,27 @@ public class SelectionManager
                 if (assignIdx != -1)
                 {
                     key = replOnSame.substring(0, assignIdx);
-                    val = getSameValFromNodes(key, alreadyDeployedOnNodesRef, replOnSame.substring(assignIdx + 1));
+                    val = getSameValFromNodes(
+                        key,
+                        alreadyDeployedOnNodesRef,
+                        replOnSame.substring(assignIdx + 1),
+                        conflicts
+                    );
                 }
                 else
                 {
                     key = replOnSame;
-                    val = getSameValFromNodes(key, alreadyDeployedOnNodesRef, REPL_ON_SAME_UNDECIDED);
+                    val = getSameValFromNodes(key, alreadyDeployedOnNodesRef, REPL_ON_SAME_UNDECIDED, conflicts);
                 }
                 initSameProps.put(key, val);
             }
+        }
+
+        if (!conflicts.isEmpty())
+        {
+            // Collect *all* conflicting keys before failing, so a caller that wants to relax rules and retry
+            // (e.g. CtrlRscAutoTieBreakerHelper) can drop them all in a single retry instead of one per run.
+            throw SelectionException.replicasOnSameConflicts(conflicts);
         }
         return initSameProps;
     }
@@ -184,7 +194,8 @@ public class SelectionManager
     private @Nullable String getSameValFromNodes(
         String keyRef,
         List<Node> alreadyDeployedOnNodesRef,
-        @Nullable String dfltIfNotUsed
+        @Nullable String dfltIfNotUsed,
+        List<SelectionException.Conflict> conflictsRef
     )
         throws AccessDeniedException
     {
@@ -194,15 +205,20 @@ public class SelectionManager
         {
             case 0 -> dfltIfNotUsed;
             case 1 -> valToNodeListMap.keySet().iterator().next();
-            default -> throw new ApiRcException(
-                ApiCallRcImpl.simpleEntry(
-                    ApiConsts.FAIL_UNDECIDABLE_AUTOPLACMENT,
-                    "The property in --replicas-on-same '" + keyRef + "' is already set " +
-                        "on already deployed nodes with different values. Autoplacer cannot decide " +
-                        "which value to continue with. Linstor found the following conflicting values: " +
-                        valToNodeListMap
-                )
-            );
+            default ->
+            {
+                // Rule is undecidable: the already-deployed nodes carry more than one value for this key.
+                // Record the conflict (with the conflicting values, for the error message) instead of throwing
+                // immediately, so initializeSameProps can gather every conflicting key before it fails.
+                conflictsRef.add(
+                    new SelectionException.Conflict(
+                        SelectionException.RuleType.REPLICAS_ON_SAME,
+                        keyRef,
+                        valToNodeListMap.keySet()
+                    )
+                );
+                yield dfltIfNotUsed;
+            }
         };
         return ret;
     }

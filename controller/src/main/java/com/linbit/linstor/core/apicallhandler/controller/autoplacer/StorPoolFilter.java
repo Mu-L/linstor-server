@@ -785,6 +785,7 @@ public class StorPoolFilter
     )
     {
         Map<String, String> ret = new TreeMap<>();
+        List<SelectionException.Conflict> conflicts = new ArrayList<>();
         if (propsList != null)
         {
             for (String elem : propsList)
@@ -810,27 +811,31 @@ public class StorPoolFilter
 
                     if (nodeValues.size() > 1)
                     {
-                        throw new ApiRcException(
-                            ApiCallRcImpl.simpleEntry(
-                                ApiConsts.FAIL_UNDECIDABLE_AUTOPLACMENT,
-                                "The property in --replicas-on-same '" + elem + "' is already set " +
-                                    "on already deployed nodes with different values. Autoplacer cannot decide " +
-                                    "which value to continue with. Linstor found the following conflicting values: " +
-                                    nodeValues
+                        // Rule is undecidable: gather the conflict and keep going, so we can report every
+                        // conflicting key at once (see SelectionException / CtrlRscAutoTieBreakerHelper retry).
+                        conflicts.add(
+                            new SelectionException.Conflict(
+                                SelectionException.RuleType.REPLICAS_ON_SAME,
+                                elem,
+                                nodeValues
                             )
                         );
                     }
-                    if (nodeValues.size() == 1)
+                    else if (nodeValues.size() == 1)
                     {
                         ret.put(elem, nodeValues.iterator().next());
                     }
                     else
                     {
-                        ret.put(elem, null); // not fixed value, but we still need to make sure all nodes have SOME
-                                             // value set here
+                        // not fixed value, but we still need to make sure all nodes have SOME value set here
+                        ret.put(elem, null);
                     }
                 }
             }
+        }
+        if (!conflicts.isEmpty())
+        {
+            throw SelectionException.replicasOnSameConflicts(conflicts);
         }
         return ret;
     }
