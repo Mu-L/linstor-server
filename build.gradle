@@ -122,8 +122,8 @@ project(':server') {
         compileOnly group: 'org.slf4j', name: 'slf4j-api', version: '2.0.18'
         api group: 'ch.qos.logback', name: 'logback-classic', version: '1.5.34'
         api 'org.apache.httpcomponents.client5:httpclient5:5.6.1'
-        api 'com.fasterxml.jackson.jr:jackson-jr-objects:2.21.+'
-        api 'com.fasterxml.jackson.core:jackson-databind:2.21.+'
+        api 'com.fasterxml.jackson.jr:jackson-jr-objects:2.22.0'
+        api 'com.fasterxml.jackson.core:jackson-databind:2.22.0'
 
         api group: 'org.apache.commons', name: 'commons-dbcp2', version: '2.14.0'
         api group: 'org.apache.commons', name: 'commons-pool2', version: '2.13.1'
