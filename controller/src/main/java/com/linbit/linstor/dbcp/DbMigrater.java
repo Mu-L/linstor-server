@@ -155,6 +155,16 @@ public class DbMigrater
         if (!appliedVersions.isEmpty())
         {
             DbMigraterConsolidatedVersions.checkIfMigrationIsPossible(appliedVersions.last());
+            if (!migrations.isEmpty() && appliedVersions.last().compareTo(migrations.lastKey()) > 0)
+            {
+                throw new InitializationException(
+                    "Local DB version (" + appliedVersions.last() + ") is newer than the latest DB version " +
+                        "known to this version of LINSTOR (" + migrations.lastKey() + "). " +
+                        "The database was already migrated by a newer LINSTOR controller and downgrading the " +
+                        "database is not supported. Start a LINSTOR controller that is at least as new as the " +
+                        "one that last migrated the database."
+                );
+            }
             for (var version : appliedVersions)
             {
                 migrationsCopy.remove(version);
