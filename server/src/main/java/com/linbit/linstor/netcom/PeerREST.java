@@ -39,7 +39,6 @@ public class PeerREST implements Peer
     }
 
     private final ExtToolsManager extToolsMgr;
-    private @Nullable String authenticatedUser;
 
     public PeerREST(
         String peerIdRef,
@@ -49,16 +48,6 @@ public class PeerREST implements Peer
         peerId = peerIdRef;
         userAgent = userAgentRef;
         extToolsMgr = new ExtToolsManager();
-    }
-
-    public @Nullable String getAuthenticatedUser()
-    {
-        return authenticatedUser;
-    }
-
-    public void setAuthenticatedUser(String authenticatedUserRef)
-    {
-        authenticatedUser = authenticatedUserRef;
     }
 
     @Override
@@ -425,10 +414,6 @@ public class PeerREST implements Peer
     {
         String str = "RestClient(" + getId();
         str += "; '" + userAgent + "'";
-        if (authenticatedUser != null)
-        {
-            str += "; user: '" + authenticatedUser + "'";
-        }
         return str + ")";
     }
 }

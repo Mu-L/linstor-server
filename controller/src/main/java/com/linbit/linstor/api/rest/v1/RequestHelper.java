@@ -113,7 +113,7 @@ public class RequestHelper
         return Tuples.of(user, password);
     }
 
-    private void checkLDAPAuth(PeerREST peer, String authHeader)
+    private void checkLDAPAuth(String authHeader)
     {
         if (linstorConfig.isLdapEnabled())
         {
@@ -126,9 +126,7 @@ public class RequestHelper
 
                 try
                 {
-                    peer.setAuthenticatedUser(
-                        ldapAuthentication.authenticate(user, password.getBytes(StandardCharsets.UTF_8))
-                    );
+                    ldapAuthentication.authenticate(user, password.getBytes(StandardCharsets.UTF_8));
                 }
                 catch (SignInException signIgnExc)
                 {
@@ -160,7 +158,7 @@ public class RequestHelper
         final String userAgent = request.getHeader("User-Agent");
         PeerREST peer = new PeerREST(request.getRemoteAddr(), userAgent);
 
-        checkLDAPAuth(peer, request.getAuthorization());
+        checkLDAPAuth(request.getAuthorization());
 
         errorReporter.logInfo("REST/API %s/%s", peer.toString(), apiCall);
         return Context.of(
