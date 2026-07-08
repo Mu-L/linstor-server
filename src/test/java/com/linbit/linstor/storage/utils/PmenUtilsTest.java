@@ -1,6 +1,5 @@
 package com.linbit.linstor.storage.utils;
 
-import com.linbit.extproc.ExtCmd;
 import com.linbit.extproc.utils.TestExtCmd;
 import com.linbit.extproc.utils.TestExtCmd.Command;
 import com.linbit.extproc.utils.TestExtCmd.TestOutputData;
@@ -18,35 +17,15 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@RunWith(PowerMockRunner.class)
-@PrepareForTest(
-    {
-        PmemUtils.class,
-        ExtCmd.class
-    }
-)
 public class PmenUtilsTest
 {
     private static StdErrorReporter errorReporter;
     private TestExtCmd ec;
-
-    public PmenUtilsTest() throws Exception
-    {
-        ec = new TestExtCmd(errorReporter);
-        PowerMockito
-            .whenNew(ExtCmd.class)
-            .withAnyArguments()
-            .thenReturn(ec);
-    }
 
     @BeforeClass
     public static void setUpClass()
@@ -62,9 +41,9 @@ public class PmenUtilsTest
         );
     }
     @Before
-    public void setUp() throws Exception
+    public void setUp()
     {
-        ec.clearBehaviors();
+        ec = new TestExtCmd(errorReporter);
     }
 
     @After

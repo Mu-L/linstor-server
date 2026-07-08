@@ -61,7 +61,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
 import reactor.core.publisher.Flux;
 
 import static org.junit.Assert.assertEquals;
@@ -71,7 +70,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 
 @RunWith(JUnitParamsRunner.class)
-@PrepareForTest(CtrlBackupCreateApiCallHandler.class)
 public class BackupFindUsableNodesTest extends ApiTestBase
 {
     private static final String DATA_POOL_LVM_THIN = "DfltStorPool";

@@ -524,14 +524,7 @@ dependencies {
 
     testImplementation group: 'com.google.protobuf', name: 'protobuf-java', version: '4.' + protobufVersion
 
-    def powerMockVersion = '2.0.9'
-
     testImplementation group: 'org.mockito', name: 'mockito-core', version: '5.23.0'
-    testImplementation group: 'org.mockito', name: 'mockito-inline', version: '5.2.0'
-    // TODO get rid of unsupported powermock
-    testImplementation group: 'org.powermock', name: 'powermock-core', version: powerMockVersion
-    testImplementation group: 'org.powermock', name: 'powermock-api-mockito2', version: powerMockVersion
-    testImplementation group: 'org.powermock', name: 'powermock-module-junit4', version: powerMockVersion
 
     testCompileOnly group: 'org.slf4j', name: 'slf4j-api', version: '2.0.18'
     testImplementation group: 'org.assertj', name: 'assertj-core', version: '3.27.+'

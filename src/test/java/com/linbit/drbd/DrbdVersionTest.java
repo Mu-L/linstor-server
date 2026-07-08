@@ -1,12 +1,12 @@
 package com.linbit.drbd;
 
 import com.linbit.extproc.ExtCmd;
+import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.extproc.utils.TestExtCmd;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.StdErrorReporter;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo.Version;
 import com.linbit.linstor.testutils.EmptyErrorReporter;
-import com.linbit.linstor.timer.CoreTimerImpl;
 
 import static com.linbit.drbd.DrbdVersion.UNDETERMINED_VERSION_INT;
 import static com.linbit.drbd.DrbdVersion.VSN_QUERY_COMMAND;
@@ -19,21 +19,13 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
+import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@RunWith(PowerMockRunner.class)
-@PrepareForTest({
-        DrbdVersion.class,
-        ExtCmd.class
-})
 public class DrbdVersionTest
 {
     public static final int DRBD8_MAJOR_VSN = 8;
@@ -43,15 +35,6 @@ public class DrbdVersionTest
 
     private TestExtCmd testExtCmd;
     private DrbdVersion drbdVersion;
-
-    public DrbdVersionTest() throws Exception
-    {
-        testExtCmd = new TestExtCmd(errorReporter);
-        PowerMockito
-                .whenNew(ExtCmd.class)
-                .withAnyArguments()
-                .thenReturn(testExtCmd);
-    }
 
     @BeforeClass
     public static void setUpClass()
@@ -68,10 +51,12 @@ public class DrbdVersionTest
     }
 
     @Before
-    public void setUp() throws Exception
+    public void setUp()
     {
-        testExtCmd.clearBehaviors();
-        drbdVersion = new DrbdVersion(new CoreTimerImpl(), new EmptyErrorReporter());
+        testExtCmd = new TestExtCmd(errorReporter);
+        ExtCmdFactory extCmdFactory = Mockito.mock(ExtCmdFactory.class);
+        Mockito.when(extCmdFactory.create()).thenReturn(testExtCmd);
+        drbdVersion = new DrbdVersion(extCmdFactory, new EmptyErrorReporter());
     }
 
     @After

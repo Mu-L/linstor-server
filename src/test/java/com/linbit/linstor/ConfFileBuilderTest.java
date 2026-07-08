@@ -2,6 +2,7 @@ package com.linbit.linstor;
 
 import com.linbit.ImplementationError;
 import com.linbit.drbd.DrbdVersion;
+import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.api.prop.WhitelistProps;
@@ -62,7 +63,6 @@ import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObje
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscObject;
 import com.linbit.linstor.testutils.EmptyErrorReporter;
-import com.linbit.linstor.timer.CoreTimerImpl;
 import com.linbit.linstor.transaction.TransactionObjectFactory;
 import com.linbit.linstor.transaction.manager.SatelliteTransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
@@ -185,7 +185,7 @@ public class ConfFileBuilderTest
             .thenReturn(rscConn);
 
         stltProps = propsContainerFactory.getInstance("STLT_CFG", "", LinStorObject.STLT);
-        drbdVersion = new DrbdVersion(new CoreTimerImpl(), new EmptyErrorReporter());
+        drbdVersion = new DrbdVersion(Mockito.mock(ExtCmdFactory.class), new EmptyErrorReporter());
     }
 
     private void setProps(String[] nodeNames, String... nicNames)

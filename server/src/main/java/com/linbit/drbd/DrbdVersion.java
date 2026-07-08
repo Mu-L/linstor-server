@@ -3,12 +3,12 @@ package com.linbit.drbd;
 import com.linbit.ChildProcessTimeoutException;
 import com.linbit.extproc.ExtCmd;
 import com.linbit.extproc.ExtCmd.OutputData;
+import com.linbit.extproc.ExtCmdFactory;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo.Version;
-import com.linbit.linstor.timer.CoreTimer;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -64,15 +64,15 @@ public class DrbdVersion
     private Version utilsVsn = UNDETERMINED_VERSION;
     private @Nullable String windrbdVsn = null;
 
-    private final CoreTimer timerRef;
+    private final ExtCmdFactory extCmdFactory;
     private final ErrorReporter errorLogRef;
     private List<String> drbdNotSupportedReasons;
     private List<String> utilsNotSupportedReasons;
 
     @Inject
-    public DrbdVersion(CoreTimer coreTimer, ErrorReporter errorReporter)
+    public DrbdVersion(ExtCmdFactory extCmdFactoryRef, ErrorReporter errorReporter)
     {
-        this.timerRef = coreTimer;
+        this.extCmdFactory = extCmdFactoryRef;
         this.errorLogRef = errorReporter;
         drbdNotSupportedReasons = new ArrayList<>();
         utilsNotSupportedReasons = new ArrayList<>();
@@ -91,7 +91,7 @@ public class DrbdVersion
             try
             {
                 restoreDefaults();
-                ExtCmd cmd = new ExtCmd(timerRef, errorLogRef);
+                ExtCmd cmd = extCmdFactory.create();
                 OutputData cmdData = cmd.exec(VSN_QUERY_COMMAND);
 
                 utilsVsn = getVersion(cmdData, KEY_UTILS_VSN_CODE);

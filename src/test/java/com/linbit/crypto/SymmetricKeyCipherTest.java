@@ -5,15 +5,10 @@ import com.linbit.linstor.modularcrypto.ModularCryptoProvider;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.core.classloader.annotations.PowerMockIgnore;
-import org.powermock.modules.junit4.PowerMockRunner;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
-@PowerMockIgnore({"com.sun.*", "javax.*"})
-@RunWith(PowerMockRunner.class)
 public class SymmetricKeyCipherTest
 {
     private static byte[] cipherKey = "1234567890123456".getBytes();
