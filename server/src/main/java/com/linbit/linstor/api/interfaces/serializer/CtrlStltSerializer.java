@@ -239,6 +239,8 @@ public interface CtrlStltSerializer extends CommonSerializer
             String poolName
         );
 
+        CtrlStltSerializerBuilder archiveLogs(long ageDays);
+
         @Override
         CtrlStltSerializerBuilder drbdReactorExecResponse(int exitCode, byte[] stdout, byte[] stderr);
     }

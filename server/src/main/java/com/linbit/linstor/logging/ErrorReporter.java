@@ -26,6 +26,8 @@ public interface ErrorReporter
 {
     String LOGID = "logid";
 
+    int DFLT_LOG_ARCHIVE_AGE_DAYS = 60;
+
     // TODO: javadoc
     /**
      * Indicates if at least the given LogLevel is enabled.
@@ -193,7 +195,16 @@ public interface ErrorReporter
         return new ApiCallRcImpl();
     }
 
-    default void archiveLogDirectory()
+    /**
+     * Archives and compresses error-report log files older than the given number of days.
+     * The cutoff is truncated to the month boundary, so files are only archived once their whole
+     * creation-month is older than the given age; each month is compressed into its own archive.
+     *
+     * @param ageDays
+     *     Minimum age in days after which error-report log files are archived;
+     *     values &lt;= 0 disable archiving.
+     */
+    default void archiveLogDirectory(long ageDays)
     {
     }
 

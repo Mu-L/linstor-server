@@ -1038,6 +1038,8 @@ public class CtrlConfApiCallHandler
                         case ApiConsts.NAMESPC_LINSTOR_DRBD + "/" + ApiConsts.KEY_DRBD_AUTO_BLOCK_SIZE:
                             // fall-through
                         case ApiConsts.NAMESPC_DRBD_PROXY + "/" + ApiConsts.KEY_DRBD_PROXY_AUTO_ENABLE:
+                            // fall-through
+                        case ApiConsts.NAMESPC_LOGGING + "/" + ApiConsts.KEY_LOG_ARCHIVE_AGE_DAYS:
                             // no need to update stlts
                             setCtrlProp(peerAccCtx.get(), key, normalized, namespace, propChangedListener);
                             break;

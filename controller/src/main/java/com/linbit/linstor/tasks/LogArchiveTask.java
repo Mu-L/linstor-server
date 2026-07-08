@@ -1,10 +1,13 @@
 package com.linbit.linstor.tasks;
 
 import com.linbit.linstor.InternalApiConsts;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.annotation.SystemContext;
+import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.repository.NodeRepository;
+import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.security.AccessContext;
@@ -26,6 +29,7 @@ public class LogArchiveTask implements TaskScheduleService.Task
     private final LockGuardFactory lockGuardFactory;
     private final AccessContext sysCtx;
     private final CtrlStltSerializer ctrlStltSerializer;
+    private final SystemConfRepository systemConfRepository;
 
     @Inject
     public LogArchiveTask(
@@ -33,7 +37,8 @@ public class LogArchiveTask implements TaskScheduleService.Task
         NodeRepository nodeRepositoryRef,
         LockGuardFactory lockGuardFactoryRef,
         @SystemContext AccessContext sysCtxRef,
-        CtrlStltSerializer ctrlClientSerializerRef
+        CtrlStltSerializer ctrlClientSerializerRef,
+        SystemConfRepository systemConfRepositoryRef
     )
     {
         errorReporter = errorReporterRef;
@@ -41,32 +46,67 @@ public class LogArchiveTask implements TaskScheduleService.Task
         lockGuardFactory = lockGuardFactoryRef;
         sysCtx = sysCtxRef;
         ctrlStltSerializer = ctrlClientSerializerRef;
+        systemConfRepository = systemConfRepositoryRef;
     }
 
     @Override
     public long run(long scheduledAt)
     {
-        errorReporter.archiveLogDirectory();
+        long ageDays = getArchiveAgeDays();
 
-        try (LockGuard lg = lockGuardFactory.build(READ, NODES_MAP))
+        errorReporter.archiveLogDirectory(ageDays);
+
+        if (ageDays > 0)
         {
-            for (Node node : nodeRepository.getMapForView(sysCtx).values())
+            try (LockGuard lg = lockGuardFactory.build(READ, NODES_MAP))
             {
-                Peer nodePeer = node.getPeer(sysCtx);
-                if (nodePeer != null && nodePeer.isOnline())
+                for (Node node : nodeRepository.getMapForView(sysCtx).values())
                 {
-                    nodePeer.sendMessage(
-                        ctrlStltSerializer.onewayBuilder(InternalApiConsts.API_ARCHIVE_LOGS).build()
-                    );
+                    Peer nodePeer = node.getPeer(sysCtx);
+                    if (nodePeer != null && nodePeer.isOnline())
+                    {
+                        nodePeer.sendMessage(
+                            ctrlStltSerializer.onewayBuilder(InternalApiConsts.API_ARCHIVE_LOGS)
+                                .archiveLogs(ageDays)
+                                .build()
+                        );
+                    }
                 }
             }
-        }
-        catch (AccessDeniedException ignored)
-        {
+            catch (AccessDeniedException ignored)
+            {
+            }
         }
 
         // TODO also clean up blacklisted ports for backup shipping
 
         return getNextFutureReschedule(scheduledAt, LOGARCHIVE_SLEEP);
+    }
+
+    private long getArchiveAgeDays()
+    {
+        long ageDays = ErrorReporter.DFLT_LOG_ARCHIVE_AGE_DAYS;
+        try
+        {
+            @Nullable String ageDaysProp = systemConfRepository.getCtrlConfForView(sysCtx).getProp(
+                ApiConsts.KEY_LOG_ARCHIVE_AGE_DAYS,
+                ApiConsts.NAMESPC_LOGGING
+            );
+            if (ageDaysProp != null)
+            {
+                ageDays = Long.parseLong(ageDaysProp);
+            }
+        }
+        catch (AccessDeniedException | NumberFormatException exc)
+        {
+            errorReporter.logWarning(
+                "LogArchive: unable to read property %s/%s, using default of %d days: %s",
+                ApiConsts.NAMESPC_LOGGING,
+                ApiConsts.KEY_LOG_ARCHIVE_AGE_DAYS,
+                ageDays,
+                exc.getMessage()
+            );
+        }
+        return ageDays;
     }
 }

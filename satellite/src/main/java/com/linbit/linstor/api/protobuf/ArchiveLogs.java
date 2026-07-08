@@ -1,8 +1,10 @@
 package com.linbit.linstor.api.protobuf;
 
 import com.linbit.linstor.InternalApiConsts;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCall;
 import com.linbit.linstor.logging.ErrorReporter;
+import com.linbit.linstor.proto.javainternal.c2s.MsgIntArchiveLogsOuterClass.MsgIntArchiveLogs;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -30,6 +32,11 @@ public class ArchiveLogs implements ApiCall
     @Override
     public void execute(InputStream msgDataIn) throws IOException
     {
-        errorReporter.archiveLogDirectory();
+        @Nullable MsgIntArchiveLogs msgArchiveLogs = MsgIntArchiveLogs.parseDelimitedFrom(msgDataIn);
+        // controllers older than the age_days introduction send this message without any data
+        long ageDays = msgArchiveLogs != null ?
+            msgArchiveLogs.getAgeDays() :
+            ErrorReporter.DFLT_LOG_ARCHIVE_AGE_DAYS;
+        errorReporter.archiveLogDirectory(ageDays);
     }
 }

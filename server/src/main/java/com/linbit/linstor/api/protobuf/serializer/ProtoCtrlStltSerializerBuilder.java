@@ -71,6 +71,7 @@ import com.linbit.linstor.proto.javainternal.c2s.MsgIntApplyRscOuterClass.MsgInt
 import com.linbit.linstor.proto.javainternal.c2s.MsgIntApplySharedStorPoolLocksOuterClass.MsgIntApplySharedStorPoolLocks;
 import com.linbit.linstor.proto.javainternal.c2s.MsgIntApplySnapshotOuterClass.MsgIntApplySnapshot;
 import com.linbit.linstor.proto.javainternal.c2s.MsgIntApplyStorPoolOuterClass.MsgIntApplyStorPool;
+import com.linbit.linstor.proto.javainternal.c2s.MsgIntArchiveLogsOuterClass.MsgIntArchiveLogs;
 import com.linbit.linstor.proto.javainternal.c2s.MsgIntAuthOuterClass;
 import com.linbit.linstor.proto.javainternal.c2s.MsgIntBackupShippingFinishedOuterClass.MsgIntBackupShippingFinished;
 import com.linbit.linstor.proto.javainternal.c2s.MsgIntCryptKeyOuterClass.MsgIntCryptKey;
@@ -1409,6 +1410,23 @@ public class ProtoCtrlStltSerializerBuilder extends ProtoCommonSerializerBuilder
                 .setPoolName(poolName);
 
             msgDeleteDevicePoolBuilder
+                .build()
+                .writeDelimitedTo(baos);
+        }
+        catch (IOException exc)
+        {
+            handleIOException(exc);
+        }
+        return this;
+    }
+
+    @Override
+    public CtrlStltSerializer.CtrlStltSerializerBuilder archiveLogs(long ageDays)
+    {
+        try
+        {
+            MsgIntArchiveLogs.newBuilder()
+                .setAgeDays(ageDays)
                 .build()
                 .writeDelimitedTo(baos);
         }

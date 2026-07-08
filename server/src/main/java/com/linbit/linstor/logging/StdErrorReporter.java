@@ -29,10 +29,11 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -485,21 +486,36 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
     }
 
     @Override
-    public void archiveLogDirectory()
+    public void archiveLogDirectory(long ageDays)
     {
-        // create an Instant that is starting 1 month before (at month starting).
-        final Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.MONTH, -1);
-        cal.set(Calendar.DAY_OF_MONTH, 1);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        final Instant beforeDate = cal.toInstant();
+        if (ageDays <= 0)
+        {
+            logInfo("LogArchive: disabled (%s/%s is 0)", ApiConsts.NAMESPC_LOGGING, ApiConsts.KEY_LOG_ARCHIVE_AGE_DAYS);
+        }
+        else
+        {
+            // truncate the cutoff to the month boundary so that only complete months are ever archived.
+            // the monthly tar files are overwritten (not appended to), so archiving a partially elapsed
+            // month would replace an earlier archive of the same month, losing the already deleted reports
+            archiveLogsOlderThan(
+                LocalDate.now(ZoneId.systemDefault())
+                    .minusDays(ageDays)
+                    .withDayOfMonth(1)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+            );
+        }
+    }
 
+    private void archiveLogsOlderThan(final Instant beforeDate)
+    {
         try (Stream<Path> files = Files.list(getLogDirectory()))
         {
-            logInfo("LogArchive: Running log archive on directory: " + getLogDirectory().toAbsolutePath().normalize());
+            logInfo(
+                "LogArchive: Running log archive on directory: %s, archiving error-reports created before %s",
+                getLogDirectory().toAbsolutePath().normalize(),
+                beforeDate
+            );
             final long startTime = System.currentTimeMillis();
             int archiveCount = 0;
 
@@ -522,7 +538,7 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
                 })
                 .filter(file ->
                 {
-                    // only archive files older 2 months (at month starting)
+                    // only archive files older than the given age
                     @Nullable BasicFileAttributes attr = getAttributes(file);
                     boolean use = false;
                     if (attr != null)
