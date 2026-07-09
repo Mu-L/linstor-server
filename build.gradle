@@ -103,6 +103,8 @@ subprojects {
 project(':server') {
     apply plugin: 'java-library'
     apply plugin: 'java-library-distribution'
+    // shared test utilities (server/src/testFixtures) usable by all module test source sets
+    apply plugin: 'java-test-fixtures'
 
     dependencies {
         api 'com.google.inject:guice:6.0.0' // upgrade to 7.0 would require switch to jakarta namespace
@@ -282,7 +284,9 @@ project(':satellite') {
     dependencies {
         implementation project(':server'), project(':jclcrypto')
 
+        testImplementation testFixtures(project(':server'))
         testImplementation 'junit:junit:4.13.2'
+        testImplementation "org.assertj:assertj-core:3.27.+"
     }
 
     sourceSets {
@@ -525,6 +529,7 @@ repositories {
 dependencies {
     implementation project(':server'), project(':controller'), project(':satellite'), project(':jclcrypto')
     testImplementation project(':server'), project(':controller'), project(':satellite'), project(':jclcrypto')
+    testImplementation testFixtures(project(':server'))
 
     testImplementation "com.google.protobuf:protobuf-java:4.${protobufVersion}"
 

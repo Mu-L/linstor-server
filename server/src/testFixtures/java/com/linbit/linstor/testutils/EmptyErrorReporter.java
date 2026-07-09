@@ -9,9 +9,12 @@ import java.nio.file.Path;
 
 import org.slf4j.event.Level;
 
+/**
+ * No-op {@link ErrorReporter} for unit tests.
+ */
 public class EmptyErrorReporter implements ErrorReporter
 {
-    private boolean printStacktraces;
+    private final boolean printStacktraces;
 
     public EmptyErrorReporter()
     {
