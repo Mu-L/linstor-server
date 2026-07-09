@@ -60,6 +60,7 @@ allprojects {
 subprojects {
     apply plugin: 'java'
     apply plugin: 'checkstyle'
+    apply plugin: 'jacoco'
 
     if (!rootProject.hasProperty('disableErrorProne'))
     {
@@ -487,6 +488,13 @@ jacocoTestReport {
         additionalSourceDirs.setFrom(files(subprojects.sourceSets.main.allSource.srcDirs))
         sourceDirectories.setFrom(files(subprojects.sourceSets.main.allSource.srcDirs))
         classDirectories.setFrom(files(subprojects.sourceSets.main.output))
+        // include the execution data of the per-module test tasks (satellite, controller)
+        executionData.setFrom(
+            files(
+                layout.buildDirectory.file("jacoco/test.exec"),
+                subprojects.collect { it.layout.buildDirectory.file("jacoco/test.exec") }
+            ).filter { it.exists() }
+        )
         reports {
             html.required = true
             xml.required = true
