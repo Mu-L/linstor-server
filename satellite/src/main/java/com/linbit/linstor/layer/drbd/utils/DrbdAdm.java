@@ -31,6 +31,7 @@ import com.linbit.linstor.storage.data.adapter.drbd.DrbdVlmData;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo;
 import com.linbit.linstor.storage.utils.Commands;
 import com.linbit.linstor.storage.utils.Commands.RetryHandler;
+import com.linbit.linstor.storage.utils.DeviceStatUtils;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 import com.linbit.utils.ExceptionThrowingConsumer;
 
@@ -43,7 +44,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -803,7 +806,7 @@ public class DrbdAdm
     )
         throws ExtCmdFailedException
     {
-        execAdmCommand(drbdRscData, volNum, cmdList -> execute(cmdList, false), subCommands);
+        execAdmCommand(drbdRscData, volNum, this::execute, subCommands);
     }
 
     private void ioAwareAdmCommand(
@@ -813,7 +816,16 @@ public class DrbdAdm
     )
         throws ExtCmdFailedException
     {
-        execAdmCommand(drbdRscData, volNum, cmdList -> execute(cmdList, true), subCommands);
+        // Resolve this volume's backing storage devices (data + .meta) to their sysfs 'stat' files so
+        // I/O progress mode survives the metadata flush at the end of e.g. 'drbdadm create-md', when
+        // the per-process /proc/<pid>/io counters are frozen. Empty set -> pid-io-only monitoring.
+        final Set<String> ioProgressStatFiles = volNum == null
+            ? Collections.emptySet()
+            : DeviceStatUtils.resolveSysStatFiles(
+                extCmdFactory,
+                LayerVlmUtils.getStorageDevicePaths(drbdRscData, volNum)
+            );
+        execAdmCommand(drbdRscData, volNum, cmdList -> execute(cmdList, ioProgressStatFiles), subCommands);
     }
 
     private void execAdmCommand(
@@ -867,10 +879,20 @@ public class DrbdAdm
 
     private void execute(List<String> commandList) throws ExtCmdFailedException
     {
-        execute(commandList, false);
+        execute(commandList, false, Collections.emptySet());
     }
 
-    private void execute(List<String> commandList, boolean setIoProgressmodeRef)
+    private void execute(List<String> commandList, Set<String> ioProgressDeviceStatFiles)
+        throws ExtCmdFailedException
+    {
+        execute(commandList, true, ioProgressDeviceStatFiles);
+    }
+
+    private void execute(
+        List<String> commandList,
+        boolean setIoProgressmodeRef,
+        Set<String> ioProgressDeviceStatFiles
+    )
         throws ExtCmdFailedException
     {
         String[] command = commandList.toArray(new String[commandList.size()]);
@@ -885,7 +907,7 @@ public class DrbdAdm
             else if (setIoProgressmodeRef)
             {
                 // ioProgressMode is not available for windows, since IO polling is based on /proc/<pid>/io
-                extCmd.setIoProgressMode(true);
+                extCmd.setIoProgressMode(true, ioProgressDeviceStatFiles);
             }
             OutputData outputData = extCmd.pipeExec(ProcessBuilder.Redirect.from(nullDevice), command);
             if (outputData.exitCode != 0)

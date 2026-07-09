@@ -20,6 +20,7 @@ import com.linbit.linstor.security.AccessDeniedException;
 import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
+import com.linbit.linstor.utils.layer.LayerVlmUtils;
 import com.linbit.utils.ShellUtils;
 
 import java.io.BufferedReader;
@@ -30,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public class MkfsUtils
 {
@@ -184,6 +186,14 @@ public class MkfsUtils
                     );
                     if (optFsType.isEmpty())
                     {
+                        // Resolve the backing storage devices of this volume (data, .meta, .cache, ...)
+                        // to their sysfs 'stat' files, so I/O progress mode keeps mkfs alive during the
+                        // final writeback/flush phase (when /proc/<pid>/io counters are frozen).
+                        Set<String> ioProgressStatFiles = DeviceStatUtils.resolveSysStatFiles(
+                            extCmdFactory,
+                            LayerVlmUtils.getStorageDevicePaths(rscData, vlmDfn.getVolumeNumber())
+                        );
+
                         String mkfsParametes = prioProps.getProp(
                             ApiConsts.KEY_FS_MKFSPARAMETERS,
                             ApiConsts.NAMESPC_FILESYSTEM,
@@ -220,7 +230,7 @@ public class MkfsUtils
                             }
 
                             MkfsUtils.makeExt4(
-                                extCmdFactory.create().setIoProgressMode(true),
+                                extCmdFactory.create().setIoProgressMode(true, ioProgressStatFiles),
                                 devicePath,
                                 mkfsParametes
                             );
@@ -256,7 +266,7 @@ public class MkfsUtils
                             }
 
                             MkfsUtils.makeXfs(
-                                extCmdFactory.create().setIoProgressMode(true),
+                                extCmdFactory.create().setIoProgressMode(true, ioProgressStatFiles),
                                 devicePath,
                                 mkfsParametes
                             );

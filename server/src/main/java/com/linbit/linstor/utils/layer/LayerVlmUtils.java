@@ -1,5 +1,6 @@
 package com.linbit.linstor.utils.layer;
 
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.response.ApiAccessDeniedException;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -23,6 +24,38 @@ import java.util.TreeSet;
 
 public class LayerVlmUtils
 {
+    /**
+     * Collects the backing storage device paths (LVM LVs, ZFS zvols, ...) for the given volume by
+     * traversing the layer tree down to the {@link DeviceLayerKind#STORAGE} level. This includes every
+     * storage-suffix branch (data, {@code .meta}, {@code .cache}, ...), so the returned set covers all
+     * block devices that can show I/O on the volume's behalf during a mkfs / create-md. Diskless
+     * branches carry no device path and are naturally skipped.
+     *
+     * <p>The returned paths still need to be resolved to their sysfs 'stat' files (satellite
+     * {@code DeviceStatUtils}) before being handed to
+     * {@link com.linbit.extproc.ChildProcessHandler#setIoProgressMode(boolean, java.util.Collection)}.</p>
+     */
+    public static <RSC extends AbsResource<RSC>> Set<String> getStorageDevicePaths(
+        AbsRscLayerObject<RSC> rootRef,
+        VolumeNumber vlmNrRef
+    )
+    {
+        Set<String> devicePaths = new TreeSet<>();
+        for (AbsRscLayerObject<RSC> storRscData : LayerRscUtils.getRscDataByLayer(rootRef, DeviceLayerKind.STORAGE))
+        {
+            @Nullable VlmProviderObject<RSC> vlmData = storRscData.getVlmLayerObjects().get(vlmNrRef);
+            if (vlmData != null)
+            {
+                @Nullable String devicePath = vlmData.getDevicePath();
+                if (devicePath != null && !devicePath.isEmpty())
+                {
+                    devicePaths.add(devicePath);
+                }
+            }
+        }
+        return devicePaths;
+    }
+
     public static <RSC extends AbsResource<RSC>> Set<StorPool> getStorPools(RSC absRscRef, AccessContext accCtxRef)
         throws AccessDeniedException
     {

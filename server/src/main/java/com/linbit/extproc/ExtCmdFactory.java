@@ -27,4 +27,9 @@ public class ExtCmdFactory
         return new ExtCmd(timer, errlog);
     }
 
+    public ErrorReporter getErrorReporter()
+    {
+        return errlog;
+    }
+
 }

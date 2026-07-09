@@ -14,10 +14,15 @@ import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.timer.Action;
 import com.linbit.timer.Timer;
+import com.linbit.utils.StringUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -58,6 +63,8 @@ public class ChildProcessHandler
     private boolean ioProgressMode = false;
     private long ioStallTimeout = getEffectiveIoStallTimeout();
     private long ioPollInterval = dfltIoAwarePollInterval;
+    /** Resolved sysfs 'stat' files (e.g. /sys/block/dm-5/stat) to additionally watch, or empty */
+    private Set<String> ioProgressDeviceStatFiles = Collections.emptySet();
 
     private final Timer<String, Action<String>> timeoutScheduler;
     private @Nullable Process childProcess;
@@ -135,7 +142,37 @@ public class ChildProcessHandler
      */
     public ChildProcessHandler setIoProgressMode(boolean ioProgressModeRef)
     {
+        return setIoProgressMode(ioProgressModeRef, Collections.emptySet());
+    }
+
+    /**
+     * Like {@link #setIoProgressMode(boolean)}, but additionally watches the given sysfs 'stat' files
+     * (typically {@code /sys/block/<dev>/stat} or {@code /sys/dev/block/<maj>:<min>/stat}) for
+     * block-layer activity.
+     *
+     * <p>This closes the blind spot of {@code /proc/<pid>/io} during the final flush/fsync phase:
+     * {@code write_bytes} is accounted at page-<em>dirtying</em> time, not at writeback time. Once the
+     * child has dirtied all its pages and only waits for the kernel writeback threads to flush them,
+     * its per-process counters freeze even though the device is still busy. The device 'stat' counters
+     * keep advancing during that phase, so OR-combining both signals covers the whole lifecycle
+     * (dirtying via {@code /proc/<pid>/io}, flushing via the device 'stat' files).</p>
+     *
+     * <p><b>Caveat:</b> {@code /sys/.../stat} is device-<em>global</em> &mdash; it aggregates I/O from
+     * <em>all</em> processes touching that device, so it is only a trustworthy liveness signal for
+     * commands with effectively exclusive access to the monitored device(s) (e.g. mkfs on a fresh
+     * volume, {@code drbdadm create-md} on the meta device). Do not rely on it for commands that share
+     * the device with concurrent workloads; a genuine hang could be masked by unrelated I/O.</p>
+     *
+     * @param ioProgressModeRef enables/disables I/O progress monitoring
+     * @param deviceStatFilesRef already-resolved sysfs 'stat' file paths to watch (resolution is
+     *     caller-side, see satellite {@code DeviceStatUtils}); may be empty/null
+     */
+    public ChildProcessHandler setIoProgressMode(boolean ioProgressModeRef, Collection<String> deviceStatFilesRef)
+    {
         ioProgressMode = ioProgressModeRef;
+        ioProgressDeviceStatFiles = ioProgressModeRef && deviceStatFilesRef != null && !deviceStatFilesRef.isEmpty()
+            ? Set.copyOf(deviceStatFilesRef)
+            : Collections.emptySet();
         return this;
     }
 
@@ -271,7 +308,8 @@ public class ChildProcessHandler
 
     private int waitForWithIoProgress() throws ChildProcessTimeoutException
     {
-        long lastIoBytes = -1;
+        long lastPidIoBytes = -1;
+        long lastDeviceSectors = -1;
         long stallStartMs = System.currentTimeMillis();
         int exitCode = -1;
 
@@ -292,13 +330,23 @@ public class ChildProcessHandler
                 throw new ChildProcessTimeoutException();
             }
 
-            long currentIoBytes = readProcIoBytes(childProcess.pid());
             long now = System.currentTimeMillis();
+            long pidIoBytes = readProcIoBytes(childProcess.pid());
+            long deviceSectors = readDeviceStatSectors(ioProgressDeviceStatFiles);
 
-            if (currentIoBytes < 0 || currentIoBytes != lastIoBytes)
+            // OR-combine two independent progress signals so the whole command lifecycle is covered:
+            //   - pidIoBytes    (/proc/<pid>/io): per-process, reflects the *dirtying* phase, but freezes
+            //                    during the final writeback/fsync (write_bytes is charged at dirty time,
+            //                    and the actual flush is done by kernel writeback threads, not this pid).
+            //   - deviceSectors (/sys/.../stat): device-global, keeps advancing during that flush phase.
+            // A negative value means "unreadable" and is optimistically treated as progress, matching the
+            // existing readProcIoBytes semantics (e.g. the process exited between waitFor() and here).
+            boolean progressed = hasIoProgress(pidIoBytes, lastPidIoBytes, deviceSectors, lastDeviceSectors);
+
+            if (progressed)
             {
-                // I/O progress detected (or /proc unreadable — assume progress)
-                lastIoBytes = currentIoBytes;
+                lastPidIoBytes = pidIoBytes;
+                lastDeviceSectors = deviceSectors;
                 stallStartMs = now;
             }
             else
@@ -308,6 +356,82 @@ public class ChildProcessHandler
             }
         }
         return exitCode;
+    }
+
+    /**
+     * Decides whether I/O progress was observed since the previous poll, OR-combining the
+     * per-process {@code /proc/<pid>/io} signal with the device-global {@code /sys/.../stat} signal.
+     *
+     * <ul>
+     *   <li>{@code pidIoBytes < 0}: {@code /proc/<pid>/io} unreadable (e.g. the process just exited) -
+     *       optimistically counted as progress, preserving the pre-existing behavior.</li>
+     *   <li>{@code pidIoBytes != lastPidIoBytes}: the process advanced its own counters (dirtying
+     *       phase).</li>
+     *   <li>{@code deviceSectors >= 0 && deviceSectors != lastDeviceSectors}: a monitored device
+     *       advanced its sector counters (writeback/flush phase). A negative {@code deviceSectors}
+     *       means "no device configured / none readable" and simply does not contribute - it never
+     *       forces progress on its own, so the per-process signal still governs.</li>
+     * </ul>
+     */
+    static boolean hasIoProgress(
+        long pidIoBytes,
+        long lastPidIoBytes,
+        long deviceSectors,
+        long lastDeviceSectors
+    )
+    {
+        return pidIoBytes < 0 ||
+            pidIoBytes != lastPidIoBytes ||
+            (deviceSectors >= 0 && deviceSectors != lastDeviceSectors);
+    }
+
+    /**
+     * Assumes the set of Strings all being {@code /sys/dev/block/<something>/stat} or
+     * {@code /sys/block/<something>/stat} where reading the file and splitting by whitespace [2] and [6] gives
+     * the read/write values.
+     *
+     * <p>Sums 'sectors read' + 'sectors written' across the given sysfs 'stat' files. Unlike
+     * {@code /proc/<pid>/io} {@code write_bytes}, these device-level counters keep advancing during
+     * buffered writeback, which is what lets I/O progress mode survive a long mkfs / create-md flush.</p>
+     *
+     * @return the summed sector count (arbitrary 512-byte units, only diffs matter), or -1 if no file
+     *     was configured or none could be read.
+     */
+    private static long readDeviceStatSectors(Set<String> statFiles)
+    {
+        long ret = -1;
+        if (Platform.isLinux() && !statFiles.isEmpty())
+        {
+            long total = 0;
+            boolean anyReadable = false;
+            for (String statFile : statFiles)
+            {
+                try
+                {
+                    List<String> lines = Files.readAllLines(Paths.get(statFile));
+                    if (!lines.isEmpty())
+                    {
+                        // single whitespace-separated line; field index 2 = sectors read,
+                        // index 6 = sectors written (see Documentation/block/stat.rst)
+                        String[] fields = StringUtils.split(lines.get(0).trim(), "\\s+");
+                        if (fields.length > 6)
+                        {
+                            total += Long.parseLong(fields[2]) + Long.parseLong(fields[6]);
+                            anyReadable = true;
+                        }
+                    }
+                }
+                catch (IOException | NumberFormatException ignored)
+                {
+                    // device vanished / unreadable -> skip this one
+                }
+            }
+            if (anyReadable)
+            {
+                ret = total;
+            }
+        }
+        return ret;
     }
 
     /**
