@@ -506,7 +506,13 @@ private excludedClassFilesForReport(classDirectories) {
     classDirectories.setFrom(files(classDirectories.files.collect {
         fileTree(dir: it,
                 exclude: [
-                        'com/linbit/linstor/proto/**'
+                        // generated code only: keep the coverage denominator to handwritten classes
+                        'com/linbit/linstor/proto/**',
+                        'com/linbit/linstor/dbdrivers/k8s/crd/GenCrdCurrent*',
+                        'com/linbit/linstor/dbdrivers/k8s/crd/GenCrdV*',
+                        'com/linbit/linstor/dbdrivers/GeneratedDatabaseTables*',
+                        'com/linbit/linstor/api/prop/GeneratedPropertyRules*',
+                        'com/linbit/linstor/api/ApiConsts*'
                 ]
         )
     }))
