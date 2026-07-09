@@ -367,6 +367,10 @@ project(':controller') {
         implementation project(':server'), project(':jclcrypto')
         testImplementation project(':server'), project(':jclcrypto')
 
+        testImplementation 'junit:junit:4.13.2'
+        testImplementation "org.assertj:assertj-core:3.27.+"
+        testImplementation "org.mockito:mockito-core:5.23.0"
+
         // rest libs (grizzly http(s), jersey(rest))
         implementation 'org.glassfish.grizzly:grizzly-http-server:4.0.2'
         implementation 'org.glassfish.hk2:guice-bridge:2.6.1'
