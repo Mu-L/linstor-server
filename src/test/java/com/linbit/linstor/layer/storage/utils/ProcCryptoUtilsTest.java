@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,22 +31,31 @@ import static org.junit.Assert.assertTrue;
 public class ProcCryptoUtilsTest
 {
     private static final String PROC_CRYPTO_OUTPUT;
+    private static final String PROC_CRYPTO_NODE_A;
+    private static final String PROC_CRYPTO_NODE_B;
 
     protected static StdErrorReporter errorReporter;
 
     static
     {
+        PROC_CRYPTO_OUTPUT = loadResource("proc_crypto.txt");
+        PROC_CRYPTO_NODE_A = loadResource("node_a.txt");
+        PROC_CRYPTO_NODE_B = loadResource("node_b.txt");
+    }
+
+    private static String loadResource(String fileName)
+    {
         URI procCryptoURI;
         try
         {
             procCryptoURI = ProcCryptoUtilsTest.class
-                .getResource("/com/linbit/linstor/layer/storage/utils/proc_crypto.txt")
+                .getResource("/com/linbit/linstor/layer/storage/utils/" + fileName)
                 .toURI();
-            PROC_CRYPTO_OUTPUT = new String(Files.readAllBytes(Paths.get(procCryptoURI)));
+            return new String(Files.readAllBytes(Paths.get(procCryptoURI)));
         }
         catch (URISyntaxException | IOException exc)
         {
-            throw new ImplementationError("Failed to load test entries from proc_crypto.txt!", exc);
+            throw new ImplementationError("Failed to load test entries from " + fileName + "!", exc);
         }
     }
 
@@ -179,6 +189,7 @@ public class ProcCryptoUtilsTest
         assertEquals("blake2s-256-x86", pce.getDriver());
     }
 
+    @Test
     public void testFindCommonOneNode()
     {
         ArrayList<ProcCryptoEntry> cryptoNode1 = new ArrayList<>();
@@ -273,6 +284,43 @@ public class ProcCryptoUtilsTest
 
         assertNotNull(pce);
         assertEquals("crc32-pclmul", pce.getDriver());
+    }
+
+    @Test
+    public void testFindCommonRealNodes()
+    {
+        // node_a: host with Intel hardware crypto drivers, node_b: software-only host
+        List<ProcCryptoEntry> cryptosNodeA = ProcCryptoUtils.parseProcCryptoString(errorReporter, PROC_CRYPTO_NODE_A);
+        List<ProcCryptoEntry> cryptosNodeB = ProcCryptoUtils.parseProcCryptoString(errorReporter, PROC_CRYPTO_NODE_B);
+        assertEquals(72, cryptosNodeA.size());
+        assertEquals(40, cryptosNodeB.size());
+
+        // linked map: the candidate entries (and with them driver/priority) are taken from the first node
+        Map<String, List<ProcCryptoEntry>> cryptoMap = new LinkedHashMap<>();
+        cryptoMap.put("node_a", cryptosNodeA);
+        cryptoMap.put("node_b", cryptosNodeB);
+
+        ProcCryptoEntry pce = ProcCryptoUtils.commonCryptoType(
+            cryptoMap, ProcCryptoEntry.CryptoType.SHASH, Collections.emptyList());
+
+        // both nodes share the crct10dif and crc32c names; node_a's hardware driver with the
+        // highest priority listed first wins
+        assertNotNull(pce);
+        assertEquals("crct10dif", pce.getName());
+        assertEquals("crct10dif-pclmul", pce.getDriver());
+        assertEquals(200, pce.getPriority());
+
+        // commonality is determined by algorithm name; the driver names of the first node
+        // remain part of the common set even if the other node uses a different driver
+        assertTrue(
+            ProcCryptoUtils.cryptoDriverSupported(cryptoMap, ProcCryptoEntry.CryptoType.SHASH, "crc32c-intel"));
+        assertTrue(
+            ProcCryptoUtils.cryptoDriverSupported(cryptoMap, ProcCryptoEntry.CryptoType.SHASH, "crc32c"));
+        // blake2b-256 and crc32 are only available on node_a
+        assertFalse(
+            ProcCryptoUtils.cryptoDriverSupported(cryptoMap, ProcCryptoEntry.CryptoType.SHASH, "blake2b-256"));
+        assertFalse(
+            ProcCryptoUtils.cryptoDriverSupported(cryptoMap, ProcCryptoEntry.CryptoType.SHASH, "crc32"));
     }
 
     @Test
