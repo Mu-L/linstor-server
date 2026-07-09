@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.1] - 2026-07-09
+
 ### Added
 
 - Controller property `Logging/ArchiveAgeDays` to configure the minimum age in days after which error-report log files are archived and compressed (default 60, 0 disables archiving, always whole months); the value is also used by the satellites
