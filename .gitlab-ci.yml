@@ -399,9 +399,10 @@ sbom:
   script:
     - git apply scripts/gradle-cyclonedx.diff
     - ./gradlew cyclonedxBom
-    - if [ -n "$CI_COMMIT_TAG" ] || [ "$CI_COMMIT_BRANCH" == "jenkins" ]; then
-    -   ci_put_bom linstor-server ${CI_COMMIT_TAG:-$CI_COMMIT_BRANCH} build/reports/linstor-server.json
-    - fi
+# bom upload doesn't work currently
+#    - if [ -n "$CI_COMMIT_TAG" ] || [ "$CI_COMMIT_BRANCH" == "jenkins" ]; then
+#    -   ci_put_bom linstor-server ${CI_COMMIT_TAG:-$CI_COMMIT_BRANCH} build/reports/linstor-server.json
+#    - fi
   artifacts:
     paths:
     - build/reports/linstor-server.json
