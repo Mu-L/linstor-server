@@ -177,6 +177,8 @@ project(':server') {
         api 'info.faljse:SDNotify:1.6'
 
         testImplementation(platform('org.junit:junit-bom:6.1.2'))
+
+        testFixturesImplementation 'junit:junit:4.13.2'
     }
 
     sourceSets {
@@ -287,6 +289,7 @@ project(':satellite') {
         testImplementation testFixtures(project(':server'))
         testImplementation 'junit:junit:4.13.2'
         testImplementation "org.assertj:assertj-core:3.27.+"
+        testImplementation "org.mockito:mockito-core:5.23.0"
     }
 
     sourceSets {
