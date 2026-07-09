@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.inject.testing.fieldbinder.Bind;
 import org.junit.After;
@@ -173,6 +174,69 @@ public class RscApiTest extends ApiTestBase
         );
     }
 
+    @Test
+    public void createRscUnknownNode() throws Exception
+    {
+        evaluateTest(
+            new CrtRscCall(ApiConsts.FAIL_NOT_FOUND_NODE)
+                .setNodeName("UnknownNode")
+        );
+    }
+
+    @Test
+    public void createRscUnknownRscDfn() throws Exception
+    {
+        evaluateTest(
+            new CrtRscCall(ApiConsts.FAIL_NOT_FOUND_RSC_DFN)
+                .setRscName("UnknownRsc")
+        );
+    }
+
+    @Test
+    public void createRscInvalidRscName() throws Exception
+    {
+        evaluateTest(
+            new CrtRscCall(ApiConsts.FAIL_INVLD_RSC_NAME)
+                .setRscName("Invalid Name") // blank is not allowed
+        );
+    }
+
+    @Test
+    public void createRscUnknownStorPool() throws Exception
+    {
+        evaluateTest(
+            new CrtRscCall(ApiConsts.FAIL_NOT_FOUND_STOR_POOL_DFN)
+                .putRscProp(ApiConsts.KEY_STOR_POOL_NAME, "UnknownStorPool")
+        );
+    }
+
+    @Test
+    public void createRscSecondExists() throws Exception
+    {
+        Mockito.when(mockPeer.isOnline()).thenReturn(true);
+        Mockito.when(mockSatellite.getExtToolsManager()).thenReturn(mockExtToolsMgr);
+        Mockito.when(mockSatellite.isOnline()).thenReturn(true);
+        Mockito.when(mockSatellite.getSatelliteStateLock()).thenReturn(new ReentrantReadWriteLock());
+        Mockito.when(mockExtToolsMgr.getSupportedLayers())
+            .thenReturn(new TreeSet<>(Arrays.asList(DeviceLayerKind.values())));
+        Mockito.when(mockExtToolsMgr.getSupportedProviders())
+            .thenReturn(new TreeSet<>(Arrays.asList(DeviceProviderKind.values())));
+        evaluateTest(
+            new CrtRscCall(
+                // Registered
+                ApiConsts.CREATED,
+                // Deployed
+                ApiConsts.MODIFIED,
+                // No volumes => WARN_NOT_FOUND response
+                ApiConsts.WARN_NOT_FOUND,
+                ApiConsts.MASK_INFO // updated resync-after entries
+            )
+        );
+        evaluateTest(
+            new CrtRscCall(ApiConsts.INFO_RSC_ALREADY_EXISTS)
+        );
+    }
+
     private class CrtRscCall extends AbsApiCallTester
     {
         private String nodeName;
@@ -234,6 +298,23 @@ public class RscApiTest extends ApiTestBase
             return apiCallRc;
         }
 
+        public CrtRscCall setNodeName(String nodeNameRef)
+        {
+            nodeName = nodeNameRef;
+            return this;
+        }
+
+        public CrtRscCall setRscName(String rscNameRef)
+        {
+            rscName = rscNameRef;
+            return this;
+        }
+
+        public CrtRscCall putRscProp(String key, String value)
+        {
+            rscPropsMap.put(key, value);
+            return this;
+        }
     }
 
     private class RscWithPayloadApiData implements ResourceWithPayloadApi

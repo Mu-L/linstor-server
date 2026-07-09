@@ -3,6 +3,7 @@ package com.linbit.linstor.core;
 import com.linbit.ServiceName;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRc.RcEntry;
+import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.ApiModule;
 import com.linbit.linstor.api.ApiRcUtils;
@@ -17,21 +18,29 @@ import com.linbit.linstor.netcom.NetComContainer;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.TcpConnector;
 import com.linbit.linstor.propscon.Props;
+import com.linbit.linstor.satellitestate.SatelliteState;
 import com.linbit.linstor.security.GenericDbBase;
+import com.linbit.linstor.storage.kinds.DeviceLayerKind;
+import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.transaction.manager.ControllerSQLTransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgrSQL;
+import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.inject.testing.fieldbinder.Bind;
 import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Scheduler;
 import reactor.test.scheduler.VirtualTimeScheduler;
 import reactor.util.context.Context;
@@ -90,6 +99,60 @@ public abstract class ApiTestBase extends GenericDbBase
             Peer.class, mockPeer,
             ApiModule.API_CALL_ID, 1L
         );
+    }
+
+    /**
+     * Subscribes to the given flux (with the usual test api call context) and collects all emitted
+     * ApiCallRc entries into a single ApiCallRcImpl.
+     */
+    protected ApiCallRcImpl collect(Flux<ApiCallRc> flux)
+    {
+        ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
+        flux
+            .contextWrite(contextWrite())
+            .toStream()
+            .forEach(apiCallRc::addEntries);
+        return apiCallRc;
+    }
+
+    /**
+     * Stubs the usual satellite behavior on the given peer mock: satellite state (and its lock)
+     * are present, api calls complete with an empty flux and the given ExtToolsManager (usually
+     * also a mock, see {@link #stubAllExtToolsSupported}) is returned.
+     */
+    protected void stubSatellitePeer(
+        Peer peerMock,
+        ExtToolsManager extToolsMgrRef,
+        SatelliteState stltStateRef,
+        boolean online
+    )
+    {
+        Mockito.when(peerMock.getExtToolsManager()).thenReturn(extToolsMgrRef);
+        Mockito.when(peerMock.getSatelliteStateLock()).thenReturn(new ReentrantReadWriteLock());
+        Mockito.when(peerMock.getSatelliteState()).thenReturn(stltStateRef);
+        Mockito.when(peerMock.apiCall(Mockito.anyString(), Mockito.any())).thenReturn(Flux.empty());
+        setSatelliteOnline(peerMock, online);
+    }
+
+    protected void setSatelliteOnline(Peer peerMock, boolean online)
+    {
+        Mockito.when(peerMock.isOnline()).thenReturn(online);
+        Mockito.when(peerMock.getConnectionStatus()).thenReturn(
+            online ? ApiConsts.ConnectionStatus.ONLINE : ApiConsts.ConnectionStatus.OFFLINE
+        );
+    }
+
+    /**
+     * Stubs the given ExtToolsManager mock to support all device layers and providers.
+     */
+    protected void stubAllExtToolsSupported(ExtToolsManager extToolsMgrMock)
+    {
+        Mockito.when(extToolsMgrMock.getSupportedLayers())
+            .thenReturn(new TreeSet<>(Arrays.asList(DeviceLayerKind.values())));
+        Mockito.when(extToolsMgrMock.getSupportedProviders())
+            .thenReturn(new TreeSet<>(Arrays.asList(DeviceProviderKind.values())));
+        Mockito.when(extToolsMgrMock.isLayerSupported(Mockito.any())).thenReturn(true);
+        Mockito.when(extToolsMgrMock.isProviderSupported(Mockito.any())).thenReturn(true);
     }
 
     protected static NetInterfaceApi createNetInterfaceApi(String name, String address)

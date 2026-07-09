@@ -283,6 +283,14 @@ public abstract class GenericDbBase implements GenericDbTestConstants
 
     private static final Object SYNC_OBJ = new Object();
 
+    /**
+     * Tracks whether {@link #enterScope()} was called without a matching {@link #leaveScope()} /
+     * {@link #commitAndCleanUp(boolean)} yet, so tearDown knows whether the scope still needs to
+     * be closed. Maintained by the base class, but protected in case a test needs to set it
+     * manually.
+     */
+    protected boolean inScope = false;
+
     @BeforeClass
     public static void setUpBeforeClass()
         throws DatabaseException, SQLException, InvalidNameException, InitializationException,
@@ -372,12 +380,18 @@ public abstract class GenericDbBase implements GenericDbTestConstants
         {
             testScope.seed(Peer.class, mockPeer);
         }
+        inScope = true;
+    }
+
+    protected void leaveScope() throws Exception
+    {
+        commitAndCleanUp(true);
     }
 
     @After
     public void tearDown() throws Exception
     {
-        commitAndCleanUp(true);
+        commitAndCleanUp(inScope);
     }
 
     @AfterClass
@@ -388,9 +402,9 @@ public abstract class GenericDbBase implements GenericDbTestConstants
 
     // ignore close not initialized, it is set in enterScope, which needs to have been called before this
     @SuppressFBWarnings("UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
-    public void commitAndCleanUp(boolean inScope) throws Exception
+    public void commitAndCleanUp(boolean inScopeRef) throws Exception
     {
-        if (inScope && transMgrProvider != null && transMgrProvider.get() != null)
+        if (inScopeRef && transMgrProvider != null && transMgrProvider.get() != null)
         {
             transMgrProvider.get().commit();
         }
@@ -413,10 +427,11 @@ public abstract class GenericDbBase implements GenericDbTestConstants
         }
         finally
         {
-            if (inScope && testScope != null)
+            if (inScopeRef && testScope != null)
             {
                 close.close();
             }
+            inScope = false;
         }
     }
 

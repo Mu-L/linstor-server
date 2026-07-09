@@ -13,6 +13,7 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.proto.requests.MsgReqDrbdReactorExecOuterClass.DrbdReactorCommand;
 import com.linbit.linstor.proto.responses.MsgRspDrbdReactorExecOuterClass.MsgRspDrbdReactorExec;
+import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -50,10 +51,11 @@ public class NodeApiTest extends ApiTestBase
     private Node.Type testNodeType;
     private Node testNode;
 
-    private boolean inScope = false;
-
     @Mock
     protected Peer mockSatellite;
+
+    @Mock
+    protected ExtToolsManager mockExtToolsMgr;
 
     public NodeApiTest() throws Exception
     {
@@ -74,14 +76,12 @@ public class NodeApiTest extends ApiTestBase
         );
         testNode.setPeer(mockSatellite);
         nodesMap.put(testNodeName, testNode);
-        commitAndCleanUp(true);
-        inScope = false;
-    }
+        leaveScope();
 
-    @Override
-    public void tearDown() throws Exception
-    {
-        commitAndCleanUp(inScope);
+        Mockito.when(mockSatellite.getExtToolsManager()).thenReturn(mockExtToolsMgr);
+        Mockito.when(mockSatellite.getConnectionStatus()).thenReturn(ApiConsts.ConnectionStatus.OFFLINE);
+        Mockito.when(mockExtToolsMgr.getSupportedLayers()).thenReturn(new TreeSet<>());
+        Mockito.when(mockExtToolsMgr.getSupportedProviders()).thenReturn(new TreeSet<>());
     }
 
     @Test
@@ -171,6 +171,105 @@ public class NodeApiTest extends ApiTestBase
     }
 
     @Test
+    public void crtDuplicateNetIfName() throws Exception
+    {
+        evaluateTest(
+            new CreateNodeCall(ApiConsts.FAIL_EXISTS_NET_IF)
+                .addNetIfApis("tcp0", "10.0.0.1") // "tcp0" already exists as default netIf
+        );
+    }
+
+    @Test
+    public void modSuccess() throws Exception
+    {
+        evaluateTest(
+            new ModifyNodeCall(ApiConsts.MODIFIED)
+        );
+    }
+
+    @Test
+    public void modWrongNodeUuid() throws Exception
+    {
+        evaluateTest(
+            new ModifyNodeCall(ApiConsts.FAIL_UUID_NODE)
+                .nodeUuid(java.util.UUID.randomUUID())
+        );
+    }
+
+    @Test
+    public void modNonExistingNode() throws Exception
+    {
+        evaluateTest(
+            new ModifyNodeCall(ApiConsts.FAIL_NOT_FOUND_NODE)
+                .nodeName("UnknownNode")
+        );
+    }
+
+    @Test
+    public void modNodeType() throws Exception
+    {
+        evaluateTest(
+            new CreateNodeCall(
+                ApiConsts.CREATED,
+                ApiConsts.WARN_NOT_CONNECTED
+            )
+                .expectStltConnectingAttempt(false)
+        );
+        Node createdNode = nodesMap.get(new NodeName("TestNode"));
+        createdNode.setPeer(mockSatellite);
+
+        evaluateTest(
+            new ModifyNodeCall(ApiConsts.MODIFIED)
+                .nodeName("TestNode")
+                .nodeType(ApiConsts.VAL_NODE_TYPE_CMBD)
+        );
+        assertThat(createdNode.getNodeType()).isEqualTo(Node.Type.COMBINED);
+    }
+
+    @Test
+    public void modInvalidNodeTypeChange() throws Exception
+    {
+        // changing from a non-special to a special node type is not allowed
+        evaluateTest(
+            new ModifyNodeCall(ApiConsts.FAIL_INVLD_NODE_TYPE)
+                .nodeType(ApiConsts.VAL_NODE_TYPE_REMOTE_SPDK)
+        );
+        assertThat(testNode.getNodeType()).isEqualTo(Node.Type.CONTROLLER);
+    }
+
+    @Test
+    public void modProps() throws Exception
+    {
+        String auxKey = ApiConsts.NAMESPC_AUXILIARY + "/test";
+        evaluateTest(
+            new ModifyNodeCall(
+                ApiConsts.MASK_CRT | ApiConsts.CREATED, // props set
+                ApiConsts.MODIFIED
+            )
+                .overrideProps(auxKey, "value")
+        );
+        assertThat(testNode.getProps().getProp(auxKey)).isEqualTo("value");
+
+        evaluateTest(
+            new ModifyNodeCall(
+                ApiConsts.MASK_DEL | ApiConsts.DELETED, // props deleted
+                ApiConsts.MODIFIED
+            )
+                .deleteProp(auxKey)
+        );
+        assertThat(testNode.getProps().getProp(auxKey)).isNull();
+    }
+
+    @Test
+    public void modInvalidProp() throws Exception
+    {
+        evaluateTest(
+            new ModifyNodeCall(ApiConsts.FAIL_INVLD_PROP)
+                .overrideProps("ThisIsNotAWhitelistedKey", "value")
+        );
+    }
+
+    @Test
     public void execDrbdReactorEmptyResponseIsFailure() throws Exception
     {
         Mockito.when(mockSatellite.isOnline()).thenReturn(true);
@@ -232,7 +331,6 @@ public class NodeApiTest extends ApiTestBase
         assertThat(responses.get(0).stdout_utf8).isEqualTo("stdout-value");
         assertThat(responses.get(0).stderr_utf8).isEqualTo("stderr-value");
     }
-
 
     private class CreateNodeCall extends AbsApiCallTester
     {
@@ -321,13 +419,13 @@ public class NodeApiTest extends ApiTestBase
         private Set<String> deletePropKeys;
         private Set<String> deletePropNamespaces;
 
-        ModifyNodeCall(long retCode)
+        ModifyNodeCall(long... expectedRcs)
         {
             super(
                 // peer
                 ApiConsts.MASK_NODE,
                 ApiConsts.MASK_MOD,
-                retCode
+                expectedRcs
             );
 
             nodeUuid = null; // default: do not check against uuid
@@ -338,37 +436,37 @@ public class NodeApiTest extends ApiTestBase
             deletePropNamespaces = new TreeSet<>();
         }
 
-        public AbsApiCallTester nodeUuid(java.util.UUID uuid)
+        public ModifyNodeCall nodeUuid(java.util.UUID uuid)
         {
             nodeUuid = uuid;
             return this;
         }
 
-        public AbsApiCallTester nodeName(String nodeNameRef)
+        public ModifyNodeCall nodeName(String nodeNameRef)
         {
             nodeName = nodeNameRef;
             return this;
         }
 
-        public AbsApiCallTester nodeType(String nodeTypeRef)
+        public ModifyNodeCall nodeType(String nodeTypeRef)
         {
             nodeType = nodeTypeRef;
             return this;
         }
 
-        public AbsApiCallTester overrideProps(String key, String valueRef)
+        public ModifyNodeCall overrideProps(String key, String valueRef)
         {
             overrideProps.put(key, valueRef);
             return this;
         }
 
-        public AbsApiCallTester deleteProp(String key)
+        public ModifyNodeCall deleteProp(String key)
         {
             deletePropKeys.add(key);
             return this;
         }
 
-        public AbsApiCallTester deleteNamespace(String namespace)
+        public ModifyNodeCall deleteNamespace(String namespace)
         {
             deletePropNamespaces.add(namespace);
             return this;
@@ -390,12 +488,5 @@ public class NodeApiTest extends ApiTestBase
             .toStream().forEach(apiCallRc::addEntries);
             return apiCallRc;
         }
-    }
-
-    @Override
-    protected void enterScope() throws Exception
-    {
-        inScope = true;
-        super.enterScope();
     }
 }
