@@ -479,6 +479,8 @@ test {
     jvmArgs("--add-opens", "java.base/java.lang=ALL-UNNAMED",
             "--add-opens", "java.base/java.util=ALL-UNNAMED",
             "--add-opens", "java.base/java.io=ALL-UNNAMED",)
+    // gradle's 512M default is too small for the H2/Guice based API test suites + jacoco instrumentation
+    maxHeapSize = '2g'
     finalizedBy jacocoTestReport // report is always generated after tests run
 }
 
