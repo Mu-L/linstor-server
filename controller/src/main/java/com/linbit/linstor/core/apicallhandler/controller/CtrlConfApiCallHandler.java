@@ -704,23 +704,18 @@ public class CtrlConfApiCallHandler
             .getNamespace(deleteNamespaceRef);
         if (optNamespace != null)
         {
-            Iterator<String> keysIterator = optNamespace.keysIterator();
-            while (keysIterator.hasNext())
+            // the map keys cover the entire subtree (including sub-namespaces), each already
+            // containing the full path - copy them first since deleteProp modifies the
+            // underlying containers.
+            // deleteProp is used per key instead of Props.removeNamespace to keep the whitelist
+            // check, the satellite conf handling and the per-key side effects (listeners,
+            // port range reloads, ...)
+            List<String> fullPathKeys = new ArrayList<>(optNamespace.map().keySet());
+            for (String fullPathKey : fullPathKeys)
             {
                 TripleNonNull<ApiCallRc, Boolean, Set<Resource>> result = deleteProp(
-                    keysIterator.next(),
-                    deleteNamespaceRef,
-                    propsChangedListenersRef
-                );
-                apiCallRc.addEntries(result.objA);
-                notifyStlts |= result.objB;
-            }
-
-            Iterator<String> iterateNamespaces = optNamespace.iterateNamespaces();
-            while (iterateNamespaces.hasNext())
-            {
-                PairNonNull<ApiCallRc, Boolean> result = deleteNamespace(
-                    deleteNamespaceRef + "/" + iterateNamespaces.next(),
+                    fullPathKey,
+                    null,
                     propsChangedListenersRef
                 );
                 apiCallRc.addEntries(result.objA);

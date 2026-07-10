@@ -132,7 +132,7 @@ public class CtrlConfApiTest extends ApiTestBase
     }
 
     @Test
-    public void deleteNamespaceCurrentlyFailsWhitelistCheck() throws Exception
+    public void deleteNamespaceDeletesContainedProps() throws Exception
     {
         evaluateTest(
             new ModifyCtrlCall(ApiConsts.MASK_CRT | ApiConsts.CREATED)
@@ -140,16 +140,12 @@ public class CtrlConfApiTest extends ApiTestBase
         );
         assertThat(ctrlConf.getProp(KEY_AUTO_EVICT_AFTER_TIME)).isEqualTo("100");
 
-        // This documents the CURRENT behavior, which looks like a bug in
-        // CtrlConfApiCallHandler#deleteNamespace: PropsContainer#keysIterator() already returns full
-        // path keys ("DrbdOptions/AutoEvictAfterTime"), but deleteProp prepends the namespace again,
-        // producing "DrbdOptions/DrbdOptions/AutoEvictAfterTime", which fails the whitelist check.
-        // The whole modification is therefore rejected and rolled back.
         evaluateTest(
-            new ModifyCtrlCall(ApiConsts.MASK_DEL | ApiConsts.FAIL_INVLD_PROP)
+            new ModifyCtrlCall(ApiConsts.MASK_DEL | ApiConsts.DELETED)
                 .deleteNamespace(ApiConsts.NAMESPC_DRBD_OPTIONS)
         );
-        assertThat(ctrlConf.getProp(KEY_AUTO_EVICT_AFTER_TIME)).isEqualTo("100");
+        assertThat(ctrlConf.getProp(KEY_AUTO_EVICT_AFTER_TIME)).isNull();
+        assertThat(ctrlConf.getNamespace(ApiConsts.NAMESPC_DRBD_OPTIONS)).isNull();
     }
 
     @Test
