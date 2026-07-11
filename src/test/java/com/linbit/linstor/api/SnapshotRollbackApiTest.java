@@ -218,15 +218,12 @@ public class SnapshotRollbackApiTest extends ApiTestBase
         assertThat(rsc).isNotNull();
         // the rollback target property was removed after the successful rollback
         assertThat(rsc.getProps().getProp(ApiConsts.KEY_RSC_ROLLBACK_TARGET)).isNull();
-        // characterization of a latent bug: finishRollbackInScope() unmarks the DRBD "down" flag via
-        // unmarkDownPrivileged() but misses the ctrlTransactionHelper.commit() (unlike the error path
-        // reactivateRscDfnInTransaction()), so the change is rolled back when the transactional scope
-        // closes and the resource definition stays marked down on the controller
+        // the DRBD "down" flag set for the rollback is cleared (and committed) again
         Map<String, DrbdRscDfnData<Resource>> drbdRscDfnDataMap = rscDfn.getLayerData(DeviceLayerKind.DRBD);
         assertThat(drbdRscDfnDataMap).isNotEmpty();
         for (DrbdRscDfnData<Resource> drbdRscDfnData : drbdRscDfnDataMap.values())
         {
-            assertThat(drbdRscDfnData.isDown()).isTrue();
+            assertThat(drbdRscDfnData.isDown()).isFalse();
         }
     }
 

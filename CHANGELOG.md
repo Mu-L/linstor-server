@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed the failure path of DRBD port assignment leaving previously reserved ports unreserved in the pool
 - Fixed deleting a controller property namespace always failing the property whitelist check (the namespace was prepended twice to the property keys), rejecting and rolling back the whole modification
 - Fixed deleting a resource connection reporting an internal error instead of success (the already deleted connection object was accessed when notifying the satellites)
+- Fixed the resource definition staying marked as down on the controller after a successful snapshot rollback using the ZFS rollback strategy (the cleared flag was never committed)
 
 ## [1.34.1] - 2026-07-09
 
