@@ -426,15 +426,10 @@ public class RscConnectionApiTest extends ApiTestBase
             new CreateRscConnCall(ApiConsts.CREATED)
         );
 
-        // characterization: the connection is deleted and committed, but afterwards
-        // updateSatellites(rscConn) accesses the already deleted connection object, so the
-        // DELETED success response is replaced by an unknown-error report caused by an
-        // AccessToDeletedDataException
         evaluateTest(
-            new DeleteRscConnCall(ApiConsts.FAIL_UNKNOWN_ERROR)
+            new DeleteRscConnCall(ApiConsts.DELETED)
         );
 
-        // the deletion itself was committed before the exception
         assertThat(getRscConn()).isNull();
     }
 

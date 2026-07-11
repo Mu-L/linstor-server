@@ -19,6 +19,7 @@ import com.linbit.linstor.core.identifier.NetInterfaceName;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.NetInterface;
 import com.linbit.linstor.core.objects.Node;
+import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceConnection;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.logging.ErrorReporter;
@@ -288,6 +289,10 @@ class CtrlRscConnectionApiCallHandler
             ResourceConnection rscConn =
                 ctrlRscConnectionHelper.loadRscConn(nodeName1Str, nodeName2Str, rscNameStr, true);
             UUID rscConnUuid = rscConn.getUuid();
+            // remember the resources before the delete, accessing them through the deleted
+            // connection object would throw an AccessToDeletedDataException
+            Resource sourceResource = rscConn.getSourceResource();
+            Resource targetResource = rscConn.getTargetResource();
             delete(rscConn);
 
             ctrlTransactionHelper.commit();
@@ -295,7 +300,7 @@ class CtrlRscConnectionApiCallHandler
             responseConverter.addWithOp(apiCallRcs, context, ApiSuccessUtils.defaultDeletedEntry(
                 rscConnUuid, getResourceConnectionDescriptionInline(nodeName1Str, nodeName2Str, rscNameStr)));
 
-            fluxes = updateSatellites(rscConn);
+            fluxes = updateSatellites(sourceResource, targetResource);
         }
         catch (Exception | ImplementationError exc)
         {
@@ -315,15 +320,20 @@ class CtrlRscConnectionApiCallHandler
 
     private List<Flux<Flux<ApiCallRc>>> updateSatellites(ResourceConnection rscConn)
     {
+        return updateSatellites(rscConn.getSourceResource(), rscConn.getTargetResource());
+    }
+
+    private List<Flux<Flux<ApiCallRc>>> updateSatellites(Resource sourceResource, Resource targetResource)
+    {
         List<Flux<Flux<ApiCallRc>>> fluxes = new ArrayList<>();
 
         fluxes.add(Flux.just(ctrlSatelliteUpdateCaller
-            .updateSatellites(rscConn.getSourceResource(), Flux.empty())
+            .updateSatellites(sourceResource, Flux.empty())
             .flatMap(updateTuple -> updateTuple == null ? Flux.empty() : updateTuple.getT2())
         ));
 
         fluxes.add(Flux.just(ctrlSatelliteUpdateCaller
-            .updateSatellites(rscConn.getTargetResource(), Flux.empty())
+            .updateSatellites(targetResource, Flux.empty())
             .flatMap(updateTuple -> updateTuple == null ? Flux.empty() : updateTuple.getT2())
         ));
 
