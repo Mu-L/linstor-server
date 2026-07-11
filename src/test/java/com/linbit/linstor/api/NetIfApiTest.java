@@ -374,21 +374,24 @@ public class NetIfApiTest extends ApiTestBase
     }
 
     @Test
-    public void modifyOnNodeWithoutActiveStltConnFails() throws Exception
+    public void modifyOnNodeWithoutActiveStltConn() throws Exception
     {
         enterScope();
         Node secondNode = createSecondNode();
         createPlainNetIf(secondNode, "netif1", "10.0.1.2");
 
-        // characterization of a latent bug: modifyNetIf dereferences getActiveStltConn() without
-        // a null check, so modifying any netIf of a node without an active satellite connection
-        // fails with an unhandled NullPointerException instead of a proper error response
+        // the address is modified and committed, but since the node still has no active satellite
+        // connection the response only carries the WARN_NO_STLT_CONN_DEFINED entry (same as
+        // createNetIf / deleteNetIf)
         evaluateTest(
-            new ModifyNetIfCall(ApiConsts.FAIL_UNKNOWN_ERROR)
+            new ModifyNetIfCall(ApiConsts.WARN_NO_STLT_CONN_DEFINED)
                 .setNodeName(SECOND_NODE_NAME)
                 .setNetIfName("netif1")
                 .setAddress("10.0.1.3")
         );
+
+        NetInterface netIf = secondNode.getNetInterface(new NetInterfaceName("netif1"));
+        assertThat(netIf.getAddress().getAddress()).isEqualTo("10.0.1.3");
     }
 
     /*

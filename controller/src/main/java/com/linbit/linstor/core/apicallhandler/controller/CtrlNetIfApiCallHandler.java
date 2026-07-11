@@ -176,8 +176,9 @@ class CtrlNetIfApiCallHandler
             NetInterface netIf = loadNetIf(nodeNameStr, netIfNameStr);
             Node node = netIf.getNode();
             Node.Type nodeType = netIf.getNode().getNodeType();
+            @Nullable NetInterface activeStltConn = node.getActiveStltConn();
             boolean isModifyingActiveStltConn =
-                netIf.getUuid().equals(node.getActiveStltConn().getUuid());
+                activeStltConn != null && netIf.getUuid().equals(activeStltConn.getUuid());
 
             final boolean setActive = setActivePrm != null ? setActivePrm : false;
 
@@ -299,7 +300,7 @@ class CtrlNetIfApiCallHandler
             {
                 Node node = netIf.getNode();
 
-                NetInterface activeStltConn = node.getActiveStltConn();
+                @Nullable NetInterface activeStltConn = node.getActiveStltConn();
                 boolean closeConnection = activeStltConn != null && netIf.getUuid().equals(activeStltConn.getUuid());
 
                 UUID uuid = netIf.getUuid();
