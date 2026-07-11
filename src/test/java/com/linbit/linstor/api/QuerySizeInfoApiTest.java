@@ -391,26 +391,24 @@ public class QuerySizeInfoApiTest extends ApiTestBase
     @Test
     public void qsiCachedResponse() throws Exception
     {
-        // characterization: the response cache is stored under the canonical upper-case resource
-        // group name (rscGrp.getName().value) but looked up with the raw client-provided string,
-        // so requests using the mixed-case display name never hit the cache
         QuerySizeInfoResponsePojo first = querySizeInfo(qsiRequest(filter(2, THICK_POOL), 60));
-        QuerySizeInfoResponsePojo second = querySizeInfo(qsiRequest(filter(2, THICK_POOL), 60));
-        assertThat(second).isNotSameAs(first);
 
-        // a request with the canonical name hits the entry cached by the last display-name call
+        // an equal request within the cache age limit is answered from the cache,
+        // regardless of the casing of the requested resource group name
+        QuerySizeInfoResponsePojo second = querySizeInfo(qsiRequest(filter(2, THICK_POOL), 60));
+        assertThat(second).isSameAs(first);
         QuerySizeInfoResponsePojo canonical = querySizeInfo(qsiRequestCanonical(filter(2, THICK_POOL), 60));
-        assertThat(canonical).isSameAs(second);
+        assertThat(canonical).isSameAs(first);
 
         // a request with a different filter bypasses the cache ...
-        QuerySizeInfoResponsePojo otherFilter = querySizeInfo(qsiRequestCanonical(filter(1, THICK_POOL), 60));
-        assertThat(otherFilter).isNotSameAs(second);
+        QuerySizeInfoResponsePojo otherFilter = querySizeInfo(qsiRequest(filter(1, THICK_POOL), 60));
+        assertThat(otherFilter).isNotSameAs(first);
         assertThat(otherFilter.getMaxVlmSize()).isEqualTo(10_000);
 
         // ... and so does a request that does not allow cached answers
-        QuerySizeInfoResponsePojo uncached = querySizeInfo(qsiRequestCanonical(filter(2, THICK_POOL), 0));
-        assertThat(uncached).isNotSameAs(second);
-        assertThat(uncached.getMaxVlmSize()).isEqualTo(second.getMaxVlmSize());
+        QuerySizeInfoResponsePojo uncached = querySizeInfo(qsiRequest(filter(2, THICK_POOL), 0));
+        assertThat(uncached).isNotSameAs(first);
+        assertThat(uncached.getMaxVlmSize()).isEqualTo(first.getMaxVlmSize());
     }
 
     @Test

@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed deleting a resource connection reporting an internal error instead of success (the already deleted connection object was accessed when notifying the satellites)
 - Fixed the resource definition staying marked as down on the controller after a successful snapshot rollback using the ZFS rollback strategy (the cleared flag was never committed)
 - Fixed modifying a net interface of a node without an active satellite connection failing with an unhandled NullPointerException
+- Fixed the query-size-info response cache never answering requests whose resource group name was not given in the canonical upper-case form, causing needless recomputation
 
 ## [1.34.1] - 2026-07-09
 

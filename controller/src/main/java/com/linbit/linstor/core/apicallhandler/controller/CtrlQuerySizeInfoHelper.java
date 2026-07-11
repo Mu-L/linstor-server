@@ -1,5 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
+import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcWith;
 import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
@@ -279,7 +280,9 @@ public class CtrlQuerySizeInfoHelper
         synchronized (cachedQsiPojoMap)
         {
             ret = getCached(
-                cachedQsiPojoMap.get(querySizeInfoReqRef.getRscGrpName()),
+                // the cache is stored under the canonical resource group name, so the
+                // client-given name also needs to be canonicalized for the lookup
+                cachedQsiPojoMap.get(LinstorParsingUtils.asRscGrpName(querySizeInfoReqRef.getRscGrpName()).value),
                 querySizeInfoReqRef.getIgnoreCacheOlderThanSec(),
                 querySizeInfoReqRef.getAutoSelectFilterData()
             );
