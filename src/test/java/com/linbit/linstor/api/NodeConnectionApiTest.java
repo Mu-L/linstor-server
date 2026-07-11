@@ -234,11 +234,8 @@ public class NodeConnectionApiTest extends ApiTestBase
     @Test
     public void modUnknownNodeWithProps() throws Exception
     {
-        // characterization: loadNodeConn does not fail for the unknown node (failIfNull is false),
-        // but then tries to create a connection with a null node, causing a NullPointerException
-        // which is reported as an unknown error instead of FAIL_NOT_FOUND_NODE
         evaluateTest(
-            new ModifyNodeConnCall(ApiConsts.FAIL_UNKNOWN_ERROR)
+            new ModifyNodeConnCall(ApiConsts.FAIL_NOT_FOUND_NODE)
                 .setNodeName1("UnknownNode")
                 .overrideProps(AUX_KEY, "value")
         );

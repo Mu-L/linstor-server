@@ -244,11 +244,9 @@ public class VlmConnectionApiTest extends ApiTestBase
     @Test
     public void crtUnknownVlmNr() throws Exception
     {
-        // characterization: an unknown volume number leads to a NullPointerException that is
-        // reported as an unknown error instead of a FAIL_NOT_FOUND_VLM response
         enterScope();
         evaluateTest(
-            new CreateVlmConnCall(ApiConsts.FAIL_UNKNOWN_ERROR)
+            new CreateVlmConnCall(ApiConsts.FAIL_NOT_FOUND_VLM)
                 .setVlmNr(4)
         );
     }
@@ -354,12 +352,10 @@ public class VlmConnectionApiTest extends ApiTestBase
     @Test
     public void modNonExistentConn() throws Exception
     {
-        // characterization: modifying a volume connection that does not exist leads to a
-        // NullPointerException reported as an unknown error instead of creating the connection
-        // (like resource connections do) or returning a NOT_FOUND response
+        // unlike resource connections, volume connections are not created implicitly by modify
         enterScope();
         evaluateTest(
-            new ModifyVlmConnCall(ApiConsts.FAIL_UNKNOWN_ERROR)
+            new ModifyVlmConnCall(ApiConsts.FAIL_NOT_FOUND_VLM_CONN)
                 .overrideProps(AUX_KEY, "value")
         );
     }

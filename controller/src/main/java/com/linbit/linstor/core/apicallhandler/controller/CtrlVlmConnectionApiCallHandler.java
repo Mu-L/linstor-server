@@ -133,7 +133,21 @@ class CtrlVlmConnectionApiCallHandler
 
         try
         {
-            VolumeConnection vlmConn = loadVlmConn(nodeName1Str, nodeName2Str, rscNameStr, vlmNrInt);
+            @Nullable VolumeConnection vlmConn = loadVlmConn(nodeName1Str, nodeName2Str, rscNameStr, vlmNrInt);
+            if (vlmConn == null)
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.simpleEntry(
+                        ApiConsts.FAIL_NOT_FOUND_VLM_CONN,
+                        "Failed to load " + getVlmConnectionDescriptionInline(
+                            nodeName1Str,
+                            nodeName2Str,
+                            rscNameStr,
+                            vlmNrInt
+                        ) + " as it does not exist"
+                    )
+                );
+            }
 
             if (rscConnUuid != null && !rscConnUuid.equals(vlmConn.getUuid()))
             {
@@ -195,7 +209,7 @@ class CtrlVlmConnectionApiCallHandler
 
         try
         {
-            VolumeConnection vlmConn = loadVlmConn(nodeName1Str, nodeName2Str, rscNameStr, vlmNrInt);
+            @Nullable VolumeConnection vlmConn = loadVlmConn(nodeName1Str, nodeName2Str, rscNameStr, vlmNrInt);
             if (vlmConn == null)
             {
                 responseConverter.addWithDetail(
@@ -295,14 +309,27 @@ class CtrlVlmConnectionApiCallHandler
 
     private Resource getRsc(Node node, String rscNameStr)
     {
-        Resource rsc;
-        rsc = node.getResource(LinstorParsingUtils.asRscName(rscNameStr));
-        return rsc;
+        return ctrlApiDataLoader.loadRsc(node.getName(), LinstorParsingUtils.asRscName(rscNameStr), true);
     }
 
     private Volume getVlm(Resource rsc, int vlmNr)
     {
-        return rsc.getVolume(LinstorParsingUtils.asVlmNr(vlmNr));
+        @Nullable Volume vlm = rsc.getVolume(LinstorParsingUtils.asVlmNr(vlmNr));
+        if (vlm == null)
+        {
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_NOT_FOUND_VLM,
+                    String.format(
+                        "Volume %d of resource '%s' on node '%s' not found.",
+                        vlmNr,
+                        rsc.getResourceDefinition().getName().displayValue,
+                        rsc.getNode().getName().displayValue
+                    )
+                )
+            );
+        }
+        return vlm;
     }
 
     private Props getProps(VolumeConnection vlmConn)

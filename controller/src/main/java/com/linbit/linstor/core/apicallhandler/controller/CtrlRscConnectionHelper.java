@@ -73,8 +73,8 @@ class CtrlRscConnectionHelper
         Node node2 = ctrlApiDataLoader.loadNode(nodeName2Str, true);
         ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
 
-        Resource rsc1 = ctrlApiDataLoader.loadRsc(node1.getName(), rscName, false);
-        Resource rsc2 = ctrlApiDataLoader.loadRsc(node2.getName(), rscName, false);
+        Resource rsc1 = ctrlApiDataLoader.loadRsc(node1.getName(), rscName, true);
+        Resource rsc2 = ctrlApiDataLoader.loadRsc(node2.getName(), rscName, true);
 
         return createRscConn(rsc1, rsc2, initFlags);
     }

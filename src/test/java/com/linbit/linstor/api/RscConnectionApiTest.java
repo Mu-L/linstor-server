@@ -249,12 +249,9 @@ public class RscConnectionApiTest extends ApiTestBase
     @Test
     public void crtUnknownRsc() throws Exception
     {
-        // characterization: the resources are loaded with failIfNull == false, so an unknown
-        // resource leads to a NullPointerException reported as an unknown error instead of a
-        // FAIL_NOT_FOUND_* response
         enterScope();
         evaluateTest(
-            new CreateRscConnCall(ApiConsts.FAIL_UNKNOWN_ERROR)
+            new CreateRscConnCall(ApiConsts.FAIL_NOT_FOUND_RSC_DFN)
                 .setRscName("UnknownRsc")
         );
     }
