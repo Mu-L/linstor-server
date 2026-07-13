@@ -2,11 +2,14 @@ package com.linbit.linstor.numberpool;
 
 import com.linbit.ImplementationError;
 import com.linbit.ValueInUseException;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.objects.NetInterface;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
+import com.linbit.linstor.core.objects.ResourceConnection;
 import com.linbit.linstor.core.objects.Snapshot;
+import com.linbit.linstor.core.types.TcpPortNumber;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.systemstarter.StartupInitializer;
@@ -68,6 +71,43 @@ public class DbNumberPoolInitializer implements StartupInitializer
         for (Node node : nodesMap.values())
         {
             node.getTcpPortPool().reloadRange();
+            allocateDrbdProxyPorts(node);
+        }
+    }
+
+    // DrbdRscData ports get allocated during DB load, resource-connection proxy ports do not - do it here
+    private void allocateDrbdProxyPorts(Node node)
+    {
+        DynamicNumberPool tcpPortPool = node.getTcpPortPool();
+        Iterator<Resource> rscIt = node.iterateResources();
+        while (rscIt.hasNext())
+        {
+            Resource rsc = rscIt.next();
+            for (ResourceConnection rscConn : rsc.getAbsResourceConnections())
+            {
+                @Nullable TcpPortNumber port;
+                if (rsc.equals(rscConn.getSourceResource()))
+                {
+                    port = rscConn.getDrbdProxyPortSource();
+                }
+                else
+                {
+                    port = rscConn.getDrbdProxyPortTarget();
+                }
+                if (port != null)
+                {
+                    try
+                    {
+                        tcpPortPool.allocate(port.value);
+                    }
+                    catch (ValueInUseException exc)
+                    {
+                        errorReporter.logError(
+                            "Skipping initial allocation in pool: " + exc.getMessage()
+                        );
+                    }
+                }
+            }
         }
     }
 
