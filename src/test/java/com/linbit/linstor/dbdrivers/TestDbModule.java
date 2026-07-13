@@ -1,6 +1,5 @@
 package com.linbit.linstor.dbdrivers;
 
-import com.linbit.linstor.ControllerDatabase;
 import com.linbit.linstor.core.objects.AuthTokenDbDriver;
 import com.linbit.linstor.core.objects.ExternalFileDbDriver;
 import com.linbit.linstor.core.objects.KeyValueStoreDbDriver;
@@ -120,7 +119,6 @@ import com.linbit.linstor.dbdrivers.sql.SQLEngine;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
 import com.google.inject.AbstractModule;
-import com.google.inject.TypeLiteral;
 import com.google.inject.multibindings.MapBinder;
 
 public class TestDbModule extends AbstractModule

@@ -230,13 +230,37 @@ public class SatelliteRetcodeDispatcherTest
         Set<SatelliteRetcodeHandler<?>> handlers = new HashSet<>();
         handlers.add(new SatelliteRetcodeHandler<Void>()
         {
-            @Override public long retcode() { return TEST_RETCODE; }
-            @Override public int maxRetries() { return 2; }
+            @Override
+            public long retcode()
+            {
+                return TEST_RETCODE;
+            }
+
+            @Override
+            public int maxRetries()
+            {
+                return 2;
+            }
 
             @SuppressFBWarnings("NP_NONNULL_RETURN_VIOLATION")
-            @Override public Void newContext() { return null; }
-            @Override public Mono<Void> beforeRetry(Resource r, ApiCallRc rc, Void c) { return Mono.empty(); }
-            @Override public Flux<ApiCallRc> afterSuccess(Resource r, Void c) { return Flux.empty(); }
+            @Override
+            public Void newContext()
+            {
+                return null;
+            }
+
+            @Override
+            public Mono<Void> beforeRetry(Resource r, ApiCallRc rc, Void c)
+            {
+                return Mono.empty();
+            }
+
+            @Override
+            public Flux<ApiCallRc> afterSuccess(Resource r, Void c)
+            {
+                return Flux.empty();
+            }
+
             @Override
             public ApiCallRc.RcEntry describeExhaustion(Resource r, Void c, int attempts)
             {
@@ -273,8 +297,18 @@ public class SatelliteRetcodeDispatcherTest
         Set<SatelliteRetcodeHandler<?>> handlers = new HashSet<>();
         handlers.add(new SatelliteRetcodeHandler<>()
         {
-            @Override public long retcode() { return TEST_RETCODE; }
-            @Override public int maxRetries() { return 5; }
+            @Override
+            public long retcode()
+            {
+                return TEST_RETCODE;
+            }
+
+            @Override
+            public int maxRetries()
+            {
+                return 5;
+            }
+
             @Override public Object newContext()
             {
                 newContextCalls.incrementAndGet();
