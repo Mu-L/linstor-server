@@ -18,8 +18,8 @@ spec:
       description: "list of named tests to run, `all` means all :D"
     vmshed_variants:
       type: string
-      default: --variant standard
-      description: "which variant to run: [standard, default, crd]; e.g. `--variant crd`"
+      default: auto
+      description: "which variant(s) to run, or `auto`: standard when torun=all, otherwise default (matches every H2 test); e.g. `--variant crd`"
     vmshed_print_error_details:
       type: boolean
       default: false
@@ -186,7 +186,15 @@ workflow:
       VMSHED_VERSION=$[[ inputs.vmshed_version ]]
       ci_fetch_binary virter virter-$VIRTER_VERSION https://github.com/LINBIT/virter/releases/download/$VIRTER_VERSION/virter-linux-amd64
       ci_fetch_binary vmshed vmshed-$VMSHED_VERSION https://github.com/LINBIT/vmshed/releases/download/$VMSHED_VERSION/vmshed-linux-amd64
-    - VARIANTS="${TMP_VARIANTS:-$[[ inputs.vmshed_variants ]]}"
+    - |
+      VARIANTS="${TMP_VARIANTS:-$[[ inputs.vmshed_variants ]]}"
+      if [ "$VARIANTS" = "auto" ]; then
+        if [ "$[[ inputs.vmshed_torun ]]" = "all" ]; then
+          VARIANTS="--variant standard"
+        else
+          VARIANTS="--variant default"
+        fi
+      fi
 # --- is used because of bash
     - echo "Running variants $VARIANTS"
     - echo "LINSTOR-TEST BRANCH = $TEST_BRANCH"
