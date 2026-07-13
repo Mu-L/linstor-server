@@ -286,23 +286,24 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
     public @Nullable TcpPortNumber setDrbdProxyPortSource(@Nullable TcpPortNumber portNr)
         throws DatabaseException, ValueInUseException
     {
-        return setDrbdProxyPortImpl(portNr, source);
+        return setDrbdProxyPortImpl(portNr, drbdProxyPortSource, source);
     }
 
     public @Nullable TcpPortNumber setDrbdProxyPortTarget(@Nullable TcpPortNumber portNr)
         throws DatabaseException, ValueInUseException
     {
-        return setDrbdProxyPortImpl(portNr, target);
+        return setDrbdProxyPortImpl(portNr, drbdProxyPortTarget, target);
     }
 
     private @Nullable TcpPortNumber setDrbdProxyPortImpl(
         @Nullable TcpPortNumber portNr,
+        TransactionSimpleObject<ResourceConnection, TcpPortNumber> drbdProxyPortFieldRef,
         Resource rsc
     )
         throws DatabaseException, ValueInUseException
     {
         DynamicNumberPool pool = rsc.getNode().getTcpPortPool();
-        @Nullable TcpPortNumber tcpPortNumber = drbdProxyPortSource.get();
+        @Nullable TcpPortNumber tcpPortNumber = drbdProxyPortFieldRef.get();
         if (tcpPortNumber != null)
         {
             pool.deallocate(tcpPortNumber.value);
@@ -311,7 +312,7 @@ public class ResourceConnection extends AbsCoreObj<ResourceConnection>
         {
             pool.allocate(portNr.value);
         }
-        return drbdProxyPortSource.set(portNr);
+        return drbdProxyPortFieldRef.set(portNr);
     }
 
     public void autoAllocateDrbdProxyPortSource()
