@@ -172,20 +172,17 @@ public class BalanceResources
             }
             else
             {
-                @Nullable Peer peer = rsc.getNode().getPeer();
-                if (peer != null)
+                Peer peer = rsc.getNode().getPeer();
+                @Nullable SatelliteState stltState = peer.getSatelliteState();
+                if (stltState != null)
                 {
-                    @Nullable SatelliteState stltState = peer.getSatelliteState();
-                    if (stltState != null)
-                    {
-                        @Nullable SatelliteResourceState stltRscState = stltState
-                            .getResourceStates()
-                            .get(rsc.getResourceDefinition().getName());
+                    @Nullable SatelliteResourceState stltRscState = stltState
+                        .getResourceStates()
+                        .get(rsc.getResourceDefinition().getName());
 
-                        if (stltRscState == null || Boolean.TRUE.equals(stltRscState.isInUse()))
-                        {
-                            fixed.add(rsc);
-                        }
+                    if (stltRscState == null || Boolean.TRUE.equals(stltRscState.isInUse()))
+                    {
+                        fixed.add(rsc);
                     }
                 }
             }
@@ -400,8 +397,8 @@ public class BalanceResources
         diskful.removeAll(getResourcesWithSkipDisk(diskful)); // do not test SkipDisk rscs
         for (Resource rsc : diskful)
         {
-            @Nullable Peer peer = rsc.getNode().getPeer();
-            if (peer != null && peer.getSatelliteState() != null)
+            Peer peer = rsc.getNode().getPeer();
+            if (peer.getSatelliteState() != null)
             {
                 @Nullable SatelliteResourceState rs = peer.getSatelliteState()
                     .getResourceStates()

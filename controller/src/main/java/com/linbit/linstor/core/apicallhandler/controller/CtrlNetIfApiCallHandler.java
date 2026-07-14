@@ -117,11 +117,7 @@ class CtrlNetIfApiCallHandler
             {
                 if (stltPort != null && stltEncrType != null)
                 {
-                    @Nullable Peer curPeer = node.getPeer();
-                    if (curPeer != null)
-                    {
-                        curPeer.closeConnection(false);
-                    }
+                    node.getPeer().closeConnection(false);
                     node.setActiveStltConn(netIf);
                     satelliteConnector.startConnecting(node);
                 }

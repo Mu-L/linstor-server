@@ -22,6 +22,7 @@ import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerController;
 import com.linbit.linstor.netcom.PeerOffline;
+import com.linbit.linstor.netcom.StltImplErrPeer;
 import com.linbit.linstor.numberpool.DynamicNumberPool;
 import com.linbit.linstor.numberpool.DynamicNumberPoolImpl;
 import com.linbit.linstor.propscon.InvalidKeyException;
@@ -120,7 +121,7 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
 
     private final DynamicNumberPool tcpPortPool;
 
-    private transient @Nullable Peer peer;
+    private Peer peer;
 
     private transient TransactionSimpleObject<Node, @Nullable NetInterface> activeStltConn;
 
@@ -141,7 +142,8 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         NodeDatabaseDriver dbDriverRef,
         PropsContainerFactory propsContainerFactory,
         TransactionObjectFactory transObjFactory,
-        Provider<? extends TransactionMgr> transMgrProvider
+        Provider<? extends TransactionMgr> transMgrProvider,
+        boolean createStltImplErrPeer
     )
         throws DatabaseException
     {
@@ -160,7 +162,8 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
             new TreeMap<>(),
             new TreeMap<>(),
             new TreeMap<>(),
-            new TreeMap<>()
+            new TreeMap<>(),
+            createStltImplErrPeer
         );
     }
 
@@ -179,7 +182,8 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         Map<SnapshotDefinition.Key, Snapshot> snapshotMapRef,
         Map<NetInterfaceName, NetInterface> netIfMapRef,
         Map<StorPoolName, StorPool> storPoolMapRef,
-        Map<NodeName, NodeConnection> nodeConnMapRef
+        Map<NodeName, NodeConnection> nodeConnMapRef,
+        boolean createStltImplErrPeer
     )
         throws DatabaseException
     {
@@ -236,6 +240,7 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         );
 
         supportedCryptos = new ArrayList<>();
+        peer = createOfflinePeer(errorReporterRef, createStltImplErrPeer);
     }
 
     private DynamicNumberPool createTcpPortPool(ErrorReporter errorReporter, ReadOnlyProps ctrlPropsRef)
@@ -302,7 +307,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         return resourceMap.get(resName);
     }
 
-
     public @Nullable NodeConnection getNodeConnection(Node otherNode)
     {
         checkDeleted();
@@ -314,7 +318,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         checkDeleted();
         return nodeConnections.values();
     }
-
 
     public void setNodeConnection(NodeConnection nodeConnection)
     {
@@ -333,7 +336,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         }
     }
 
-
     public void removeNodeConnection(NodeConnection nodeConnection)
     {
         checkDeleted();
@@ -351,8 +353,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
             nodeConnections.remove(sourceNode.getName());
         }
     }
-
-
 
     public Props getProps()
     {
@@ -381,13 +381,11 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         resourceMap.remove(resRef.getResourceDefinition().getName());
     }
 
-
     public int getResourceCount()
     {
         checkDeleted();
         return resourceMap.size();
     }
-
 
     public Iterator<Resource> iterateResources()
     {
@@ -396,14 +394,12 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         return resourceMap.values().iterator();
     }
 
-
     public Stream<Resource> streamResources()
     {
         checkDeleted();
 
         return resourceMap.values().stream();
     }
-
 
     public void addSnapshot(Snapshot snapshot)
     {
@@ -412,13 +408,11 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         snapshotMap.put(snapshot.getSnapshotDefinition().getSnapDfnKey(), snapshot);
     }
 
-
     public void removeSnapshot(Snapshot snapshot)
     {
         checkDeleted();
         snapshotMap.remove(snapshot.getSnapshotDefinition().getSnapDfnKey());
     }
-
 
     public boolean hasSnapshots()
     {
@@ -469,31 +463,44 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
 
     public void setOfflinePeer(ErrorReporter errorReporterRef)
     {
-        checkDeleted();
+        peer = createOfflinePeer(errorReporterRef, false);
+    }
 
-        final String nodeNameStr = nodeName.displayValue;
-        if (Node.Type.CONTROLLER.equals(nodeType.get()))
+    private Peer createOfflinePeer(ErrorReporter errorReporterRef, boolean createStltImplErrPeer)
+    {
+        checkDeleted();
+        Peer localPear;
+        if (!createStltImplErrPeer)
         {
-            boolean isLocal = false;
-            Set<String> allMyIps = LocalInetAddresses.LOCAL_ADDRESSES;
-            for (Entry<NetInterfaceName, NetInterface> entry : netInterfaceMap.entrySet())
+            final String nodeNameStr = nodeName.displayValue;
+            if (Node.Type.CONTROLLER.equals(nodeType.get()))
             {
-                String ipAddress = entry.getValue().getAddress().getAddress();
-                for (String inetAddress : allMyIps)
+                boolean isLocal = false;
+                Set<String> allMyIps = LocalInetAddresses.LOCAL_ADDRESSES;
+                for (Entry<NetInterfaceName, NetInterface> entry : netInterfaceMap.entrySet())
                 {
-                    if (ipAddress.equals(inetAddress))
+                    String ipAddress = entry.getValue().getAddress().getAddress();
+                    for (String inetAddress : allMyIps)
                     {
-                        isLocal = true;
-                        break;
+                        if (ipAddress.equals(inetAddress))
+                        {
+                            isLocal = true;
+                            break;
+                        }
                     }
                 }
+                localPear = new PeerController(errorReporterRef, nodeNameStr, this, isLocal);
             }
-            peer = new PeerController(errorReporterRef, nodeNameStr, this, isLocal);
+            else
+            {
+                localPear = new PeerOffline(errorReporterRef, nodeNameStr, this);
+            }
         }
         else
         {
-            peer = new PeerOffline(errorReporterRef, nodeNameStr, this);
+            localPear = new StltImplErrPeer();
         }
+        return localPear;
     }
 
     public Iterator<NetInterface> iterateNetInterfaces()
@@ -503,14 +510,12 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         return netInterfaceMap.values().iterator();
     }
 
-
     public Stream<NetInterface> streamNetInterfaces()
     {
         checkDeleted();
 
         return netInterfaceMap.values().stream();
     }
-
 
     public @Nullable StorPool getStorPool(StorPoolName poolName)
     {
@@ -533,13 +538,11 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         storPoolMap.remove(pool.getName());
     }
 
-
     public int getStorPoolCount()
     {
         checkDeleted();
         return storPoolMap.size();
     }
-
 
     public Iterator<StorPool> iterateStorPools()
     {
@@ -548,14 +551,12 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         return storPoolMap.values().iterator();
     }
 
-
     public Stream<StorPool> streamStorPools()
     {
         checkDeleted();
 
         return storPoolMap.values().stream();
     }
-
 
     public void copyStorPoolMap(Map<? super StorPoolName, ? super StorPool> dstMap)
     {
@@ -570,7 +571,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
 
         return nodeType.set(newType);
     }
-
 
     public Type getNodeType()
     {
@@ -593,20 +593,17 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         return (nodeType.get().getFlagValue() & reqFlags) == reqFlags;
     }
 
-
     public StateFlags<Flags> getFlags()
     {
         checkDeleted();
         return flags;
     }
 
-
-    public @Nullable Peer getPeer()
+    public Peer getPeer()
     {
         checkDeleted();
         return peer;
     }
-
 
     public void setPeer(Peer peerRef)
     {
@@ -625,7 +622,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         checkDeleted();
         return activeStltConn.get();
     }
-
 
     public void setActiveStltConn(NetInterface satelliteConnectionRef)
         throws DatabaseException
@@ -678,7 +674,6 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         checkDeleted();
         getFlags().enableFlags(Flags.DELETE);
     }
-
 
     @Override
     public void delete()
@@ -782,7 +777,7 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         ConnectionStatus connectionStatus;
         @Nullable ApiConsts.Platform platform;
         @Nullable String osVariant;
-        if (tmpPeer != null)
+        if (!(tmpPeer instanceof StltImplErrPeer))
         {
             extToolsManager = tmpPeer.getExtToolsManager();
             connectionStatus = tmpPeer.getConnectionStatus();

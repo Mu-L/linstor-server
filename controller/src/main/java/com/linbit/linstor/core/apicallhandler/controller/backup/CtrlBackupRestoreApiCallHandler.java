@@ -887,8 +887,7 @@ public class CtrlBackupRestoreApiCallHandler
                 snap.getLayerData()
             );
             usedDeviceLayerKinds.removeAll(
-                node.getPeer()
-                    .getExtToolsManager().getSupportedLayers()
+                node.getPeer().getExtToolsManager().getSupportedLayers()
             );
             if (!usedDeviceLayerKinds.isEmpty())
             {

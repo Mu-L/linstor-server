@@ -344,8 +344,8 @@ public class CtrlAuthHandler
 
     void sendAuthTokenToSatellite(Node node, String rawToken)
     {
-        @Nullable Peer peer = node.getPeer();
-        if (peer != null && peer.isOnline())
+        Peer peer = node.getPeer();
+        if (peer.isOnline())
         {
             byte[] msg = ctrlStltSerializer
                 .onewayBuilder(InternalApiConsts.API_APPLY_AUTH_TOKEN)

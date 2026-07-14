@@ -76,10 +76,10 @@ public class NodeControllerFactory
             dbDriver,
             propsContainerFactory,
             transObjFactory,
-            transMgrProvider
+            transMgrProvider,
+            false
         );
         dbDriver.create(node);
-        node.setOfflinePeer(errorReporter);
 
         return node;
     }

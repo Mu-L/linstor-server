@@ -3,7 +3,6 @@ package com.linbit.linstor.core.apicallhandler.controller;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.SpaceInfo;
@@ -157,15 +156,9 @@ public class FreeCapacityFetcherProto implements FreeCapacityFetcher
 
     private Flux<ByteArrayInputStream> prepareFreeSpaceApiCall(Node node)
     {
-        Peer peer = getPeer(node);
-        Flux<ByteArrayInputStream> result = Flux.empty();
-        if (peer != null)
-        {
-            result = peer.apiCall(InternalApiConsts.API_REQUEST_THIN_FREE_SPACE, new byte[]{})
-                // No data from disconnected satellites
-                .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty());
-        }
-        return result;
+        return getPeer(node).apiCall(InternalApiConsts.API_REQUEST_THIN_FREE_SPACE, new byte[0])
+            // No data from disconnected satellites
+            .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty());
     }
 
     private Stream<StorPool> streamStorPools(Node node)
@@ -175,7 +168,7 @@ public class FreeCapacityFetcherProto implements FreeCapacityFetcher
         return storPoolStream;
     }
 
-    private @Nullable Peer getPeer(Node node)
+    private Peer getPeer(Node node)
     {
         Peer peer;
         peer = node.getPeer();

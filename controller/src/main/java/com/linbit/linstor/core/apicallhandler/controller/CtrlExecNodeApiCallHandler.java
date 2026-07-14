@@ -96,8 +96,8 @@ public class CtrlExecNodeApiCallHandler
                     continue;
                 }
 
-                Peer p = node.getPeer();
-                if (p == null || !p.isOnline())
+                Peer peer = node.getPeer();
+                if (!peer.isOnline())
                 {
                     resp.exit_code = -1;
                     resp.stderr_utf8 = "Node '" + nodeName + "' is offline";
@@ -105,7 +105,10 @@ public class CtrlExecNodeApiCallHandler
                     continue;
                 }
 
-                Flux<JsonGenTypes.ReactorExecResponse> nodeResponse = p.apiCall(InternalApiConsts.API_REQ_DRBD_REACTOR_EXEC, msg)
+                Flux<JsonGenTypes.ReactorExecResponse> nodeResponse = peer.apiCall(
+                    InternalApiConsts.API_REQ_DRBD_REACTOR_EXEC,
+                    msg
+                )
                     .map(bis -> deserializeReactorExecResponse(resp, bis, command, wait))
                     .switchIfEmpty(Mono.fromSupplier(() -> noResponseReactorExecResponse(resp, nodeName)))
                     .onErrorResume(exc -> Flux.just(communicationErrorReactorExecResponse(resp, exc)));

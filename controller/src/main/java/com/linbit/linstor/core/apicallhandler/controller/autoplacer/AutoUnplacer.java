@@ -15,7 +15,6 @@ import com.linbit.linstor.core.objects.Resource.Flags;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.logging.ErrorReporter;
-import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
 import com.linbit.linstor.satellitestate.SatelliteState;
@@ -154,28 +153,24 @@ public class AutoUnplacer
                 soloRating += getViolationsCountReplicasOnSameWithValueList(replicasOnSame, node1Props);
                 soloRating += getViolationsCountXReplicasOnDifferentMap(xReplicasOnDiffMapWithValues, node1Props);
 
-                @Nullable Peer peer1 = node1.getPeer();
-                if (peer1 != null)
+                @Nullable SatelliteState stltState = node1.getPeer().getSatelliteState();
+                if (stltState != null)
                 {
-                    @Nullable SatelliteState stltState = peer1.getSatelliteState();
-                    if (stltState != null)
+                    @Nullable SatelliteResourceState stltRscState = stltState
+                        .getResourceStates()
+                        .get(rscName);
+                    if (stltRscState != null)
                     {
-                        @Nullable SatelliteResourceState stltRscState = stltState
-                            .getResourceStates()
-                            .get(rscName);
-                        if (stltRscState != null)
-                        {
-                            var onlineNodeIdsNotSelf = new HashMap<>(onlineNodeIds);
-                            onlineNodeIdsNotSelf.remove(rsc1);
+                        var onlineNodeIdsNotSelf = new HashMap<>(onlineNodeIds);
+                        onlineNodeIdsNotSelf.remove(rsc1);
 
-                            if (!stltRscState.allVolumesUpToDate())
-                            {
-                                soloRating += 1;
-                            }
-                            if (!stltRscState.isReady(onlineNodeIdsNotSelf.values()))
-                            {
-                                soloRating += 1;
-                            }
+                        if (!stltRscState.allVolumesUpToDate())
+                        {
+                            soloRating += 1;
+                        }
+                        if (!stltRscState.isReady(onlineNodeIdsNotSelf.values()))
+                        {
+                            soloRating += 1;
                         }
                     }
                 }

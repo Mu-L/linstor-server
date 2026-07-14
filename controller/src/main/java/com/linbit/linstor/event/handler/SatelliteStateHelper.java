@@ -49,18 +49,15 @@ public class SatelliteStateHelper
             {
                 Peer peer = node.getPeer();
 
-                if (peer != null)
+                Lock writeLock = peer.getSatelliteStateLock().writeLock();
+                writeLock.lock();
+                try
                 {
-                    Lock writeLock = peer.getSatelliteStateLock().writeLock();
-                    writeLock.lock();
-                    try
-                    {
-                        value = extractor.apply(peer.getSatelliteState());
-                    }
-                    finally
-                    {
-                        writeLock.unlock();
-                    }
+                    value = extractor.apply(peer.getSatelliteState());
+                }
+                finally
+                {
+                    writeLock.unlock();
                 }
             }
         }

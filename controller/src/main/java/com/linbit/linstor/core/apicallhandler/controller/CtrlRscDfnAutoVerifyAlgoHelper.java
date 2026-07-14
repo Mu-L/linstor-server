@@ -78,8 +78,8 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
                 rsc ->
                 {
                     boolean result = false;
-                    @Nullable Peer peer = rsc.getNode().getPeer();
-                    if (!rsc.getNode().isDeleted() && peer != null && peer.isFullSyncApplied())
+                    Peer peer = rsc.getNode().getPeer();
+                    if (!rsc.getNode().isDeleted() && peer.isFullSyncApplied())
                     {
                         result = LayerRscUtils.getLayerStack(rsc)
                             .contains(DeviceLayerKind.DRBD);
@@ -117,8 +117,8 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
             if (!rsc.getNode().isDeleted() &&
                 LayerRscUtils.getLayerStack(rsc).contains(DeviceLayerKind.DRBD))
             {
-                final @Nullable Peer peer = rsc.getNode().getPeer();
-                if (peer == null || !peer.isFullSyncApplied())
+                final Peer peer = rsc.getNode().getPeer();
+                if (!peer.isFullSyncApplied())
                 {
                     allReported = false;
                     break;

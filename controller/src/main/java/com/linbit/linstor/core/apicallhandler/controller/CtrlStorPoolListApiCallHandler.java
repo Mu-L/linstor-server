@@ -1,6 +1,7 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.LinStorException;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -25,7 +26,6 @@ import com.linbit.utils.RegexMatcher;
 import static com.linbit.locks.LockGuardFactory.LockObj.STOR_POOL_DFN_MAP;
 import static com.linbit.locks.LockGuardFactory.LockType.READ;
 
-import com.linbit.linstor.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -187,7 +187,7 @@ public class CtrlStorPoolListApiCallHandler
 
                             storPool.clearReports();
                             Peer peer = storPool.getNode().getPeer();
-                            if (peer == null || !peer.isOnline())
+                            if (!peer.isOnline())
                             {
                                 freeCapacity = null;
                                 totalCapacity = null;

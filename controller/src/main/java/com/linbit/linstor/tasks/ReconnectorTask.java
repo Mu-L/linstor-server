@@ -426,8 +426,8 @@ public class ReconnectorTask implements Task
 
                 // Check if the Node's current peer is connected, not the stale peer in config.
                 // The node might have reconnected via a different Peer object.
-                @Nullable Peer currentPeer = node.getPeer();
-                if (currentPeer != null && currentPeer.isConnected(false))
+                Peer currentPeer = node.getPeer();
+                if (currentPeer.isConnected(false))
                 {
                     errorReporter.logInfo(
                         "Node " + node.getName() + " has connected. Removed from reconnectList, added to pingList."
@@ -741,37 +741,35 @@ public class ReconnectorTask implements Task
         Set<Node> neighbors = getNeighbors(node);
         for (Node neighbor : neighbors)
         {
-            if (neighbor.getPeer() != null)
-            {
-                Map<ResourceName, SatelliteResourceState> neighborRscStates = neighbor.getPeer()
-                    .getSatelliteState().getResourceStates();
+            Map<ResourceName, SatelliteResourceState> neighborRscStates = neighbor.getPeer()
+                .getSatelliteState()
+                .getResourceStates();
 
-                for (SatelliteResourceState neighborRscState : neighborRscStates.values())
+            for (SatelliteResourceState neighborRscState : neighborRscStates.values())
+            {
+                Map<NodeName, Map<NodeName, String>> connStates = neighborRscState.getConnectionStates();
+                for (Entry<NodeName, Map<NodeName, String>> conStateEntry : connStates.entrySet())
                 {
-                    Map<NodeName, Map<NodeName, String>> connStates = neighborRscState.getConnectionStates();
-                    for (Entry<NodeName, Map<NodeName, String>> conStateEntry : connStates.entrySet())
+                    if (conStateEntry.getKey().equals(node.getKey()))
                     {
-                        if (conStateEntry.getKey().equals(node.getKey()))
+                        Map<NodeName, String> conStates = conStateEntry.getValue();
+                        for (Entry<NodeName, String> conEntry : conStates.entrySet())
                         {
-                            Map<NodeName, String> conStates = conStateEntry.getValue();
-                            for (Entry<NodeName, String> conEntry : conStates.entrySet())
-                            {
-                                String conVal = conEntry.getValue();
-                                if (conVal.equalsIgnoreCase(STATUS_CONNECTED))
-                                {
-                                    drbdOk = true;
-                                    break;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            String conValOrNull = conStateEntry.getValue().get(node.getKey());
-                            if (conValOrNull != null && conValOrNull.equalsIgnoreCase(STATUS_CONNECTED))
+                            String conVal = conEntry.getValue();
+                            if (conVal.equalsIgnoreCase(STATUS_CONNECTED))
                             {
                                 drbdOk = true;
                                 break;
                             }
+                        }
+                    }
+                    else
+                    {
+                        String conValOrNull = conStateEntry.getValue().get(node.getKey());
+                        if (conValOrNull != null && conValOrNull.equalsIgnoreCase(STATUS_CONNECTED))
+                        {
+                            drbdOk = true;
+                            break;
                         }
                     }
                 }

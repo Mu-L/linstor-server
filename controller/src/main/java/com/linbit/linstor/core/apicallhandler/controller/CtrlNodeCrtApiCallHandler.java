@@ -32,7 +32,6 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 
-
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;

@@ -117,7 +117,8 @@ public class TestFactory
             dbDriverRef,
             propsContainerFactoryRef,
             transObjFactoryRef,
-            transMgrProviderRef
+            transMgrProviderRef,
+            false
         );
     }
 

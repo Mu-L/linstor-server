@@ -18,7 +18,6 @@ import com.linbit.linstor.core.objects.StorPoolControllerFactory;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.objects.StorPoolDefinitionControllerFactory;
 import com.linbit.linstor.dbdrivers.DatabaseException;
-import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 
 import javax.inject.Inject;
@@ -130,8 +129,7 @@ public class StorPoolHelper
     {
         boolean isKindAllowed;
         // TODO try to skip creation of dfltDisklessStorPool if no DRBD is available
-        Peer peer = node.getPeer();
-        isKindAllowed = peer.getExtToolsManager().isProviderSupported(kind);
+        isKindAllowed = node.getPeer().getExtToolsManager().isProviderSupported(kind);
         return isKindAllowed;
     }
 

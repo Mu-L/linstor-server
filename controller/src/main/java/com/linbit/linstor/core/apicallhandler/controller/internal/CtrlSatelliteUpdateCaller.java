@@ -104,7 +104,7 @@ public class CtrlSatelliteUpdateCaller
         for (Node nodeToContact : nodesToContact)
         {
             Peer peer = nodeToContact.getPeer();
-            if (peer != null && peer.getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
+            if (peer.getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
             {
                 Flux<ApiCallRc> response = updateSatellite(nodeToContact, changedMessage);
 
@@ -390,41 +390,30 @@ public class CtrlSatelliteUpdateCaller
         Flux<ApiCallRc> response;
         Peer currentPeer = node.getPeer();
 
-        if (currentPeer == null)
+        if (currentPeer.isOnline() && currentPeer.hasFullSyncFailed())
         {
-            // might be null if controller is just starting and establishing connection
-            // to the first node which triggers an update to a all resources / snapshots
-            // of a rsc-/snap-dfn, even to an rsc/snap with a node to which the controller
-            // did not even attempted to connect -> null as peer
-            response = notConnectedHandler.handleNotConnected(nodeName);
+            response = Flux.error(new ApiRcException(ResponseUtils.makeFullSyncFailedResponse(currentPeer)));
         }
         else
         {
-            if (currentPeer.isOnline() && currentPeer.hasFullSyncFailed())
-            {
-                response = Flux.error(new ApiRcException(ResponseUtils.makeFullSyncFailedResponse(currentPeer)));
-            }
-            else
-            {
-                response = currentPeer
-                    .apiCall(
-                        InternalApiConsts.API_CHANGED_IN_PROGRESS_SNAPSHOT,
-                        internalComSerializer
-                            .headerlessBuilder()
-                            .changedSnapshot(
-                                snapshot.getResourceName().displayValue,
-                                snapshot.getUuid(),
-                                snapshot.getSnapshotName().displayValue
-                            )
-                            .build()
-                    )
+            response = currentPeer
+                .apiCall(
+                    InternalApiConsts.API_CHANGED_IN_PROGRESS_SNAPSHOT,
+                    internalComSerializer
+                        .headerlessBuilder()
+                        .changedSnapshot(
+                            snapshot.getResourceName().displayValue,
+                            snapshot.getUuid(),
+                            snapshot.getSnapshotName().displayValue
+                        )
+                        .build()
+                )
 
-                    .map(inputStream -> deserializeApiCallRc(nodeName, inputStream))
-                    .onErrorResume(
-                        PeerNotConnectedException.class,
-                        ignored -> notConnectedHandler.handleNotConnected(nodeName)
-                    );
-            }
+                .map(inputStream -> deserializeApiCallRc(nodeName, inputStream))
+                .onErrorResume(
+                    PeerNotConnectedException.class,
+                    ignored -> notConnectedHandler.handleNotConnected(nodeName)
+                );
         }
         return response;
     }
@@ -623,7 +612,7 @@ public class CtrlSatelliteUpdateCaller
         for (Node node : nodesRef)
         {
             Peer peer = node.getPeer();
-            if (peer != null && peer.getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
+            if (peer.getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE)
             {
                 NodeName nodeName = node.getName();
 

@@ -457,43 +457,40 @@ public class EbsStatusManagerService implements SystemService
                     if (!rsc.isDeleted())
                     {
                         Peer peer = rsc.getNode().getPeer();
-                        if (peer != null)
+                        ReadWriteLock satelliteStateLock = peer.getSatelliteStateLock();
+                        satelliteStateLock.writeLock().lock();
+                        try
                         {
-                            ReadWriteLock satelliteStateLock = peer.getSatelliteStateLock();
-                            satelliteStateLock.writeLock().lock();
-                            try
+                            SatelliteState rscStates = peer.getSatelliteState();
+                            ResourceName rscName = rsc.getResourceDefinition().getName();
+                            rscStates.setOnResource(
+                                rscName,
+                                SatelliteResourceState::setInUse,
+                                EbsUtils.EBS_VLM_STATE_IN_USE.equalsIgnoreCase(amaVlm.getState())
+                            );
+                            String diskState = amaVlm.getState();
+                            if (vlmMod != null)
                             {
-                                SatelliteState rscStates = peer.getSatelliteState();
-                                ResourceName rscName = rsc.getResourceDefinition().getName();
-                                rscStates.setOnResource(
-                                    rscName,
-                                    SatelliteResourceState::setInUse,
-                                    EbsUtils.EBS_VLM_STATE_IN_USE.equalsIgnoreCase(amaVlm.getState())
-                                );
-                                String diskState = amaVlm.getState();
-                                if (vlmMod != null)
+                                String modState = vlmMod.getModificationState();
+                                if (!modState.isEmpty() && !EbsUtils.EBS_VLM_STATE_COMPLETED.equals(modState))
                                 {
-                                    String modState = vlmMod.getModificationState();
-                                    if (!modState.isEmpty() && !EbsUtils.EBS_VLM_STATE_COMPLETED.equals(modState))
-                                    {
-                                        diskState += ", " +
-                                            vlmMod.getModificationState() + ": " +
-                                            vlmMod.getProgress() +
-                                            "%";
-                                    }
+                                    diskState += ", " +
+                                        vlmMod.getModificationState() + ": " +
+                                        vlmMod.getProgress() +
+                                        "%";
                                 }
+                            }
 
-                                rscStates.setOnVolume(
-                                    rscName,
-                                    vlmData.getVlmNr(),
-                                    SatelliteVolumeState::setDiskState,
-                                    diskState
-                                );
-                            }
-                            finally
-                            {
-                                satelliteStateLock.writeLock().unlock();
-                            }
+                            rscStates.setOnVolume(
+                                rscName,
+                                vlmData.getVlmNr(),
+                                SatelliteVolumeState::setDiskState,
+                                diskState
+                            );
+                        }
+                        finally
+                        {
+                            satelliteStateLock.writeLock().unlock();
                         }
                     }
                 }

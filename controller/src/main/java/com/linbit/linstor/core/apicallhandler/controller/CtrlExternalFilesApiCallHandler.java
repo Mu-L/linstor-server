@@ -122,13 +122,7 @@ public class CtrlExternalFilesApiCallHandler
     private Flux<ExtFileStatusPojo> getStatusInTransaction(String extFileNameStr, String nodeNameStr)
     {
         Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
-        Peer peer;
-        @Nullable Peer tmpPeer = node.getPeer();
-        if (tmpPeer == null)
-        {
-            throw new ImplementationError("Node '" + nodeNameStr + "' unexpectedly does not have a peer");
-        }
-        peer = tmpPeer;
+        Peer peer = node.getPeer();
 
         byte[] reqMsg;
         try

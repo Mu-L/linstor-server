@@ -84,17 +84,13 @@ public class CtrlSatelliteUpdater
         for (Node nodeToContact : nodesToContact)
         {
             Peer satellitePeer = nodeToContact.getPeer();
-            if (satellitePeer != null)
+            if (satellitePeer.hasFullSyncFailed())
             {
-                if (satellitePeer.hasFullSyncFailed())
-                {
-                    responses.addEntry(ResponseUtils.makeFullSyncFailedResponse(satellitePeer));
-                }
-                else
-                if (satellitePeer.isOnline())
-                {
-                    satellitePeer.sendMessage(changedMessage);
-                }
+                responses.addEntry(ResponseUtils.makeFullSyncFailedResponse(satellitePeer));
+            }
+            else if (satellitePeer.isOnline())
+            {
+                satellitePeer.sendMessage(changedMessage);
             }
         }
 

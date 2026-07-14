@@ -120,16 +120,11 @@ public class CtrlErrorListApiCallHandler
         @Nullable final String version,
         @Nullable final List<String> ids)
     {
-        Peer peer = getPeer(node);
-        Flux<ByteArrayInputStream> fluxReturn = Flux.empty();
-        if (peer != null)
-        {
-            byte[] msg = stltComSerializer.headerlessBuilder()
-                .deleteErrorReports(since, to, exception, version, ids).build();
-            fluxReturn = peer.apiCall(ApiConsts.API_DEL_ERROR_REPORT, msg)
-                .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty());
-        }
-        return fluxReturn;
+        byte[] msg = stltComSerializer.headerlessBuilder()
+            .deleteErrorReports(since, to, exception, version, ids)
+            .build();
+        return getPeer(node).apiCall(ApiConsts.API_DEL_ERROR_REPORT, msg)
+            .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty());
     }
 
     private Flux<ApiCallRc> assembleDeleteRcs(
@@ -248,7 +243,7 @@ public class CtrlErrorListApiCallHandler
         return fluxReturn;
     }
 
-    private @Nullable Peer getPeer(Node node)
+    private Peer getPeer(Node node)
     {
         Peer peer;
         peer = node.getPeer();

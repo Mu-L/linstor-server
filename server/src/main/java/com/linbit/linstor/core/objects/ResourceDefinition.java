@@ -693,21 +693,18 @@ public class ResourceDefinition extends AbsCoreObj<ResourceDefinition>
             Resource rsc = rscInUseIterator.next();
 
             Peer nodePeer = rsc.getNode().getPeer();
-            if (nodePeer != null)
+            @Nullable Boolean inUse = null;
+            try (LockGuard ignored = LockGuard.createLocked(nodePeer.getSatelliteStateLock().readLock()))
             {
-                @Nullable Boolean inUse = null;
-                try (LockGuard ignored = LockGuard.createLocked(nodePeer.getSatelliteStateLock().readLock()))
+                @Nullable SatelliteState satelliteState = nodePeer.getSatelliteState();
+                if (satelliteState != null)
                 {
-                    @Nullable SatelliteState satelliteState = nodePeer.getSatelliteState();
-                    if (satelliteState != null)
-                    {
-                        inUse = satelliteState.getFromResource(resourceName, SatelliteResourceState::isInUse);
-                    }
+                    inUse = satelliteState.getFromResource(resourceName, SatelliteResourceState::isInUse);
                 }
-                if (inUse != null && inUse)
-                {
-                    rscInUse = rsc;
-                }
+            }
+            if (inUse != null && inUse)
+            {
+                rscInUse = rsc;
             }
         }
         return Optional.ofNullable(rscInUse);

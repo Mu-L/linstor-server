@@ -98,8 +98,6 @@ public class CtrlFullSyncApiCallHandler
 
     public Flux<ApiCallRc> sendFullSync(Node satelliteNode, long expectedFullSyncId, boolean waitForAnswer)
     {
-        Peer peer;
-        peer = satelliteNode.getPeer();
         return scopeRunner.fluxInTransactionlessScope(
             "Send full sync",
             LockGuard.createDeferred(
@@ -108,7 +106,7 @@ public class CtrlFullSyncApiCallHandler
                 storPoolDfnMapLock.readLock(),
                 externalFilesMapLock.readLock(),
                 remoteMapLock.readLock(),
-                peer.getSerializerLock().writeLock()
+                satelliteNode.getPeer().getSerializerLock().writeLock()
             ),
             () -> sendFullSyncInScope(satelliteNode, expectedFullSyncId, waitForAnswer),
             MDC.getCopyOfContextMap()

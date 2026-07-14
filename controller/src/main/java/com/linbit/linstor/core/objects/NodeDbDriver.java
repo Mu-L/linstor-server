@@ -148,9 +148,9 @@ public final class NodeDbDriver extends AbsDatabaseDriver<Node, Node.InitMaps, V
             snapshotMap,
             netIfMap,
             storPoolMap,
-            nodeConnMap
+            nodeConnMap,
+            false
         );
-        node.setOfflinePeer(errorReporter);
 
         return new Pair<>(
             node,

@@ -111,17 +111,10 @@ public class LuksLayerSizeCalculator extends AbsLayerSizeCalculator<LuksVlmData<
     private long getLuksHeaderSize(VlmProviderObject<?> vlmDataRef)
         throws InvalidSizeException
     {
-        @Nullable Peer peer = vlmDataRef.getRscLayerObject()
+        Peer peer = vlmDataRef.getRscLayerObject()
             .getAbsResource()
             .getNode()
             .getPeer();
-        if (peer == null)
-        {
-            throw new InvalidSizeException(
-                "Could not calculate size of LUKS volume, since cryptsetup's version could not be determined",
-                null
-            );
-        }
         ExtToolsInfo cryptSetupInfo = peer.getExtToolsManager()
             .getExtToolInfo(ExtTools.CRYPT_SETUP);
 

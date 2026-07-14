@@ -328,37 +328,36 @@ public class CtrlRscApiCallHandler
             if (upperFilterNodes.isEmpty() || upperFilterNodes.contains(node.getName().value))
             {
                 final Peer curPeer = node.getPeer();
-                if (curPeer != null)
+                Lock readLock = curPeer.getSatelliteStateLock().readLock();
+                readLock.lock();
+                try
                 {
-                    Lock readLock = curPeer.getSatelliteStateLock().readLock();
-                    readLock.lock();
-                    try
-                    {
-                        final SatelliteState satelliteState = curPeer.getSatelliteState();
+                    final SatelliteState satelliteState = curPeer.getSatelliteState();
 
-                        if (satelliteState != null)
+                    if (satelliteState != null)
+                    {
+                        final SatelliteState filterStates = new SatelliteState(satelliteState);
+
+                        // states are already complete, we remove all resource that are not interesting from
+                        // our clone
+                        Set<ResourceName> removeSet = new TreeSet<>();
+                        for (ResourceName rscName : filterStates.getResourceStates().keySet())
                         {
-                            final SatelliteState filterStates = new SatelliteState(satelliteState);
-
-                            // states are already complete, we remove all resource that are not interesting from
-                            // our clone
-                            Set<ResourceName> removeSet = new TreeSet<>();
-                            for (ResourceName rscName : filterStates.getResourceStates().keySet())
+                            if (
+                                !(upperFilterResources.isEmpty() ||
+                                    upperFilterResources.contains(rscName.value))
+                            )
                             {
-                                if (!(upperFilterResources.isEmpty() ||
-                                      upperFilterResources.contains(rscName.value)))
-                                {
-                                    removeSet.add(rscName);
-                                }
+                                removeSet.add(rscName);
                             }
-                            removeSet.forEach(rscName -> filterStates.getResourceStates().remove(rscName));
-                            rscList.putSatelliteState(node.getName(), filterStates);
                         }
+                        removeSet.forEach(rscName -> filterStates.getResourceStates().remove(rscName));
+                        rscList.putSatelliteState(node.getName(), filterStates);
                     }
-                    finally
-                    {
-                        readLock.unlock();
-                    }
+                }
+                finally
+                {
+                    readLock.unlock();
                 }
             }
         }

@@ -265,8 +265,7 @@ public class EncryptionHelper
         {
             for (Node node : nodesMap.values())
             {
-                Peer peer;
-                peer = node.getPeer();
+                Peer peer = node.getPeer();
                 peer.sendMessage(
                     ctrlStltSrzl.onewayBuilder(InternalApiConsts.API_CRYPT_KEY)
                         .cryptKey(

@@ -273,9 +273,9 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
             {
                 if (tieBreaker != null)
                 {
-                    @Nullable Peer tiePeer = tieBreaker.getNode().getPeer();
+                    Peer tiePeer = tieBreaker.getNode().getPeer();
                     // only delete the tiebreaker if node is online
-                    if (tiePeer != null && tiePeer.isFullSyncApplied() && tiePeer.isOnline())
+                    if (tiePeer.isFullSyncApplied() && tiePeer.isOnline())
                     {
                         // this cannot be the last diskful rsc of any rscDfn, so no need to notify scheduled shipping
                         tieBreaker.markDeleted();

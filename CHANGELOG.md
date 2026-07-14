@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed the access-control security subsystem (object protection, ACLs, security identities/roles/types and the protobuf sign-in API); it had always been running at `NO_SECURITY` level. The `SEC_*` database tables are dropped on upgrade, which makes a downgrade to older versions impossible. LDAP authentication for the REST API, satellite connection authentication, auth tokens and HTTPS client certificates are unaffected. Error reports no longer contain an access-context section and log lines are no longer prefixed with the security identity
 - The controller now refuses to start with a clear error message when the SQL database was already migrated by a newer LINSTOR version, instead of failing while partially loading the unknown schema
+- Added StltImplErrPeer so that node.getPeer is always non-null
 
 ### Fixed
 

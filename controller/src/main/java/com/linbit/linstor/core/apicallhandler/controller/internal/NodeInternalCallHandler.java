@@ -184,8 +184,8 @@ public class NodeInternalCallHandler
 
     private void updateStlt(Node node, Set<SharedStorPoolName> locks)
     {
-        Peer stltPeer = node.getPeer();
-        stltPeer.sendMessage(
+        node.getPeer()
+            .sendMessage(
             ctrlStltSerializer.onewayBuilder(InternalApiConsts.API_APPLY_SHARED_STOR_POOL_LOCKS)
                 .grantsharedStorPoolLocks(locks)
                 .build()

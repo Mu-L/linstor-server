@@ -70,7 +70,8 @@ public class NodeSatelliteFactory
                     dbDriver,
                     propsContainerFactory,
                     transObjFactory,
-                    transMgrProvider
+                    transMgrProvider,
+                    true
                 );
                 nodesMap.put(nameRef, node);
             }

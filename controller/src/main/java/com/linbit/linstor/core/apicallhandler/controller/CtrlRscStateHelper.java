@@ -42,29 +42,26 @@ public class CtrlRscStateHelper
     {
         final Node rscNode = rsc.getNode();
         final ResourceName rscName = rsc.getResourceDefinition().getName();
-        final @Nullable Peer curPeer = rscNode.getPeer();
-        if (curPeer != null)
+        final Peer curPeer = rscNode.getPeer();
+        final ReadWriteLock stltStateLock = curPeer.getSatelliteStateLock();
+        final Lock stltStateRdLock = stltStateLock.readLock();
+        stltStateRdLock.lock();
+        try
         {
-            final ReadWriteLock stltStateLock = curPeer.getSatelliteStateLock();
-            final Lock stltStateRdLock = stltStateLock.readLock();
-            stltStateRdLock.lock();
-            try
+            final @Nullable SatelliteState stltState = curPeer.getSatelliteState();
+            if (stltState != null)
             {
-                final @Nullable SatelliteState stltState = curPeer.getSatelliteState();
-                if (stltState != null)
+                final Map<ResourceName, SatelliteResourceState> rscStateMap = stltState.getResourceStates();
+                final @Nullable SatelliteResourceState rscState = rscStateMap.get(rscName);
+                if (rscState != null)
                 {
-                    final Map<ResourceName, SatelliteResourceState> rscStateMap = stltState.getResourceStates();
-                    final @Nullable SatelliteResourceState rscState = rscStateMap.get(rscName);
-                    if (rscState != null)
-                    {
-                        stateMap.put(rscNode.getName(), rscState);
-                    }
+                    stateMap.put(rscNode.getName(), rscState);
                 }
             }
-            finally
-            {
-                stltStateRdLock.unlock();
-            }
+        }
+        finally
+        {
+            stltStateRdLock.unlock();
         }
     }
 

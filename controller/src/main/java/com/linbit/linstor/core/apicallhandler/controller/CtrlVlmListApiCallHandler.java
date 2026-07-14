@@ -222,23 +222,20 @@ public class CtrlVlmListApiCallHandler
         for (final Node node : nodeRepository.getMapForView().values())
         {
             final Peer satellite = node.getPeer();
-            if (satellite != null)
+            Lock readLock = satellite.getSatelliteStateLock().readLock();
+            readLock.lock();
+            try
             {
-                Lock readLock = satellite.getSatelliteStateLock().readLock();
-                readLock.lock();
-                try
-                {
-                    final SatelliteState satelliteState = satellite.getSatelliteState();
+                final SatelliteState satelliteState = satellite.getSatelliteState();
 
-                    if (satelliteState != null)
-                    {
-                        rscList.putSatelliteState(node.getName(), new SatelliteState(satelliteState));
-                    }
-                }
-                finally
+                if (satelliteState != null)
                 {
-                    readLock.unlock();
+                    rscList.putSatelliteState(node.getName(), new SatelliteState(satelliteState));
                 }
+            }
+            finally
+            {
+                readLock.unlock();
             }
         }
 

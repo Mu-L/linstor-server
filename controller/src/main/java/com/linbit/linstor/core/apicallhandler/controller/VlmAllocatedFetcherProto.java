@@ -4,7 +4,6 @@ import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.linstor.InternalApiConsts;
-import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.interfaces.serializer.CtrlStltSerializer;
 import com.linbit.linstor.api.protobuf.ProtoDeserializationUtils;
@@ -184,23 +183,18 @@ public class VlmAllocatedFetcherProto implements VlmAllocatedFetcher
         Set<ResourceName> resourceFilter
     )
     {
-        Peer peer = getPeer(node);
-        Flux<ByteArrayInputStream> result = Flux.empty();
-        if (peer != null)
-        {
-            result = peer
-                .apiCall(
-                    InternalApiConsts.API_REQUEST_VLM_ALLOCATED,
-                    ctrlStltSerializer.headerlessBuilder().filter(
-                        Collections.emptySet(),
-                        storPoolFilter,
-                        resourceFilter
-                    ).build()
+        return getPeer(node).apiCall(
+            InternalApiConsts.API_REQUEST_VLM_ALLOCATED,
+            ctrlStltSerializer.headerlessBuilder()
+                .filter(
+                    Collections.emptySet(),
+                    storPoolFilter,
+                    resourceFilter
                 )
-                // No data from disconnected satellites
-                .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty());
-        }
-        return result;
+                .build()
+        )
+            // No data from disconnected satellites
+            .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty());
     }
 
     private Stream<StorPool> streamStorPools(Node node)
@@ -217,7 +211,7 @@ public class VlmAllocatedFetcherProto implements VlmAllocatedFetcher
         return vlmStream;
     }
 
-    private @Nullable Peer getPeer(Node node)
+    private Peer getPeer(Node node)
     {
         Peer peer;
         peer = node.getPeer();

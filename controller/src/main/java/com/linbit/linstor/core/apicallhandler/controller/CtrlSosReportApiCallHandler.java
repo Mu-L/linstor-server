@@ -15,7 +15,6 @@ import com.linbit.extproc.OutputProxy.StdErrEvent;
 import com.linbit.extproc.OutputProxy.StdOutEvent;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.SosReportType;
-import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -285,19 +284,14 @@ public class CtrlSosReportApiCallHandler
     )
     {
         Peer peer = getPeer(node);
-        Flux<ByteArrayInputStream> fluxReturn = Flux.empty();
-        if (peer != null)
-        {
-            // already create the extTools file here, because you need the peer
-            createExtToolsInfo(tmpDir.resolve(sosReportName + "/" + node.getName().displayValue), peer);
-            byte[] msg = stltComSerializer.headerlessBuilder().requestSosReport(sosReportName, since).build();
-            fluxReturn = peer.apiCall(InternalApiConsts.API_REQ_SOS_REPORT_FILE_LIST, msg)
-                .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty());
-        }
-        return fluxReturn;
+        // already create the extTools file here, because you need the peer
+        createExtToolsInfo(tmpDir.resolve(sosReportName + "/" + node.getName().displayValue), peer);
+        byte[] msg = stltComSerializer.headerlessBuilder().requestSosReport(sosReportName, since).build();
+        return peer.apiCall(InternalApiConsts.API_REQ_SOS_REPORT_FILE_LIST, msg)
+            .onErrorResume(PeerNotConnectedException.class, ignored -> Flux.empty());
     }
 
-    private @Nullable Peer getPeer(Node node)
+    private Peer getPeer(Node node)
     {
         Peer peer;
         peer = node.getPeer();
@@ -338,56 +332,49 @@ public class CtrlSosReportApiCallHandler
         }
 
         Flux<ByteArrayInputStream> flux;
-        if (peer == null)
+        Path sosDir = tmpDirRef.resolve(sosReportName + "/" + msgSosReportListReply.getNodeName());
+        String sosReportDirOnStltStr = LinStor.SOS_REPORTS_DIR.resolve(sosReportName).toString();
+        String sosDirStr = sosDir.toString();
+        ArrayDeque<RequestFilePojo> filesToRequest = new ArrayDeque<>();
+        for (FileInfo fileInfo : msgSosReportListReply.getFilesList())
         {
-            flux = Flux.empty();
-        }
-        else
-        {
-            Path sosDir = tmpDirRef.resolve(sosReportName + "/" + msgSosReportListReply.getNodeName());
-            String sosReportDirOnStltStr = LinStor.SOS_REPORTS_DIR.resolve(sosReportName).toString();
-            String sosDirStr = sosDir.toString();
-            ArrayDeque<RequestFilePojo> filesToRequest = new ArrayDeque<>();
-            for (FileInfo fileInfo : msgSosReportListReply.getFilesList())
+            if (fileInfo.getSize() == 0)
             {
-                if (fileInfo.getSize() == 0)
-                {
-                    // do not request files with 0 bytes. instead, just create the corresponding file right now
+                // do not request files with 0 bytes. instead, just create the corresponding file right now
 
-                    String fileName = fileInfo.getName();
-                    if (fileName.startsWith(sosReportDirOnStltStr))
-                    {
-                        // move all '$stlt/var/lib/linstor.d/sos-report/$currentSosName/*' files to '$stlt/*'.
-                        fileName = fileName.substring(sosReportDirOnStltStr.length());
-                    }
-                    errorReporter.logTrace(
-                        "Not requesting %s for file %s as its size is 0 bytes. File %s created.",
-                        peer.getNode().getName().displayValue,
-                        fileInfo.getName(),
-                        fileName
-                    );
-
-                    append(
-                        concatPaths(sosDirStr, fileName),
-                        new byte[0],
-                        fileInfo.getTime()
-                    );
-                }
-                else
+                String fileName = fileInfo.getName();
+                if (fileName.startsWith(sosReportDirOnStltStr))
                 {
-                    filesToRequest.add(new RequestFilePojo(fileInfo.getName(), 0, fileInfo.getSize()));
+                    // move all '$stlt/var/lib/linstor.d/sos-report/$currentSosName/*' files to '$stlt/*'.
+                    fileName = fileName.substring(sosReportDirOnStltStr.length());
                 }
-            }
-            if (!msgSosReportListReply.getErrorMessage().isEmpty())
-            {
+                errorReporter.logTrace(
+                    "Not requesting %s for file %s as its size is 0 bytes. File %s created.",
+                    peer.getNode().getName().displayValue,
+                    fileInfo.getName(),
+                    fileName
+                );
+
                 append(
-                    sosDir.resolve("sos.err"),
-                    (msgSosReportListReply.getErrorMessage() + "\n").getBytes(StandardCharsets.UTF_8),
-                    System.currentTimeMillis()
+                    concatPaths(sosDirStr, fileName),
+                    new byte[0],
+                    fileInfo.getTime()
                 );
             }
-            flux = requestNextBatch(tmpDirRef, sosReportName, peer, filesToRequest);
+            else
+            {
+                filesToRequest.add(new RequestFilePojo(fileInfo.getName(), 0, fileInfo.getSize()));
+            }
         }
+        if (!msgSosReportListReply.getErrorMessage().isEmpty())
+        {
+            append(
+                sosDir.resolve("sos.err"),
+                (msgSosReportListReply.getErrorMessage() + "\n").getBytes(StandardCharsets.UTF_8),
+                System.currentTimeMillis()
+            );
+        }
+        flux = requestNextBatch(tmpDirRef, sosReportName, peer, filesToRequest);
 
         return flux;
     }

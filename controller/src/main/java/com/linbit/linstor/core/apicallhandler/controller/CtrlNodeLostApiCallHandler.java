@@ -1,7 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.LinstorParsingUtils;
-import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -149,7 +148,7 @@ public class CtrlNodeLostApiCallHandler
         }
 
         Peer nodePeer = getPeerPrivileged(node);
-        if (nodePeer != null && nodePeer.isOnline())
+        if (nodePeer.isOnline())
         {
             throw new ApiRcException(ApiCallRcImpl.simpleEntry(
                 ApiConsts.FAIL_EXISTS_NODE_CONN,
@@ -280,9 +279,9 @@ public class CtrlNodeLostApiCallHandler
     {
     }
 
-    private @Nullable Peer getPeerPrivileged(Node node)
+    private Peer getPeerPrivileged(Node node)
     {
-        @Nullable Peer nodePeer;
+        Peer nodePeer;
         nodePeer = node.getPeer();
         return nodePeer;
     }
