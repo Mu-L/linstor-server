@@ -15,7 +15,7 @@ public class TimeUtils
     public static final DateTimeFormatter JOURNALCTL_DF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     public static final DateTimeFormatter DTF_NO_SPACE = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
     public static final DateTimeFormatter DTF_NO_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    public static final DateTimeFormatter DTF_ISO_8601_FOR_ZFS_RENAME = DateTimeFormatter.ofPattern(
+    public static final DateTimeFormatter DTF_ISO_8601_FOR_RENAME = DateTimeFormatter.ofPattern(
         "yyyy-MM-dd'T'HH-mm-ss-SSS"
     );
 
@@ -39,14 +39,14 @@ public class TimeUtils
         return date.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 
-    public static String getZfsRenameTime()
+    public static String getRenameTime()
     {
-        return getZfsRenameTime(LocalDateTime.now(ZoneOffset.systemDefault()));
+        return getRenameTime(LocalDateTime.now(ZoneOffset.systemDefault()));
     }
 
-    public static String getZfsRenameTime(LocalDateTime nowRef)
+    public static String getRenameTime(LocalDateTime nowRef)
     {
-        return DTF_ISO_8601_FOR_ZFS_RENAME.format(nowRef);
+        return DTF_ISO_8601_FOR_RENAME.format(nowRef);
     }
 
     private TimeUtils()

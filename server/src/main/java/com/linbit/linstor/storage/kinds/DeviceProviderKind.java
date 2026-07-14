@@ -33,8 +33,8 @@ public enum DeviceProviderKind
         new DisklessDriverKind() // compatibility - will be removed
     ),
     LVM(
-        false,
-        false,
+        true,
+        true, // thick snapshots cannot exist without their origin LV
         false,
         true,
         true,

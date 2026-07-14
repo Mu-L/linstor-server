@@ -17,6 +17,7 @@ import static com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LVS_COL_CHU
 import static com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LVS_COL_DATA_PERCENT;
 import static com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LVS_COL_IDENTIFIER;
 import static com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LVS_COL_METADATA_PERCENT;
+import static com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LVS_COL_ORIGIN;
 import static com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LVS_COL_PATH;
 import static com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LVS_COL_POOL_LV;
 import static com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LVS_COL_SIZE;
@@ -97,6 +98,7 @@ public class LvmUtils
         public final String metaDataPercentStr;
         public final long chunkSizeInKib;
         public final int stripes;
+        public final @Nullable String origin;
 
         LvsInfo(
             String volumeGroupRef,
@@ -108,7 +110,8 @@ public class LvmUtils
             String attributesRef,
             String metaDataPercentStrRef,
             long chunkSizeInKibRef,
-            int stripesRef
+            int stripesRef,
+            @Nullable String originRef
         )
         {
             volumeGroup = volumeGroupRef;
@@ -121,6 +124,7 @@ public class LvmUtils
             metaDataPercentStr = metaDataPercentStrRef;
             chunkSizeInKib = chunkSizeInKibRef;
             stripes = stripesRef;
+            origin = originRef;
         }
     }
 
@@ -465,6 +469,8 @@ public class LvmUtils
                     );
                 }
 
+                final String originStr = data[LVS_COL_ORIGIN].trim();
+
                 final LvsInfo state = new LvsInfo(
                     vgStr,
                     thinPoolStr,
@@ -475,7 +481,8 @@ public class LvmUtils
                     attributes,
                     metaDataPercentStr,
                     chunkSizeInKib,
-                    stripes
+                    stripes,
+                    originStr.isEmpty() ? null : originStr
                 );
                 ret.computeIfAbsent(vgStr, ignored -> new HashMap<>())
                     .put(identifier, state);

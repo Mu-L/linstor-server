@@ -202,6 +202,34 @@ public class ZfsChecks
         return ret;
     }
 
+    public static boolean hasLvmThick(ResourceDefinition rscDfnRef)
+    {
+        boolean ret = false;
+        for (Resource rsc : rscDfnRef.getDiskfulResources())
+        {
+            if (isLvmThick(rsc))
+            {
+                ret = true;
+                break;
+            }
+        }
+        return ret;
+    }
+
+    public static <RSC extends AbsResource<RSC>> boolean isLvmThick(RSC absRscRef)
+    {
+        boolean ret = true;
+        for (StorPool sp : LayerVlmUtils.getStorPools(absRscRef, true))
+        {
+            if (sp.getDeviceProviderKind() != DeviceProviderKind.LVM)
+            {
+                ret = false;
+                break;
+            }
+        }
+        return ret;
+    }
+
     private boolean isMostRecentSnapshot(SnapshotDefinition snapDfnRef)
     {
         long maxSequenceNumber = getMaxSequenceNumber(snapDfnRef.getResourceDefinition());
@@ -276,33 +304,43 @@ public class ZfsChecks
         ReadOnlyProps ctrlPropsRef
     )
     {
-        ZfsDeleteStrategy strat = ZfsDeleteStrategy.getStrat(rscDfnRef, ctrlPropsRef);
-        switch (strat)
+        ZfsDeleteStrategy strat;
+        if (!hasZfs(rscDfnRef))
         {
-            case DELETE ->
+            // the ZFS delete strategy property only applies to ZFS. All other snapshot-dependent providers
+            // (currently thick LVM) always delete via rename
+            strat = ZfsDeleteStrategy.RENAME;
+        }
+        else
+        {
+            strat = ZfsDeleteStrategy.getStrat(rscDfnRef, ctrlPropsRef);
+            switch (strat)
             {
-                if (!rscDfnRef.getSnapshotDfns().isEmpty())
+                case DELETE ->
                 {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.simpleEntry(
-                            ApiConsts.FAIL_EXISTS_SNAPSHOT,
-                            "Cannot use " + strat + " strategy since the resource definition '" + rscDfnRef.getName() +
-                                "' still has snapshots"
-                        ).setSkipErrorReport(true)
-                    );
+                    if (!rscDfnRef.getSnapshotDfns().isEmpty())
+                    {
+                        throw new ApiRcException(
+                            ApiCallRcImpl.simpleEntry(
+                                ApiConsts.FAIL_EXISTS_SNAPSHOT,
+                                "Cannot use " + strat + " strategy since the resource definition '" +
+                                    rscDfnRef.getName() + "' still has snapshots"
+                            ).setSkipErrorReport(true)
+                        );
+                    }
                 }
+                case DYNAMIC ->
+                {
+                    strat = rscDfnRef.getSnapshotDfns().isEmpty() ?
+                        ZfsDeleteStrategy.DELETE :
+                        ZfsDeleteStrategy.RENAME;
+                }
+                case RENAME ->
+                {
+                    // noop, delete via rename is always possible
+                }
+                default -> throw new ImplementationError("Strategy '" + strat + "' not implemented");
             }
-            case DYNAMIC ->
-            {
-                strat = rscDfnRef.getSnapshotDfns().isEmpty() ?
-                    ZfsDeleteStrategy.DELETE :
-                    ZfsDeleteStrategy.RENAME;
-            }
-            case RENAME ->
-            {
-                // noop, delete via rename is always possible
-            }
-            default -> throw new ImplementationError("Strategy '" + strat + "' not implemented");
         }
         return strat;
     }
@@ -318,7 +356,7 @@ public class ZfsChecks
     public static ApiCallRc ensureNoDependentSnapshots(Resource rscRef, boolean throwApiExc)
     {
         ApiCallRcImpl ret = new ApiCallRcImpl();
-        if (isZfs(rscRef))
+        if (isZfs(rscRef) || isLvmThick(rscRef))
         {
             for (SnapshotDefinition snapshotDfn : rscRef.getResourceDefinition().getSnapshotDfns())
             {
@@ -372,7 +410,7 @@ public class ZfsChecks
     )
     {
         ApiCallRc ret = new ApiCallRcImpl();
-        if (hasZfs(vlmDfnRef.getResourceDefinition()))
+        if (hasZfs(vlmDfnRef.getResourceDefinition()) || hasLvmThick(vlmDfnRef.getResourceDefinition()))
         {
             ResourceDefinition rscDfn = vlmDfnRef.getResourceDefinition();
             for (SnapshotDefinition snapshotDfn : rscDfn.getSnapshotDfns())

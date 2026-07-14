@@ -49,7 +49,7 @@ public class LvmDriverKind implements StorageDriverKind
     @Override
     public boolean isSnapshotSupported()
     {
-        return false;
+        return true;
     }
 
     @Override

@@ -436,7 +436,7 @@ public class ZfsProvider
             {
                 case SNAPSHOT:
                     String[] split = StringUtils.split(oldId, "@");
-                    newId = split[0] + "@" + ZFS_DELETED_PREFIX + split[1] + "_" + TimeUtils.getZfsRenameTime();
+                    newId = split[0] + "@" + ZFS_DELETED_PREFIX + split[1] + "_" + TimeUtils.getRenameTime();
                     break;
                 case VOLUME:
                     newId = ZFS_DELETED_PREFIX + oldId +

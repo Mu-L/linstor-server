@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Snapshot support for thick LVM (`LVM`) storage pools: create, delete, restore into a new resource and rollback. Each snapshot reserves its origin's size as CoW area in the volume group, so it can never become invalid. Restore and rollback copy the full data with `dd`. Deleting a resource that still has snapshots renames the backing LV (`_deleted_*`); it is removed together with its last snapshot. Volumes with thick LVM snapshots cannot be resized (LVM limitation) and backup shipping remains unsupported
+
 ### Changed
 
 - Removed the access-control security subsystem (object protection, ACLs, security identities/roles/types and the protobuf sign-in API); it had always been running at `NO_SECURITY` level. The `SEC_*` database tables are dropped on upgrade, which makes a downgrade to older versions impossible. LDAP authentication for the REST API, satellite connection authentication, auth tokens and HTTPS client certificates are unaffected. Error reports no longer contain an access-context section and log lines are no longer prefixed with the security identity

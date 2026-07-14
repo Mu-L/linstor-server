@@ -340,7 +340,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
                 // deleting a resource in multiple steps. This MUST NOT happen.
                 // (not exactly sure how this could happen, since we are about to delete the resource... no idea how
                 // someone should manage to create a snapshot in between, but who knows what the future holds :) )
-                String nextRenameSufixStr = rscRenameSuffix == null ? TimeUtils.getZfsRenameTime() : rscRenameSuffix;
+                String nextRenameSufixStr = rscRenameSuffix == null ? TimeUtils.getRenameTime() : rscRenameSuffix;
 
                 for (Props snapProps : snapPropsToUpdate)
                 {

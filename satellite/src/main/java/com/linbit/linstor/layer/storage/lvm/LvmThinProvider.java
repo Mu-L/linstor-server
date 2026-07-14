@@ -166,15 +166,6 @@ public class LvmThinProvider extends LvmProvider
     }
 
     @Override
-    protected boolean snapshotExists(LvmData<Snapshot> snapVlmRef, boolean ignoredForTakeSnapshorRef)
-        throws StorageException, DatabaseException
-    {
-        String identifier = getFullQualifiedIdentifier(snapVlmRef);
-
-        return infoListCache.get(identifier) != null;
-    }
-
-    @Override
     protected void createLvForBackupIfNeeded(LvmData<Snapshot> snapVlm, String remoteName, boolean isTarget)
         throws StorageException
     {
@@ -252,25 +243,6 @@ public class LvmThinProvider extends LvmProvider
                 additionalOptionsArr
             )
         );
-        LvmUtils.recacheNextLvs();
-    }
-
-    @Override
-    protected void deleteSnapshotImpl(LvmData<Snapshot> snapVlm)
-        throws StorageException, DatabaseException
-    {
-        LvmUtils.execWithRetry(
-            extCmdFactory,
-            Collections.singleton(snapVlm.getVolumeGroup()),
-            config -> LvmCommands.delete(
-                extCmdFactory.create(),
-                getVolumeGroup(snapVlm.getStorPool()),
-                asSnapLvIdentifier(snapVlm),
-                config,
-                LvmVolumeType.SNAPSHOT
-            )
-        );
-        snapVlm.setExists(false);
         LvmUtils.recacheNextLvs();
     }
 

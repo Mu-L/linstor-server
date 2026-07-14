@@ -9,6 +9,7 @@ import com.linbit.linstor.storage.StorageException;
 import com.linbit.linstor.storage.kinds.RaidLevel;
 import com.linbit.linstor.storage.utils.Commands;
 import com.linbit.linstor.storage.utils.Commands.RetryHandler;
+import com.linbit.linstor.storage.utils.DeviceStatUtils;
 import com.linbit.utils.StringUtils;
 
 import static com.linbit.linstor.storage.utils.Commands.genericExecutor;
@@ -44,8 +45,9 @@ public class LvmCommands
     public static final int LVS_COL_METADATA_PERCENT = 7;
     public static final int LVS_COL_CHUNK_SIZE = 8;
     public static final int LVS_COL_STRIPES = 9;
+    public static final int LVS_COL_ORIGIN = 10;
 
-    public static final int LVS_COLUMN_COUNT = 10;
+    public static final int LVS_COLUMN_COUNT = 11;
 
     public static final int VGS_COL_VG_NAME = 0;
     public static final int VGS_COL_VG_EXTENT_SIZE = 1;
@@ -105,7 +107,7 @@ public class LvmCommands
                 lvmConfig,
                 volumeGroups,
                 "-o", "lv_name,lv_path,lv_size,vg_name,pool_lv,data_percent,lv_attr,metadata_percent,chunk_size," +
-                    "stripes",
+                    "stripes,origin",
                 "--separator", LvmUtils.DELIMITER,
                 "--noheadings",
                 "--units", "k",
@@ -335,6 +337,7 @@ public class LvmCommands
 
     public static synchronized OutputData createSnapshot(
         ExtCmd extCmd,
+        boolean readOnly,
         String volumeGroup,
         String identifier,
         String snapshotIdentifier,
@@ -344,6 +347,11 @@ public class LvmCommands
     )
         throws StorageException
     {
+        ArrayList<String> addParams = new ArrayList<>(Arrays.asList(additionalParameters));
+        if (readOnly)
+        {
+            addParams.add("-pr");
+        }
         String failMsg = "Failed to create snapshot " + snapshotIdentifier + " from " + identifier +
             " within volume group " + volumeGroup;
         return genericExecutor(
@@ -351,7 +359,7 @@ public class LvmCommands
             buildCmd(
                 "lvcreate",
                 lvmConfig,
-                additionalParameters == null ? null : Arrays.asList(additionalParameters),
+                addParams,
                 "--size", size + "k",
                 "--snapshot",
                 "--setactivationskip", "y", // snapshot needs to be active from the beginning
@@ -397,6 +405,41 @@ public class LvmCommands
                 "--name", snapshotIdentifier,
                 volumeGroup + File.separator + identifier
             ),
+            failMsg,
+            failMsg
+        );
+    }
+
+    /**
+     * Copies the full content of one block device to another using dd.
+     * <p>Deliberately NOT synchronized: this is not an LVM command and may run for a long time - it must not
+     * block other LVM commands. The copy runs in I/O progress mode so it is not killed by the wall-clock
+     * timeout but still times out when the I/O stalls.</p>
+     */
+    public static OutputData copyDevice(
+        ExtCmdFactory extCmdFactory,
+        String srcDevPath,
+        String tgtDevPath,
+        String blockSize
+    )
+        throws StorageException
+    {
+        String failMsg = "Failed to copy data from '" + srcDevPath + "' to '" + tgtDevPath + "'";
+        return genericExecutor(
+            extCmdFactory.create()
+                .setIoProgressMode(
+                    true,
+                    DeviceStatUtils.resolveSysStatFiles(extCmdFactory, Arrays.asList(srcDevPath, tgtDevPath))
+                ),
+            new String[]
+            {
+                "dd",
+                "if=" + srcDevPath,
+                "of=" + tgtDevPath,
+                "bs=" + blockSize,
+                "conv=nocreat",
+                "oflag=direct"
+            },
             failMsg,
             failMsg
         );
@@ -469,6 +512,8 @@ public class LvmCommands
                 "-ay",  // activate volume
                 "-K",   // these parameters are needed to set a
                 // snapshot to active and enabled
+                "-y",   // activating a thick snapshot also affects its origin, which lvchange
+                // interactively asks to confirm (defaulting to no) - always confirm
                 volumeGroup + File.separator + targetId
             ),
             failMsg,

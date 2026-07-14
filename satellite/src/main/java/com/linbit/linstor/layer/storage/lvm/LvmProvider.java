@@ -47,6 +47,7 @@ import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObje
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.utils.ShellUtils;
 import com.linbit.utils.StringUtils;
+import com.linbit.utils.TimeUtils;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -78,6 +79,12 @@ public class LvmProvider
     private static final String DFLT_LVCREATE_TYPE = "linear";
 
     private static final AtomicLong DELETED_ID = new AtomicLong(0);
+
+    /** @see com.linbit.linstor.layer.storage.zfs.ZfsProvider - uses the same prefix for renamed origins */
+    private static final String LVM_DELETED_PREFIX = "_deleted_";
+    private static final String FORMAT_LVM_DELETED_ID = LVM_DELETED_PREFIX + "%s_%s";
+
+    private static final String DFLT_RESTORE_DD_BLOCKSIZE = "64k";
 
     protected LvmProvider(
         AbsStorageProviderInit superInitRef,
@@ -124,7 +131,7 @@ public class LvmProvider
             if (info != null)
             {
                 final long expectedSize = vlmData.getExpectedSize();
-                final long actualSize = info.size;
+                final long actualSize = getUsableSize(info);
                 if (actualSize != expectedSize)
                 {
                     if (actualSize < expectedSize)
@@ -150,6 +157,28 @@ public class LvmProvider
                 }
             }
         }
+    }
+
+    /**
+     * For thick snapshots "lvs" reports the size of the CoW area, which is the allocated size. The usable
+     * (virtual) size of the snapshot device equals its origin's size, so look that up instead - this also
+     * works for renamed ("<code>_deleted_</code>") origins. For everything else (volumes, thin snapshots)
+     * the reported size is both allocated and usable size.
+     */
+    protected long getUsableSize(LvsInfo infoRef)
+    {
+        long usableSize = infoRef.size;
+        if (infoRef.origin != null && infoRef.thinPool == null)
+        {
+            @Nullable LvsInfo originInfo = infoListCache.get(
+                infoRef.volumeGroup + File.separator + infoRef.origin
+            );
+            if (originInfo != null)
+            {
+                usableSize = originInfo.size;
+            }
+        }
+        return usableSize;
     }
 
     protected String getFullQualifiedIdentifier(LvmData<?> vlmDataRef)
@@ -233,7 +262,7 @@ public class LvmProvider
             }
             vlmDataRef.setIdentifier(info.identifier);
             vlmDataRef.setAllocatedSize(info.size);
-            vlmDataRef.setUsableSize(info.size);
+            vlmDataRef.setUsableSize(getUsableSize(info));
             vlmDataRef.setAttributes(info.attributes);
 
             if (!info.attributes.contains("a") && setDevicePath)
@@ -484,6 +513,39 @@ public class LvmProvider
         @Nullable String devicePath = vlmData.getDevicePath();
         @Nullable String volumeGroup = vlmData.getVolumeGroup();
 
+        if (volumeGroup != null && hasThickSnapshots(volumeGroup, oldLvmId))
+        {
+            /*
+             * A thick snapshot cannot outlive its origin LV. Deleting the origin (lvremove -f) would also
+             * delete all of its snapshots. Instead, rename the origin. The renamed LV is removed once its
+             * last snapshot gets deleted.
+             */
+            String newLvmId = String.format(
+                FORMAT_LVM_DELETED_ID,
+                oldLvmId,
+                TimeUtils.getRenameTime()
+            );
+            errorReporter.logInfo(
+                "Lv %s/%s still has snapshots, renaming to %s instead of deleting",
+                volumeGroup,
+                oldLvmId,
+                newLvmId
+            );
+            LvmUtils.execWithRetry(
+                extCmdFactory,
+                Collections.singleton(volumeGroup),
+                config -> LvmCommands.rename(
+                    extCmdFactory.create(),
+                    volumeGroup,
+                    oldLvmId,
+                    newLvmId,
+                    config
+                )
+            );
+            vlmData.setExists(false);
+            LvmUtils.recacheNextLvs();
+        }
+        else
         if (true)
         {
             if (devicePath != null)
@@ -571,6 +633,188 @@ public class LvmProvider
             )
         );
         LvmUtils.recacheNextLvs();
+    }
+
+    @Override
+    protected boolean snapshotExists(LvmData<Snapshot> snapVlmRef, boolean ignoredForTakeSnapshotRef)
+        throws StorageException, DatabaseException
+    {
+        return infoListCache.get(getFullQualifiedIdentifier(snapVlmRef)) != null;
+    }
+
+    @Override
+    protected void createSnapshot(LvmData<Resource> vlmDataRef, LvmData<Snapshot> snapVlmRef, boolean readOnly)
+        throws StorageException, DatabaseException
+    {
+        List<String> additionalOptions = ShellUtils.shellSplit(getLvcreateSnapshotOptions(vlmDataRef));
+        String[] additionalOptionsArr = new String[additionalOptions.size()];
+        additionalOptions.toArray(additionalOptionsArr);
+
+        /*
+         * A thick snapshot needs a CoW area of a fixed size. Requesting the origin's size guarantees that
+         * the snapshot can never become invalid, no matter how much data gets rewritten on the origin.
+         * LVM itself caps the CoW size at the maximum useful size.
+         */
+        LvmUtils.execWithRetry(
+            extCmdFactory,
+            Collections.singleton(vlmDataRef.getVolumeGroup()),
+            config -> LvmCommands.createSnapshot(
+                extCmdFactory.create(),
+                readOnly,
+                vlmDataRef.getVolumeGroup(),
+                asLvIdentifier(vlmDataRef),
+                asSnapLvIdentifier(snapVlmRef),
+                config,
+                vlmDataRef.getAllocatedSize(),
+                additionalOptionsArr
+            )
+        );
+        LvmUtils.recacheNextLvs();
+    }
+
+    @Override
+    protected void deleteSnapshotImpl(LvmData<Snapshot> snapVlm)
+        throws StorageException, DatabaseException
+    {
+        String volumeGroup = getVolumeGroup(snapVlm.getStorPool());
+        @Nullable LvsInfo snapInfo = infoListCache.get(getFullQualifiedIdentifier(snapVlm));
+        @Nullable String originLvId = snapInfo == null ? null : snapInfo.origin;
+
+        LvmUtils.execWithRetry(
+            extCmdFactory,
+            Collections.singleton(snapVlm.getVolumeGroup()),
+            config -> LvmCommands.delete(
+                extCmdFactory.create(),
+                volumeGroup,
+                asSnapLvIdentifier(snapVlm),
+                config,
+                LvmVolumeType.SNAPSHOT
+            )
+        );
+        snapVlm.setExists(false);
+        LvmUtils.recacheNextLvs();
+
+        if (originLvId != null && originLvId.startsWith(LVM_DELETED_PREFIX))
+        {
+            deleteOriginIfNoSnapshotLeft(volumeGroup, originLvId);
+        }
+    }
+
+    /**
+     * Removes the given renamed ("<code>_deleted_...</code>") origin LV if the just deleted snapshot was its
+     * last one. See {@link #deleteLvImpl} for the renaming counterpart.
+     */
+    private void deleteOriginIfNoSnapshotLeft(String volumeGroupRef, String originLvIdRef)
+        throws StorageException
+    {
+        @Nullable Map<String, LvsInfo> vgLvsInfo = LvmUtils.getLvsInfo(
+            extCmdFactory,
+            Collections.singleton(volumeGroupRef)
+        ).get(volumeGroupRef);
+        if (vgLvsInfo != null && vgLvsInfo.containsKey(originLvIdRef) && !hasSnapshotLvs(vgLvsInfo, originLvIdRef))
+        {
+            errorReporter.logInfo(
+                "Removing %s/%s since its last snapshot was just deleted",
+                volumeGroupRef,
+                originLvIdRef
+            );
+            LvmUtils.execWithRetry(
+                extCmdFactory,
+                Collections.singleton(volumeGroupRef),
+                config -> LvmCommands.delete(
+                    extCmdFactory.create(),
+                    volumeGroupRef,
+                    originLvIdRef,
+                    config,
+                    LvmVolumeType.VOLUME
+                )
+            );
+            LvmUtils.recacheNextLvs();
+        }
+    }
+
+    /**
+     * Checks whether the given LV still has (thick) snapshots, based on a fresh "lvs" query if the cached
+     * data indicates snapshots. The fresh query is needed since a snapshot found in the cache might have
+     * been removed in the meantime (e.g. by the CloneService).
+     */
+    private boolean hasThickSnapshots(String volumeGroupRef, String lvmIdRef) throws StorageException
+    {
+        boolean hasSnapshots = false;
+        for (LvsInfo info : infoListCache.values())
+        {
+            if (volumeGroupRef.equals(info.volumeGroup) && lvmIdRef.equals(info.origin))
+            {
+                hasSnapshots = true;
+                break;
+            }
+        }
+        if (hasSnapshots)
+        {
+            LvmUtils.recacheNextLvs();
+            @Nullable Map<String, LvsInfo> vgLvsInfo = LvmUtils.getLvsInfo(
+                extCmdFactory,
+                Collections.singleton(volumeGroupRef)
+            ).get(volumeGroupRef);
+            hasSnapshots = vgLvsInfo != null && hasSnapshotLvs(vgLvsInfo, lvmIdRef);
+        }
+        return hasSnapshots;
+    }
+
+    private boolean hasSnapshotLvs(Map<String, LvsInfo> vgLvsInfoRef, String lvmIdRef)
+    {
+        boolean hasSnapshotLvs = false;
+        for (LvsInfo info : vgLvsInfoRef.values())
+        {
+            if (lvmIdRef.equals(info.origin))
+            {
+                hasSnapshotLvs = true;
+                break;
+            }
+        }
+        return hasSnapshotLvs;
+    }
+
+    @Override
+    protected void restoreSnapshot(LvmData<Snapshot> sourceSnapVlmDataRef, LvmData<Resource> vlmDataRef)
+        throws StorageException, DatabaseException
+    {
+        String volumeGroup = vlmDataRef.getVolumeGroup();
+        String targetId = asLvIdentifier(vlmDataRef);
+        String snapVolumeGroup = sourceSnapVlmDataRef.getVolumeGroup();
+        String snapLvId = asSnapLvIdentifier(sourceSnapVlmDataRef);
+
+        // a thick snapshot cannot be snapshotted again - restore by creating a new LV and copying the data.
+        // The source snapshot is active: snapshots are created active and updateInfo reactivates known
+        // but inactive LVs (i.e. after a satellite reboot)
+        LvmUtils.execWithRetry(
+            extCmdFactory,
+            Collections.singleton(volumeGroup),
+            config -> LvmCommands.createFat(
+                extCmdFactory.create(),
+                volumeGroup,
+                targetId,
+                vlmDataRef.getExpectedSize(),
+                config
+            )
+        );
+        LvmUtils.recacheNextLvs();
+
+        String srcDevPath = getDevicePath(snapVolumeGroup, snapLvId);
+        String tgtDevPath = getDevicePath(volumeGroup, targetId);
+        waitUntilDeviceCreated(vlmDataRef, tgtDevPath);
+
+        String blockSize = getProp(
+            vlmDataRef,
+            ApiConsts.NAMESPC_CLONE,
+            ApiConsts.KEY_CLONE_DD_BLOCKSIZE,
+            DFLT_RESTORE_DD_BLOCKSIZE
+        );
+        if (blockSize.isEmpty())
+        {
+            blockSize = DFLT_RESTORE_DD_BLOCKSIZE;
+        }
+        LvmCommands.copyDevice(extCmdFactory, srcDevPath, tgtDevPath, blockSize);
     }
 
     @Override
@@ -842,6 +1086,7 @@ public class LvmProvider
                 Collections.singleton(vlmData.getVolumeGroup()),
                 config -> LvmCommands.createSnapshot(
                     extCmdFactory.create(),
+                    false,
                     vlmData.getVolumeGroup(),
                     srcId,
                     srcFullSnapshotName,
