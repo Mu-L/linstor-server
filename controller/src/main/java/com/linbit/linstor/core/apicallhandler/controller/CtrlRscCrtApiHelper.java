@@ -210,6 +210,45 @@ public class CtrlRscCrtApiHelper
         @Nullable Boolean drbdClientRef
     )
     {
+        return createResourceDb(
+            nodeNameStr,
+            rscNameStr,
+            flags,
+            rscPropsMap,
+            vlmApiList,
+            nodeIdInt,
+            portsRef,
+            portCountRef,
+            thinFreeCapacities,
+            layerStackStrListRef,
+            diskfulByRef,
+            drbdClientRef,
+            false
+        );
+    }
+
+    /**
+     * Like {@link #createResourceDb(String, String, long, Map, List, Integer, List, Integer, Map, List,
+     * Resource.DiskfulBy, Boolean)}, but with allowDualActiveSharedRef set to true the new resource is not
+     * auto-deactivated although another resource of the same shared storage pool is still active (used by
+     * make-available with auto_manage_dual_primary for live migrations).
+     */
+    public PairNonNull<List<Flux<ApiCallRc>>, ApiCallRcWith<Resource>> createResourceDb(
+        String nodeNameStr,
+        String rscNameStr,
+        long flags,
+        Map<String, String> rscPropsMap,
+        List<? extends VolumeApi> vlmApiList,
+        @Nullable Integer nodeIdInt,
+        @Nullable List<Integer> portsRef,
+        @Nullable Integer portCountRef,
+        @Nullable Map<StorPool.Key, Long> thinFreeCapacities,
+        List<String> layerStackStrListRef,
+        @Nullable Resource.DiskfulBy diskfulByRef,
+        @Nullable Boolean drbdClientRef,
+        boolean allowDualActiveSharedRef
+    )
+    {
         ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr, true);
 
         boolean canChangeMinIo = false;
@@ -534,7 +573,8 @@ public class CtrlRscCrtApiHelper
             ResourceDataUtils.recalculateVolatileRscData(layerDataHelper, rsc);
         }
 
-        if (!isFlagSet(rsc, Resource.Flags.INACTIVE) && !sharedRscMgr.isActivationAllowed(rsc))
+        if (!allowDualActiveSharedRef && !isFlagSet(rsc, Resource.Flags.INACTIVE) &&
+            !sharedRscMgr.isActivationAllowed(rsc))
         {
             autoFlux.add(ctrlRscActivateApiCallHandler.deactivateRsc(nodeNameStr, rscNameStr));
         }

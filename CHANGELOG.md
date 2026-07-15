@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Snapshot support for thick LVM (`LVM`) storage pools: create, delete, restore into a new resource and rollback. Each snapshot reserves its origin's size as CoW area in the volume group, so it can never become invalid. Restore and rollback copy the full data with `dd`. Deleting a resource that still has snapshots renames the backing LV (`_deleted_*`); it is removed together with its last snapshot. Volumes with thick LVM snapshots cannot be resized (LVM limitation) and backup shipping remains unsupported
 - Added a "truncate" operation for resource-definitions that atomically deletes all of a resource-definition's resources without touching the resource-definition or its snapshots (`DELETE /v1/resource-definitions/{resource}/resources`); an optional flag additionally deletes the resource-definition when it has neither resources nor snapshots left afterwards.
 - Added an option to snapshot deletion that atomically deletes the resource-definition as well when, after deleting the snapshot, the resource-definition has neither resources nor snapshots left.
+- make-available: new option `auto_manage_dual_primary` (REST 1.29.0) preparing a resource for a live migration 
+  to the given node: for DRBD resources `allow-two-primaries` (and `protocol C` if needed) is set between the migration
+  source (the node the resource is in use on) and the target node; for resources in a shared storage pool the resource
+  is activated on both nodes at once. If the resource is not in use on any node it is simply made available, so
+  clients that cannot distinguish a live-migration attach from a plain attach can always set the option
+- New API `unmake-available` reverting a make-available on the migration source after a live migration: removes
+  the resource from the node if that is possible without losing data (diskless resources and redundant
+  shared-storage-pool copies; tiebreaker and diskful resources are kept) and reverts the DRBD net options set by
+  make-available. Calling it for a resource that is not deployed on the node is a successful no-op
 
 ### Changed
 

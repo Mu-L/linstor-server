@@ -89,6 +89,24 @@ public class CtrlRscCrtApiCallHandler
         boolean copySnapsForEvac
     )
     {
+        return createResource(rscApiList, diskfulByRef, copyAllSnaps, snapNames, copySnapsForEvac, false);
+    }
+
+    /**
+     * Like {@link #createResource(List, DiskfulBy, boolean, List, boolean)}, but with
+     * allowDualActiveSharedRef set to true the new resource is not auto-deactivated although another
+     * resource of the same shared storage pool is still active (used by make-available with
+     * auto_manage_dual_primary for live migrations).
+     */
+    public Flux<ApiCallRc> createResource(
+        List<ResourceWithPayloadApi> rscApiList,
+        @Nullable DiskfulBy diskfulByRef,
+        boolean copyAllSnaps,
+        List<String> snapNames,
+        boolean copySnapsForEvac,
+        boolean allowDualActiveSharedRef
+    )
+    {
         List<String> rscNames = rscApiList.stream()
             .map(rscWithPayLoad -> rscWithPayLoad.getRscApi().getName())
             .sorted()
@@ -135,7 +153,8 @@ public class CtrlRscCrtApiCallHandler
                             diskfulByRef,
                             copyAllSnaps,
                             snapNames,
-                            copySnapsForEvac
+                            copySnapsForEvac,
+                            allowDualActiveSharedRef
                         ),
                         logContextMap
                     )
@@ -156,7 +175,8 @@ public class CtrlRscCrtApiCallHandler
         @Nullable DiskfulBy diskfulByRef,
         boolean copyAllSnapsRef,
         List<String> snapNamesToCopyRef,
-        boolean copySnapsForEvac
+        boolean copySnapsForEvac,
+        boolean allowDualActiveSharedRef
     )
     {
         ApiCallRcImpl responses = new ApiCallRcImpl();
@@ -182,7 +202,8 @@ public class CtrlRscCrtApiCallHandler
                     thinFreeCapacities,
                     rscWithPayloadApi.getLayerStack(),
                     diskfulByRef,
-                    rscWithPayloadApi.isDrbdClient()
+                    rscWithPayloadApi.isDrbdClient(),
+                    allowDualActiveSharedRef
             );
 
             autoFlux.addAll(createdRsc.objA);

@@ -521,6 +521,19 @@ public class JsonGenTypes
         public List<Integer> drbd_tcp_ports = Collections.emptyList();
         public List<String> snap_names = Collections.emptyList();
         public @Nullable Boolean copy_all_snaps;
+        /**
+         * If true, prepare the resource for a live migration to this node:
+         * for DRBD resources allow-two-primaries (and protocol C if needed)
+         * is set between the migration source (the node the resource is
+         * currently in use on) and this node; for resources in a shared
+         * storage pool the resource is activated on both nodes.
+         * If the resource is not in use on any node, there is no migration
+         * to prepare and the resource is simply made available, so the
+         * option can always be set by clients that cannot distinguish a
+         * live-migration attach from a plain attach.
+         * Revert with unmake-available on the migration source node.
+         */
+        public boolean auto_manage_dual_primary = false;
     }
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)

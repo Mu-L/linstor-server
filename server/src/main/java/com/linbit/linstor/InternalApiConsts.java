@@ -295,6 +295,17 @@ public class InternalApiConsts
     // temporary context key
     public static final String ERR_IF_OFFLINE = "errIfOffline";
 
+    // live migration (make-available auto_manage_dual_primary / unmake-available), all props on rsc-dfn level
+    public static final String NAMESPC_LIVE_MIGRATE = ApiConsts.NAMESPC_INTERNAL_DRBD + "/LiveMigrate";
+    public static final String KEY_LIVE_MIGRATE_SOURCE_NODE = "SourceNode";
+    public static final String KEY_LIVE_MIGRATE_TARGET_NODE = "TargetNode";
+    /** where make-available set "protocol C": {@link #SET_ON_RSC_DFN} or {@link #SET_ON_RSC_CONN} */
+    public static final String KEY_LIVE_MIGRATE_PROTOCOL_SET_ON = "ProtocolSetOn";
+    /** the explicit protocol value that was overridden by make-available, absent if there was none */
+    public static final String KEY_LIVE_MIGRATE_PREV_PROTOCOL = "PrevProtocol";
+    public static final String SET_ON_RSC_DFN = "RSC_DFN";
+    public static final String SET_ON_RSC_CONN = "RSC_CONN";
+
     private InternalApiConsts()
     {
     }

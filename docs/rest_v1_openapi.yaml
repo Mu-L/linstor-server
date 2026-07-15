@@ -2387,6 +2387,34 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ResourceMakeAvailable'
+  /v1/resource-definitions/{resource}/resources/{node}/unmake-available:
+    parameters:
+      - $ref: '#/components/parameters/Resource'
+      - $ref: '#/components/parameters/Node'
+    post:
+      tags:
+        - developers
+      summary: reverts a make-available issued for a live migration
+      operationId: resourceUnmakeAvailableOnNode
+      description: |
+        Reverts the changes of a make-available with `auto_manage_dual_primary`
+        and removes the resource from the given node (the migration source) if
+        that can be done without losing data: the resource is deleted if it is
+        diskless or if it is a redundant copy in a shared storage pool.
+        Tiebreaker and diskful resources are kept.
+
+        Calling this for a resource that is not deployed on the node is a
+        successful no-op, so automation clients can always issue this call
+        after a migration.
+      responses:
+        '200':
+          description: resource is no longer available on the node
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiCallRcList'
+        '500':
+          $ref: '#/components/responses/OperationFailed'
   /v1/resource-definitions/{resource}/resources/{node}/activate:
     parameters:
       - $ref: '#/components/parameters/Resource'
@@ -7149,6 +7177,20 @@ components:
             type: string
         copy_all_snaps:
           type: boolean
+        auto_manage_dual_primary:
+          type: boolean
+          default: false
+          description: |
+            If true, prepare the resource for a live migration to this node:
+            for DRBD resources allow-two-primaries (and protocol C if needed)
+            is set between the migration source (the node the resource is
+            currently in use on) and this node; for resources in a shared
+            storage pool the resource is activated on both nodes.
+            If the resource is not in use on any node, there is no migration
+            to prepare and the resource is simply made available, so the
+            option can always be set by clients that cannot distinguish a
+            live-migration attach from a plain attach.
+            Revert with unmake-available on the migration source node.
     ResourceModify:
       type: object
       properties:

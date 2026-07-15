@@ -17,6 +17,7 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnDeleteApiCall
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscMakeAvailableApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCallHandler.ToggleOp;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscUnmakeAvailableApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.ResourceList;
 import com.linbit.linstor.core.apis.ResourceApi;
 import com.linbit.linstor.core.apis.ResourceWithPayloadApi;
@@ -66,6 +67,7 @@ public class Resources
     private final CtrlRscToggleDiskApiCallHandler ctrlRscToggleDiskApiCallHandler;
     private final CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandler;
     private final CtrlRscMakeAvailableApiCallHandler ctrlRscMakeAvailableApiCallHandler;
+    private final CtrlRscUnmakeAvailableApiCallHandler ctrlRscUnmakeAvailableApiCallHandler;
     private final ObjectMapper objectMapper;
     private final CtrlPropsInfoApiCallHandler ctrlPropsInfoApiCallHandler;
 
@@ -79,6 +81,7 @@ public class Resources
         CtrlRscToggleDiskApiCallHandler ctrlRscToggleDiskApiCallHandlerRef,
         CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandlerRef,
         CtrlRscMakeAvailableApiCallHandler ctrlRscMakeAvailableApiCallHandlerRef,
+        CtrlRscUnmakeAvailableApiCallHandler ctrlRscUnmakeAvailableApiCallHandlerRef,
         CtrlPropsInfoApiCallHandler ctrlPropsInfoApiCallHandlerRef
     )
     {
@@ -90,6 +93,7 @@ public class Resources
         ctrlRscToggleDiskApiCallHandler = ctrlRscToggleDiskApiCallHandlerRef;
         ctrlRscActivateApiCallHandler = ctrlRscActivateApiCallHandlerRef;
         ctrlRscMakeAvailableApiCallHandler = ctrlRscMakeAvailableApiCallHandlerRef;
+        ctrlRscUnmakeAvailableApiCallHandler = ctrlRscUnmakeAvailableApiCallHandlerRef;
         ctrlPropsInfoApiCallHandler = ctrlPropsInfoApiCallHandlerRef;
 
         objectMapper = new ObjectMapper();
@@ -383,7 +387,8 @@ public class Resources
                     rscData.diskful,
                     rscData.drbd_tcp_ports,
                     rscData.copy_all_snaps != null && rscData.copy_all_snaps,
-                    rscData.snap_names
+                    rscData.snap_names,
+                    rscData.auto_manage_dual_primary
                 );
             requestHelper.doFlux(
                 ApiConsts.API_MAKE_RSC_AVAIL,
@@ -395,6 +400,28 @@ public class Resources
         catch (IOException ioExc)
         {
             ApiCallRcRestUtils.handleJsonParseException(ioExc, asyncResponse);
+        }
+    }
+
+    @POST
+    @Path("{nodeName}/unmake-available")
+    public void unmakeResourceAvailable(
+        @Context Request request,
+        @Suspended final AsyncResponse asyncResponse,
+        @PathParam("nodeName") String nodeNameRef,
+        @PathParam("rscName") String rscNameRef
+    )
+    {
+        try (var ignore = MDC.putCloseable(ErrorReporter.LOGID, ErrorReporter.getNewLogId()))
+        {
+            Flux<ApiCallRc> flux = ctrlRscUnmakeAvailableApiCallHandler
+                .unmakeResourceAvailable(nodeNameRef, rscNameRef);
+            requestHelper.doFlux(
+                ApiConsts.API_UNMAKE_RSC_AVAIL,
+                request,
+                asyncResponse,
+                ApiCallRcRestUtils.mapToMonoResponse(flux, Response.Status.OK)
+            );
         }
     }
 

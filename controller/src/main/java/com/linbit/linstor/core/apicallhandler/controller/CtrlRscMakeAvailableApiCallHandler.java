@@ -22,6 +22,7 @@ import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
+import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.apicallhandler.response.ResponseConverter;
 import com.linbit.linstor.core.apis.ResourceWithPayloadApi;
@@ -87,6 +88,7 @@ public class CtrlRscMakeAvailableApiCallHandler
     private final CtrlRscLayerDataFactory ctrlRscLayerDataFactory;
     private final CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandler;
     private final RemoteMap remoteMap;
+    private final CtrlRscLiveMigrateHelper liveMigrateHelper;
 
     @Inject
     public CtrlRscMakeAvailableApiCallHandler(
@@ -104,7 +106,8 @@ public class CtrlRscMakeAvailableApiCallHandler
         SharedResourceManager sharedRscMgrRef,
         CtrlRscLayerDataFactory ctrlRscLayerDataFactoryRef,
         CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandlerRef,
-        RemoteMap remoteMapRef
+        RemoteMap remoteMapRef,
+        CtrlRscLiveMigrateHelper liveMigrateHelperRef
     )
     {
         errorReporter = errorReporterRef;
@@ -122,6 +125,7 @@ public class CtrlRscMakeAvailableApiCallHandler
         ctrlRscLayerDataFactory = ctrlRscLayerDataFactoryRef;
         ctrlRscActivateApiCallHandler = ctrlRscActivateApiCallHandlerRef;
         remoteMap = remoteMapRef;
+        liveMigrateHelper = liveMigrateHelperRef;
     }
 
     public Flux<ApiCallRc> makeResourceAvailable(
@@ -132,6 +136,39 @@ public class CtrlRscMakeAvailableApiCallHandler
         @Nullable List<Integer> drbdTcpPortsRef,
         boolean copyAllSnapsRef,
         List<String> snapNamesToCopyRef
+    )
+    {
+        return makeResourceAvailable(
+            nodeNameRef,
+            rscNameRef,
+            layerStackRef,
+            diskfulRef,
+            drbdTcpPortsRef,
+            copyAllSnapsRef,
+            snapNamesToCopyRef,
+            false
+        );
+    }
+
+    /**
+     * Like {@link #makeResourceAvailable(String, String, List, boolean, List, boolean, List)}, but with
+     * autoManageDualPrimaryRef set to true the resource is additionally prepared for a live migration from
+     * the node it is currently in use on to the given node: for DRBD resources allow-two-primaries (and
+     * protocol C if needed) is set between the two nodes, for resources in a shared storage pool the
+     * resource is activated on both nodes. Reverted by unmake-available on the migration-source node.
+     * If the resource is not in use on any node there is no migration to prepare and the resource is
+     * simply made available, so clients that cannot distinguish a live-migration attach from a plain
+     * attach can always set the option.
+     */
+    public Flux<ApiCallRc> makeResourceAvailable(
+        String nodeNameRef,
+        String rscNameRef,
+        List<String> layerStackRef,
+        boolean diskfulRef,
+        @Nullable List<Integer> drbdTcpPortsRef,
+        boolean copyAllSnapsRef,
+        List<String> snapNamesToCopyRef,
+        boolean autoManageDualPrimaryRef
     )
     {
         ResponseContext context = makeContext(nodeNameRef, rscNameRef);
@@ -151,7 +188,8 @@ public class CtrlRscMakeAvailableApiCallHandler
                     diskfulRef,
                     drbdTcpPortsRef,
                     copyAllSnapsRef,
-                    snapNamesToCopyRef
+                    snapNamesToCopyRef,
+                    autoManageDualPrimaryRef
                 )
             )
             .transform(responses -> responseConverter.reportingExceptions(context, responses));
@@ -164,7 +202,8 @@ public class CtrlRscMakeAvailableApiCallHandler
         boolean diskfulRequestedRef,
         @Nullable List<Integer> drbdTcpPortsRef,
         boolean copyAllSnapsRef,
-        List<String> snapNamesToCopyRef
+        List<String> snapNamesToCopyRef,
+        boolean autoManageDualPrimaryRef
     )
     {
         Flux<ApiCallRc> flux = Flux.empty();
@@ -172,6 +211,17 @@ public class CtrlRscMakeAvailableApiCallHandler
         ResourceDefinition rscDfn = dataLoader.loadRscDfn(rscNameRef, true);
         Resource rsc = dataLoader.loadRsc(nodeNameRef, rscNameRef, false);
         List<DeviceLayerKind> layerStack = getLayerStack(layerStackRef, rscDfn);
+        Node node = dataLoader.loadNode(nodeNameRef, true);
+        // if there is a shared storage pool already containing the shared resource on the given node,
+        // the resource has to be created reusing the shared data instead of placing it anywhere
+        @Nullable ResourceWithPayloadApi createRscPojo = rsc == null ?
+            getSharedResourceCreationPojo(rscDfn, node) : null;
+
+        @Nullable DualPrimaryPrep dualPrimaryPrep = null;
+        if (autoManageDualPrimaryRef)
+        {
+            dualPrimaryPrep = prepareDualPrimary(rscDfn, rsc, node, createRscPojo, layerStack, nodeNameRef);
+        }
 
         errorReporter.logTrace(
             "Making resource %s available on node %s. Already exists: %b",
@@ -209,8 +259,10 @@ public class CtrlRscMakeAvailableApiCallHandler
             if (isFlagSet(rsc, Resource.Flags.INACTIVE) && !isFlagSet(rsc, Resource.Flags.INACTIVE_PERMANENTLY))
             {
                 Resource activeRsc = getActiveRsc(rsc);
-                if (activeRsc == null)
+                if (activeRsc == null || autoManageDualPrimaryRef)
                 {
+                    // with autoManageDualPrimary the currently active resource is the live-migration
+                    // source and must stay active, resulting in both resources being active at once
                     flux = ctrlRscActivateApiCallHandler.activateRsc(
                         rsc.getNode().getName().displayValue,
                         rsc.getResourceDefinition().getName().displayValue
@@ -294,17 +346,41 @@ public class CtrlRscMakeAvailableApiCallHandler
         }
         else
         {
-            // first, check if there is a shared storage pool already containing the shared resource on the given node
-            Node node = dataLoader.loadNode(nodeNameRef, true);
-            @Nullable ResourceWithPayloadApi createRscPojo = getSharedResourceCreationPojo(rscDfn, node);
             if (createRscPojo != null)
             {
                 errorReporter.logTrace("Trying to place new shared resource");
 
-                // try to deactivate already active resource first
                 @Nullable Resource activeRsc = getActiveRsc(createRscPojo, node, rscDfn);
-                if (activeRsc != null)
+                if (activeRsc != null && autoManageDualPrimaryRef)
                 {
+                    // dual-active for a live migration: keep the source resource active and create the
+                    // new resource active as well
+                    flux = freeCapacityFetcher.fetchThinFreeCapacities(Collections.singleton(node.getName()))
+                        .flatMapMany(
+                            // fetchThinFreeCapacities also updates the freeSpaceManager. we can safely ignore
+                            // the freeCapacities parameter here
+                            ignoredFreeCapacities -> scopeRunner.fluxInTransactionalScope(
+                                "create resource",
+                                lockGuardFactory.buildDeferred(
+                                    LockType.WRITE,
+                                    LockObj.NODES_MAP,
+                                    LockObj.RSC_DFN_MAP,
+                                    LockObj.STOR_POOL_DFN_MAP
+                                ),
+                                () -> ctrlRscCrtApiCallHandler.createResource(
+                                    Collections.singletonList(createRscPojo),
+                                    Resource.DiskfulBy.MAKE_AVAILABLE,
+                                    copyAllSnapsRef,
+                                    snapNamesToCopyRef,
+                                    false,
+                                    true
+                                )
+                            )
+                        );
+                }
+                else if (activeRsc != null)
+                {
+                    // try to deactivate already active resource first
                     flux = ctrlRscActivateApiCallHandler.deactivateRsc(
                         activeRsc.getNode().getName().displayValue,
                         activeRsc.getResourceDefinition().getName().displayValue
@@ -382,7 +458,192 @@ public class CtrlRscMakeAvailableApiCallHandler
             ctrlTransactionHelper.commit();
         }
 
+        flux = appendDualPrimaryPropsFlux(flux, dualPrimaryPrep, rscNameRef, nodeNameRef);
+
         return flux;
+    }
+
+    /**
+     * Appends the dual-primary property handling to the given flux: setting the DRBD net options for
+     * the migration, or just an info that there is nothing to prepare. Noop for the shared storage pool
+     * case (the dual-active handling is part of the regular create/activate paths) and if
+     * autoManageDualPrimary was not requested at all (null prep).
+     */
+    private Flux<ApiCallRc> appendDualPrimaryPropsFlux(
+        Flux<ApiCallRc> fluxRef,
+        @Nullable DualPrimaryPrep dualPrimaryPrepRef,
+        String rscNameRef,
+        String tgtNodeNameRef
+    )
+    {
+        Flux<ApiCallRc> flux = fluxRef;
+        if (dualPrimaryPrepRef != null && dualPrimaryPrepRef.drbdMode)
+        {
+            if (dualPrimaryPrepRef.migrationSrcRsc != null)
+            {
+                flux = flux.concatWith(
+                    applyDualPrimaryProps(
+                        rscNameRef,
+                        dualPrimaryPrepRef.migrationSrcRsc.getNode().getName().displayValue,
+                        tgtNodeNameRef
+                    )
+                );
+            }
+            else
+            {
+                flux = flux.concatWith(
+                    Flux.just(
+                        ApiCallRcImpl.singleApiCallRc(
+                            ApiConsts.MASK_INFO,
+                            "Resource '" + rscNameRef + "' is not in use on another node, " +
+                                "no dual-primary preparation needed"
+                        )
+                    )
+                );
+            }
+        }
+        return flux;
+    }
+
+    /**
+     * Validations and migration-source lookup for autoManageDualPrimary.
+     */
+    private DualPrimaryPrep prepareDualPrimary(
+        ResourceDefinition rscDfn,
+        @Nullable Resource rsc,
+        Node node,
+        @Nullable ResourceWithPayloadApi createRscPojo,
+        List<DeviceLayerKind> layerStack,
+        String tgtNodeNameRef
+    )
+    {
+        DualPrimaryPrep prep;
+        boolean tgtShared = rsc != null ? liveMigrateHelper.hasSharedStorPool(rsc) : createRscPojo != null;
+        if (tgtShared)
+        {
+            ensureSharedDualActiveSupported(rscDfn, rsc, node, createRscPojo);
+            prep = new DualPrimaryPrep(false, null);
+        }
+        else
+        {
+            // migrationSrcRsc stays null if there is no migration to prepare: the resource is already
+            // in use on the target node itself or not in use anywhere (plain attach)
+            prep = new DualPrimaryPrep(
+                true,
+                findDualPrimaryMigrationSource(rscDfn, layerStack, tgtNodeNameRef)
+            );
+        }
+        return prep;
+    }
+
+    /**
+     * Validates that the shared resource of the given rsc-dfn may be activated on the migration source
+     * and the target node at once. Only needed if the target resource has to be created or activated,
+     * an already active target resource is handled by the regular noop path.
+     */
+    private void ensureSharedDualActiveSupported(
+        ResourceDefinition rscDfn,
+        @Nullable Resource rsc,
+        Node node,
+        @Nullable ResourceWithPayloadApi createRscPojo
+    )
+    {
+        @Nullable Resource activeSharedRsc = null;
+        if (rsc != null)
+        {
+            activeSharedRsc = getActiveRsc(rsc);
+        }
+        else if (createRscPojo != null)
+        {
+            activeSharedRsc = getActiveRsc(createRscPojo, node, rscDfn);
+        }
+        if (rsc == null ||
+            (isFlagSet(rsc, Resource.Flags.INACTIVE) &&
+                !isFlagSet(rsc, Resource.Flags.INACTIVE_PERMANENTLY)))
+        {
+            if (activeSharedRsc == null)
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.simpleEntry(
+                        ApiConsts.FAIL_NOT_FOUND_LIVE_MIGRATE_SOURCE,
+                        "No active resource found for shared resource '" +
+                            rscDfn.getName().displayValue + "'",
+                        true
+                    )
+                );
+            }
+            liveMigrateHelper.ensureSharedDualActiveSupported(activeSharedRsc);
+        }
+    }
+
+    /**
+     * Determines the live-migration source (the node the resource is currently in use on) for the
+     * DRBD-based dual-primary preparation.
+     *
+     * @return the source resource, or null if there is no migration to prepare (the resource is in use
+     *     on the target node itself or not in use anywhere)
+     */
+    private @Nullable Resource findDualPrimaryMigrationSource(
+        ResourceDefinition rscDfn,
+        List<DeviceLayerKind> layerStack,
+        String tgtNodeNameRef
+    )
+    {
+        if (!layerStack.contains(DeviceLayerKind.DRBD))
+        {
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_INVLD_LAYER_STACK,
+                    "auto_manage_dual_primary requires DRBD (or a shared storage pool)",
+                    true
+                )
+            );
+        }
+        return liveMigrateHelper.findMigrationSource(rscDfn, tgtNodeNameRef);
+    }
+
+    private Flux<ApiCallRc> applyDualPrimaryProps(
+        String rscNameRef,
+        String srcNodeNameRef,
+        String tgtNodeNameRef
+    )
+    {
+        return scopeRunner.fluxInTransactionalScope(
+            "Set dual-primary properties",
+            lockGuardFactory.buildDeferred(
+                LockType.WRITE,
+                LockObj.NODES_MAP,
+                LockObj.RSC_DFN_MAP
+            ),
+            () -> applyDualPrimaryPropsInTransaction(rscNameRef, srcNodeNameRef, tgtNodeNameRef)
+        );
+    }
+
+    private Flux<ApiCallRc> applyDualPrimaryPropsInTransaction(
+        String rscNameRef,
+        String srcNodeNameRef,
+        String tgtNodeNameRef
+    )
+    {
+        Resource srcRsc = dataLoader.loadRsc(srcNodeNameRef, rscNameRef, true);
+        Resource tgtRsc = dataLoader.loadRsc(tgtNodeNameRef, rscNameRef, true);
+
+        ApiCallRcImpl responses = liveMigrateHelper.setDualPrimaryProps(srcRsc, tgtRsc);
+
+        ctrlTransactionHelper.commit();
+
+        return Flux.<ApiCallRc>just(responses)
+            .concatWith(
+                stltUpdateCaller.updateSatellites(srcRsc.getResourceDefinition(), Flux.empty())
+                    .transform(
+                        updateResponses -> CtrlResponseUtils.combineResponses(
+                            errorReporter,
+                            updateResponses,
+                            srcRsc.getResourceDefinition().getName(),
+                            "Updated DRBD net options for the live migration on {0}"
+                        )
+                    )
+            );
     }
 
     private Flux<ApiCallRc> abortDeactivateOldRsc(Resource oldActiveRsc, @Nullable Resource newActiveRsc)
@@ -1036,5 +1297,22 @@ public class CtrlRscMakeAvailableApiCallHandler
             ApiConsts.MASK_RSC,
             objRefs
         );
+    }
+
+    /**
+     * Result of the autoManageDualPrimary validations: whether the dual-primary window is managed via
+     * DRBD net options (in contrast to a dual-active shared resource) and if so, the migration-source
+     * resource (null if there is no migration to prepare).
+     */
+    private static class DualPrimaryPrep
+    {
+        private final boolean drbdMode;
+        private final @Nullable Resource migrationSrcRsc;
+
+        DualPrimaryPrep(boolean drbdModeRef, @Nullable Resource migrationSrcRscRef)
+        {
+            drbdMode = drbdModeRef;
+            migrationSrcRsc = migrationSrcRscRef;
+        }
     }
 }
