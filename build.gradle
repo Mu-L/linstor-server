@@ -170,7 +170,7 @@ project(':server') {
             }
         }
 
-        api 'com.github.spotbugs:spotbugs-annotations:4.9.8'
+        api 'com.github.spotbugs:spotbugs-annotations:4.10.3'
 
         api 'info.faljse:SDNotify:1.6'
 
