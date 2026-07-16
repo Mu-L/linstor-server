@@ -67,15 +67,7 @@ public class DrbdResourceFileUtils
         Path resFile = asResourceFile(drbdRscData, false, false);
         Path tmpResFile = asResourceFile(drbdRscData, true, false);
 
-        List<DrbdRscData<Resource>> drbdPeerRscDataList = drbdRscData.getRscDfnLayerObject()
-            .getDrbdRscDataList()
-            .stream()
-            .filter(
-                otherRscData -> !otherRscData.equals(drbdRscData) &&
-                    DrbdLayerUtils.isDrbdResourceExpected(otherRscData) &&
-                    !otherRscData.getAbsResource().getStateFlags().isSet(Resource.Flags.INACTIVE)
-            )
-            .collect(Collectors.toList());
+        List<DrbdRscData<Resource>> drbdPeerRscDataList = getPeerRscDataList(drbdRscData);
 
         String content = new ConfFileBuilder(
             errorReporter,
@@ -159,6 +151,23 @@ public class DrbdResourceFileUtils
             errorReporter.logInfo("DRBD regenerated resource file: %s", resFile);
         }
         return fileWritten;
+    }
+
+    /**
+     * Returns the list of peer {@link DrbdRscData} the given local resource is expected to connect to, i.e. the
+     * peers that are also considered during res file generation.
+     */
+    public static List<DrbdRscData<Resource>> getPeerRscDataList(DrbdRscData<Resource> drbdRscData)
+    {
+        return drbdRscData.getRscDfnLayerObject()
+            .getDrbdRscDataList()
+            .stream()
+            .filter(
+                otherRscData -> !otherRscData.equals(drbdRscData) &&
+                    DrbdLayerUtils.isDrbdResourceExpected(otherRscData) &&
+                    !otherRscData.getAbsResource().getStateFlags().isSet(Resource.Flags.INACTIVE)
+            )
+            .collect(Collectors.toList());
     }
 
     public boolean restoreBackupResFile(DrbdRscData<Resource> drbdRscData) throws StorageException
