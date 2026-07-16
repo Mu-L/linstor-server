@@ -52,7 +52,7 @@ allprojects {
     }
     plugins.withType(CheckstylePlugin) {
         checkstyle {
-            toolVersion = "13.5.0"
+            toolVersion = "13.8.0"
         }
     }
 }
