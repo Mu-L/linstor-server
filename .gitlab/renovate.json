@@ -9,6 +9,9 @@
     "gitlabci": {
         "enabled": false
     },
+    "gradle-wrapper": {
+        "enabled": false
+    },
     "packageRules": [
         {
             "groupName": "jackson monorepo",
