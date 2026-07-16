@@ -118,7 +118,7 @@ public class StorageRscPojo implements RscLayerDataApi
         return vlms;
     }
 
-    private abstract static class AbsVlmProviderPojo implements VlmLayerDataApi
+    abstract static class AbsVlmProviderPojo implements VlmLayerDataApi
     {
         private final int vlmNr;
         @JsonIgnore

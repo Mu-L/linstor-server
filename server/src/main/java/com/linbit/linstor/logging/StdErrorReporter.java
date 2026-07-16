@@ -385,7 +385,7 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
 
     private void closeReportFile(@Nullable OutputStream output)
     {
-        if (output != null && output != System.err)
+        if (output != null && !output.equals(System.err))
         {
             try
             {

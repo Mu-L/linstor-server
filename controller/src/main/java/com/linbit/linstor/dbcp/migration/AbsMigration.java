@@ -9,7 +9,7 @@ public abstract class AbsMigration
 
     public static void setModularCryptoProvider(ModularCryptoProvider cryptProviderRef)
     {
-        if (cryptProvider != null && cryptProviderRef != cryptProvider)
+        if (cryptProvider != null && !cryptProvider.equals(cryptProviderRef))
         {
             throw new ImplementationError("ModularCryptoProvider already set");
         }

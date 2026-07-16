@@ -7,6 +7,8 @@ import com.linbit.linstor.transaction.manager.TransactionMgr;
 
 import javax.inject.Provider;
 
+import java.util.Objects;
+
 /**
  * Interface for objects that can apply or undo one or multiple
  * previously performed changes.<br>
@@ -47,7 +49,7 @@ public abstract class AbsTransactionObject implements TransactionObject
     @Override
     public final void setConnection(@Nullable TransactionMgr transMgrRef) throws ImplementationError
     {
-        if (activeTransMgr != transMgrRef) // prevent cyclic .setConnection calls
+        if (!Objects.equals(activeTransMgr, transMgrRef)) // prevent cyclic .setConnection calls
         {
             if (activeTransMgr != null && transMgrRef != null)
             {

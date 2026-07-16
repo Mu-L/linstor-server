@@ -39,8 +39,10 @@ public class FileProviderUtilsTest
         // Regression: losetup output ends with a newline. StringUtils.split preserves the
         // resulting trailing empty line, which must not trigger an ArrayIndexOutOfBoundsException.
         Map<String, FileInfo> result = parse(
-            "NAME       BACK-FILE\n" +
-            "/dev/loop0 /var/lib/linstor/vol.img\n"
+            """
+            NAME       BACK-FILE
+            /dev/loop0 /var/lib/linstor/vol.img
+            """
         );
 
         assertEquals(1, result.size());
@@ -54,9 +56,11 @@ public class FileProviderUtilsTest
     public void testMultipleDevices() throws StorageException
     {
         Map<String, FileInfo> result = parse(
-            "NAME       BACK-FILE\n" +
-            "/dev/loop0 /var/lib/linstor/a.img\n" +
-            "/dev/loop1 /var/lib/linstor/b.img\n"
+            """
+            NAME       BACK-FILE
+            /dev/loop0 /var/lib/linstor/a.img
+            /dev/loop1 /var/lib/linstor/b.img
+            """
         );
 
         assertEquals(2, result.size());
@@ -82,9 +86,11 @@ public class FileProviderUtilsTest
         // A loop device with an empty BACK-FILE column produces a line that splits into a
         // single field; it must be skipped rather than crash.
         Map<String, FileInfo> result = parse(
-            "NAME       BACK-FILE\n" +
-            "/dev/loop0 /var/lib/linstor/vol.img\n" +
-            "/dev/loop7\n"
+            """
+            NAME       BACK-FILE
+            /dev/loop0 /var/lib/linstor/vol.img
+            /dev/loop7
+            """
         );
 
         assertEquals(1, result.size());

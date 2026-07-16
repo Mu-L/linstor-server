@@ -107,7 +107,7 @@ public class PingTask implements Task
                 isConnected = false;
                 allowReconnect = false;
             }
-            else if (peer != nodesCurrentPeer)
+            else if (!peer.equals(nodesCurrentPeer))
             {
                 errorReporter.logTrace("Dropping " + peer + " in favor of " + nodesCurrentPeer);
                 isConnected = false;

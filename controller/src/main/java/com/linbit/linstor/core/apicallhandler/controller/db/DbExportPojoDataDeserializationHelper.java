@@ -111,7 +111,7 @@ public class DbExportPojoDataDeserializationHelper
         return linstorSpecDeserializer;
     }
 
-    private class LinstorSpecDeserializer extends JsonDeserializer<LinstorSpec<?, ?>>
+    class LinstorSpecDeserializer extends JsonDeserializer<LinstorSpec<?, ?>>
     {
         @Override
         public LinstorSpec<?, ?> deserialize(JsonParser pRef, DeserializationContext ctxtRef)
@@ -126,7 +126,7 @@ public class DbExportPojoDataDeserializationHelper
         }
     }
 
-    private class TableDeserializer extends JsonDeserializer<DbExportPojoData.Table>
+    class TableDeserializer extends JsonDeserializer<DbExportPojoData.Table>
     {
         @Override
         public DbExportPojoData.Table deserialize(JsonParser pRef, DeserializationContext ctxtRef)

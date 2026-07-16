@@ -81,8 +81,8 @@ public class FileSystemWatch implements Runnable, SystemService
     // Global event id counter for nextEventId()
     private static long globalEventId = 0;
 
-    private FileSystem fileSys;
-    private WatchService wSvc;
+    private final FileSystem fileSys;
+    private final WatchService wSvc;
 
     // The thread that handles events on watched directories, if it is active,
     // otherwise null
@@ -135,7 +135,7 @@ public class FileSystemWatch implements Runnable, SystemService
         List<DirectoryEntry> dirObs = new ArrayList<>();
         while (!stopFlag.get())
         {
-            WatchKey polledKey = null;
+            @Nullable WatchKey polledKey = null;
             try
             {
                 // Using poll with a timeout because it is interruptible,
@@ -150,7 +150,7 @@ public class FileSystemWatch implements Runnable, SystemService
                 for (WatchEvent<?> event : polledKey.pollEvents())
                 {
                     Kind<?> eventKind = event.kind();
-                    if (eventKind == StandardWatchEventKinds.OVERFLOW)
+                    if (eventKind.equals(StandardWatchEventKinds.OVERFLOW))
                     {
                         // TODO: Read all directories and compare content against
                         //       the files that are being watched
@@ -159,9 +159,9 @@ public class FileSystemWatch implements Runnable, SystemService
                         //       overflow
                     }
                     else
-                    if (eventKind == StandardWatchEventKinds.ENTRY_CREATE ||
-                        eventKind == StandardWatchEventKinds.ENTRY_DELETE ||
-                        eventKind == StandardWatchEventKinds.ENTRY_MODIFY)
+                    if (eventKind.equals(StandardWatchEventKinds.ENTRY_CREATE) ||
+                        eventKind.equals(StandardWatchEventKinds.ENTRY_DELETE) ||
+                        eventKind.equals(StandardWatchEventKinds.ENTRY_MODIFY))
                     {
                         WatchEvent<Path> pathEvent = (WatchEvent<Path>) event;
                         Path watchedPath = (Path) polledKey.watchable();
@@ -179,11 +179,11 @@ public class FileSystemWatch implements Runnable, SystemService
                                 {
                                     FileEntry watchEntry = fileEntryIter.next();
                                     if ((watchEntry.watchEvent == Event.CREATE &&
-                                        eventKind == StandardWatchEventKinds.ENTRY_CREATE) ||
+                                        eventKind.equals(StandardWatchEventKinds.ENTRY_CREATE)) ||
                                         (watchEntry.watchEvent == Event.DELETE &&
-                                        eventKind == StandardWatchEventKinds.ENTRY_DELETE) ||
+                                        eventKind.equals(StandardWatchEventKinds.ENTRY_DELETE)) ||
                                         (watchEntry.watchEvent == Event.CHANGE &&
-                                        eventKind == StandardWatchEventKinds.ENTRY_MODIFY))
+                                        eventKind.equals(StandardWatchEventKinds.ENTRY_MODIFY)))
                                     {
                                         fileObs.add(watchEntry);
                                         if (watchEntry.remove)
@@ -202,11 +202,11 @@ public class FileSystemWatch implements Runnable, SystemService
                                 for (DirectoryEntry watchEntry : dirEntryList)
                                 {
                                     if ((watchEntry.watchEvent == Event.CREATE &&
-                                        eventKind == StandardWatchEventKinds.ENTRY_CREATE) ||
+                                        eventKind.equals(StandardWatchEventKinds.ENTRY_CREATE)) ||
                                         (watchEntry.watchEvent == Event.DELETE &&
-                                        eventKind == StandardWatchEventKinds.ENTRY_DELETE) ||
+                                        eventKind.equals(StandardWatchEventKinds.ENTRY_DELETE)) ||
                                         (watchEntry.watchEvent == Event.CHANGE &&
-                                        eventKind == StandardWatchEventKinds.ENTRY_MODIFY))
+                                        eventKind.equals(StandardWatchEventKinds.ENTRY_MODIFY)))
                                     {
                                         dirObs.add(watchEntry);
                                     }
@@ -232,7 +232,7 @@ public class FileSystemWatch implements Runnable, SystemService
         }
         synchronized (this)
         {
-            if (watchThread == Thread.currentThread())
+            if (Thread.currentThread().equals(watchThread))
             {
                 watchThread = null;
             }
@@ -463,12 +463,7 @@ public class FileSystemWatch implements Runnable, SystemService
         synchronized (mapLock)
         {
             // Add the file entry to the lookup map
-            Set<FileEntry> fileMapEntries = fileMap.get(filePath);
-            if (fileMapEntries == null)
-            {
-                fileMapEntries = new TreeSet<>();
-                fileMap.put(filePath, fileMapEntries);
-            }
+            Set<FileEntry> fileMapEntries = fileMap.computeIfAbsent(filePath, k -> new TreeSet<>());
             fileMapEntries.add(watchEntry);
 
             addWatcher(watchPath, watchEntry);
@@ -568,12 +563,7 @@ public class FileSystemWatch implements Runnable, SystemService
         synchronized (mapLock)
         {
             // Add the directory to the lookup map
-            Set<DirectoryEntry> dirMapEntries = dirMap.get(watchPath);
-            if (dirMapEntries == null)
-            {
-                dirMapEntries = new TreeSet<>();
-                dirMap.put(watchPath, dirMapEntries);
-            }
+            Set<DirectoryEntry> dirMapEntries = dirMap.computeIfAbsent(watchPath, k -> new TreeSet<>());
             dirMapEntries.add(watchEntry);
 
             addWatcher(watchPath, watchEntry);
@@ -717,7 +707,7 @@ public class FileSystemWatch implements Runnable, SystemService
     public void awaitShutdown(long timeout)
         throws InterruptedException
     {
-        Thread joinThr = null;
+        @Nullable Thread joinThr = null;
         synchronized (this)
         {
             joinThr = watchThread;

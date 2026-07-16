@@ -337,7 +337,7 @@ public class EbsStatusManagerService implements SystemService
         }
         synchronized (this)
         {
-            if (thread == Thread.currentThread())
+            if (Thread.currentThread().equals(thread))
             {
                 thread = null;
             }

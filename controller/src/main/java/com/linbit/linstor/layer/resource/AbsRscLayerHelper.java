@@ -42,6 +42,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -315,7 +316,7 @@ public abstract class AbsRscLayerHelper<
             ignoreReasonRef,
             goUpRef,
             goDownRef,
-            skipSelfRef ? rscData -> rscData != rscDataRef : ignored -> true
+            skipSelfRef ? rscData -> !Objects.equals(rscData, rscDataRef) : ignored -> true
         );
     }
 

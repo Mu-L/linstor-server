@@ -331,7 +331,7 @@ public class ReconnectorTask implements Task
             @Nullable ReconnectConfig config = findConfigByNode(node);
             if (config != null)
             {
-                if (config.peer == peer)
+                if (peer.equals(config.peer))
                 {
                     // Peer matches - this is the expected connection, remove config and authenticate
                     reconnectorConfigSet.remove(config);
