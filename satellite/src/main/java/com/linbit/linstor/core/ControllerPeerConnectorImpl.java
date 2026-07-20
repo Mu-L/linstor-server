@@ -130,25 +130,36 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
             rscDfnMapLock.writeLock().lock();
             storPoolDfnMapLock.writeLock().lock();
 
-            // additional check for ctrlUuid in order to prevent "OtherController" response because of multiple
-            // connections due to network-hicups. Unused connections will be closed soon anyways
-            if (!Objects.equals(ctrlUuidRef, ctrlUuid))
+            if (!controllerPeer.equals(controllerPeerRef))
             {
-                controllerPeer.sendMessage(
-                    commonSerializer.onewayBuilder(InternalApiConsts.API_OTHER_CONTROLLER).build(),
-                    InternalApiConsts.API_OTHER_CONTROLLER
-                );
+                // additional check for ctrlUuid in order to prevent "OtherController" response because of multiple
+                // connections due to network-hicups. Unused connections will be closed soon anyways
+                if (!Objects.equals(ctrlUuidRef, ctrlUuid))
+                {
+                    controllerPeer.sendMessage(
+                        commonSerializer.onewayBuilder(InternalApiConsts.API_OTHER_CONTROLLER).build(),
+                        InternalApiConsts.API_OTHER_CONTROLLER
+                    );
+                }
+                else
+                {
+                    errorReporter.logDebug(
+                        "Not sending '%s' since the same controller connected again",
+                        InternalApiConsts.API_OTHER_CONTROLLER
+                    );
+                }
+                // If we don't actively close the connection here, it will take some time(or forever)
+                // to close it and the garbage collector starting freeing the objects
+                controllerPeer.closeConnection();
             }
             else
             {
+                // repeated authentication over the current connection (e.g. the controller sent more than one
+                // Auth during a reconnect). We must not close our only living controller connection.
                 errorReporter.logDebug(
-                    "Not sending '%s' since the same controller connected again",
-                    InternalApiConsts.API_OTHER_CONTROLLER
+                    "Re-authentication over the current controller connection, keeping the connection open"
                 );
             }
-            // If we don't actively close the connection here, it will take some time(or forever)
-            // to close it and the garbage collector starting freeing the objects
-            controllerPeer.closeConnection();
 
             ctrlUuid = ctrlUuidRef;
             controllerPeer = controllerPeerRef;
