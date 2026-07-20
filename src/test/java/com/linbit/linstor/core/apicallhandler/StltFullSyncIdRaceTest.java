@@ -9,6 +9,7 @@ import com.linbit.linstor.api.prop.WhitelistProps;
 import com.linbit.linstor.api.prop.WhitelistPropsReconfigurator;
 import com.linbit.linstor.api.protobuf.ApiCallAnswerer;
 import com.linbit.linstor.api.protobuf.CtrlAuth;
+import com.linbit.linstor.api.protobuf.FullSync;
 import com.linbit.linstor.api.protobuf.ProtoUuidUtils;
 import com.linbit.linstor.backupshipping.BackupShippingMgr;
 import com.linbit.linstor.core.ApplicationLifecycleManager;
@@ -37,6 +38,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
@@ -51,6 +53,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -279,6 +282,39 @@ public class StltFullSyncIdRaceTest
         );
     }
 
+    /**
+     * A FullSync that the satellite discards because its fullSyncId is outdated must NOT be answered with
+     * SUCCESS: the controller would consider the node ONLINE while the satellite has no data at all and is
+     * still waiting for a FullSync that will never arrive.
+     */
+    @Test
+    public void outdatedFullSyncMustNotReportSuccess() throws Exception
+    {
+        long expectedFullSyncId = updateMonitor.getNextFullSyncId();
+
+        FullSync.FullSyncResult result = stltApiCallHandler.applyFullSync(
+            Collections.emptyMap(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            expectedFullSyncId - 1, // outdated
+            new byte[0],
+            new byte[0],
+            new byte[0],
+            new byte[0]
+        );
+
+        assertNotEquals(
+            "an outdated (and therefore completely ignored) FullSync must not be answered with SUCCESS",
+            FullSync.FullSyncStatus.SUCCESS,
+            statusOf(result)
+        );
+    }
+
     private Thread startAuthThread(Peer peer, String threadName)
     {
         Thread thread = new Thread(
@@ -317,6 +353,13 @@ public class StltFullSyncIdRaceTest
             .build()
             .writeDelimitedTo(baos);
         return new ByteArrayInputStream(baos.toByteArray());
+    }
+
+    private FullSync.FullSyncStatus statusOf(FullSync.FullSyncResult result) throws Exception
+    {
+        Field statusField = FullSync.FullSyncResult.class.getDeclaredField("status");
+        statusField.setAccessible(true);
+        return (FullSync.FullSyncStatus) statusField.get(result);
     }
 
     /**

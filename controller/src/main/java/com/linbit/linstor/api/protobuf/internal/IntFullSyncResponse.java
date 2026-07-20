@@ -197,6 +197,20 @@ public class IntFullSyncResponse implements ApiCallReactive
                 )
             );
         }
+        else if (msgIntFullSyncResponse.getFullSyncResult() ==
+            MsgIntFullSyncResponseOuterClass.FullSyncResult.FAIL_OUTDATED_FULL_SYNC_ID)
+        {
+            /*
+             * Not a permanent failure: the satellite expects a FullSync based on a newer fullSyncId (a newer
+             * authentication invalidated the id this FullSync was based on - "double reconnect" race). The
+             * handler restarts the handshake if needed.
+             */
+            flux = ctrlFullSyncApiCallHandler.fullSyncOutdated(
+                satellitePeerRef,
+                msgIntFullSyncResponse.getFullSyncId()
+            )
+                .thenMany(Flux.empty());
+        }
         else
         {
             ApiConsts.ConnectionStatus connectionStatus;
@@ -206,6 +220,7 @@ public class IntFullSyncResponse implements ApiCallReactive
                     connectionStatus = ApiConsts.ConnectionStatus.MISSING_EXT_TOOLS;
                     break;
                 case SUCCESS:
+                case FAIL_OUTDATED_FULL_SYNC_ID:
                     throw new ImplementationError(
                         "unexpected enum type: " + msgIntFullSyncResponse.getFullSyncResult()
                     );

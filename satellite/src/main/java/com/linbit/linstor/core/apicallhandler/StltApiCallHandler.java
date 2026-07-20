@@ -506,12 +506,18 @@ public class StltApiCallHandler
             }
             else
             {
+                /*
+                 * The satellite already expects a FullSync based on a newer fullSyncId (i.e. from a more recent
+                 * authentication). Answering SUCCESS here would make the controller consider this satellite
+                 * ONLINE although this FullSync was completely ignored. Report the refusal instead so that the
+                 * controller can restart the handshake.
+                 */
                 errorReporter.logWarning(
-                    "Ignored an incoming but outdated fullsync (%d, expected: %d)",
+                    "Refused an incoming but outdated fullsync (%d, expected: %d)",
                     fullSyncId,
                     updateMonitor.getCurrentFullSyncId()
                 );
-                success = FullSync.FullSyncStatus.SUCCESS;
+                success = FullSync.FullSyncStatus.FAIL_OUTDATED_FULL_SYNC_ID;
             }
         }
         catch (Exception | ImplementationError exc)

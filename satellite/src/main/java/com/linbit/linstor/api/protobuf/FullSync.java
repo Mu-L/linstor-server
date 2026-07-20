@@ -127,7 +127,8 @@ public class FullSync implements ApiCall
         MsgIntFullSyncResponse.Builder builder = MsgIntFullSyncResponse.newBuilder()
             .putAllNodePropsToSet(fullSyncResult.stltPropsToAdd)
             .addAllNodePropKeysToDelete(fullSyncResult.stltPropKeysToDelete)
-            .addAllNodePropNamespacesToDelete(fullSyncResult.stltPropNamespacesToDelete);
+            .addAllNodePropNamespacesToDelete(fullSyncResult.stltPropNamespacesToDelete)
+            .setFullSyncId(fullSyncId);
 
         switch (fullSyncResult.status)
         {
@@ -135,6 +136,12 @@ public class FullSync implements ApiCall
                 errorReporter.logError("FullSync error: missing required ext tools %d", fullSyncId);
                 builder.setFullSyncResult(
                     MsgIntFullSyncResponseOuterClass.FullSyncResult.FAIL_MISSING_REQUIRED_EXT_TOOLS
+                );
+            }
+            case FAIL_OUTDATED_FULL_SYNC_ID -> {
+                errorReporter.logWarning("FullSync refused as outdated %d", fullSyncId);
+                builder.setFullSyncResult(
+                    MsgIntFullSyncResponseOuterClass.FullSyncResult.FAIL_OUTDATED_FULL_SYNC_ID
                 );
             }
             case FAIL_UNKNOWN -> {
@@ -282,6 +289,7 @@ public class FullSync implements ApiCall
     {
         SUCCESS,
         FAIL_MISSING_REQUIRED_EXT_TOOLS,
+        FAIL_OUTDATED_FULL_SYNC_ID,
         FAIL_UNKNOWN;
     }
 

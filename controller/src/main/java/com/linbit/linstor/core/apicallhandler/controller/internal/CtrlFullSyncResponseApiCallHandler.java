@@ -20,14 +20,17 @@ import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
+import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
+import com.linbit.linstor.tasks.ReconnectorTask;
 import com.linbit.locks.LockGuard;
 import com.linbit.utils.PairNonNull;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -46,6 +49,7 @@ public class CtrlFullSyncResponseApiCallHandler
 {
     private static final String PROP_NAMESPACE_STLT = "Satellite/";
 
+    private final ErrorReporter errorReporter;
     private final ScopeRunner scopeRunner;
     private final CtrlSatelliteConnectionNotifier ctrlSatelliteConnectionNotifier;
     private final ReadWriteLock nodesMapLock;
@@ -54,6 +58,7 @@ public class CtrlFullSyncResponseApiCallHandler
     private final BackupInfoManager backupInfoMgr;
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final CtrlRemoteApiCallHandler ctrlRemoteApiCallHandler;
+    private final Provider<ReconnectorTask> reconnectorTaskProvider;
 
     public static class FullSyncSuccessContext
     {
@@ -78,6 +83,7 @@ public class CtrlFullSyncResponseApiCallHandler
 
     @Inject
     public CtrlFullSyncResponseApiCallHandler(
+        ErrorReporter errorReporterRef,
         ScopeRunner scopeRunnerRef,
         CtrlSatelliteConnectionNotifier ctrlSatelliteConnectionNotifierRef,
         @Named(CoreModule.NODES_MAP_LOCK) ReadWriteLock nodesMapLockRef,
@@ -85,9 +91,11 @@ public class CtrlFullSyncResponseApiCallHandler
         CtrlSnapshotDeleteApiCallHandler ctrlSnapDelApiCallHandlerRef,
         BackupInfoManager backupInfoMgrRef,
         CtrlTransactionHelper ctrlTransactionHelperRef,
-        CtrlRemoteApiCallHandler ctrlRemoteApiCallHandlerRef
+        CtrlRemoteApiCallHandler ctrlRemoteApiCallHandlerRef,
+        Provider<ReconnectorTask> reconnectorTaskProviderRef
     )
     {
+        errorReporter = errorReporterRef;
         scopeRunner = scopeRunnerRef;
         ctrlSatelliteConnectionNotifier = ctrlSatelliteConnectionNotifierRef;
         nodesMapLock = nodesMapLockRef;
@@ -96,6 +104,7 @@ public class CtrlFullSyncResponseApiCallHandler
         backupInfoMgr = backupInfoMgrRef;
         ctrlTransactionHelper = ctrlTransactionHelperRef;
         ctrlRemoteApiCallHandler = ctrlRemoteApiCallHandlerRef;
+        reconnectorTaskProvider = reconnectorTaskProviderRef;
     }
 
     /**
@@ -242,6 +251,75 @@ public class CtrlFullSyncResponseApiCallHandler
     private Flux<?> fullSyncFailedInScope(Peer satellitePeerRef, ApiConsts.ConnectionStatus connectionStatusRef)
     {
         satellitePeerRef.fullSyncFailed(connectionStatusRef);
+        return Flux.empty();
+    }
+
+    /**
+     * This method should be called when the satellite refused a FullSync because it expects a FullSync based
+     * on a newer fullSyncId (i.e. from a more recent authentication - see "double reconnect" race).
+     *
+     * <p>
+     * Unlike {@link #fullSyncFailed(Peer, ApiConsts.ConnectionStatus)} this is not a permanent failure: the
+     * handshake simply has to be restarted. If this connection is still the node's current connection (and no
+     * newer FullSync is already in flight on it), the connection is closed and handed to the
+     * {@link ReconnectorTask}, which re-establishes the connection and re-runs the Auth + FullSync handshake.
+     * </p>
+     */
+    public Flux<?> fullSyncOutdated(Peer satellitePeerRef, long refusedFullSyncIdRef)
+    {
+        return scopeRunner.fluxInTransactionlessScope(
+            "Handle outdated full sync",
+            LockGuard.createDeferred(
+                nodesMapLock.writeLock(),
+                rscDfnMapLock.readLock()
+            ),
+            () -> fullSyncOutdatedInScope(satellitePeerRef, refusedFullSyncIdRef),
+            MDC.getCopyOfContextMap()
+        );
+    }
+
+    private Flux<?> fullSyncOutdatedInScope(Peer satellitePeerRef, long refusedFullSyncIdRef)
+    {
+        if (satellitePeerRef.getFullSyncId() != refusedFullSyncIdRef)
+        {
+            // a newer FullSync was already sent over this connection - its response will decide the outcome
+            errorReporter.logInfo(
+                "Satellite %s refused the outdated full sync %d, but a newer full sync (%d) is already in " +
+                    "flight - awaiting its response",
+                satellitePeerRef,
+                refusedFullSyncIdRef,
+                satellitePeerRef.getFullSyncId()
+            );
+        }
+        else
+        {
+            // make sure no further updates are sent over this connection based on the refused fullSyncId
+            satellitePeerRef.fullSyncFailed(ApiConsts.ConnectionStatus.OFFLINE);
+
+            @Nullable Node node = satellitePeerRef.getNode();
+            if (node != null && !node.isDeleted() && node.getPeer().equals(satellitePeerRef))
+            {
+                errorReporter.logWarning(
+                    "Satellite %s refused the full sync %d as outdated. Restarting the handshake by " +
+                        "reconnecting",
+                    satellitePeerRef,
+                    refusedFullSyncIdRef
+                );
+                satellitePeerRef.closeConnection();
+                reconnectorTaskProvider.get().add(satellitePeerRef, false);
+            }
+            else
+            {
+                // this connection was already replaced; the newer connection runs its own handshake
+                errorReporter.logInfo(
+                    "Satellite %s refused the full sync %d as outdated on an already replaced connection - " +
+                        "closing it",
+                    satellitePeerRef,
+                    refusedFullSyncIdRef
+                );
+                satellitePeerRef.closeConnection();
+            }
+        }
         return Flux.empty();
     }
 }
