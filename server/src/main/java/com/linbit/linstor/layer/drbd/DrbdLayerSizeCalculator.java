@@ -353,28 +353,31 @@ public class DrbdLayerSizeCalculator extends AbsLayerSizeCalculator<DrbdVlmData<
 
             PriorityProps prioProps = new PriorityProps(vlmDfnProps, rscDfnProps, rscGrpProps);
             final String valueStr = prioProps.getProp(ApiConsts.KEY_BITMAP_BLOCK_SIZE_NEW_RESOURCE);
-            try
+            if (valueStr != null)
             {
-                bitmapBlockSizeKiB = Integer.parseInt(valueStr);
-                haveBlockSize = true;
-            }
-            catch (NumberFormatException ignored)
-            {
-                @Nullable String objectId = objectIdFrom(absRsc, rsc);
-
-                if (objectId != null && vlm != null)
+                try
                 {
-                    final VolumeNumber vlmNr = vlm.getVolumeNumber();
-                    objectId += " Volume " + vlmNr.value;
+                    bitmapBlockSizeKiB = Integer.parseInt(valueStr);
+                    haveBlockSize = true;
                 }
+                catch (NumberFormatException ignored)
+                {
+                    @Nullable String objectId = objectIdFrom(absRsc, rsc);
 
-                errLog.logError(
-                    "Property %s inheritance order " +
-                    "VolumeDefinition > ResourceDefinition > ResourceGroup for %s: " +
-                    "Bitmap block size value is unparsable",
-                    ApiConsts.KEY_BITMAP_BLOCK_SIZE_NEW_RESOURCE,
-                    (objectId != null ? objectId : "<Unidentified object>")
-                );
+                    if (objectId != null && vlm != null)
+                    {
+                        final VolumeNumber vlmNr = vlm.getVolumeNumber();
+                        objectId += " Volume " + vlmNr.value;
+                    }
+
+                    errLog.logError(
+                        "Property %s inheritance order " +
+                        "VolumeDefinition > ResourceDefinition > ResourceGroup for %s: " +
+                        "Bitmap block size value is unparsable",
+                        ApiConsts.KEY_BITMAP_BLOCK_SIZE_NEW_RESOURCE,
+                        (objectId != null ? objectId : "<Unidentified object>")
+                    );
+                }
             }
         }
 

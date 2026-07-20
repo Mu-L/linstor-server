@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed "import-db" failing with "Foreign Key violation" when the export lists a SnapDfn before its RscDfn.
 - Fixed "import-db" against non-empty databases.
 - Fixed "import-db" reporting "Unknown exception occurred" instead of a useful error message.
+- Satellite creating error-reports for parsing null bitmap block-size entries
 
 ## [1.35.0] - 2026-08-27
 
