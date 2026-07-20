@@ -180,6 +180,22 @@ public class CtrlAuthResponseApiCallHandler
         boolean waitForFullSyncAnswerRef
     )
     {
+        @Nullable Node peersNode = peer.getNode();
+        if (peersNode == null || peersNode.isDeleted() || !peersNode.getPeer().equals(peer))
+        {
+            /*
+             * The connection this auth response arrived on (or was sent for) has already been replaced by a
+             * newer connection ("double reconnect"). The response's expectedFullSyncId was (or will be)
+             * invalidated by the newer connection's authentication - authenticating this peer or sending a
+             * FullSync based on this response would be wrong. The newer connection runs its own handshake.
+             */
+            errorReporter.logWarning(
+                "Ignoring authentication response of an already replaced connection (%s)",
+                peer
+            );
+            return Flux.empty();
+        }
+
         Flux<ApiCallRc> flux;
         boolean success = successRef;
         boolean matchVersion;

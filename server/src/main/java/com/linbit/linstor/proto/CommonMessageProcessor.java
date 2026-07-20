@@ -420,10 +420,17 @@ public class CommonMessageProcessor implements MessageProcessor
             }
             else
             {
-                errorLog.reportError(
-                    new ImplementationError(
-                        "One way call was rejected because the peer is not authorized"
-                    )
+                // A satellite may send one-way calls (e.g. UpdateFreeCapacity, ApplyPropsFromStlt,
+                // NotifyDevMgrRunCompleted) over a connection that the controller has already superseded during
+                // a reconnect, or has not yet finished authenticating. The satellite authenticated on its side
+                // and legitimately starts reporting, but from the controller's point of view this peer never
+                // completed (or, for a superseded connection, will never complete) the authentication handshake.
+                // This is an expected race during (re-)connect churn, not an implementation error - drop the
+                // call quietly instead of persisting a misleading error report.
+                errorLog.logDebug(
+                    "Dropping one way call '%s' from peer %s that has not completed authentication",
+                    apiCallName,
+                    peer
                 );
                 messageFlux = Flux.empty();
             }

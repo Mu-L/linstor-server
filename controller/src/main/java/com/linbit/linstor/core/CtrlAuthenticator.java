@@ -19,6 +19,7 @@ import com.linbit.linstor.tasks.PingTask;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
+import com.linbit.utils.PairNonNull;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -81,7 +82,12 @@ public class CtrlAuthenticator
             lockGuardFactory.buildDeferred(LockType.WRITE, LockObj.NODES_MAP),
             () -> completeAuthenticationInTransaction(node)
         )
-            .concatMap(inputStream -> this.processAuthResponse(node, inputStream))
+            .concatMap(
+                peerWithResponse -> this.processAuthResponse(
+                    peerWithResponse.objA,
+                    peerWithResponse.objB
+                )
+            )
             .onErrorResume(
                 PeerNotConnectedException.class,
                 ignored -> Flux.empty()
@@ -92,9 +98,9 @@ public class CtrlAuthenticator
             );
     }
 
-    private Flux<ByteArrayInputStream> completeAuthenticationInTransaction(Node node)
+    private Flux<PairNonNull<Peer, ByteArrayInputStream>> completeAuthenticationInTransaction(Node node)
     {
-        Flux<ByteArrayInputStream> flux;
+        Flux<PairNonNull<Peer, ByteArrayInputStream>> flux;
 
         if (node.isDeleted())
         {
@@ -130,8 +136,14 @@ public class CtrlAuthenticator
                         .build(),
                     false,
                     false
-                );
-
+                )
+                    /*
+                     * remember over which connection this Auth was actually sent. The response must be
+                     * processed for exactly that connection - resolving node.getPeer() again when the response
+                     * arrives could return a newer connection and would attribute the response (including its
+                     * expectedFullSyncId) to the wrong connection.
+                     */
+                    .map(inputStream -> new PairNonNull<>(peer, inputStream));
             }
             else
             {
@@ -145,10 +157,9 @@ public class CtrlAuthenticator
         return flux;
     }
 
-    private Flux<ApiCallRc> processAuthResponse(Node node, ByteArrayInputStream inputStream)
+    private Flux<ApiCallRc> processAuthResponse(Peer peer, ByteArrayInputStream inputStream)
     {
         Flux<ApiCallRc> authResponseFlux;
-        Peer peer = node.getPeer();
         try
         {
             authResponseFlux = intAuthResponse
