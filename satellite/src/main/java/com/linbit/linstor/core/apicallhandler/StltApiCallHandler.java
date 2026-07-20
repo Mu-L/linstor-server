@@ -281,6 +281,40 @@ public class StltApiCallHandler
         return authResult;
     }
 
+    /**
+     * Atomically draws the next fullSyncId, but only if the given peer is still the currently active controller
+     * connection.
+     * <p>
+     * Multiple controller connections can deliver an authentication concurrently (e.g. a stale and a fresh
+     * connection during a reconnect). Every drawn fullSyncId invalidates all previously drawn ids, so a
+     * superseded authentication must not draw a new id: its connection has already been closed by the
+     * {@code setControllerPeer} of the newer authentication, which means the drawn id would be sent into a dead
+     * connection and never reach the controller, while the FullSync of the still living connection would be
+     * refused as outdated.
+     * </p>
+     *
+     * @return the next fullSyncId, or {@code null} if the given peer is no longer the active controller connection
+     */
+    public @Nullable Long getNextFullSyncId(Peer controllerPeerRef)
+    {
+        @Nullable Long nextFullSyncId = null;
+        try (
+            LockGuard lg = LockGuard.createLocked(
+                reconfigurationLock.writeLock(),
+                nodesMapLock.writeLock(),
+                rscDfnMapLock.writeLock(),
+                storPoolDfnMapLock.writeLock()
+            )
+        )
+        {
+            if (controllerPeerConnector.getControllerPeer().equals(controllerPeerRef))
+            {
+                nextFullSyncId = updateMonitor.getNextFullSyncId();
+            }
+        }
+        return nextFullSyncId;
+    }
+
     public FullSync.FullSyncResult applyFullSync(
         Map<String, String> satelliteProps,
         Set<NodePojo> nodes,

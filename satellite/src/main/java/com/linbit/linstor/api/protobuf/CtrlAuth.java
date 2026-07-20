@@ -8,7 +8,6 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.serializer.CommonSerializer;
 import com.linbit.linstor.api.prop.WhitelistProps;
 import com.linbit.linstor.core.LinStor;
-import com.linbit.linstor.core.UpdateMonitor;
 import com.linbit.linstor.core.apicallhandler.StltApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.satellite.authentication.AuthenticationResult;
 import com.linbit.linstor.core.cfg.StltConfig;
@@ -42,7 +41,6 @@ public class CtrlAuth implements ApiCall
     private final StltApiCallHandler apiCallHandler;
     private final ApiCallAnswerer apiCallAnswerer;
     private final CommonSerializer commonSerializer;
-    private final UpdateMonitor updateMonitor;
     private final Provider<Peer> controllerPeerProvider;
     private final StltConfig stltConfig;
     private final WhitelistProps whitelistProps;
@@ -53,7 +51,6 @@ public class CtrlAuth implements ApiCall
         StltApiCallHandler apiCallHandlerRef,
         ApiCallAnswerer apiCallAnswererRef,
         CommonSerializer commonSerializerRef,
-        UpdateMonitor updateMonitorRef,
         Provider<Peer> controllerPeerProviderRef,
         StltConfig stltConfigRef,
         WhitelistProps whitelistPropsRef
@@ -63,7 +60,6 @@ public class CtrlAuth implements ApiCall
         apiCallHandler = apiCallHandlerRef;
         apiCallAnswerer = apiCallAnswererRef;
         commonSerializer = commonSerializerRef;
-        updateMonitor = updateMonitorRef;
         controllerPeerProvider = controllerPeerProviderRef;
         stltConfig = stltConfigRef;
         whitelistProps = whitelistPropsRef;
@@ -109,37 +105,58 @@ public class CtrlAuth implements ApiCall
             authResult = new AuthenticationResult(apiCallRcImpl);
         }
 
-        byte[] replyBytes;
+        Peer controllerPeer = controllerPeerProvider.get();
+        @Nullable byte[] replyBytes = null;
         if (authResult.isAuthenticated())
         {
-            // all ok, send the new fullSyncId with the AUTH_ACCEPT msg
-            // additionally we also send information which layers are supported by the current satellite
+            /*
+             * Only draw the next fullSyncId if we are still the active controller connection. If another
+             * connection authenticated in the meantime (concurrent Auths during a "double reconnect"), our
+             * connection has already been closed: drawing a fullSyncId now would invalidate the id that was
+             * (or will be) sent over the other, still living connection, while our AUTH_ACCEPT would be sent
+             * into the closed connection and never reach the controller. The satellite would then wait forever
+             * for a FullSync with an id the controller never received.
+             */
+            @Nullable Long nextFullSyncId = apiCallHandler.getNextFullSyncId(controllerPeer);
+            if (nextFullSyncId == null)
+            {
+                errorReporter.logWarning(
+                    "Skipping AUTH_ACCEPT for connection %s since a different controller connection " +
+                        "authenticated in the meantime",
+                    controllerPeer.getId()
+                );
+            }
+            else
+            {
+                // all ok, send the new fullSyncId with the AUTH_ACCEPT msg
+                // additionally we also send information which layers are supported by the current satellite
 
-            replyBytes = commonSerializer.headerlessBuilder()
-                .authSuccess(
-                    updateMonitor.getNextFullSyncId(),
-                    LinStor.VERSION_INFO_PROVIDER.getSemanticVersion(),
-                    nodeUname,
-                    platform,
-                    osVariant,
-                    authResult.getExternalToolsInfoList(),
-                    authResult.getApiCallRc(),
-                    stltConfig.getConfigDir(),
-                    stltConfig.isDebugConsoleEnabled(),
-                    stltConfig.isLogPrintStackTrace(),
-                    stltConfig.getLogDirectory(),
-                    stltConfig.getLogLevel(),
-                    stltConfig.getLogLevelLinstor(),
-                    stltConfig.getStltOverrideNodeName(),
-                    stltConfig.isRemoteSpdk(),
-                    stltConfig.isEbs(),
-                    stltConfig.getNetBindAddress(),
-                    stltConfig.getNetPort(),
-                    stltConfig.getNetType(),
-                    SetUtils.convertPathsToStrings(stltConfig.getWhitelistedExternalFilePaths()),
-                    whitelistProps
-                )
-                .build();
+                replyBytes = commonSerializer.headerlessBuilder()
+                    .authSuccess(
+                        nextFullSyncId,
+                        LinStor.VERSION_INFO_PROVIDER.getSemanticVersion(),
+                        nodeUname,
+                        platform,
+                        osVariant,
+                        authResult.getExternalToolsInfoList(),
+                        authResult.getApiCallRc(),
+                        stltConfig.getConfigDir(),
+                        stltConfig.isDebugConsoleEnabled(),
+                        stltConfig.isLogPrintStackTrace(),
+                        stltConfig.getLogDirectory(),
+                        stltConfig.getLogLevel(),
+                        stltConfig.getLogLevelLinstor(),
+                        stltConfig.getStltOverrideNodeName(),
+                        stltConfig.isRemoteSpdk(),
+                        stltConfig.isEbs(),
+                        stltConfig.getNetBindAddress(),
+                        stltConfig.getNetPort(),
+                        stltConfig.getNetType(),
+                        SetUtils.convertPathsToStrings(stltConfig.getWhitelistedExternalFilePaths()),
+                        whitelistProps
+                    )
+                    .build();
+            }
         }
         else
         {
@@ -148,13 +165,16 @@ public class CtrlAuth implements ApiCall
                 .authError(authResult.getApiCallRc())
                 .build();
         }
-        controllerPeerProvider.get().sendMessage(
-            apiCallAnswerer.answerBytes(
-                replyBytes,
+        if (replyBytes != null)
+        {
+            controllerPeer.sendMessage(
+                apiCallAnswerer.answerBytes(
+                    replyBytes,
+                    InternalApiConsts.API_AUTH_RESPONSE
+                ),
                 InternalApiConsts.API_AUTH_RESPONSE
-            ),
-            InternalApiConsts.API_AUTH_RESPONSE
-        );
+            );
+        }
     }
 
     private ApiConsts.Platform detectPlatform()
