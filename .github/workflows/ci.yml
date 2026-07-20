@@ -61,7 +61,7 @@ jobs:
           java-version: '21'
 
       - name: Set up Gradle (with caching)
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # protoc is downloaded into tools/ by the getProtoc task; cache it so we
       # don't re-download on every run. Key on the protobuf version in build.gradle.
