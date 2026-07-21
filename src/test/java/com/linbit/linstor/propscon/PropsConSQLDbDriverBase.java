@@ -106,6 +106,9 @@ public class PropsConSQLDbDriverBase extends GenericDbBase
             }
             con.commit();
         }
+        // H2 2.x enforces SERIALIZABLE as snapshot isolation, so the scoped transaction has to be
+        // restarted in order to see data committed by this side-channel connection
+        commit();
     }
 
     protected void insert(String instanceName, Map<String, String> map) throws SQLException
@@ -126,6 +129,7 @@ public class PropsConSQLDbDriverBase extends GenericDbBase
             }
             con.commit();
         }
+        commit();
     }
 
     protected void checkExpectedMap(Map<String, String> expectedMap, Props props)
@@ -158,6 +162,7 @@ public class PropsConSQLDbDriverBase extends GenericDbBase
             }
             con.commit();
         }
+        commit();
     }
 
     protected void truncate() throws SQLException
@@ -170,5 +175,6 @@ public class PropsConSQLDbDriverBase extends GenericDbBase
             }
             con.commit();
         }
+        commit();
     }
 }

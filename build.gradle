@@ -130,7 +130,7 @@ project(':server') {
 
         api 'org.apache.commons:commons-dbcp2:2.14.0'
         api 'org.apache.commons:commons-pool2:2.13.1'
-        api 'com.h2database:h2:1.4.197'
+        api 'com.h2database:h2:2.4.240'
 
         // prometheus client
         api 'io.prometheus:simpleclient_common:0.16.0'
@@ -367,6 +367,15 @@ def jerseyVersion = '2.48'
 project(':controller') {
     apply plugin: 'application'
 
+    configurations {
+        // H2 1.x jar shipped outside the classpath (lib/migration), only used by
+        // "linstor-database migrate-h2" to read pre-2.x database files
+        h2v1migration {
+            transitive = false
+            canBeConsumed = false
+        }
+    }
+
     dependencies {
         implementation project(':server'), project(':jclcrypto')
         testImplementation project(':server'), project(':jclcrypto')
@@ -375,6 +384,8 @@ project(':controller') {
         testImplementation 'junit:junit:4.13.2'
         testImplementation "org.assertj:assertj-core:3.27.+"
         testImplementation "org.mockito:mockito-core:5.23.0"
+
+        h2v1migration 'com.h2database:h2:1.4.197'
 
         // rest libs (grizzly http(s), jersey(rest))
         implementation 'org.glassfish.grizzly:grizzly-http-server:4.0.2'
@@ -461,6 +472,9 @@ project(':controller') {
                 }
                 from(LinstorDbToolStartup) {
                     into("bin")
+                }
+                from(configurations.h2v1migration) {
+                    into("lib/migration")
                 }
             }
         }
@@ -590,6 +604,9 @@ distributions {
             from("scripts/linstor-satellite.service") {
                 into("systemd")
             }
+            from(project(":controller").configurations.h2v1migration) {
+                into("lib/migration")
+            }
         }
     }
 }
@@ -699,5 +716,7 @@ tasks.register('downloadDependencies') {
                 prj.configurations.getByName(scope).resolve()
             }
         }
+        // needed by --offline package builds for "linstor-database migrate-h2"
+        project(':controller').configurations.getByName('h2v1migration').resolve()
     }
 }

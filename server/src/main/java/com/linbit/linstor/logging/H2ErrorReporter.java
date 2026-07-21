@@ -7,12 +7,16 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.objects.Node;
+import com.linbit.linstor.dbdrivers.H2FormatUtils;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.utils.TimeUtils;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -23,6 +27,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -65,7 +70,37 @@ public class H2ErrorReporter
         dataSource.setMaxIdle(10);
         dataSource.setMaxOpenPreparedStatements(100);
 
+        rotateLegacyErrorDB();
         setupErrorDB();
+    }
+
+    /**
+     * H2 2.x cannot open database files written by H2 1.x. Since error-reports are expendable,
+     * simply move a legacy database aside and start with a fresh one.
+     */
+    private void rotateLegacyErrorDB()
+    {
+        Path errorDb = errorReporter.getLogDirectory().toAbsolutePath().resolve("error-report.mv.db");
+        try
+        {
+            if (Files.isRegularFile(errorDb) &&
+                H2FormatUtils.loadedH2MajorVersion() >= 2 &&
+                H2FormatUtils.isLegacyMvDbFormat(errorDb))
+            {
+                Path backup = errorDb.resolveSibling(
+                    "error-report.mv.db.h2v1-" +
+                        TimeUtils.DTF_NO_SPACE.format(LocalDateTime.now(ZoneId.systemDefault())) + ".bak");
+                Files.move(errorDb, backup);
+                errorReporter.logInfo(
+                    "Moved error-report database written by H2 1.x to %s, starting with a fresh database",
+                    backup
+                );
+            }
+        }
+        catch (IOException ioExc)
+        {
+            errorReporter.logError("Unable to rotate legacy error-reports database %s: %s", errorDb, ioExc);
+        }
     }
 
     private void setupErrorDB()
@@ -91,7 +126,6 @@ public class H2ErrorReporter
                     // db empty
                     stmt.executeUpdate(DB_CRT_ERRORS_TABLE);
                     stmt.executeUpdate("CREATE INDEX IF NOT EXISTS IDX_ERRORS_DT ON ERRORS (DATETIME)");
-                    stmt.executeUpdate("SET COMPRESS_LOB LZF");
                     stmt.executeUpdate("INSERT INTO VERSION (VERSION_NUMBER) VALUES (1)");
                     errorReporter.logInfo("ErrorReporter DB first time init.");
                 }

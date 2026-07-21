@@ -23,6 +23,7 @@ import com.linbit.linstor.dbcp.DbInitializer;
 import com.linbit.linstor.dbcp.migration.AbsMigration;
 import com.linbit.linstor.dbdrivers.ControllerDbModule;
 import com.linbit.linstor.dbdrivers.DatabaseDriverInfo;
+import com.linbit.linstor.dbdrivers.H2FormatUtils;
 import com.linbit.linstor.debug.ControllerDebugModule;
 import com.linbit.linstor.debug.DebugModule;
 import com.linbit.linstor.event.EventModule;
@@ -50,7 +51,11 @@ import com.linbit.linstor.transaction.ControllerTransactionMgrModule;
 import com.linbit.linstor.utils.NameShortenerModule;
 import com.linbit.utils.InjectorLoader;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,6 +78,7 @@ public class LinstorDatabaseTool
         {
             CmdExportDb.class,
             CmdImportDb.class,
+            CmdMigrateH2.class,
     })
     private static class LinstorConfigCmd implements Callable<Object>
     {
@@ -95,13 +101,23 @@ public class LinstorDatabaseTool
         )
         private String configurationDirectory = "/etc/linstor";
 
+        @CommandLine.Option(names = {"-l", "--logs"},
+            description = "Path to the log directory"
+        )
+        private @Nullable String logDirectory = null;
+
+        @CommandLine.Option(names = {"--migrate-before-export"},
+            description = "Run pending database migrations before exporting"
+        )
+        private boolean migrateBeforeExport = false;
+
         @CommandLine.Parameters(description = "Path to the exported database file")
         private @Nullable String dbExportPath;
 
         @Override
         public Object call() throws Exception
         {
-            runDbExportImport(configurationDirectory, injector ->
+            runDbExportImport(configurationDirectory, logDirectory, migrateBeforeExport, injector ->
             {
                 DbExportImportHelper dbExportImporter = injector.getInstance(DbExportImportHelper.class);
                 ErrorReporter errorLog = injector.getInstance(ErrorReporter.class);
@@ -125,13 +141,18 @@ public class LinstorDatabaseTool
         )
         private String configurationDirectory = "/etc/linstor";
 
+        @CommandLine.Option(names = {"-l", "--logs"},
+            description = "Path to the log directory"
+        )
+        private @Nullable String logDirectory = null;
+
         @CommandLine.Parameters(description = "Path to the exported database file")
         private @Nullable String dbExportPath;
 
         @Override
         public Object call() throws Exception
         {
-            runDbExportImport(configurationDirectory, injector ->
+            runDbExportImport(configurationDirectory, logDirectory, false, injector ->
             {
                 DbExportImportHelper dbExportImporter = injector.getInstance(DbExportImportHelper.class);
                 ErrorReporter errorLog = injector.getInstance(ErrorReporter.class);
@@ -143,17 +164,122 @@ public class LinstorDatabaseTool
         }
     }
 
-    private static void runDbExportImport(String cfgPath, Consumer<Injector> injectorConsumer)
+    @CommandLine.Command(
+        name = "migrate-h2",
+        description = "Migrates a database written by H2 1.x to the new H2 database format. " +
+            "The original database file is kept as <database>" + H2FormatUtils.LEGACY_BACKUP_SUFFIX + ". " +
+            "The controller must be stopped while the migration runs."
+    )
+    private static class CmdMigrateH2 implements Callable<Object>
+    {
+        private static final int EXIT_CODE_FAILED = 1;
+        private static final int EXIT_CODE_ERROR = 2;
+        private static final int EXIT_CODE_DB_IN_USE = 3;
+        private static final int EXIT_CODE_MIGRATION_NEEDED = 100;
+
+        @CommandLine.Option(names = {"-c", "--config-directory"},
+            description = "Configuration directory for the controller"
+        )
+        private String configurationDirectory = "/etc/linstor";
+
+        @CommandLine.Option(names = {"-l", "--logs"},
+            description = "Path to the log directory"
+        )
+        private @Nullable String logDirectory = null;
+
+        @CommandLine.Option(names = {"--check-only"},
+            description = "Only check whether a migration is needed, exit code 100 means migration needed"
+        )
+        private boolean checkOnly = false;
+
+        @CommandLine.Option(names = {"-y", "--yes"},
+            description = "Do not ask for confirmation before migrating"
+        )
+        private boolean yes = false;
+
+        @CommandLine.Option(names = {"--h2-jar"},
+            description = "Path to the H2 1.x jar used to read the old database"
+        )
+        private @Nullable String h2Jar = null;
+
+        @Override
+        public Object call() throws Exception
+        {
+            H2MigrationOrchestrator orchestrator = new H2MigrationOrchestrator(
+                configurationDirectory,
+                logDirectory,
+                System.out,
+                System.err
+            );
+            switch (orchestrator.check())
+            {
+                case NOT_NEEDED ->
+                    System.out.println("The configured database does not need a H2 migration.");
+                case DB_IN_USE ->
+                {
+                    System.err.println(
+                        "The database is currently in use. Stop the linstor-controller service before migrating."
+                    );
+                    System.exit(EXIT_CODE_DB_IN_USE);
+                }
+                case INTERRUPTED ->
+                {
+                    System.err.println(
+                        "A previous migration did not finish: the database file is missing, but a " +
+                            H2FormatUtils.LEGACY_BACKUP_SUFFIX + " file exists. " +
+                            "Restore the backup file (remove the " + H2FormatUtils.LEGACY_BACKUP_SUFFIX +
+                            " suffix) and run the migration again."
+                    );
+                    System.exit(EXIT_CODE_ERROR);
+                }
+                case NEEDED ->
+                {
+                    if (checkOnly)
+                    {
+                        System.out.println("The database needs to be migrated to the new H2 format.");
+                        System.exit(EXIT_CODE_MIGRATION_NEEDED);
+                    }
+                    if (!yes && !confirm())
+                    {
+                        System.err.println("Migration aborted.");
+                        System.exit(EXIT_CODE_ERROR);
+                    }
+                    if (!orchestrator.migrate(h2Jar != null ? Paths.get(h2Jar) : null))
+                    {
+                        System.exit(EXIT_CODE_FAILED);
+                    }
+                }
+                default -> throw new IllegalStateException("Unknown migration check result");
+            }
+            return null;
+        }
+
+        private boolean confirm() throws IOException
+        {
+            System.out.print("Migrate the database to the new H2 format? [y/N]: ");
+            System.out.flush();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+            @Nullable String line = reader.readLine();
+            return line != null && (line.equalsIgnoreCase("y") || line.equalsIgnoreCase("yes"));
+        }
+    }
+
+    private static void runDbExportImport(
+        String cfgPath,
+        @Nullable String logDirectory,
+        boolean enableMigrationOnInit,
+        Consumer<Injector> injectorConsumer
+    )
         throws NoSuchMethodException, InstantiationException, IllegalAccessException, InvocationTargetException,
         SystemServiceStartException, InitializationException
     {
-        CtrlConfig cfg = new CtrlConfig(
-            new String[]
-            {
-                "-c",
-                cfgPath
-            }
-        );
+        List<String> cfgArgs = new ArrayList<>(Arrays.asList("-c", cfgPath));
+        if (logDirectory != null)
+        {
+            cfgArgs.add("--logs");
+            cfgArgs.add(logDirectory);
+        }
+        CtrlConfig cfg = new CtrlConfig(cfgArgs.toArray(new String[0]));
 
         ErrorReporter errorLog = new StdErrorReporter(
             "linstor-db",
@@ -231,7 +357,7 @@ public class LinstorDatabaseTool
 
         try (ScopeAutoCloseable closableScope = scope.enter())
         {
-            dbInit.setEnableMigrationOnInit(false);
+            dbInit.setEnableMigrationOnInit(enableMigrationOnInit);
             dbInit.initialize();
 
             injectorConsumer.accept(injector);

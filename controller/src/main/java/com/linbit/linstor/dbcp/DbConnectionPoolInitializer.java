@@ -3,9 +3,11 @@ package com.linbit.linstor.dbcp;
 import com.linbit.SystemServiceStartException;
 import com.linbit.linstor.ControllerDatabase;
 import com.linbit.linstor.InitializationException;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.cfg.CtrlConfig;
 import com.linbit.linstor.dbdrivers.DatabaseDriverInfo;
 import com.linbit.linstor.dbdrivers.DatabaseException;
+import com.linbit.linstor.dbdrivers.H2FormatUtils;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.utils.StringUtils;
 
@@ -13,6 +15,8 @@ import static com.linbit.linstor.dbdrivers.derby.DbConstants.TBL_PROPS_CONTAINER
 
 import javax.inject.Inject;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -60,6 +64,7 @@ public class DbConnectionPoolInitializer implements DbInitializer
             String connectionUrl = getConnectionUrl();
             String dbType = getDbType(connectionUrl);
 
+            checkLegacyH2Db(connectionUrl);
             dbConnPool.initializeDataSource(connectionUrl);
             if (enableMigrationOnInit)
             {
@@ -95,6 +100,35 @@ public class DbConnectionPoolInitializer implements DbInitializer
         errorLog.logInfo("Migrating to version \"%s\", using JDBC: \"%s\"", versionRef, connectionUrl);
         dbConnPool.initializeDataSource(connectionUrl);
         dbConnPool.preImportMigrateToVersion(dbType, versionRef);
+    }
+
+    /**
+     * The H2 2.x driver can neither read nor upgrade database files written by H2 1.x, its own error
+     * would be a rather cryptic "Unsupported database file version". Fail with a clear message instead.
+     * When the H2 1.x driver is loaded (as done by the export phase of "linstor-database migrate-h2"),
+     * this check is a no-op.
+     */
+    private void checkLegacyH2Db(String connectionUrl) throws InitializationException
+    {
+        try
+        {
+            if (H2FormatUtils.loadedH2MajorVersion() >= 2)
+            {
+                @Nullable Path legacyDbFile = H2FormatUtils.findLegacyH2DbFile(connectionUrl);
+                if (legacyDbFile != null)
+                {
+                    throw new InitializationException(
+                        "The database file " + legacyDbFile + " was written by H2 1.x and cannot be " +
+                            "opened with the H2 " + H2FormatUtils.loadedH2MajorVersion() + ".x driver. " +
+                            "Run 'linstor-database migrate-h2' to migrate the database to the new format."
+                    );
+                }
+            }
+        }
+        catch (IOException exc)
+        {
+            throw new InitializationException("Failed to check the H2 database file format", exc);
+        }
     }
 
     private String getConnectionUrl()

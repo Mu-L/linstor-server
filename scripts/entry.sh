@@ -113,6 +113,8 @@ case $1 in
 		;;
 	startController)
 		shift
+		# migrate a database written by H2 1.x to the new H2 database format, no-op otherwise
+		/usr/share/linstor-server/bin/linstor-database migrate-h2 --yes --logs=/var/log/linstor-controller --config-directory=/etc/linstor
 		exec /usr/share/linstor-server/bin/Controller --logs=/var/log/linstor-controller --config-directory=/etc/linstor "$@"
 		;;
 	runMigration)

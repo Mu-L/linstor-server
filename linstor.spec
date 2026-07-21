@@ -99,6 +99,9 @@ Linstor controller manages linstor satellites and persistant data storage.
 %dir %{LS_PREFIX}
 %dir %{LS_PREFIX}/lib
 %{LS_PREFIX}/lib/controller-%{FILE_VERSION}.jar
+# H2 1.x jar, outside the classpath, only used by "linstor-database migrate-h2"
+%dir %{LS_PREFIX}/lib/migration
+%{LS_PREFIX}/lib/migration/h2-*.jar
 %dir %{LS_PREFIX}/bin
 %{LS_PREFIX}/bin/Controller
 %{LS_PREFIX}/bin/linstor-config
