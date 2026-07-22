@@ -3078,6 +3078,15 @@ paths:
             type: array
             items:
               type: string
+        - name: delete_empty_resource_definition
+          in: query
+          description: |
+            If true, also delete the resource-definition when it has neither resources nor
+            snapshots left after this snapshot has been deleted. The check and the
+            resource-definition deletion are performed atomically.
+          schema:
+            type: boolean
+            default: false
       tags:
         - developers
       summary: delete a snapshot

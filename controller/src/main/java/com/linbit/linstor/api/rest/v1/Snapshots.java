@@ -172,12 +172,18 @@ public class Snapshots
         @Suspended final AsyncResponse asyncResponse,
         @PathParam("rscName") String rscName,
         @PathParam("snapName") String snapName,
-        @QueryParam("nodes") List<String> nodeNames
+        @QueryParam("nodes") List<String> nodeNames,
+        @DefaultValue("false") @QueryParam("delete_empty_resource_definition") boolean deleteEmptyRscDfn
     )
     {
         try (var ignore = MDC.putCloseable(ErrorReporter.LOGID, ErrorReporter.getNewLogId()))
         {
-            Flux<ApiCallRc> responses = ctrlSnapshotDeleteApiCallHandler.deleteSnapshot(rscName, snapName, nodeNames);
+            Flux<ApiCallRc> responses = ctrlSnapshotDeleteApiCallHandler.deleteSnapshot(
+                rscName,
+                snapName,
+                nodeNames,
+                deleteEmptyRscDfn
+            );
 
             requestHelper.doFlux(
                 ApiConsts.API_DEL_SNAPSHOT,

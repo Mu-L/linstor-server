@@ -197,7 +197,8 @@ public class CopySnapsHelper
                     ctrlSnapshotDeleteApiCallHandler.deleteSnapshot(
                         rscName.displayValue,
                         snapName.displayValue,
-                        Collections.singletonList(nodeName.displayValue)
+                        Collections.singletonList(nodeName.displayValue),
+                        false
                     )
                 ),
             Collections.emptyList(),

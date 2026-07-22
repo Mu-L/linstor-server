@@ -37,6 +37,7 @@ import static com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiC
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlSnapshotApiCallHandler.makeSnapshotContext;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
@@ -62,6 +63,10 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     private final CtrlPropsHelper propsHelper;
     private final ErrorReporter errorReporter;
     private final BackupInfoManager backupInfoMgr;
+    // Provider breaks a Guice construction cycle:
+    // CtrlRscDfnDeleteApiCallHandler -> CtrlRscDfnTruncateApiCallHandler -> AutoSnapshotTask ->
+    // CtrlSnapshotCrtApiCallHandler -> CtrlSnapshotDeleteApiCallHandler -> (here)
+    private final Provider<CtrlRscDfnDeleteApiCallHandler> ctrlRscDfnDeleteApiCallHandlerProvider;
 
     @Inject
     public CtrlSnapshotDeleteApiCallHandler(
@@ -73,7 +78,8 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
         LockGuardFactory lockguardFactoryRef,
         CtrlPropsHelper propsHelperRef,
         ErrorReporter errorReporterRef,
-        BackupInfoManager backupInfoMgrRef
+        BackupInfoManager backupInfoMgrRef,
+        Provider<CtrlRscDfnDeleteApiCallHandler> ctrlRscDfnDeleteApiCallHandlerProviderRef
     )
     {
         scopeRunner = scopeRunnerRef;
@@ -85,6 +91,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
         propsHelper = propsHelperRef;
         errorReporter = errorReporterRef;
         backupInfoMgr = backupInfoMgrRef;
+        ctrlRscDfnDeleteApiCallHandlerProvider = ctrlRscDfnDeleteApiCallHandlerProviderRef;
     }
 
     @Override
@@ -107,13 +114,18 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
      * deletes a snapshot
      * this should be called directly by the REST-class and therefore needs its own exception handling
      *
+     * @param deleteEmptyRscDfn if true, the resource definition is deleted as well when it has
+     * neither resources nor snapshots left after this snapshot has been deleted. The check and the
+     * resource-definition deletion happen atomically, so a concurrently created resource or snapshot
+     * prevents the deletion.
      *
      * @return deletion-flux
      */
     public Flux<ApiCallRc> deleteSnapshot(
         String rscNameStr,
         String snapshotNameStr,
-        @Nullable List<String> nodeNamesStrListRef
+        @Nullable List<String> nodeNamesStrListRef,
+        boolean deleteEmptyRscDfn
     )
     {
         ResponseContext context = makeSnapshotContext(
@@ -125,12 +137,19 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
         Flux<ApiCallRc> ret;
         try
         {
+            ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
             ret = deleteSnapshot(
-                LinstorParsingUtils.asRscName(rscNameStr),
+                rscName,
                 LinstorParsingUtils.asSnapshotName(snapshotNameStr),
                 nodeNamesStrListRef
             )
                 .transform(responses -> responseConverter.reportingExceptions(context, responses));
+            if (deleteEmptyRscDfn)
+            {
+                ret = ret.concatWith(
+                    ctrlRscDfnDeleteApiCallHandlerProvider.get().deleteResourceDefinitionIfEmpty(rscName)
+                );
+            }
         }
         catch (ApiRcException exc)
         {
