@@ -2,6 +2,11 @@
 
 All notable changes to Linstor OPENAPI(REST) will be documented in this file.
 
+## [unreleased]
+
+### Added
+  - Added DELETE /v1/resource-definitions/{resource}/resources to atomically delete all resources of a resource-definition ("truncate"), with an optional `delete_empty_resource_definition` query parameter that additionally deletes the resource-definition when it has neither resources nor snapshots left after the truncate
+
 ## [1.28.0]
 
 ### Added

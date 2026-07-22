@@ -21,7 +21,7 @@ info:
     ```
 
     After setting this properties restart the controller and the new values should be used.
-  version: 1.28.0
+  version: 1.29.0
   title: Linstor REST API
   contact:
     email: rene.peinthor@linbit.com
@@ -2183,6 +2183,38 @@ paths:
               - resource:
                   name: rsc1
                   node_name: alpha
+    delete:
+      tags:
+        - developers
+      summary: truncate a resource-definition
+      operationId: resourceDefinitionTruncate
+      description: |
+        Deletes all resources of the resource-definition ("truncate") without deleting the
+        resource-definition itself or any of its snapshots.
+
+        If `delete_empty_resource_definition` is set, the resource-definition is deleted as
+        well when it has neither resources nor snapshots left after the truncate. The check
+        and the resource-definition deletion are performed atomically, so a concurrently
+        created resource or snapshot keeps the resource-definition.
+      parameters:
+        - in: query
+          name: delete_empty_resource_definition
+          description: |
+            If true, also delete the resource-definition when it has neither resources nor
+            snapshots left after its resources have been deleted. The check and the
+            resource-definition deletion are performed atomically.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: resources deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiCallRcList'
+        '500':
+          $ref: '#/components/responses/OperationFailed'
   /v1/resource-definitions/{resource}/resources/{node}:
     parameters:
       - $ref: '#/components/parameters/Resource'

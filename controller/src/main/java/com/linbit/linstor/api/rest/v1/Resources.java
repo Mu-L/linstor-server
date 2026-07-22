@@ -13,6 +13,7 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsInfoApiCallHan
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscActivateApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscCrtApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscDeleteApiCallHandler;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnDeleteApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscMakeAvailableApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCallHandler.ToggleOp;
@@ -61,6 +62,7 @@ public class Resources
     private final CtrlApiCallHandler ctrlApiCallHandler;
     private final CtrlRscCrtApiCallHandler ctrlRscCrtApiCallHandler;
     private final CtrlRscDeleteApiCallHandler ctrlRscDeleteApiCallHandler;
+    private final CtrlRscDfnDeleteApiCallHandler ctrlRscDfnDeleteApiCallHandler;
     private final CtrlRscToggleDiskApiCallHandler ctrlRscToggleDiskApiCallHandler;
     private final CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandler;
     private final CtrlRscMakeAvailableApiCallHandler ctrlRscMakeAvailableApiCallHandler;
@@ -73,6 +75,7 @@ public class Resources
         CtrlApiCallHandler ctrlApiCallHandlerRef,
         CtrlRscCrtApiCallHandler ctrlRscCrtApiCallHandlerRef,
         CtrlRscDeleteApiCallHandler ctrlRscDeleteApiCallHandlerRef,
+        CtrlRscDfnDeleteApiCallHandler ctrlRscDfnDeleteApiCallHandlerRef,
         CtrlRscToggleDiskApiCallHandler ctrlRscToggleDiskApiCallHandlerRef,
         CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandlerRef,
         CtrlRscMakeAvailableApiCallHandler ctrlRscMakeAvailableApiCallHandlerRef,
@@ -83,6 +86,7 @@ public class Resources
         ctrlApiCallHandler = ctrlApiCallHandlerRef;
         ctrlRscCrtApiCallHandler = ctrlRscCrtApiCallHandlerRef;
         ctrlRscDeleteApiCallHandler = ctrlRscDeleteApiCallHandlerRef;
+        ctrlRscDfnDeleteApiCallHandler = ctrlRscDfnDeleteApiCallHandlerRef;
         ctrlRscToggleDiskApiCallHandler = ctrlRscToggleDiskApiCallHandlerRef;
         ctrlRscActivateApiCallHandler = ctrlRscActivateApiCallHandlerRef;
         ctrlRscMakeAvailableApiCallHandler = ctrlRscMakeAvailableApiCallHandlerRef;
@@ -324,6 +328,31 @@ public class Resources
 
             requestHelper.doFlux(
                 ApiConsts.API_DEL_RSC,
+                request,
+                asyncResponse,
+                ApiCallRcRestUtils.mapToMonoResponse(flux)
+            );
+        }
+    }
+
+    @DELETE
+    public void truncateResourceDefinition(
+        @Context Request request,
+        @Suspended final AsyncResponse asyncResponse,
+        @PathParam("rscName") String rscName,
+        @DefaultValue("false") @QueryParam("delete_empty_resource_definition")
+            boolean deleteEmptyRscDfn
+    )
+    {
+        try (var ignore = MDC.putCloseable(ErrorReporter.LOGID, ErrorReporter.getNewLogId()))
+        {
+            Flux<ApiCallRc> flux = ctrlRscDfnDeleteApiCallHandler.truncateResourceDefinition(
+                rscName,
+                deleteEmptyRscDfn
+            );
+
+            requestHelper.doFlux(
+                ApiConsts.API_TRUNCATE_RSC_DFN,
                 request,
                 asyncResponse,
                 ApiCallRcRestUtils.mapToMonoResponse(flux)
