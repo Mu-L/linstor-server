@@ -121,8 +121,8 @@ public class TcpConnectorPeer implements Peer
     protected @Nullable ApiConsts.Platform platform;
     protected @Nullable String osVariant;
     protected boolean authenticated = false;
-    protected boolean fullSyncApplied = false;
-    protected boolean fullSyncFailed = false;
+    protected volatile boolean fullSyncApplied = false;
+    protected volatile boolean fullSyncFailed = false;
 
     // Volatile guarantees atomic read and write
     //
@@ -143,7 +143,7 @@ public class TcpConnectorPeer implements Peer
     private final ReadWriteLock satelliteStateLock;
     private SatelliteState satelliteState;
 
-    private long fullSyncId;
+    private volatile long fullSyncId;
     private final AtomicLong serializerId;
     private final ReadWriteLock serializerLock;
 

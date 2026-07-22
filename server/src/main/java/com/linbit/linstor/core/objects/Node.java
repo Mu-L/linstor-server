@@ -121,7 +121,7 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
 
     private final DynamicNumberPool tcpPortPool;
 
-    private Peer peer;
+    private volatile Peer peer;
 
     private transient TransactionSimpleObject<Node, @Nullable NetInterface> activeStltConn;
 
