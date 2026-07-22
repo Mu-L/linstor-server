@@ -846,17 +846,21 @@ public class Node extends AbsCoreObj<Node> implements NodeInfo
         }
     }
 
-    public void connectionEstablished()
+    public void connectionEstablished(@Nullable Object initialConnectSinkKeyRef)
     {
         checkDeleted();
-        synchronized (initialConnectSinkMap)
+        if (initialConnectSinkKeyRef != null)
         {
-            for (FluxSink<Boolean> initialConnectSink : initialConnectSinkMap.values())
+            @Nullable FluxSink<Boolean> initialConnectSink;
+            synchronized (initialConnectSinkMap)
+            {
+                initialConnectSink = initialConnectSinkMap.remove(initialConnectSinkKeyRef);
+            }
+            if (initialConnectSink != null)
             {
                 initialConnectSink.next(true);
                 initialConnectSink.complete();
             }
-            initialConnectSinkMap.clear();
         }
     }
 

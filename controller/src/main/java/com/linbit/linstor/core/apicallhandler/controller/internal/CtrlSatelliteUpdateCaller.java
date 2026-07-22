@@ -504,7 +504,7 @@ public class CtrlSatelliteUpdateCaller
         return Flux.<Boolean>create(fluxSink ->
             {
                 nodeRef.registerInitialConnectSink(key, fluxSink);
-                stltConnector.startConnecting(nodeRef, false);
+                stltConnector.startConnecting(nodeRef, false, key);
             }
         )
             .timeout(

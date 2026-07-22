@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed the query-size-info response cache never answering requests whose resource group name was not given in the canonical upper-case form, causing needless recomputation
 - Fixed several connection API calls reporting an unhandled NullPointerException instead of a proper not-found error: creating a resource connection for an unknown resource, modifying a node connection of an unknown node, and creating/modifying a volume connection for an unknown volume number or a nonexistent connection
 - Another attempt to fix issues with double reconnect
+- Fixed possible ConcurrentModificationException during multiple concurrent reconnect attempts
 
 ## [1.34.1] - 2026-07-09
 

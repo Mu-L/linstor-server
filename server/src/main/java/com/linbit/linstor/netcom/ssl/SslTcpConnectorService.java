@@ -212,7 +212,8 @@ public class SslTcpConnectorService extends TcpConnectorService
         final String peerId,
         final SelectionKey connKey,
         final boolean outgoing,
-        final @Nullable Node node
+        final @Nullable Node node,
+        final @Nullable Object initialConnectSinkKeyRef
     )
     {
         if (DEBUG_CONNECTION)
@@ -252,7 +253,8 @@ public class SslTcpConnectorService extends TcpConnectorService
             connKey,
             sslCtx,
             address,
-            node
+            node,
+            initialConnectSinkKeyRef
         );
     }
 

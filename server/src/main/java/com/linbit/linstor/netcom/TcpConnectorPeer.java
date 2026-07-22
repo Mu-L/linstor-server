@@ -166,6 +166,8 @@ public class TcpConnectorPeer implements Peer
 
     private boolean allowReconnect = true;
 
+    private final @Nullable Object initialConnectSinkKey;
+
     protected TcpConnectorPeer(
         ErrorReporter errorReporterRef,
         CommonSerializer commonSerializerRef,
@@ -174,7 +176,8 @@ public class TcpConnectorPeer implements Peer
         TcpConnector connectorRef,
         SelectionKey key,
         @Nullable Node nodeRef,
-        boolean clientModeRef
+        boolean clientModeRef,
+        @Nullable Object initialConnectSinkKeyRef
     )
     {
         errorReporter = errorReporterRef;
@@ -183,6 +186,7 @@ public class TcpConnectorPeer implements Peer
         peerHost = peerHostRef;
         connector = connectorRef;
         node = nodeRef;
+        initialConnectSinkKey = initialConnectSinkKeyRef;
         msgOutQueue = new ArrayDeque<>();
         clientMode  = clientModeRef;
 
@@ -288,7 +292,7 @@ public class TcpConnectorPeer implements Peer
 
         if (node != null)
         {
-            node.connectionEstablished();
+            node.connectionEstablished(initialConnectSinkKey);
         }
         synchronized (this)
         {

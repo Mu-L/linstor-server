@@ -5,6 +5,7 @@ import com.linbit.InvalidNameException;
 import com.linbit.ServiceName;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.LinStorRuntimeException;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.objects.NetInterface;
 import com.linbit.linstor.core.objects.NetInterface.EncryptionType;
 import com.linbit.linstor.core.objects.Node;
@@ -50,10 +51,10 @@ public class SatelliteConnectorImpl implements SatelliteConnector
     @Override
     public void startConnecting(Node node)
     {
-        startConnecting(node, true);
+        startConnecting(node, true, null);
     }
 
-    public void startConnecting(Node node, boolean async)
+    public void startConnecting(Node node, boolean async, @Nullable Object initialConnectSinkKeyRef)
     {
         try
         {
@@ -115,7 +116,8 @@ public class SatelliteConnectorImpl implements SatelliteConnector
                                 ),
                                 tcpConnector,
                                 node,
-                                false
+                                false,
+                                initialConnectSinkKeyRef
                             );
                         }
                     }
@@ -153,7 +155,7 @@ public class SatelliteConnectorImpl implements SatelliteConnector
     {
         Runnable connectRunnable = () -> {
             MDC.setContextMap(MDC.getCopyOfContextMap());
-            connectSatellite(satelliteAddress, tcpConnector, node, true);
+            connectSatellite(satelliteAddress, tcpConnector, node, true, null);
         };
         // This could possibly be offloaded to some specialized worker pool in the future,
         // but not to the main worker pool used for submitting inbound requests,
@@ -167,12 +169,13 @@ public class SatelliteConnectorImpl implements SatelliteConnector
         final InetSocketAddress satelliteAddress,
         final TcpConnector tcpConnector,
         final Node node,
-        final boolean addToReconnector
+        final boolean addToReconnector,
+        @Nullable final Object initialConnectSinkKeyRef
     )
     {
         try
         {
-            Peer peer = tcpConnector.connect(satelliteAddress, node);
+            Peer peer = tcpConnector.connect(satelliteAddress, node, initialConnectSinkKeyRef);
             if (addToReconnector)
             {
                 reconnectorTask.add(peer, false);

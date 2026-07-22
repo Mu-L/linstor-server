@@ -250,12 +250,14 @@ public abstract class ApiTestBase extends GenericDbBase
         Mockito.verify(satelliteConnector, Mockito.times(currentCall.expectedSyncConnectingAttempts.size()))
             .startConnecting(
                 Mockito.any(Node.class),
-                Mockito.eq(false)
+                Mockito.eq(false),
+                Mockito.any(Object.class)
             );
         Mockito.verify(satelliteConnector, Mockito.times(currentCall.expectedAsyncConnectingAttempts.size()))
             .startConnecting(
                 Mockito.any(Node.class),
-                Mockito.eq(true)
+                Mockito.eq(true),
+                Mockito.any(Object.class)
             );
     }
 }

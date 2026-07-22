@@ -1,10 +1,11 @@
 package com.linbit.linstor.netcom;
 
+import com.linbit.SystemService;
+import com.linbit.linstor.annotation.Nullable;
+import com.linbit.linstor.core.objects.Node;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
-
-import com.linbit.SystemService;
-import com.linbit.linstor.core.objects.Node;
 
 /**
  * Server for TCP/IP connections to various other servers and clients
@@ -15,7 +16,7 @@ public interface TcpConnector extends SystemService
 {
     // TODO: Experimental; some means of adding a new connection that is to
     //       be created by the TcpConnector implementation
-    Peer connect(InetSocketAddress address, Node node) throws IOException;
+    Peer connect(InetSocketAddress address, Node node, @Nullable Object initialConnectSinkKey) throws IOException;
 
     Peer reconnect(Peer peer) throws IOException;
 

@@ -1,10 +1,5 @@
 package com.linbit.linstor.netcom;
 
-import static java.nio.channels.SelectionKey.OP_ACCEPT;
-import static java.nio.channels.SelectionKey.OP_CONNECT;
-import static java.nio.channels.SelectionKey.OP_READ;
-import static java.nio.channels.SelectionKey.OP_WRITE;
-
 import com.linbit.ErrorCheck;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
@@ -54,6 +49,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.slf4j.MDC;
 import org.slf4j.event.Level;
+
+import static java.nio.channels.SelectionKey.OP_ACCEPT;
+import static java.nio.channels.SelectionKey.OP_CONNECT;
+import static java.nio.channels.SelectionKey.OP_READ;
+import static java.nio.channels.SelectionKey.OP_WRITE;
 
 /**
  * TCP/IP network communication service
@@ -195,7 +195,8 @@ public class TcpConnectorService implements Runnable, TcpConnector
     }
 
     @Override
-    public Peer connect(InetSocketAddress address, Node node) throws IOException
+    public Peer connect(InetSocketAddress address, Node node, @Nullable Object initialConnectSinkKeyRef)
+        throws IOException
     {
         errorReporter.logInfo("Establishing connection to node '%s' via %s ...", node.getName(), address);
         Selector srvSel = serverSelector;
@@ -240,7 +241,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
                         // and we will need to call the finishConnection()
                         connKey = socketChannel.register(srvSel, OP_CONNECT);
                     }
-                    peer = createTcpConnectorPeer(address, peerId, connKey, true, node);
+                    peer = createTcpConnectorPeer(address, peerId, connKey, true, node, initialConnectSinkKeyRef);
                     connKey.attach(peer);
                     if (connected)
                     {
@@ -329,7 +330,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
             }
         }
 
-        return this.connect(address, peer.getNode());
+        return this.connect(address, peer.getNode(), null);
     }
 
     @Override
@@ -897,7 +898,7 @@ public class TcpConnectorService implements Runnable, TcpConnector
         @Nullable Node node
     )
     {
-        return createTcpConnectorPeer(peerHostAddr, peerId, connKey, false, node);
+        return createTcpConnectorPeer(peerHostAddr, peerId, connKey, false, node, null);
     }
 
     protected TcpConnectorPeer createTcpConnectorPeer(
@@ -905,11 +906,20 @@ public class TcpConnectorService implements Runnable, TcpConnector
         String peerId,
         SelectionKey connKey,
         boolean outgoing,
-        @Nullable Node node
+        @Nullable Node node,
+        @Nullable Object initialConnectSinkKeyRef
     )
     {
         return new TcpConnectorPeer(
-            errorReporter, commonSerializer, peerHostAddr, peerId, this, connKey, node, outgoing
+            errorReporter,
+            commonSerializer,
+            peerHostAddr,
+            peerId,
+            this,
+            connKey,
+            node,
+            outgoing,
+            initialConnectSinkKeyRef
         );
     }
 

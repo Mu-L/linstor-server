@@ -145,21 +145,32 @@ public class SslTcpConnectorPeer extends TcpConnectorPeer
      * @param sslCtxRef SSLContext for this SSL connection (SSL settings for the SSLEngine)
      * @param peerAddress Address to connect to; null when accepting an inbound connection
      * @param node LINSTOR Node object associated with this connection (e.g., the connected LINSTOR satellite)
+     * @param initialConnectSinkKeyRef The key later used for node.connectionEstablished(initConSinkKeyRef)
      */
     public SslTcpConnectorPeer(
-        final ErrorReporter            errorReporter,
-        final CommonSerializer         commonSerializer,
-        final InetSocketAddress        peerHostAddr,
-        final String                   peerId,
+        final ErrorReporter errorReporter,
+        final CommonSerializer commonSerializer,
+        final InetSocketAddress peerHostAddr,
+        final String peerId,
         final SslTcpConnectorService   sslConnectorService,
-        final SelectionKey             connKey,
-        final SSLContext               sslCtxRef,
-        @Nullable final InetSocketAddress       peerAddress,
-        @Nullable final Node                     node
+        final SelectionKey connKey,
+        final SSLContext sslCtxRef,
+        @Nullable final InetSocketAddress peerAddress,
+        @Nullable final Node node,
+        @Nullable final Object initialConnectSinkKeyRef
     )
     {
-        super(errorReporter, commonSerializer, peerHostAddr, peerId, sslConnectorService, connKey, node,
-            peerAddress != null);
+        super(
+            errorReporter,
+            commonSerializer,
+            peerHostAddr,
+            peerId,
+            sslConnectorService,
+            connKey,
+            node,
+            peerAddress != null,
+            initialConnectSinkKeyRef
+        );
         address     = peerAddress;
         sslReady    = false;
         ioRequest   = false;
