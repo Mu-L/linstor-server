@@ -21,6 +21,9 @@ import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.objects.VolumeDefinition;
+import com.linbit.linstor.event.ObjectIdentifier;
+import com.linbit.linstor.event.common.ResourceState;
+import com.linbit.linstor.event.common.ResourceStateEvent;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.satellitestate.SatelliteState;
@@ -36,10 +39,14 @@ import javax.inject.Provider;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.inject.testing.fieldbinder.Bind;
@@ -58,6 +65,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 public class SnapshotRollbackApiTest extends ApiTestBase
 {
     private static final String TEST_NODE_NAME = "TestSatellite";
+    private static final String TEST_NODE_2_NAME = "TestSatellite2";
     private static final String TEST_RSC_NAME = "TestRsc";
     private static final String TEST_SP_NAME = "TestStorPool";
     private static final String TEST_SNAP_NAME = "snap1";
@@ -73,6 +81,8 @@ public class SnapshotRollbackApiTest extends ApiTestBase
     private SnapshotRollbackManager snapRollbackMgr;
     @Inject
     private BackupInfoManager backupInfoMgr;
+    @Inject
+    private ResourceStateEvent resourceStateEvent;
 
     @Bind
     @Mock
@@ -80,6 +90,9 @@ public class SnapshotRollbackApiTest extends ApiTestBase
 
     @Mock
     protected Peer mockSatellite;
+
+    @Mock
+    protected Peer mockSatellite2;
 
     @Mock
     protected ExtToolsManager mockExtToolsMgr;
@@ -225,6 +238,135 @@ public class SnapshotRollbackApiTest extends ApiTestBase
         {
             assertThat(drbdRscDfnData.isDown()).isFalse();
         }
+    }
+
+    /**
+     * The "zfs rollback" strategy has to wait for the rolled-back resources to become ready
+     * again (analogous to the clone strategy, whose restore runs through deployResources and
+     * with that through waitResourcesReady) instead of completing as soon as the satellites
+     * confirm the re-activation update.
+     */
+    @Test
+    public void rollbackZfsRollbackStrategyWaitsForResourcesReady() throws Exception
+    {
+        // second satellite so that the rolled-back resources have a DRBD peer whose
+        // ready-state has to be awaited
+        stubSatellitePeer(mockSatellite2, mockExtToolsMgr, new SatelliteState(), false);
+        NodeName testNode2Name = new NodeName(TEST_NODE_2_NAME);
+
+        enterScope();
+        Node testNode2 = nodeFactory.create(testNode2Name, Node.Type.SATELLITE, null);
+        testNode2.setPeer(mockSatellite2);
+        nodesMap.put(testNode2Name, testNode2);
+        leaveScope();
+
+        createRscDfnWithVlmDfn(TEST_RSC_NAME);
+
+        enterScope();
+        StorPoolDefinition storPoolDfn = storPoolDefinitionFactory.create(testStorPoolName);
+        storPoolDfnMap.put(testStorPoolName, storPoolDfn);
+        for (Node node : Arrays.asList(testNode, testNode2))
+        {
+            StorPool storPool = storPoolFactory.create(
+                node,
+                storPoolDfn,
+                DeviceProviderKind.ZFS_THIN,
+                getFreeSpaceMgr(storPoolDfn, node),
+                false
+            );
+            storPool.getFreeSpaceTracker().setCapacityInfo(10_000_000, 10_000_000);
+        }
+
+        Map<String, String> rscProps = new TreeMap<>();
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, TEST_SP_NAME);
+        for (String nodeNameStr : Arrays.asList(TEST_NODE_NAME, TEST_NODE_2_NAME))
+        {
+            ctrlRscCrtApiHelper.createResourceDb(
+                nodeNameStr,
+                TEST_RSC_NAME,
+                0L,
+                rscProps,
+                Collections.emptyList(),
+                null,
+                null,
+                null,
+                null,
+                Collections.emptyList(),
+                Resource.DiskfulBy.USER,
+                false
+            );
+        }
+        leaveScope();
+
+        satelliteOnline();
+        setSatelliteOnline(mockSatellite2, true);
+        Mockito.when(mockPeer.isOnline()).thenReturn(true);
+
+        // take the snapshot on both satellites
+        ApiCallRc snapRc = collect(
+            snapCrtApiCallHandlerProvider.get()
+                .createSnapshot(Collections.emptyList(), TEST_RSC_NAME, TEST_SNAP_NAME, Collections.emptyMap())
+        );
+        assertThat(snapRc).noneMatch(entry -> entry.isError());
+        assertThat(rscDfnMap.get(testRscName).getSnapshotDfn(testSnapName).getAllSnapshots()).hasSize(2);
+
+        simulateRollbackResponses(mockSatellite, testNodeName);
+        simulateRollbackResponses(mockSatellite2, testNode2Name);
+
+        // subscribe the rollback flux WITHOUT any resource state events - the ready-wait
+        // has nothing to report yet, so the flux must stay incomplete
+        List<ApiCallRc.RcEntry> entries = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        CountDownLatch completed = new CountDownLatch(1);
+        snapRollbackApiCallHandlerProvider.get()
+            .rollbackSnapshot(TEST_RSC_NAME, TEST_SNAP_NAME, ApiConsts.VAL_STOR_POOL_ZFS_ROLLBACK_STRAT_ROLLBACK)
+            .contextWrite(contextWrite())
+            .subscribe(
+                apiCallRc -> apiCallRc.forEach(entries::add),
+                error::set,
+                completed::countDown
+            );
+
+        // the rollback itself is done (satellites rolled back and confirmed the re-activation),
+        // but the flux has to wait for the resources to become ready
+        assertThat(completed.await(1, TimeUnit.SECONDS))
+            .as("rollback flux must not complete before the resources are ready")
+            .isFalse();
+        assertThat(error.get()).isNull();
+
+        // report the rolled-back resources as ready; covering all possible peer node ids keeps
+        // the test independent of the node id allocation order
+        Map<Integer, Boolean> allPeersConnected = new TreeMap<>();
+        for (int nodeId = 0; nodeId < 8; nodeId++)
+        {
+            allPeersConnected.put(nodeId, true);
+        }
+        ResourceState readyState = new ResourceState(
+            true,
+            Collections.singletonMap(new VolumeNumber(0), allPeersConnected),
+            false,
+            true,
+            null,
+            null
+        );
+        for (NodeName nodeName : Arrays.asList(testNodeName, testNode2Name))
+        {
+            resourceStateEvent.get().triggerEvent(
+                ObjectIdentifier.resource(nodeName, testRscName),
+                readyState
+            );
+        }
+
+        // now the ready-wait completes and the flux runs through
+        assertThat(completed.await(10, TimeUnit.SECONDS)).isTrue();
+        assertThat(error.get()).isNull();
+        assertThat(entries)
+            .extracting(entry -> entry.getMessage())
+            .filteredOn(message -> message.endsWith("' ready"))
+            .containsExactlyInAnyOrder(
+                "Resource '" + TEST_RSC_NAME + "' on '" + TEST_NODE_NAME + "' ready",
+                "Resource '" + TEST_RSC_NAME + "' on '" + TEST_NODE_2_NAME + "' ready"
+            );
     }
 
     @Test
@@ -374,11 +516,16 @@ public class SnapshotRollbackApiTest extends ApiTestBase
      */
     private void simulateRollbackResponses()
     {
-        Mockito.when(mockSatellite.apiCall(anyString(), any())).thenAnswer(
+        simulateRollbackResponses(mockSatellite, testNodeName);
+    }
+
+    private void simulateRollbackResponses(Peer peerMock, NodeName nodeName)
+    {
+        Mockito.when(peerMock.apiCall(anyString(), any())).thenAnswer(
             ignored ->
             {
                 Thread notifier = new Thread(
-                    () -> snapRollbackMgr.handle(testNodeName, testRscName, true)
+                    () -> snapRollbackMgr.handle(nodeName, testRscName, true)
                 );
                 notifier.setDaemon(true);
                 notifier.start();

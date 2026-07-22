@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the `zfs rollback` snapshot rollback strategy reporting success as soon as the satellites confirmed the resource re-activation; it now waits for the rolled-back DRBD resources to actually become ready again, like resource creation and snapshot restore do
 - Fixed LDAP sign-in using the configured `search_filter` as the LDAP search base; the configured `search_base` was never used, so restricting sign-in via a search filter did not work as documented
 - Fixed a changed DRBD auto verify algorithm not being deployed to already connected satellites when recomputed after a node full-sync, leaving nodes with different `verify-alg` settings and forcing their DRBD connections into StandAlone
 - Fixed the controller not being able to execute `journalctl` to collect systemd logs by adding it to the `systemd-journal` group
