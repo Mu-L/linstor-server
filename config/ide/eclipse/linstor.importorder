@@ -1,0 +1,13 @@
+#Organize Import Order
+#LINSTOR canonical import order - see docs/import-order.md
+#Import in Eclipse via: Preferences > Java > Code Style > Organize Imports > Import...
+#  0  com.linbit.**  (own code)
+#  1  javax.**
+#  2  java.**
+#  3  all other (3rd-party) imports   -> empty value = catch-all bucket
+#  4  all static imports              -> \# = static catch-all, sorted last
+0=com.linbit
+1=javax
+2=java
+3=
+4=\#

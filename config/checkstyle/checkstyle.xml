@@ -195,6 +195,27 @@ Checkstyle: https://checkstyle.sourceforge.net, https://github.com/checkstyle/ch
         </module>
 
         <!--
+        Import order (see docs/import-order.md):
+            1. com.linbit.**   (own code)      <- SAME_PACKAGE(2); every package is under com.linbit
+            2. javax.**                        <- SPECIAL_IMPORTS
+            3. java.**                         <- STANDARD_JAVA_PACKAGE
+            4. all other (3rd-party) imports   <- THIRD_PARTY_PACKAGE
+            5. all static imports              <- STATIC (single block at the bottom)
+        Groups are separated by a single blank line and sorted alphabetically within a group.
+        Severity is intentionally "warning" for a grace period; bump to "error" once the
+        existing sources have been reformatted (see docs/import-order.md#enforcement).
+        -->
+        <module name="CustomImportOrder">
+            <property name="severity" value="warning"/>
+            <property name="customImportOrderRules"
+                      value="SAME_PACKAGE(2)###SPECIAL_IMPORTS###STANDARD_JAVA_PACKAGE###THIRD_PARTY_PACKAGE###STATIC"/>
+            <property name="specialImportsRegExp" value="^javax\."/>
+            <property name="standardPackageRegExp" value="^java\."/>
+            <property name="separateLineBetweenGroups" value="true"/>
+            <property name="sortImportsInGroupAlphabetically" value="true"/>
+        </module>
+
+        <!--
         ================================================================================
         Package declarations
         ================================================================================
