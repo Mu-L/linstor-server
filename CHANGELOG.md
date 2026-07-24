@@ -22,21 +22,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed the `zfs rollback` snapshot rollback strategy reporting success as soon as the satellites confirmed the resource re-activation; it now waits for the rolled-back DRBD resources to actually become ready again, like resource creation and snapshot restore do
 - Fixed LDAP sign-in using the configured `search_filter` as the LDAP search base; the configured `search_base` was never used, so restricting sign-in via a search filter did not work as documented
-- Fixed a changed DRBD auto verify algorithm not being deployed to already connected satellites when recomputed after a node full-sync, leaving nodes with different `verify-alg` settings and forcing their DRBD connections into StandAlone
-- Fixed the controller not being able to execute `journalctl` to collect systemd logs by adding it to the `systemd-journal` group
-- Fixed drbd-proxy disable not releasing the target-side proxy TCP port, leaving it permanently allocated in the resource connection and the target node's port pool
-- Fixed resource-connection DRBD Proxy ports not being re-reserved in the node TCP port pools on controller startup, so a restart could hand out a port still in use by DRBD Proxy
-- Fixed the failure path of DRBD port assignment leaving previously reserved ports unreserved in the pool
 - Fixed deleting a controller property namespace always failing the property whitelist check (the namespace was prepended twice to the property keys), rejecting and rolling back the whole modification
 - Fixed deleting a resource connection reporting an internal error instead of success (the already deleted connection object was accessed when notifying the satellites)
-- Fixed the resource definition staying marked as down on the controller after a successful snapshot rollback using the ZFS rollback strategy (the cleared flag was never committed)
 - Fixed modifying a net interface of a node without an active satellite connection failing with an unhandled NullPointerException
 - Fixed the query-size-info response cache never answering requests whose resource group name was not given in the canonical upper-case form, causing needless recomputation
 - Fixed several connection API calls reporting an unhandled NullPointerException instead of a proper not-found error: creating a resource connection for an unknown resource, modifying a node connection of an unknown node, and creating/modifying a volume connection for an unknown volume number or a nonexistent connection
 - Another attempt to fix issues with double reconnect
 - Fixed possible ConcurrentModificationException during multiple concurrent reconnect attempts
+
+## [1.34.2] - 2026-07-24
+
+### Fixed
+
+- Fixed the `zfs rollback` snapshot rollback strategy reporting success as soon as the satellites confirmed the resource re-activation; it now waits for the rolled-back DRBD resources to actually become ready again, like resource creation and snapshot restore do
+- Fixed a changed DRBD auto verify algorithm not being deployed to already connected satellites when recomputed after a node full-sync, leaving nodes with different `verify-alg` settings and forcing their DRBD connections into StandAlone
+- Fixed the controller not being able to execute `journalctl` to collect systemd logs by adding it to the `systemd-journal` group
+- Fixed drbd-proxy disable not releasing the target-side proxy TCP port, leaving it permanently allocated in the resource connection and the target node's port pool
+- Fixed resource-connection DRBD Proxy ports not being re-reserved in the node TCP port pools on controller startup, so a restart could hand out a port still in use by DRBD Proxy
+- Fixed the failure path of DRBD port assignment leaving previously reserved ports unreserved in the pool
+- Fixed the resource definition staying marked as down on the controller after a successful snapshot rollback using the ZFS rollback strategy (the cleared flag was never committed)
 - Fixed incorrect usage of SO_REUSEADDR introduced in fb5a9acc04ea40f67494a5d1918d8dfc98d86259. Plus, IP address is no longer ignored (i.e. not using 0.0.0.0) when testing ports.
 
 ## [1.34.1] - 2026-07-09
