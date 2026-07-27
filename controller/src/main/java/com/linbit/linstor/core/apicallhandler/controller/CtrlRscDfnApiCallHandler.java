@@ -25,7 +25,9 @@ import com.linbit.linstor.core.CoreModule.ResourceDefinitionMapExtName;
 import com.linbit.linstor.core.CtrlSecurityObjects;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsHelper.PropertyChangedListener;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.PropsChangedListenerBuilder;
@@ -715,9 +717,9 @@ public class CtrlRscDfnApiCallHandler
             drbdQuorumChanged)
         {
             AutoHelperContext autoHelperCtx = new AutoHelperContext(responsesRef, contextRef, rscDfn);
-            ctrlRscAutoHelper.manage(autoHelperCtx);
+            AutoHelperResult autoResult = ctrlRscAutoHelper.manage(autoHelperCtx);
 
-            retFlux = retFlux.concatWith(Flux.merge(autoHelperCtx.additionalFluxList));
+            retFlux = retFlux.concatWith(autoResult.flux());
         }
 
         String autoDiskfulKey = ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_AUTO_DISKFUL;

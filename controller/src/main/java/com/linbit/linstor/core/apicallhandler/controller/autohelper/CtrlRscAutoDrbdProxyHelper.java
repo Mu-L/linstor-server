@@ -1,10 +1,9 @@
-package com.linbit.linstor.core.apicallhandler.controller;
+package com.linbit.linstor.core.apicallhandler.controller.autohelper;
 
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelper;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlDrbdProxyHelper;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceConnection;
@@ -25,7 +24,7 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
     private final SystemConfRepository systemConfRepository;
 
     @Inject
-    public CtrlRscAutoDrbdProxyHelper(
+    CtrlRscAutoDrbdProxyHelper(
         CtrlDrbdProxyHelper drbdProxyHelperRef,
         SystemConfRepository systemConfRepositoryRef
     )
@@ -35,9 +34,9 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
     }
 
     @Override
-    public CtrlRscAutoHelper.AutoHelperType getType()
+    public AutoHelperType getType()
     {
-        return CtrlRscAutoHelper.AutoHelperType.DrbdProxy;
+        return AutoHelperType.DrbdProxy;
     }
 
     @Override

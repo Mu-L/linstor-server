@@ -9,8 +9,9 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.SharedResourceManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ZfsChecks;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
@@ -257,13 +258,13 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
 
             flux = Flux.just(responses);
             Flux<ApiCallRc> next = Flux.empty();
-            if (!autoResult.isPreventUpdateSatellitesForResourceDelete())
+            if (!autoResult.preventUpdateSatellitesForResourceDelete())
             {
                 // only mark resource as delete if automagic does not want to keep the resource
                 next = next.concatWith(deleteResourceOnPeers(nodeNameStr, rscNameStr, context));
             }
-            next = next.concatWith(autoResult.getFlux());
-            if (!autoResult.isPreventUpdateSatellitesForResourceDelete())
+            next = next.concatWith(autoResult.flux());
+            if (!autoResult.preventUpdateSatellitesForResourceDelete())
             {
                 String descriptionFirstLetterCaps = firstLetterCaps(getRscDescription(rsc));
                 responses.addEntries(
@@ -434,7 +435,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
 
             ctrlTransactionHelper.commit();
 
-            if (!autoResult.isPreventUpdateSatellitesForResourceDelete())
+            if (!autoResult.preventUpdateSatellitesForResourceDelete())
             {
                 String descriptionFirstLetterCaps = firstLetterCaps(getRscDescription(rsc));
                 responses.addEntries(
@@ -460,7 +461,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
                 flux = Flux.just(responses);
             }
             flux = flux
-                .concatWith(autoResult.getFlux())
+                .concatWith(autoResult.flux())
                 .concatWith(ctrlRscDfnApiCallHandler.get().updateProps(rsc.getResourceDefinition()));
         }
         return flux;

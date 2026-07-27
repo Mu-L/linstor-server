@@ -1,4 +1,4 @@
-package com.linbit.linstor.core.apicallhandler.controller;
+package com.linbit.linstor.core.apicallhandler.controller.autohelper;
 
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.api.ApiCallRc;
@@ -8,8 +8,8 @@ import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.api.pojo.AutoSelectFilterPojo;
 import com.linbit.linstor.api.pojo.builder.AutoSelectFilterBuilder;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelper;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoPlaceApiCallHandler;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlTransactionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
@@ -51,6 +51,11 @@ import reactor.util.function.Tuple2;
 public class CtrlRscAutoRePlaceRscHelper implements AutoHelper
 {
     private final SystemConfRepository systemConfRepo;
+    /**
+     * Set of ResourceDefinitions that need autoRePlacement. RscDfns might survive in this set over multiple
+     * {@link #manage(AutoHelperContext)} calls, depending on whether or not the autoplacement succeeded.
+     * This set will also be extended with {@link AutoHelperContext#needRePlaceRsc} if given/non-empty.
+     */
     private final HashSet<ResourceDefinition> needRePlaceRsc = new HashSet<>();
     private final HashSet<ResourceDefinition> needDiskfulRsc = new HashSet<>();
     private final CtrlRscAutoPlaceApiCallHandler autoPlaceHandler;
@@ -85,15 +90,16 @@ public class CtrlRscAutoRePlaceRscHelper implements AutoHelper
     }
 
     @Override
-    public CtrlRscAutoHelper.AutoHelperType getType()
+    public AutoHelperType getType()
     {
-        return CtrlRscAutoHelper.AutoHelperType.AutoRePlace;
+        return AutoHelperType.AutoRePlace;
     }
 
     @Override
     public void manage(AutoHelperContext ctx)
     {
         ResourceDefinition rscDfn = ctx.rscDfn;
+        needRePlaceRsc.addAll(ctx.needRePlaceRsc);
         if (needRePlaceRsc.contains(rscDfn))
         {
             if (countDiskfulRsc(rscDfn) == 0)
@@ -289,10 +295,5 @@ public class CtrlRscAutoRePlaceRscHelper implements AutoHelper
             size += vlmDfn.getVolumeSize();
         }
         return size;
-    }
-
-    public void addNeedRePlaceRsc(Resource rsc)
-    {
-        needRePlaceRsc.add(rsc.getResourceDefinition());
     }
 }

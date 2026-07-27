@@ -1,4 +1,4 @@
-package com.linbit.linstor.core.apicallhandler.controller;
+package com.linbit.linstor.core.apicallhandler.controller.autohelper;
 
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
@@ -36,7 +36,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Singleton
-public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHelper
+public class CtrlRscDfnAutoVerifyAlgoHelper implements AutoHelper
 {
     private final ErrorReporter errorReporter;
     private final SystemConfRepository sysCfgRepo;
@@ -51,13 +51,13 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements CtrlRscAutoHelper.AutoHel
     }
 
     @Override
-    public CtrlRscAutoHelper.AutoHelperType getType()
+    public AutoHelperType getType()
     {
-        return CtrlRscAutoHelper.AutoHelperType.VerifyAlgorithm;
+        return AutoHelperType.VerifyAlgorithm;
     }
 
     @Override
-    public void manage(CtrlRscAutoHelper.AutoHelperContext ctx)
+    public void manage(AutoHelperContext ctx)
     {
         ctx.responses.addEntries(checkVerifyAlgorithm(ctx.rscDfn));
         PairNonNull<ApiCallRc, Set<Resource>> result = updateVerifyAlgorithm(ctx.rscDfn);

@@ -26,6 +26,12 @@ import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.CoreModule.NodesMap;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsHelper.PropertyChangedListener;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperType;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoQuorumHelper;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscDfnAutoVerifyAlgoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.exceptions.IncorrectPassphraseException;
 import com.linbit.linstor.core.apicallhandler.controller.exceptions.MissingKeyPropertyException;
@@ -317,8 +323,9 @@ public class CtrlConfApiCallHandler
         // run auto quorum/tiebreaker manage code
         String autoTiebreakerKey = ApiConsts.NAMESPC_DRBD_OPTIONS + "/" +
             ApiConsts.KEY_DRBD_AUTO_ADD_QUORUM_TIEBREAKER;
-        if (overrideProps.containsKey(autoTiebreakerKey) || deletePropKeys.contains(autoTiebreakerKey)
-            || drbdQuorumChanged)
+        if (overrideProps.containsKey(autoTiebreakerKey) ||
+            deletePropKeys.contains(autoTiebreakerKey) ||
+            drbdQuorumChanged)
         {
             for (ResourceDefinition rscDfn : rscDfns)
             {
@@ -329,14 +336,17 @@ public class CtrlConfApiCallHandler
 
                 CtrlRscAutoQuorumHelper.removeQuorumPropIfSetByLinstor(rscDfn);
                 ApiCallRcImpl responses = new ApiCallRcImpl();
-                CtrlRscAutoHelper.AutoHelperContext autoHelperCtx =
-                    new CtrlRscAutoHelper.AutoHelperContext(responses, context, rscDfn);
-                ctrlRscAutoHelper.manage(
+                AutoHelperContext autoHelperCtx =
+                    new AutoHelperContext(responses, context, rscDfn);
+                AutoHelperResult autoResult = ctrlRscAutoHelper.manage(
                     autoHelperCtx, new HashSet<>(Arrays.asList(
-                        CtrlRscAutoHelper.AutoHelperType.AutoQuorum, CtrlRscAutoHelper.AutoHelperType.TieBreaker)));
+                        AutoHelperType.AutoQuorum,
+                        AutoHelperType.TieBreaker
+                    ))
+                );
 
-                apiCallRc.addEntries(autoHelperCtx.responses);
-                flux = flux.concatWith(Flux.merge(autoHelperCtx.additionalFluxList));
+                apiCallRc.addEntries(autoResult.responses());
+                flux = flux.concatWith(autoResult.flux());
             }
         }
 

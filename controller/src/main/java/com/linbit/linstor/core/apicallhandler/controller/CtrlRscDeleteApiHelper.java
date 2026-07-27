@@ -6,7 +6,8 @@ import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -264,7 +265,7 @@ public class CtrlRscDeleteApiHelper
                         .manage(
                             new AutoHelperContext(apiCallRc, contextRef, rscDfn)
                         )
-                        .getFlux()
+                        .flux()
                 );
 
                 // maybe we should create an auto-helper from this..

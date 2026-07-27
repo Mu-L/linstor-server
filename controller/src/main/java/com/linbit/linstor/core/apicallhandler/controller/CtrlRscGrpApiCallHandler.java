@@ -30,6 +30,11 @@ import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.CoreModule.StorPoolDefinitionMap;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsHelper.PropertyChangedListener;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperType;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoQuorumHelper;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.PropsChangedListenerBuilder;
@@ -76,8 +81,8 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 import com.linbit.utils.Base64;
-import com.linbit.utils.RegexMatcher;
 import com.linbit.utils.PairNonNull;
+import com.linbit.utils.RegexMatcher;
 import com.linbit.utils.StringUtils;
 
 import static com.linbit.locks.LockGuardFactory.LockObj.NODES_MAP;
@@ -92,7 +97,6 @@ import javax.inject.Singleton;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -706,18 +710,21 @@ public class CtrlRscGrpApiCallHandler
 
             // run auto quorum/tiebreaker manage code
             String autoTiebreakerKey = ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_AUTO_ADD_QUORUM_TIEBREAKER;
-            if (overrideProps.containsKey(autoTiebreakerKey) || deletePropKeys.contains(autoTiebreakerKey)
-                || drbdQuorumChanged)
+            if (overrideProps.containsKey(autoTiebreakerKey) ||
+                deletePropKeys.contains(autoTiebreakerKey) ||
+                drbdQuorumChanged)
             {
                 CtrlRscAutoQuorumHelper.removeQuorumPropIfSetByLinstor(rscDfn);
                 ApiCallRcImpl responses = new ApiCallRcImpl();
-                CtrlRscAutoHelper.AutoHelperContext autoHelperCtx = new CtrlRscAutoHelper.AutoHelperContext(
+                AutoHelperContext autoHelperCtx = new AutoHelperContext(
                     responses, context, rscDfn);
-                ctrlRscAutoHelper.manage(
-                    autoHelperCtx, new HashSet<>(Arrays.asList(
-                        CtrlRscAutoHelper.AutoHelperType.AutoQuorum, CtrlRscAutoHelper.AutoHelperType.TieBreaker)));
+                AutoHelperResult autoResult = ctrlRscAutoHelper.manage(
+                    autoHelperCtx,
+                    AutoHelperType.AutoQuorum,
+                    AutoHelperType.TieBreaker
+                );
 
-                retFlux = retFlux.concatWith(Flux.merge(autoHelperCtx.additionalFluxList));
+                retFlux = retFlux.concatWith(autoResult.flux());
             }
         }
         return retFlux;

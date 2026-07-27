@@ -10,7 +10,8 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.backupshipping.BackupShippingUtils;
 import com.linbit.linstor.core.BackupInfoManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
@@ -354,7 +355,8 @@ public class CtrlSnapshotRestoreApiCallHandler
                 }
             }
 
-            autoFlux = autoHelper.manage(new AutoHelperContext(responses, context, toRscDfn)).getFlux();
+            autoFlux = autoHelper.manage(new AutoHelperContext(responses, context, toRscDfn))
+                .flux();
 
             checkDrbdInitializedState(toRscDfn);
 

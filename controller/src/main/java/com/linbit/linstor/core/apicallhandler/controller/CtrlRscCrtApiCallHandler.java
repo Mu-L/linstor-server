@@ -6,7 +6,8 @@ import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiCallRcWith;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.CopySnapsHelper;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
@@ -195,7 +196,7 @@ public class CtrlRscCrtApiCallHandler
         for (String rscNameStr : rscNameStrsForAutoHelper)
         {
             AutoHelperResult autoHelperResult = autoHelper.manage(responses, context, rscNameStr);
-            autoFlux.add(autoHelperResult.getFlux());
+            autoFlux.add(autoHelperResult.flux());
         }
         ctrlTransactionHelper.commit();
 

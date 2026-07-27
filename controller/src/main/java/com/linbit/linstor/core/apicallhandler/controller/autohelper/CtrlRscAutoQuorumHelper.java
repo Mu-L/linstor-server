@@ -1,11 +1,10 @@
-package com.linbit.linstor.core.apicallhandler.controller;
+package com.linbit.linstor.core.apicallhandler.controller.autohelper;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils.DrbdResourceResult;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
@@ -43,7 +42,7 @@ import java.util.TreeSet;
  * by Linstor if it is explicitly set on a higher level (C, RG).
  */
 @Singleton
-class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
+public class CtrlRscAutoQuorumHelper implements AutoHelper
 {
     private static final String PROP_KEY_QUORUM = "quorum";
     private static final String PROP_VAL_QUORUM_MAJORITY = "majority";
@@ -60,9 +59,9 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
     }
 
     @Override
-    public CtrlRscAutoHelper.AutoHelperType getType()
+    public AutoHelperType getType()
     {
-        return CtrlRscAutoHelper.AutoHelperType.AutoQuorum;
+        return AutoHelperType.AutoQuorum;
     }
 
     @Override
@@ -205,7 +204,7 @@ class CtrlRscAutoQuorumHelper implements CtrlRscAutoHelper.AutoHelper
         }
     }
 
-    public boolean isAutoQuorumEnabled(ResourceDefinition rscDfn)
+    boolean isAutoQuorumEnabled(ResourceDefinition rscDfn)
     {
         String quorumSetBy;
         try

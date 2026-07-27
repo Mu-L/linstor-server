@@ -14,8 +14,9 @@ import com.linbit.linstor.api.protobuf.ProtobufApiCall;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlMinIoSizeHelper;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlNodeApiCallHandler;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlTransactionHelper;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlFullSyncResponseApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlFullSyncResponseApiCallHandler.FullSyncSuccessContext;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
@@ -439,7 +440,8 @@ public class IntFullSyncResponse implements ApiCallReactive
         for (ResourceDefinition rscDfn : rscDfnRepo.getMapForView().values())
         {
             autoFluxes.add(autoHelper.manage(
-                new CtrlRscAutoHelper.AutoHelperContext(apiCallRcImpl, context, rscDfn)).getFlux());
+                new AutoHelperContext(apiCallRcImpl, context, rscDfn)
+            ).flux());
         }
 
         ctrlTransactionHelper.commit();

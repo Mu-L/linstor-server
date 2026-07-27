@@ -12,7 +12,8 @@ import com.linbit.linstor.api.pojo.builder.AutoSelectFilterBuilder;
 import com.linbit.linstor.core.CoreModule.NodesMap;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.CopySnapsHelper;
 import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
@@ -295,7 +296,7 @@ public class CtrlRscAutoPlaceApiCallHandler
                         new AutoHelperContext(responses, context, rscDfn)
                             .withSelectFilter(mergedSelectFilter)
                     )
-                    .getFlux();
+                    .flux();
 
                 ctrlTransactionHelper.commit();
 

@@ -1,4 +1,4 @@
-package com.linbit.linstor.core.apicallhandler.controller;
+package com.linbit.linstor.core.apicallhandler.controller.autohelper;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.PriorityProps;
@@ -11,8 +11,11 @@ import com.linbit.linstor.api.pojo.AutoSelectFilterPojo;
 import com.linbit.linstor.api.pojo.builder.AutoSelectFilterBuilder;
 import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscCrtApiHelper;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCallHandler.ToggleOp;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlTransactionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.SelectionException;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.SelectionManager;
@@ -70,7 +73,7 @@ import java.util.function.Predicate;
 import reactor.core.publisher.Flux;
 
 @Singleton
-class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
+class CtrlRscAutoTieBreakerHelper implements AutoHelper
 {
     private static final Autoplacer.StorPoolWithScore[] NO_SORTED_SPS = new Autoplacer.StorPoolWithScore[0];
     private final SystemConfRepository systemConfRepository;
@@ -115,9 +118,9 @@ class CtrlRscAutoTieBreakerHelper implements CtrlRscAutoHelper.AutoHelper
     }
 
     @Override
-    public CtrlRscAutoHelper.AutoHelperType getType()
+    public AutoHelperType getType()
     {
-        return CtrlRscAutoHelper.AutoHelperType.TieBreaker;
+        return AutoHelperType.TieBreaker;
     }
 
     @Override

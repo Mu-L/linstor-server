@@ -11,8 +11,9 @@ import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.StltConfigAccessor;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsHelper.PropertyChangedListener;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.PropsChangedListenerBuilder;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.ResourceList;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
@@ -247,7 +248,7 @@ public class CtrlRscApiCallHandler
                 notifyStlts = true;
                 AutoHelperResult autoHelperResult = ctrlRscAutoHelperProvider.get()
                     .manage(new AutoHelperContext(apiCallRcs, context, rsc.getResourceDefinition()));
-                autoFlux = autoHelperResult.getFlux();
+                autoFlux = autoHelperResult.flux();
             }
             else
             {
@@ -483,7 +484,7 @@ public class CtrlRscApiCallHandler
         return "resource '" + rscNameStr + "' on node '" + nodeNameStr + "'";
     }
 
-    static ResponseContext makeRscContext(
+    public static ResponseContext makeRscContext(
         ApiOperation operation,
         String nodeNameStr,
         String rscNameStr

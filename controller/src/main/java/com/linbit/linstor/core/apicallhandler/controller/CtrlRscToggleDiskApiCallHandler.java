@@ -10,7 +10,8 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.BackgroundRunner;
 import com.linbit.linstor.core.LinStor;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.CopySnapsHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
@@ -1418,7 +1419,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
         Flux<ApiCallRc> autoFlux = rscAutoHelper.get().manage(
             new AutoHelperContext(responses, context, rsc.getResourceDefinition())
-        ).getFlux();
+        ).flux();
 
         ctrlTransactionHelper.commit();
 

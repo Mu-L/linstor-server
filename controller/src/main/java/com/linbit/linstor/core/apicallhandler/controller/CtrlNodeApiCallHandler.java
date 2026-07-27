@@ -29,8 +29,11 @@ import com.linbit.linstor.core.SatelliteConnector;
 import com.linbit.linstor.core.SpecialSatelliteProcessManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsHelper.PropertyChangedListener;
-import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoHelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscToggleDiskApiCallHandler.ToggleOp;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperResult;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperType;
+import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
 import com.linbit.linstor.core.apicallhandler.controller.autoplacer.Autoplacer;
 import com.linbit.linstor.core.apicallhandler.controller.backup.CtrlBackupCreateApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.CopySnapsHelper;
@@ -94,8 +97,8 @@ import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
 import com.linbit.locks.LockGuardFactory.LockType;
 import com.linbit.utils.CollectionUtils;
-import com.linbit.utils.RegexMatcher;
 import com.linbit.utils.PairNonNull;
+import com.linbit.utils.RegexMatcher;
 import com.linbit.utils.StringUtils;
 
 import static com.linbit.linstor.api.ApiConsts.DEFAULT_NETIF;
@@ -150,7 +153,6 @@ public class CtrlNodeApiCallHandler
     private final LockGuardFactory lockGuardFactory;
     private final CtrlStltSerializer stltComSerializer;
     private final AutoDiskfulTask autoDiskfulTask;
-    private final CtrlRscAutoRePlaceRscHelper autoRePlaceRscHelper;
     private final ErrorReporter errorReporter;
     private final FreeCapacityFetcher freeCapacityFetcher;
     private final CtrlRscDeleteApiCallHandler rscDeleteHandler;
@@ -187,7 +189,6 @@ public class CtrlNodeApiCallHandler
         LockGuardFactory lockGuardFactoryRef,
         CtrlStltSerializer stltComSerializerRef,
         AutoDiskfulTask autoDiskfulTaskRef,
-        CtrlRscAutoRePlaceRscHelper autoRePlaceRscHelperRef,
         ErrorReporter errorReporterRef,
         FreeCapacityFetcher freeCapacityFetcherRef,
         CtrlRscDeleteApiCallHandler rscDeleteHandlerRef,
@@ -223,7 +224,6 @@ public class CtrlNodeApiCallHandler
         lockGuardFactory = lockGuardFactoryRef;
         stltComSerializer = stltComSerializerRef;
         autoDiskfulTask = autoDiskfulTaskRef;
-        autoRePlaceRscHelper = autoRePlaceRscHelperRef;
         errorReporter = errorReporterRef;
         freeCapacityFetcher = freeCapacityFetcherRef;
         rscDeleteHandler = rscDeleteHandlerRef;
@@ -1465,10 +1465,14 @@ public class CtrlNodeApiCallHandler
                                 rscFlags.enableFlags(Resource.Flags.INACTIVE_BEFORE_EVICTION);
                             }
                             rscFlags.enableFlags(Resource.Flags.EVICTED);
-                            autoRePlaceRscHelper.addNeedRePlaceRsc(res);
-                            autoRePlaceRscHelper.manage(autoHelperCtx);
 
-                            flux = flux.concatWith(Flux.concat(autoHelperCtx.additionalFluxList))
+                            autoHelperCtx.addNeedRePlaceRsc(res);
+                            AutoHelperResult autoResult = ctrlRscAutoHelper.manage(
+                                autoHelperCtx,
+                                AutoHelperType.AutoRePlace
+                            );
+
+                            flux = flux.concatWith(autoResult.flux())
                                 .concatWith(
                                     this.ctrlSatelliteUpdateCaller.updateSatellites(
                                         res.getResourceDefinition(),

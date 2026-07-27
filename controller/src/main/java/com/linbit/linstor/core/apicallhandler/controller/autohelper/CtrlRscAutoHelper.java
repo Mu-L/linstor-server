@@ -1,15 +1,16 @@
-package com.linbit.linstor.core.apicallhandler.controller;
+package com.linbit.linstor.core.apicallhandler.controller.autohelper;
 
-import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
-import com.linbit.linstor.api.interfaces.AutoSelectFilterApi;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlApiDataLoader;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlResyncAfterHelper;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscCrtApiHelper;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscDeleteApiHelper;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlTransactionHelper;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
-import com.linbit.linstor.core.identifier.NodeName;
-import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.repository.ResourceDefinitionRepositoryImpl;
 import com.linbit.linstor.logging.ErrorReporter;
@@ -23,12 +24,19 @@ import javax.inject.Singleton;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
 
 import reactor.core.publisher.Flux;
 
+/**
+ * Main class for managing all AutoHelpers.
+ *
+ * <p>There is a central {@link #manage(AutoHelperContext)} method that automatically runs all known AutoHelpers
+ *  for the given ResourceDefinitions. If only one or a few specific AutoHelpers should be executed, use
+ *  {@link #manage(AutoHelperContext, Set)}</p>
+ */
 @Singleton
 public class CtrlRscAutoHelper
 {
@@ -39,40 +47,13 @@ public class CtrlRscAutoHelper
     private final CtrlResyncAfterHelper resyncAfterHelper;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
 
+    // Do NOT convert to EnumMap. Although it is tempting, we want to make sure to manually manage a certain
+    // order of autoHelpers (i.e. tiebreaker + quorum last).
     private final List<AutoHelper> autohelperList;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final ResourceDefinitionRepositoryImpl rscDfnRepo;
     private final CtrlTransactionHelper ctrlTxHelper;
-
-    public static class AutoHelperResult
-    {
-        private @Nullable Flux<ApiCallRc> flux;
-        private boolean preventUpdateSatellitesForResourceDelete;
-
-        private AutoHelperResult()
-        {
-        }
-
-        public @Nullable Flux<ApiCallRc> getFlux()
-        {
-            return flux;
-        }
-
-        public boolean isPreventUpdateSatellitesForResourceDelete()
-        {
-            return preventUpdateSatellitesForResourceDelete;
-        }
-    }
-
-    public enum AutoHelperType {
-        DrbdProxy,
-        TieBreaker,
-        AutoQuorum,
-        AutoRePlace,
-        VerifyAlgorithm,
-        All,
-    }
 
     @Inject
     public CtrlRscAutoHelper(
@@ -141,7 +122,7 @@ public class CtrlRscAutoHelper
                     rscDfn
                 )
             );
-            fluxList.add(result.flux);
+            fluxList.add(result.flux());
         }
         ctrlTxHelper.commit();
         return Flux.merge(fluxList);
@@ -152,7 +133,7 @@ public class CtrlRscAutoHelper
         return scopeRunner.fluxInTransactionalScope(
             "Create storage pool",
             lockGuardFactory.buildDeferred(LockType.WRITE, LockObj.NODES_MAP, LockObj.RSC_DFN_MAP),
-            () -> manage(autoCtx).flux
+            () -> manage(autoCtx).flux()
         );
     }
 
@@ -161,9 +142,13 @@ public class CtrlRscAutoHelper
         return manage(ctx, Collections.singleton(AutoHelperType.All));
     }
 
+    public AutoHelperResult manage(AutoHelperContext ctx, AutoHelperType... typeFilters)
+    {
+        return manage(ctx, new HashSet<>(Arrays.asList(typeFilters)));
+    }
+
     public AutoHelperResult manage(AutoHelperContext ctx, Set<AutoHelperType> typeFilter)
     {
-        AutoHelperResult result = new AutoHelperResult();
         boolean fluxUpdateApplied = false;
 
         for (AutoHelper autohelper : autohelperList)
@@ -214,67 +199,10 @@ public class CtrlRscAutoHelper
             );
         }
 
-        result.flux = Flux.merge(ctx.additionalFluxList);
-        result.preventUpdateSatellitesForResourceDelete = ctx.preventUpdateSatellitesForResourceDelete;
-        return result;
-    }
-
-    public @Nullable Resource getTiebreakerResource(String nodeNameRef, String nameRef)
-    {
-        @Nullable Resource ret = null;
-        @Nullable Resource rsc = dataLoader.loadRsc(nodeNameRef, nameRef, false);
-        if (rsc != null && rsc.getStateFlags().isSet(Resource.Flags.TIE_BREAKER))
-        {
-            ret = rsc;
-        }
-        return ret;
-    }
-
-    public static class AutoHelperContext
-    {
-        final ApiCallRcImpl responses;
-        final ResponseContext responseContext;
-        final ResourceDefinition rscDfn;
-
-        @Nullable AutoSelectFilterApi selectFilter;
-
-        TreeSet<Resource> resourcesToCreate = new TreeSet<>();
-        TreeSet<NodeName> nodeNamesForDelete = new TreeSet<>();
-
-        List<Flux<ApiCallRc>> additionalFluxList = new ArrayList<>();
-
-        boolean requiresUpdateFlux = false;
-
-        boolean preventUpdateSatellitesForResourceDelete = false;
-        boolean keepTiebreaker;
-
-        public AutoHelperContext(
-            ApiCallRcImpl responsesRef,
-            ResponseContext contextRef,
-            ResourceDefinition definitionRef
-        )
-        {
-            responses = responsesRef;
-            responseContext = contextRef;
-            rscDfn = definitionRef;
-        }
-
-        public AutoHelperContext withSelectFilter(AutoSelectFilterApi selectFilterRef)
-        {
-            selectFilter = selectFilterRef;
-            return this;
-        }
-
-        public AutoHelperContext withKeepTiebreaker(boolean keepTiebreakerRef)
-        {
-            keepTiebreaker = keepTiebreakerRef;
-            return this;
-        }
-    }
-
-    interface AutoHelper
-    {
-        void manage(AutoHelperContext ctx);
-        AutoHelperType getType();
+        return new AutoHelperResult(
+            Flux.merge(ctx.additionalFluxList),
+            ctx.responses,
+            ctx.preventUpdateSatellitesForResourceDelete
+        );
     }
 }
