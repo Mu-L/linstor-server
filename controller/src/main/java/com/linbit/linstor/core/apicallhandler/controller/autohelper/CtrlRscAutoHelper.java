@@ -156,8 +156,6 @@ public class CtrlRscAutoHelper
 
     public AutoHelperResult manage(AutoHelperContext ctx, Set<AutoHelperType> typeFilter)
     {
-        boolean fluxUpdateApplied = false;
-
         for (AutoHelper autohelper : autohelperList)
         {
             if (typeFilter.contains(autohelper.getType()))
@@ -176,7 +174,6 @@ public class CtrlRscAutoHelper
                     ctx.resourcesToCreate
                 )
             );
-            fluxUpdateApplied = true;
         }
 
         if (!ctx.nodeNamesForDelete.isEmpty())
@@ -188,12 +185,22 @@ public class CtrlRscAutoHelper
                     ctx.rscDfn.getName()
                 )
             );
-            fluxUpdateApplied = true;
         }
 
-        if (ctx.requiresUpdateFlux && !fluxUpdateApplied)
+        Flux<ApiCallRc> flux = Flux.merge(ctx.additionalFluxList);
+
+        if (ctx.requiresUpdateFlux)
         {
-            ctx.additionalFluxList.add(
+            // if an AutoHelper set requiresUpdateFlux we usually want that first all auto-fluxes finished
+            // and after that one updateSatellites is send out. Having this updateSatellite in the same
+            // Flux.merge block would allow a race there the updateSatellite flux is subscribed to before
+            // some AutoHelper made some changes / commits that should have been included in the updateSatellites.
+            // the easiest example for this is if one AutoHelper simply has a chain of fluxes and only a later flux
+            // step actually makes some persistent changes that updateSatellites should send to the satellites.
+
+            // hence we need to wait until all additionalFluxList finished before sending out one final
+            // updateSatellites.
+            flux = flux.concatWith(
                 ctrlSatelliteUpdateCaller.updateSatellites(ctx.rscDfn, Flux.empty())
                     .transform(
                         updateResponses -> CtrlResponseUtils.combineResponses(
@@ -207,7 +214,7 @@ public class CtrlRscAutoHelper
         }
 
         return new AutoHelperResult(
-            Flux.merge(ctx.additionalFluxList),
+            flux,
             ctx.responses,
             ctx.preventUpdateSatellitesForResourceDelete
         );

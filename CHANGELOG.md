@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Another attempt to fix issues with double reconnect
 - Fixed possible ConcurrentModificationException during multiple concurrent reconnect attempts
 - Fixed incorrect parsing of "" for DISC_GRAN in LsBlkEntry. "" will be parsed as 0
+- Fixed AutoHelper now properly concat an updateSatellite at the end of the eagerly subscribed (aka Flux.merge'd) additionalFluxList.
 
 ## [1.34.2] - 2026-07-24
 

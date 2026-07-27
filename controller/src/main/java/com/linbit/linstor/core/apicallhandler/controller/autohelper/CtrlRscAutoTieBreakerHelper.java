@@ -235,7 +235,9 @@ class CtrlRscAutoTieBreakerHelper implements AutoHelper
                             );
 
                             ctx.resourcesToCreate.add(tieBreaker);
-                            ctx.requiresUpdateFlux = true;
+                            // adding a rsc to resourcesToCreate will be handled with .deployResources which also
+                            // includes an updateSatellites in the end. in other words, we do not need
+                            // to set requiresUpdateFlux to true here
                         }
                     }
                 }
@@ -290,7 +292,9 @@ class CtrlRscAutoTieBreakerHelper implements AutoHelper
                         );
 
                         ctx.nodeNamesForDelete.add(tieBreaker.getNode().getName());
-                        ctx.requiresUpdateFlux = true;
+                        // adding a rsc to nodeNamesForDelete will be handled with .updateSatellitesForResourceDelete
+                        // which also includes an updateSatellites in the end. in other words, we do not need
+                        // to set requiresUpdateFlux to true here
                     }
                 }
             }
