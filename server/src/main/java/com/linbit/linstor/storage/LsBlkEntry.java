@@ -143,7 +143,7 @@ public class LsBlkEntry
             case WWN -> { wwn = value; }
             case STATE -> { state = value; }
             case TYPE -> { type = value; }
-            case DISC_GRAN -> { discGran = Long.parseLong(value); }
+            case DISC_GRAN -> { discGran = value.isEmpty() ? 0 : Long.parseLong(value); }
             case DISC_MAX -> { discMax = value.isEmpty() ? 0 : Long.parseLong(value); }
             default -> throw new RuntimeException(String.format("Field name '%s' unknown.", fieldName));
         }
