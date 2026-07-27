@@ -40,6 +40,13 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlRscAutoHelper
 {
+    private static final Set<AutoHelperType> ALL_AUTO_HELPER_TYPE_SET;
+
+    static
+    {
+        ALL_AUTO_HELPER_TYPE_SET = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(AutoHelperType.values())));
+    }
+
     private final ErrorReporter errorReporter;
     private final CtrlApiDataLoader dataLoader;
     private final CtrlRscCrtApiHelper rscCrtHelper;
@@ -139,7 +146,7 @@ public class CtrlRscAutoHelper
 
     public AutoHelperResult manage(AutoHelperContext ctx)
     {
-        return manage(ctx, Collections.singleton(AutoHelperType.All));
+        return manage(ctx, ALL_AUTO_HELPER_TYPE_SET);
     }
 
     public AutoHelperResult manage(AutoHelperContext ctx, AutoHelperType... typeFilters)
@@ -153,7 +160,7 @@ public class CtrlRscAutoHelper
 
         for (AutoHelper autohelper : autohelperList)
         {
-            if (typeFilter.contains(AutoHelperType.All) || typeFilter.contains(autohelper.getType()))
+            if (typeFilter.contains(autohelper.getType()))
             {
                 autohelper.manage(ctx);
             }

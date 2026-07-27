@@ -61,7 +61,7 @@ public class CtrlRscAutoQuorumHelper implements AutoHelper
     @Override
     public AutoHelperType getType()
     {
-        return AutoHelperType.AutoQuorum;
+        return AutoHelperType.AUTO_QUORUM;
     }
 
     @Override

@@ -340,8 +340,8 @@ public class CtrlConfApiCallHandler
                     new AutoHelperContext(responses, context, rscDfn);
                 AutoHelperResult autoResult = ctrlRscAutoHelper.manage(
                     autoHelperCtx, new HashSet<>(Arrays.asList(
-                        AutoHelperType.AutoQuorum,
-                        AutoHelperType.TieBreaker
+                        AutoHelperType.AUTO_QUORUM,
+                        AutoHelperType.TIEBREAKER
                     ))
                 );
 

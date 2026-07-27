@@ -92,7 +92,7 @@ public class CtrlRscAutoRePlaceRscHelper implements AutoHelper
     @Override
     public AutoHelperType getType()
     {
-        return AutoHelperType.AutoRePlace;
+        return AutoHelperType.AUTO_RE_PLACE;
     }
 
     @Override

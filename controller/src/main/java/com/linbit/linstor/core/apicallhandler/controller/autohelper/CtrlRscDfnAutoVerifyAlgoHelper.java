@@ -53,7 +53,7 @@ public class CtrlRscDfnAutoVerifyAlgoHelper implements AutoHelper
     @Override
     public AutoHelperType getType()
     {
-        return AutoHelperType.VerifyAlgorithm;
+        return AutoHelperType.VERIFY_ALGORITHM;
     }
 
     @Override

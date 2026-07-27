@@ -1469,7 +1469,7 @@ public class CtrlNodeApiCallHandler
                             autoHelperCtx.addNeedRePlaceRsc(res);
                             AutoHelperResult autoResult = ctrlRscAutoHelper.manage(
                                 autoHelperCtx,
-                                AutoHelperType.AutoRePlace
+                                AutoHelperType.AUTO_RE_PLACE
                             );
 
                             flux = flux.concatWith(autoResult.flux())

@@ -36,7 +36,7 @@ public class CtrlRscAutoDrbdProxyHelper implements AutoHelper
     @Override
     public AutoHelperType getType()
     {
-        return AutoHelperType.DrbdProxy;
+        return AutoHelperType.DRBD_PROXY;
     }
 
     @Override

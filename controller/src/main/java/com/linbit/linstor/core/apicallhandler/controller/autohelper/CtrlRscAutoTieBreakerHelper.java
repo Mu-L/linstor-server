@@ -120,7 +120,7 @@ class CtrlRscAutoTieBreakerHelper implements AutoHelper
     @Override
     public AutoHelperType getType()
     {
-        return AutoHelperType.TieBreaker;
+        return AutoHelperType.TIEBREAKER;
     }
 
     @Override

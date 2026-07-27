@@ -720,8 +720,8 @@ public class CtrlRscGrpApiCallHandler
                     responses, context, rscDfn);
                 AutoHelperResult autoResult = ctrlRscAutoHelper.manage(
                     autoHelperCtx,
-                    AutoHelperType.AutoQuorum,
-                    AutoHelperType.TieBreaker
+                    AutoHelperType.AUTO_QUORUM,
+                    AutoHelperType.TIEBREAKER
                 );
 
                 retFlux = retFlux.concatWith(autoResult.flux());
