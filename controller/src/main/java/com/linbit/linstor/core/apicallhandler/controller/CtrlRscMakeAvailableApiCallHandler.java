@@ -128,6 +128,11 @@ public class CtrlRscMakeAvailableApiCallHandler
         liveMigrateHelper = liveMigrateHelperRef;
     }
 
+    /**
+     * Convenience overload of
+     * {@link #makeResourceAvailable(String, String, List, boolean, List, boolean, List, boolean)} with
+     * autoManageDualPrimaryRef set to false.
+     */
     public Flux<ApiCallRc> makeResourceAvailable(
         String nodeNameRef,
         String rscNameRef,
@@ -151,14 +156,16 @@ public class CtrlRscMakeAvailableApiCallHandler
     }
 
     /**
-     * Like {@link #makeResourceAvailable(String, String, List, boolean, List, boolean, List)}, but with
-     * autoManageDualPrimaryRef set to true the resource is additionally prepared for a live migration from
-     * the node it is currently in use on to the given node: for DRBD resources allow-two-primaries (and
-     * protocol C if needed) is set between the two nodes, for resources in a shared storage pool the
-     * resource is activated on both nodes. Reverted by unmake-available on the migration-source node.
-     * If the resource is not in use on any node there is no migration to prepare and the resource is
-     * simply made available, so clients that cannot distinguish a live-migration attach from a plain
-     * attach can always set the option.
+     * Ensures that the given resource is usable on the given node, creating, activating or toggling it
+     * as necessary.
+     *
+     * @param autoManageDualPrimaryRef if true, the resource is additionally prepared for a live migration
+     *     from the node it is currently in use on (the migration source) to the given node: for DRBD
+     *     resources allow-two-primaries (and protocol C if needed) is set between the two nodes, for
+     *     resources in a shared storage pool the resource is activated on both nodes. Reverted by
+     *     unmake-available on the migration-source node. If the resource is not in use on any node there
+     *     is no migration to prepare and the resource is simply made available, so clients that cannot
+     *     distinguish a live-migration attach from a plain attach can always set the option.
      */
     public Flux<ApiCallRc> makeResourceAvailable(
         String nodeNameRef,
@@ -209,7 +216,7 @@ public class CtrlRscMakeAvailableApiCallHandler
         Flux<ApiCallRc> flux = Flux.empty();
 
         ResourceDefinition rscDfn = dataLoader.loadRscDfn(rscNameRef, true);
-        Resource rsc = dataLoader.loadRsc(nodeNameRef, rscNameRef, false);
+        @Nullable Resource rsc = dataLoader.loadRsc(nodeNameRef, rscNameRef, false);
         List<DeviceLayerKind> layerStack = getLayerStack(layerStackRef, rscDfn);
         Node node = dataLoader.loadNode(nodeNameRef, true);
         // if there is a shared storage pool already containing the shared resource on the given node,

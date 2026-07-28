@@ -76,10 +76,12 @@ public class CtrlRscLiveMigrateHelper
      * Determines the live-migration source resource: the resource currently reported as in-use (primary)
      * by its satellite.
      *
-     * @return the source resource, or null if there is no live migration to prepare: the resource is
-     *     either in use on the target node itself or not in use anywhere. The latter is deliberately not
-     *     an error so that clients that cannot tell a live-migration attach from a plain attach (e.g.
-     *     Proxmox) can always set auto_manage_dual_primary and still get a plain make-available.
+     * @return the in-use resource the live migration to the given target node starts from. Returns null
+     *     if there is no live migration to prepare, which is the case if the resource is not in use on
+     *     any node at all or if the resource is already in use on the target node itself; the caller is
+     *     expected to perform a plain make-available then. Especially not being in use anywhere is
+     *     deliberately not an error, so that clients that cannot tell a live-migration attach from a
+     *     plain attach (e.g. Proxmox) can always set auto_manage_dual_primary.
      *
      * @throws ApiRcException {@link ApiConsts#FAIL_EXISTS_LIVE_MIGRATE} if another migration (different
      *     source/target pair) is already prepared or the resource is in use on multiple unrelated nodes

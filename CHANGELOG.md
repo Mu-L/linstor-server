@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed deleting a snapshot in a shared storage pool hanging forever: a device-manager run that only processes snapshots (no resources) never requested the shared storage pool locks, so the run aborted with an internal error and the deletion was never executed
 - Fixed LDAP sign-in using the configured `search_filter` as the LDAP search base; the configured `search_base` was never used, so restricting sign-in via a search filter did not work as documented
 - Fixed deleting a controller property namespace always failing the property whitelist check (the namespace was prepended twice to the property keys), rejecting and rolling back the whole modification
 - Fixed deleting a resource connection reporting an internal error instead of success (the already deleted connection object was accessed when notifying the satellites)

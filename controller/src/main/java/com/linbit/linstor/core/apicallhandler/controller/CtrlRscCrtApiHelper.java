@@ -186,14 +186,9 @@ public class CtrlRscCrtApiHelper
     }
 
     /**
-     * This method really creates the resource and its volumes.
-     *
-     * This method does NOT:
-     * * commit any transaction
-     * * update satellites
-     * * create success-apiCallRc entries (only error RC in case of exception)
-     *
-     * @return the newly created resource
+     * Convenience overload of
+     * {@link #createResourceDb(String, String, long, Map, List, Integer, List, Integer, Map, List,
+     * Resource.DiskfulBy, Boolean, boolean)} with allowDualActiveSharedRef set to false.
      */
     public PairNonNull<List<Flux<ApiCallRc>>, ApiCallRcWith<Resource>> createResourceDb(
         String nodeNameStr,
@@ -228,10 +223,18 @@ public class CtrlRscCrtApiHelper
     }
 
     /**
-     * Like {@link #createResourceDb(String, String, long, Map, List, Integer, List, Integer, Map, List,
-     * Resource.DiskfulBy, Boolean)}, but with allowDualActiveSharedRef set to true the new resource is not
-     * auto-deactivated although another resource of the same shared storage pool is still active (used by
-     * make-available with auto_manage_dual_primary for live migrations).
+     * This method really creates the resource and its volumes.
+     *
+     * This method does NOT:
+     * * commit any transaction
+     * * update satellites
+     * * create success-apiCallRc entries (only error RC in case of exception)
+     *
+     * @param allowDualActiveSharedRef if true, the new resource is not auto-deactivated although another
+     *     resource of the same shared storage pool is still active. Used by make-available with
+     *     auto_manage_dual_primary to get a dual-active shared resource for a live migration.
+     *
+     * @return the newly created resource
      */
     public PairNonNull<List<Flux<ApiCallRc>>, ApiCallRcWith<Resource>> createResourceDb(
         String nodeNameStr,

@@ -81,6 +81,10 @@ public class CtrlRscCrtApiCallHandler
         copySnapHelper = copySnapHelperRef;
     }
 
+    /**
+     * Convenience overload of {@link #createResource(List, DiskfulBy, boolean, List, boolean, boolean)}
+     * with allowDualActiveSharedRef set to false.
+     */
     public Flux<ApiCallRc> createResource(
         List<ResourceWithPayloadApi> rscApiList,
         @Nullable DiskfulBy diskfulByRef,
@@ -93,10 +97,12 @@ public class CtrlRscCrtApiCallHandler
     }
 
     /**
-     * Like {@link #createResource(List, DiskfulBy, boolean, List, boolean)}, but with
-     * allowDualActiveSharedRef set to true the new resource is not auto-deactivated although another
-     * resource of the same shared storage pool is still active (used by make-available with
-     * auto_manage_dual_primary for live migrations).
+     * Creates and deploys the given resources.
+     *
+     * @param allowDualActiveSharedRef if true, a new resource in a shared storage pool is not
+     *     auto-deactivated although another resource of the same shared storage pool is still active.
+     *     Used by make-available with auto_manage_dual_primary to get a dual-active shared resource for
+     *     a live migration.
      */
     public Flux<ApiCallRc> createResource(
         List<ResourceWithPayloadApi> rscApiList,

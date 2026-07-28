@@ -1226,6 +1226,12 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
             // into the dispatch set and clear the dispatch requests
             dispatchNodesNames = new TreeSet<>(pendingDispatchNodes.keySet());
             dispatchRscNames = new TreeSet<>(pendingDispatchRscs.keySet());
+            // a snapshot-only dispatch (e.g. snapshot deletion) also needs the shared locks of the
+            // storage pools its resource-definition uses
+            for (SnapshotDefinition.Key snapDfnKey : pendingDispatchSnaps.keySet())
+            {
+                dispatchRscNames.add(snapDfnKey.getResourceName());
+            }
         }
         if (!dispatchNodesNames.isEmpty() || !dispatchRscNames.isEmpty())
         {
