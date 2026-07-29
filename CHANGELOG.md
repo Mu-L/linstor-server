@@ -10,9 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Snapshot support for thick LVM (`LVM`) storage pools: create, delete, restore into a new resource and rollback. Each snapshot reserves its origin's size as CoW area in the volume group, so it can never become invalid. Restore and rollback copy the full data with `dd`. Deleting a resource that still has snapshots renames the backing LV (`_deleted_*`); it is removed together with its last snapshot. Volumes with thick LVM snapshots cannot be resized (LVM limitation) and backup shipping remains unsupported
-- Added a "truncate" operation for resource-definitions that atomically deletes all of a resource-definition's resources without touching the resource-definition or its snapshots (`DELETE /v1/resource-definitions/{resource}/resources`); an optional flag additionally deletes the resource-definition when it has neither resources nor snapshots left afterwards.
-- Added an option to snapshot deletion that atomically deletes the resource-definition as well when, after deleting the snapshot, the resource-definition has neither resources nor snapshots left.
+- Snapshot support for thick LVM (`LVM`) storage pools: create, delete, restore into a new resource and rollback. Each
+  snapshot reserves its origin's size as CoW area in the volume group, so it can never become invalid. Restore and
+  rollback copy the full data with `dd`. Deleting a resource that still has snapshots renames the backing LV
+  (`_deleted_*`); it is removed together with its last snapshot. Volumes with thick LVM snapshots cannot be resized (LVM
+  limitation) and backup shipping remains unsupported
+- Added a "truncate" operation for resource-definitions that atomically deletes all of a resource-definition's resources
+  without touching the resource-definition or its snapshots (`DELETE /v1/resource-definitions/{resource}/resources`); an
+  optional flag additionally deletes the resource-definition when it has neither resources nor snapshots left
+  afterwards.
+- Added an option to snapshot deletion that atomically deletes the resource-definition as well when, after deleting the
+  snapshot, the resource-definition has neither resources nor snapshots left.
 - make-available: new option `auto_manage_dual_primary` (REST 1.29.0) preparing a resource for a live migration 
   to the given node: for DRBD resources `allow-two-primaries` (and `protocol C` if needed) is set between the migration
   source (the node the resource is in use on) and the target node; for resources in a shared storage pool the resource
@@ -25,78 +33,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Removed the access-control security subsystem (object protection, ACLs, security identities/roles/types and the protobuf sign-in API); it had always been running at `NO_SECURITY` level. The `SEC_*` database tables are dropped on upgrade, which makes a downgrade to older versions impossible. LDAP authentication for the REST API, satellite connection authentication, auth tokens and HTTPS client certificates are unaffected. Error reports no longer contain an access-context section and log lines are no longer prefixed with the security identity
-- The controller now refuses to start with a clear error message when the SQL database was already migrated by a newer LINSTOR version, instead of failing while partially loading the unknown schema
+- Removed the access-control security subsystem (object protection, ACLs, security identities/roles/types and the
+  protobuf sign-in API); it had always been running at `NO_SECURITY` level. The `SEC_*` database tables are dropped on
+  upgrade, which makes a downgrade to older versions impossible. LDAP authentication for the REST API, satellite
+  connection authentication, auth tokens and HTTPS client certificates are unaffected. Error reports no longer contain
+  an access-context section and log lines are no longer prefixed with the security identity
+- The controller now refuses to start with a clear error message when the SQL database was already migrated by a newer
+  LINSTOR version, instead of failing while partially loading the unknown schema
 - Added StltImplErrPeer so that node.getPeer is always non-null
 
 ### Fixed
 
-- Fixed deleting a snapshot in a shared storage pool hanging forever: a device-manager run that only processes snapshots (no resources) never requested the shared storage pool locks, so the run aborted with an internal error and the deletion was never executed
-- Fixed LDAP sign-in using the configured `search_filter` as the LDAP search base; the configured `search_base` was never used, so restricting sign-in via a search filter did not work as documented
-- Fixed deleting a controller property namespace always failing the property whitelist check (the namespace was prepended twice to the property keys), rejecting and rolling back the whole modification
-- Fixed deleting a resource connection reporting an internal error instead of success (the already deleted connection object was accessed when notifying the satellites)
-- Fixed modifying a net interface of a node without an active satellite connection failing with an unhandled NullPointerException
-- Fixed the query-size-info response cache never answering requests whose resource group name was not given in the canonical upper-case form, causing needless recomputation
-- Fixed several connection API calls reporting an unhandled NullPointerException instead of a proper not-found error: creating a resource connection for an unknown resource, modifying a node connection of an unknown node, and creating/modifying a volume connection for an unknown volume number or a nonexistent connection
+- Fixed deleting a snapshot in a shared storage pool hanging forever: a device-manager run that only processes snapshots
+  (no resources) never requested the shared storage pool locks, so the run aborted with an internal error and the
+  deletion was never executed
+- Fixed LDAP sign-in using the configured `search_filter` as the LDAP search base; the configured `search_base` was
+  never used, so restricting sign-in via a search filter did not work as documented
+- Fixed deleting a controller property namespace always failing the property whitelist check (the namespace was
+  prepended twice to the property keys), rejecting and rolling back the whole modification
+- Fixed deleting a resource connection reporting an internal error instead of success (the already deleted connection
+  object was accessed when notifying the satellites)
+- Fixed modifying a net interface of a node without an active satellite connection failing with an unhandled
+  NullPointerException
+- Fixed the query-size-info response cache never answering requests whose resource group name was not given in the
+  canonical upper-case form, causing needless recomputation
+- Fixed several connection API calls reporting an unhandled NullPointerException instead of a proper not-found error:
+  creating a resource connection for an unknown resource, modifying a node connection of an unknown node, and
+  creating/modifying a volume connection for an unknown volume number or a nonexistent connection
 - Another attempt to fix issues with double reconnect
 - Fixed possible ConcurrentModificationException during multiple concurrent reconnect attempts
 - Fixed incorrect parsing of "" for DISC_GRAN in LsBlkEntry. "" will be parsed as 0
-- Fixed AutoHelper now properly concat an updateSatellite at the end of the eagerly subscribed (aka Flux.merge'd) additionalFluxList.
+- Fixed AutoHelper now properly concat an updateSatellite at the end of the eagerly subscribed (aka Flux.merge'd)
+  additionalFluxList.
 
 ## [1.34.2] - 2026-07-24
 
 ### Fixed
 
-- Fixed the `zfs rollback` snapshot rollback strategy reporting success as soon as the satellites confirmed the resource re-activation; it now waits for the rolled-back DRBD resources to actually become ready again, like resource creation and snapshot restore do
-- Fixed a changed DRBD auto verify algorithm not being deployed to already connected satellites when recomputed after a node full-sync, leaving nodes with different `verify-alg` settings and forcing their DRBD connections into StandAlone
-- Fixed the controller not being able to execute `journalctl` to collect systemd logs by adding it to the `systemd-journal` group
-- Fixed drbd-proxy disable not releasing the target-side proxy TCP port, leaving it permanently allocated in the resource connection and the target node's port pool
-- Fixed resource-connection DRBD Proxy ports not being re-reserved in the node TCP port pools on controller startup, so a restart could hand out a port still in use by DRBD Proxy
+- Fixed the `zfs rollback` snapshot rollback strategy reporting success as soon as the satellites confirmed the resource
+  re-activation; it now waits for the rolled-back DRBD resources to actually become ready again, like resource creation
+  and snapshot restore do
+- Fixed a changed DRBD auto verify algorithm not being deployed to already connected satellites when recomputed after a
+  node full-sync, leaving nodes with different `verify-alg` settings and forcing their DRBD connections into StandAlone
+- Fixed the controller not being able to execute `journalctl` to collect systemd logs by adding it to the
+  `systemd-journal` group
+- Fixed drbd-proxy disable not releasing the target-side proxy TCP port, leaving it permanently allocated in the
+  resource connection and the target node's port pool
+- Fixed resource-connection DRBD Proxy ports not being re-reserved in the node TCP port pools on controller startup, so
+  a restart could hand out a port still in use by DRBD Proxy
 - Fixed the failure path of DRBD port assignment leaving previously reserved ports unreserved in the pool
-- Fixed the resource definition staying marked as down on the controller after a successful snapshot rollback using the ZFS rollback strategy (the cleared flag was never committed)
-- Fixed incorrect usage of SO_REUSEADDR introduced in fb5a9acc04ea40f67494a5d1918d8dfc98d86259. Plus, IP address is no longer ignored (i.e. not using 0.0.0.0) when testing ports.
+- Fixed the resource definition staying marked as down on the controller after a successful snapshot rollback using the
+  ZFS rollback strategy (the cleared flag was never committed)
+- Fixed incorrect usage of SO_REUSEADDR introduced in fb5a9acc04ea40f67494a5d1918d8dfc98d86259. Plus, IP address is no
+  longer ignored (i.e. not using 0.0.0.0) when testing ports.
 
 ## [1.34.1] - 2026-07-09
 
 ### Added
 
-- Controller property `Logging/ArchiveAgeDays` to configure the minimum age in days after which error-report log files are archived and compressed (default 60, 0 disables archiving, always whole months); the value is also used by the satellites
+- Controller property `Logging/ArchiveAgeDays` to configure the minimum age in days after which error-report log files
+  are archived and compressed (default 60, 0 disables archiving, always whole months); the value is also used by the
+  satellites
 
 ### Changed
 
-- SOS reports now include DRBD statistics (e.g. out-of-sync): `drbdsetup status` and `drbdsetup events2` are collected with `--statistics`, plus a new `drbd-status.json` from `drbdsetup status --json`
+- SOS reports now include DRBD statistics (e.g. out-of-sync): `drbdsetup status` and `drbdsetup events2` are collected
+  with `--statistics`, plus a new `drbd-status.json` from `drbdsetup status --json`
 - Improved trace logging of DevMgrRuns when creating/merging/deleting core objects
-- If resources already violate resource-group's autoplacer settings (like --replicas-on-same), a tiebreaker ignores the violated --replicas-on-same limitation. "Place anywhere is better than nowhere".  
-- Extend ioProgressMode to additionally monitor /sys/[dev/]block/<dev>/stat in addition to the old /proc/<pid>/io to survive large flushes.
+- If resources already violate resource-group's autoplacer settings (like --replicas-on-same), a tiebreaker ignores the
+  violated --replicas-on-same limitation. "Place anywhere is better than nowhere".
+- Extend ioProgressMode to additionally monitor /sys/[dev/]block/<dev>/stat in addition to the old /proc/<pid>/io to
+  survive large flushes.
 
 ### Fixed
 
-- Fixed ArrayIndexOutOfBoundsException in the file storage provider when parsing `losetup` output, which broke the device manager whenever a loop device was present
+- Fixed ArrayIndexOutOfBoundsException in the file storage provider when parsing `losetup` output, which broke the
+  device manager whenever a loop device was present
 - Fixed AutoHTTPS certificate missing SubjectAlternativeName entries
-- Fixed AutoHTTPS certificate never being renewed, now valid for 5 years and automatically renews at controller startup within 90 days of expiry
+- Fixed AutoHTTPS certificate never being renewed, now valid for 5 years and automatically renews at controller startup
+  within 90 days of expiry
 - Fixed missing 3370 -> 3371 redirect for the /ui endpoint with AutoHTTPS enabled
-- Fixed manual resource creation no longer fails during a setup which already violates resource-group's autoplacer settings (like --replicas-on-same)
-- Fixed controller package upgrade failing when `/var/lib/linstor` was set immutable (`chattr +i`); the immutable flag is now cleared before unpacking
+- Fixed manual resource creation no longer fails during a setup which already violates resource-group's autoplacer
+  settings (like --replicas-on-same)
+- Fixed controller package upgrade failing when `/var/lib/linstor` was set immutable (`chattr +i`); the immutable flag
+  is now cleared before unpacking
 
 ## [1.34.0] - 2026-06-29
 
 ### Added
 
-- REST list endpoints now support regular-expression matching in their name filters (`nodes`, `resources`, `resource_definitions`, `resource_groups`, `storage_pools`, `snapshots`) and in `props` filters (on both the property key and value); the `props` filter is now also available on the per-node storage-pool and per-resource volume list endpoints
+- REST list endpoints now support regular-expression matching in their name filters (`nodes`, `resources`,
+  `resource_definitions`, `resource_groups`, `storage_pools`, `snapshots`) and in `props` filters (on both the property
+  key and value); the `props` filter is now also available on the per-node storage-pool and per-resource volume list
+  endpoints
 
 ### Fixed
 
-- Fixed ZFS clone deletion not cleaning up the clone's source snapshot that was marked for deletion, leaving orphaned `CF_*` snapshots behind after the cloned resource was deleted
-- Fixed DRBD auto verify algorithm being recomputed over an incomplete node set while satellites reconnect, which could change the algorithm and force an already connected resource into StandAlone without automatic reconnect
-- Fixed implementation error ("attempt to replace an active transMgr") during L2L backup shipping when a new shipment created its snapshot or temporary satellite-remote concurrently with the cleanup of a finished shipment deleting its temporary satellite-remote
-- Fixed implementation error ("attempt to replace an active transMgr") when creating or modifying a resource group concurrently with a backup restore/shipment that moves a resource definition into its target resource group
+- Fixed ZFS clone deletion not cleaning up the clone's source snapshot that was marked for deletion, leaving orphaned
+  `CF_*` snapshots behind after the cloned resource was deleted
+- Fixed DRBD auto verify algorithm being recomputed over an incomplete node set while satellites reconnect, which could
+  change the algorithm and force an already connected resource into StandAlone without automatic reconnect
+- Fixed implementation error ("attempt to replace an active transMgr") during L2L backup shipping when a new shipment
+  created its snapshot or temporary satellite-remote concurrently with the cleanup of a finished shipment deleting its
+  temporary satellite-remote
+- Fixed implementation error ("attempt to replace an active transMgr") when creating or modifying a resource group
+  concurrently with a backup restore/shipment that moves a resource definition into its target resource group
 - Fixed BalanceResources counting an unhealthy diskful and possibly deleting therefore a healthy diskful
-- Fixed implementation error during DRBD .res file regeneration when the existing on-disk file was empty or truncated, which aborted the regeneration instead of rewriting the file
-- Fixed regular snapshot restore not setting DRBD_INITIALIZED on the restored volume definition, which could cause spurious metadata re-creation and split-brain
+- Fixed implementation error during DRBD .res file regeneration when the existing on-disk file was empty or truncated,
+  which aborted the regeneration instead of rewriting the file
+- Fixed regular snapshot restore not setting DRBD_INITIALIZED on the restored volume definition, which could cause
+  spurious metadata re-creation and split-brain
 - Another attempt to fix rare bug causing "shipping in progress" that can only be cleared by restarting the controller
-- Release the target-side restore-lock when a backup receive is aborted (both while still preparing and while actively shipping), so a stuck "backup is currently being restored" no longer blocks further shipments to a resource until the controller is restarted
+- Release the target-side restore-lock when a backup receive is aborted (both while still preparing and while actively
+  shipping), so a stuck "backup is currently being restored" no longer blocks further shipments to a resource until the
+  controller is restarted
 - Fixed shipmentFailed always being false in AbsBackupShippingService.waitForSnapCreateFinished
-- Fixed NullPointerException on the satellite when concurrently deleting multiple volumes with a `FileSystem/Type` property, which marked the resource as failed and returned the delete as an internal error
+- Fixed NullPointerException on the satellite when concurrently deleting multiple volumes with a `FileSystem/Type`
+  property, which marked the resource as failed and returned the delete as an internal error
 
 ## [1.34.0-rc.1] - 2026-05-28
 
@@ -116,12 +169,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added property "Rest/AutoHTTPs", if enabled will automatically create a SSL certificate and re-start SSL server
 - Added token authentication API and implementation, if enabled only allows Authentication Bearer token access
 - Added property "Clone/DdBlocksize" to configure the DD clone blocksize used
-- Added "BalanceResourcesSkipDiskLimit" property to skip balancing resources with more than X skipDisk resources (default 1)
+- Added "BalanceResourcesSkipDiskLimit" property to skip balancing resources with more than X skipDisk resources
+  (default 1)
 - Added property "Autoplacer/MinThinFreeSpace" that disqualifies storPools with less free space than specified
 - Added linstor-config disable-token-auth command
 - Property Clone/BalanceAfterClone to autoplace an extra diskful resource after a clone operation
 - Property Snapshot/BalanceAfterRestore to autoplace an extra diskful resource after a snapshot restore
-- Added property "Luks/AllowDiscards" to enable discard/TRIM pass-through on LUKS volumes; when LUKS sits below DRBD, rs-discard-granularity is also set automatically
+- Added property "Luks/AllowDiscards" to enable discard/TRIM pass-through on LUKS volumes; when LUKS sits below DRBD,
+  rs-discard-granularity is also set automatically
 - Added "Client" as DRBD state (non-voting diskless peer)
 - Added property "TcpPortsBlocked" on node level
 
@@ -137,7 +192,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upated debian package compat version to 11
 - linstor-controller.service: switch to DynamicUser (i.e., execute as non-root user).
 - Systemd-notify: Use SDNotify library instead of calling "systemd-notify"
-- Thick LVM: New volumes are now placed on the least-used PVs by default. This behavior can be customized via the new "StorDriver/LvcreatePvSelection" property.
+- Thick LVM: New volumes are now placed on the least-used PVs by default. This behavior can be customized via the new
+  "StorDriver/LvcreatePvSelection" property.
 - Check for valid storage pool names on resource-group select filter
 - Controller now ignores case when checking if a NetCom is enabled or not
 - Default evict timeout was increased from 1h to 12h
@@ -152,11 +208,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed incorrect default LUKS2 header size calculation
-- Parse errors during ctrl -> stlt authentication now result in "AUTHENTICATION_ERROR" instead of "OFFLINE" (regression introduced in 1.32.0-rc.1)
+- Parse errors during ctrl -> stlt authentication now result in "AUTHENTICATION_ERROR" instead of "OFFLINE" (regression
+  introduced in 1.32.0-rc.1)
 - Fixed free space reporting of thin storage spaces (Windows) pool
 - Fixed race condition where after a reconnect storage pools might not show correct capacities and freespaces.
 - Fixed PREPARE_SHIPPING backups didn't count as active shippings
-- If a satellite cannot decrypt a LUKS key it no longer goes into FULLSYNC_FAILED, but just marks the resource to have corrupted crypt key
+- If a satellite cannot decrypt a LUKS key it no longer goes into FULLSYNC_FAILED, but just marks the resource to have
+  corrupted crypt key
 - Fixed auto-rs-discard-granularity staying set on devices that don't support discards (e.g. LUKS without AllowDiscards)
 - Throw a CriticalError(restart) if a JDK spawn helper exception was caught (usually a JDK version mismatch)
 - Fixed bug where taking a snapshot on a not-only-DRBD resource could hang indefinitely
@@ -358,7 +416,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- parentIsVDO wasn't working anymore at all, as lsblk didn't report correctly and is not used anymore with LVM-thin on VDO
+- parentIsVDO wasn't working anymore at all, as lsblk didn't report correctly and is not used anymore with LVM-thin on
+  VDO
 
 ## [1.32.0-rc.2] - 2025-08-18
 
@@ -386,7 +445,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - lsblk output is now parsed with streaming
 - parentIsVDO check: only ask for PV member devices
 - Improved data types in communication protocol between Controller and Satellite, reducing size by 35%
-- **BREAKING**: Unintentionally broke ctrl<->stlt authentication resulting in "OFFLINE" instead of "OFFLINE (VERSION_MISMATCH)"
+- **BREAKING**: Unintentionally broke ctrl<->stlt authentication resulting in "OFFLINE" instead of "OFFLINE
+  (VERSION_MISMATCH)"
 
 ### Fixed
 
