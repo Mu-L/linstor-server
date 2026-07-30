@@ -851,6 +851,13 @@ public class LvmProvider
         if (hasSharedVolumeGroups(vlmDataList, snapVlms))
         {
             LvmCommands.vgscan(extCmdFactory.create(), true);
+            // A shared volume group may have been modified by another node (e.g. an LV created or
+            // removed on a different satellite). The 'vgscan' above only refreshes LVM's own metadata
+            // cache; LINSTOR's LvsInfo/VgsInfo caches would still return the stale, pre-modification
+            // view. Without this invalidation the following getLvsInfo() can miss an LV that another
+            // node just created on the shared VG, making us try to (re)create it and fail with
+            // "already exists" (see also getSpaceInfo, which reads the same caches).
+            LvmUtils.recacheNext();
         }
         Map<String, Map<String, LvsInfo>> lvsInfoMap = LvmUtils.getLvsInfo(
             extCmdFactory,

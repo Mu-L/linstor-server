@@ -65,6 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed incorrect parsing of "" for DISC_GRAN in LsBlkEntry. "" will be parsed as 0
 - Fixed AutoHelper now properly concat an updateSatellite at the end of the eagerly subscribed (aka Flux.merge'd)
   additionalFluxList.
+- Fixed shared LVM storage pools failing `make-available` with "Logical Volume ... already exists" when another
+  node had just created the LV; the cached `lvs`/`vgs` view is now invalidated after the shared-VG `vgscan`
 
 ## [1.34.2] - 2026-07-24
 
