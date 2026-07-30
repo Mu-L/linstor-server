@@ -30,19 +30,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.inject.testing.fieldbinder.Bind;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import reactor.core.publisher.Flux;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 
 @SuppressWarnings("checkstyle:magicnumber")
 public class RscActivateApiTest extends ApiTestBase
