@@ -26,9 +26,9 @@ public class SizeSpecParserTest
         SizeUnit expectedUnit
     )
     {
-        public AbsoluteUnitTest(String input, long expectedNum, SizeUnit expectedUnit)
+        AbsoluteUnitTest(String inputRef, long expectedNumRef, SizeUnit expectedUnitRef)
         {
-            this(input, null, expectedNum, expectedUnit);
+            this(inputRef, null, expectedNumRef, expectedUnitRef);
         }
     }
 
@@ -102,9 +102,9 @@ public class SizeSpecParserTest
     // --- Percent parsing ---
     private record PercentUnitTest(String input, @Nullable SizeSpecParser.Config cfg, float expectedNum)
     {
-        public PercentUnitTest(String input, float expectedNum)
+        PercentUnitTest(String inputRef, float expectedNumRef)
         {
-            this(input, SizeSpecParserTest.cfg().allowPercent(true), expectedNum);
+            this(inputRef, SizeSpecParserTest.cfg().allowPercent(true), expectedNumRef);
         }
     }
 
@@ -138,9 +138,9 @@ public class SizeSpecParserTest
 
     private record InvalidTest(String input, @Nullable SizeSpecParser.Config cfg)
     {
-        public InvalidTest(String input)
+        InvalidTest(String inputRef)
         {
-            this(input, null);
+            this(inputRef, null);
         }
     }
 
