@@ -228,8 +228,17 @@ public class LvmProvider
         }
         else
         {
-            vlmDataRef.setIdentifier(asSnapLvIdentifier((LvmData<Snapshot>) vlmDataRef));
-            setDevicePath = true; // TODO: not sure about this default...
+            LvmData<Snapshot> snapVlmData = (LvmData<Snapshot>) vlmDataRef;
+            vlmDataRef.setIdentifier(asSnapLvIdentifier(snapVlmData));
+            /*
+             * A snapshot flagged for deletion must not be (re-)activated: activating a thick snapshot
+             * implicitly also activates its origin, which "lvremove <snapshot>" would leave active - fatal
+             * for INACTIVE resources in shared storage pools. lvremove works on inactive LVs anyways.
+             */
+            setDevicePath = !snapVlmData.getRscLayerObject()
+                .getAbsResource()
+                .getFlags()
+                .isSet(Snapshot.Flags.DELETE);
 
             lvcreateOptions = getLvcreateSnapshotOptions(vlmDataRef);
         }

@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed deleting a thick LVM snapshot re-activating the snapshot (and implicitly its origin LV) before the removal,
+  leaving the origin LV of an INACTIVE resource active after the deletion - dangerous for shared storage pools
 - Fixed deleting a snapshot in a shared storage pool hanging forever: a device-manager run that only processes snapshots
   (no resources) never requested the shared storage pool locks, so the run aborted with an internal error and the
   deletion was never executed
