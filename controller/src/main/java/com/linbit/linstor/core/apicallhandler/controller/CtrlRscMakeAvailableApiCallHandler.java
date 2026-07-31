@@ -362,28 +362,7 @@ public class CtrlRscMakeAvailableApiCallHandler
                 {
                     // dual-active for a live migration: keep the source resource active and create the
                     // new resource active as well
-                    flux = freeCapacityFetcher.fetchThinFreeCapacities(Collections.singleton(node.getName()))
-                        .flatMapMany(
-                            // fetchThinFreeCapacities also updates the freeSpaceManager. we can safely ignore
-                            // the freeCapacities parameter here
-                            ignoredFreeCapacities -> scopeRunner.fluxInTransactionalScope(
-                                "create resource",
-                                lockGuardFactory.buildDeferred(
-                                    LockType.WRITE,
-                                    LockObj.NODES_MAP,
-                                    LockObj.RSC_DFN_MAP,
-                                    LockObj.STOR_POOL_DFN_MAP
-                                ),
-                                () -> ctrlRscCrtApiCallHandler.createResource(
-                                    Collections.singletonList(createRscPojo),
-                                    Resource.DiskfulBy.MAKE_AVAILABLE,
-                                    copyAllSnapsRef,
-                                    snapNamesToCopyRef,
-                                    false,
-                                    true
-                                )
-                            )
-                        );
+                    flux = createSharedRsc(node, createRscPojo, copyAllSnapsRef, snapNamesToCopyRef, true);
                 }
                 else if (activeRsc != null)
                 {
@@ -392,26 +371,7 @@ public class CtrlRscMakeAvailableApiCallHandler
                         activeRsc.getNode().getName().displayValue,
                         activeRsc.getResourceDefinition().getName().displayValue
                     ).concatWith(
-                        freeCapacityFetcher.fetchThinFreeCapacities(Collections.singleton(node.getName())).flatMapMany(
-                            // fetchThinFreeCapacities also updates the freeSpaceManager. we can safely ignore
-                            // the freeCapacities parameter here
-                            ignoredFreeCapacities -> scopeRunner.fluxInTransactionalScope(
-                                "create resource",
-                                lockGuardFactory.buildDeferred(
-                                    LockType.WRITE,
-                                    LockObj.NODES_MAP,
-                                    LockObj.RSC_DFN_MAP,
-                                    LockObj.STOR_POOL_DFN_MAP
-                                ),
-                                () -> ctrlRscCrtApiCallHandler.createResource(
-                                    Collections.singletonList(createRscPojo),
-                                    Resource.DiskfulBy.MAKE_AVAILABLE,
-                                    copyAllSnapsRef,
-                                    snapNamesToCopyRef,
-                                    false
-                                )
-                            )
-                        )
+                        createSharedRsc(node, createRscPojo, copyAllSnapsRef, snapNamesToCopyRef, false)
                     ).onErrorResume(
                         error -> abortDeactivateOldRsc(activeRsc, null)
                             .concatWith(
@@ -429,12 +389,10 @@ public class CtrlRscMakeAvailableApiCallHandler
                 }
                 else
                 {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.simpleEntry(
-                            ApiConsts.FAIL_NOT_FOUND_RSC,
-                            "No active resource found for shared resource " + rscDfn.getName().displayValue
-                        )
-                    );
+                    // the shared resource is not active anywhere (e.g. its consumer was cleanly
+                    // stopped): plain attach - create the resource reusing the shared data. Since no
+                    // other copy is active the new resource stays active, ending with a usable device
+                    flux = createSharedRsc(node, createRscPojo, copyAllSnapsRef, snapNamesToCopyRef, false);
                 }
             }
             else
@@ -544,9 +502,50 @@ public class CtrlRscMakeAvailableApiCallHandler
     }
 
     /**
+     * Creates the given resource (built by {@link #getSharedResourceCreationPojo}) on the given node,
+     * reusing the data of its shared storage pool.
+     *
+     * @param allowDualActiveSharedRef see
+     *     {@link CtrlRscCrtApiCallHandler#createResource(List, Resource.DiskfulBy, boolean, List, boolean, boolean)}
+     */
+    private Flux<ApiCallRc> createSharedRsc(
+        Node node,
+        ResourceWithPayloadApi createRscPojo,
+        boolean copyAllSnapsRef,
+        List<String> snapNamesToCopyRef,
+        boolean allowDualActiveSharedRef
+    )
+    {
+        return freeCapacityFetcher.fetchThinFreeCapacities(Collections.singleton(node.getName()))
+            .flatMapMany(
+                // fetchThinFreeCapacities also updates the freeSpaceManager. we can safely ignore
+                // the freeCapacities parameter here
+                ignoredFreeCapacities -> scopeRunner.fluxInTransactionalScope(
+                    "create resource",
+                    lockGuardFactory.buildDeferred(
+                        LockType.WRITE,
+                        LockObj.NODES_MAP,
+                        LockObj.RSC_DFN_MAP,
+                        LockObj.STOR_POOL_DFN_MAP
+                    ),
+                    () -> ctrlRscCrtApiCallHandler.createResource(
+                        Collections.singletonList(createRscPojo),
+                        Resource.DiskfulBy.MAKE_AVAILABLE,
+                        copyAllSnapsRef,
+                        snapNamesToCopyRef,
+                        false,
+                        allowDualActiveSharedRef
+                    )
+                )
+            );
+    }
+
+    /**
      * Validates that the shared resource of the given rsc-dfn may be activated on the migration source
      * and the target node at once. Only needed if the target resource has to be created or activated,
-     * an already active target resource is handled by the regular noop path.
+     * an already active target resource is handled by the regular noop path. If no shared resource is
+     * active at all there is no migration source and therefore nothing to validate: the request is a
+     * plain attach.
      */
     private void ensureSharedDualActiveSupported(
         ResourceDefinition rscDfn,
@@ -564,21 +563,11 @@ public class CtrlRscMakeAvailableApiCallHandler
         {
             activeSharedRsc = getActiveRsc(createRscPojo, node, rscDfn);
         }
-        if (rsc == null ||
-            (isFlagSet(rsc, Resource.Flags.INACTIVE) &&
-                !isFlagSet(rsc, Resource.Flags.INACTIVE_PERMANENTLY)))
+        if (activeSharedRsc != null &&
+            (rsc == null ||
+                (isFlagSet(rsc, Resource.Flags.INACTIVE) &&
+                    !isFlagSet(rsc, Resource.Flags.INACTIVE_PERMANENTLY))))
         {
-            if (activeSharedRsc == null)
-            {
-                throw new ApiRcException(
-                    ApiCallRcImpl.simpleEntry(
-                        ApiConsts.FAIL_NOT_FOUND_LIVE_MIGRATE_SOURCE,
-                        "No active resource found for shared resource '" +
-                            rscDfn.getName().displayValue + "'",
-                        true
-                    )
-                );
-            }
             liveMigrateHelper.ensureSharedDualActiveSupported(activeSharedRsc);
         }
     }

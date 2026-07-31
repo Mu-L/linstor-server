@@ -58,6 +58,7 @@ public class RscMakeAvailableApiTest extends ApiTestBase
 {
     private static final String PROP_KEY_TWO_PRIMARIES = "allow-two-primaries";
     private static final String PROP_KEY_PROTOCOL = "protocol";
+    private static final String SHARED_RSC_NAME = "SharedRsc";
 
     @Inject
     private Provider<CtrlRscMakeAvailableApiCallHandler> rscMakeAvailableApiCallHandlerProvider;
@@ -252,6 +253,85 @@ public class RscMakeAvailableApiTest extends ApiTestBase
         );
 
         assertThat(rsc.getStateFlags().isSet(Resource.Flags.DELETE)).isFalse();
+    }
+
+    /*
+     * shared storage pool tests: STORAGE-only layer stack, a single diskful copy in a shared storage
+     * pool (mirrors the CloudStack setup)
+     */
+
+    @Test
+    public void makeAvailableActivatesInactiveSharedStorPoolRsc() throws Exception
+    {
+        // resource deactivated - make-available on the same node has to reactivate it
+        Resource rsc = createInactiveSharedStorPoolRsc();
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME),
+            false
+        );
+
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+    }
+
+    @Test
+    public void makeAvailableDualPrimaryActivatesInactiveSharedStorPoolRsc() throws Exception
+    {
+        // the resource is not in use (active) anywhere, so there is no live migration to prepare and
+        // the resource is simply made available, i.e. reactivated - clients that cannot tell a
+        // live-migration attach from a plain attach always set auto_manage_dual_primary
+        Resource rsc = createInactiveSharedStorPoolRsc();
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setAutoManageDualPrimary(true),
+            false
+        );
+
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+    }
+
+    @Test
+    public void makeAvailableCreatesSharedStorPoolRscWhenNoActiveCopy() throws Exception
+    {
+        // the single copy on the first node is INACTIVE - make-available on the second node has to
+        // create the resource there reusing the shared data, ending with a usable (active) resource
+        Resource rsc = createInactiveSharedStorPoolRsc();
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue),
+            false
+        );
+
+        Resource newRsc = nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME));
+        assertThat(newRsc).isNotNull();
+        assertThat(newRsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isTrue();
+    }
+
+    @Test
+    public void makeAvailableDualPrimaryCreatesSharedStorPoolRscWhenNoActiveCopy() throws Exception
+    {
+        // same as above but with auto_manage_dual_primary: nothing is in use, so this is a plain
+        // attach on the second node
+        Resource rsc = createInactiveSharedStorPoolRsc();
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue)
+                .setAutoManageDualPrimary(true),
+            false
+        );
+
+        Resource newRsc = nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME));
+        assertThat(newRsc).isNotNull();
+        assertThat(newRsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isTrue();
     }
 
     /*
@@ -481,12 +561,74 @@ public class RscMakeAvailableApiTest extends ApiTestBase
      * helpers
      */
 
+    /**
+     * Creates a second node, a shared storage pool on both nodes, a STORAGE-only rscDfn
+     * {@link #SHARED_RSC_NAME} with one volume definition and a single diskful resource on the first
+     * node, flagged INACTIVE.
+     */
+    private Resource createInactiveSharedStorPoolRsc() throws Exception
+    {
+        StorPoolName sharedSpName = new StorPoolName("SharedPool");
+        SharedStorPoolName sharedSpaceName = new SharedStorPoolName("SharedSpace");
+
+        Node node2 = createSecondNode();
+        createStorPool(testSatelliteNode, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName);
+        createStorPool(node2, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName);
+
+        enterScope();
+        ResourceDefinition sharedRscDfn = resourceDefinitionTestFactory.builder(SHARED_RSC_NAME)
+            .setLayerStack(new ArrayList<>(Collections.singletonList(DeviceLayerKind.STORAGE)))
+            .build();
+        rscDfnMap.put(sharedRscDfn.getName(), sharedRscDfn);
+        volumeDefinitionTestFactory.builder(SHARED_RSC_NAME, 0)
+            .setSize(100 * 1024L)
+            .build();
+        commitAndCleanUp(true);
+
+        enterScope();
+        Map<String, String> rscProps = new TreeMap<>();
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, sharedSpName.displayValue);
+        ctrlRscCrtApiHelper.createResourceDb(
+            testNodeName.displayValue,
+            SHARED_RSC_NAME,
+            0L,
+            rscProps,
+            Collections.emptyList(),
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyList(),
+            Resource.DiskfulBy.USER,
+            false
+        );
+        commitAndCleanUp(true);
+
+        Resource rsc = testSatelliteNode.getResource(new ResourceName(SHARED_RSC_NAME));
+        enterScope();
+        rsc.getStateFlags().enableFlags(Resource.Flags.INACTIVE);
+        commitAndCleanUp(true);
+
+        return rsc;
+    }
+
     private void addStorPool() throws Exception
     {
         createStorPool(testSatelliteNode, testStorPoolName, DeviceProviderKind.LVM);
     }
 
     private StorPool createStorPool(Node node, StorPoolName storPoolName, DeviceProviderKind kind) throws Exception
+    {
+        return createStorPool(node, storPoolName, kind, new SharedStorPoolName(node.getName(), storPoolName));
+    }
+
+    private StorPool createStorPool(
+        Node node,
+        StorPoolName storPoolName,
+        DeviceProviderKind kind,
+        SharedStorPoolName sharedStorPoolName
+    )
+        throws Exception
     {
         enterScope();
 
@@ -496,9 +638,7 @@ public class RscMakeAvailableApiTest extends ApiTestBase
             storPoolDfn = storPoolDefinitionFactory.create(storPoolName);
             storPoolDfnMap.put(storPoolName, storPoolDfn);
         }
-        FreeSpaceMgr fsm = freeSpaceMgrFactory.getInstance(
-            new SharedStorPoolName(node.getName(), storPoolName)
-        );
+        FreeSpaceMgr fsm = freeSpaceMgrFactory.getInstance(sharedStorPoolName);
         StorPool storPool = storPoolFactory.create(
             node,
             storPoolDfn,
