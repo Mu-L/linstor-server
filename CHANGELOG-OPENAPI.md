@@ -7,6 +7,17 @@ All notable changes to Linstor OPENAPI(REST) will be documented in this file.
 ### Added
   - Added DELETE /v1/resource-definitions/{resource}/resources to atomically delete all resources of a resource-definition ("truncate"), with an optional `delete_empty_resource_definition` query parameter that additionally deletes the resource-definition when it has neither resources nor snapshots left after the truncate
   - Added a `delete_empty_resource_definition` query parameter to DELETE /v1/resource-definitions/{resource}/snapshots/{snapshot} that atomically deletes the resource-definition as well when it has neither resources nor snapshots left after the snapshot deletion
+  - Added PUT /v1/nodes/{node}/evict, documenting the already existing node evict API
+  - Added GET endpoints for single objects, documenting already existing APIs:
+    - GET /v1/nodes/{node}
+    - GET /v1/nodes/{node}/net-interfaces/{netinterface}
+    - GET /v1/nodes/{node}/storage-pools/{storagepool}
+    - GET /v1/resource-definitions/{resource}
+    - GET /v1/resource-definitions/{resource}/volume-definitions/{volume_number}
+    - GET /v1/resource-definitions/{resource}/resources/{node}
+    - GET /v1/resource-definitions/{resource}/resources/{node}/volumes/{volume_number}
+    - GET /v1/resource-groups/{resource_group}
+    - GET /v1/resource-groups/{resource_group}/volume-groups/{volume_number}
 
 ## [1.28.0]
 

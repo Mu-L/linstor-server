@@ -417,6 +417,21 @@ paths:
   /v1/nodes/{node}:
     parameters:
       - $ref: '#/components/parameters/Node'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific node
+      operationId: nodeGet
+      description: Returns a specific node registered to Linstor
+      responses:
+        '200':
+          description: Specified node
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     put:
       tags:
         - developers
@@ -741,6 +756,21 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Node'
       - $ref: '#/components/parameters/NetInterface'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific netinterface of a node
+      operationId: netinterfaceGet
+      description: Returns a specific netinterface of a node
+      responses:
+        '200':
+          description: Specified netinterface
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetInterface'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     put:
       tags:
         - developers
@@ -849,6 +879,23 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Node'
       - $ref: '#/components/parameters/StoragePool'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific storage pool of a node
+      operationId: nodeStoragePoolGet
+      description: Returns a specific storage pool of a node
+      parameters:
+        - $ref: '#/components/parameters/Cached'
+      responses:
+        '200':
+          description: Specified storage pool
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoragePool'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     put:
       tags:
         - developers
@@ -1020,6 +1067,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiCallRcList'
+  /v1/nodes/{node}/evict:
+    parameters:
+      - $ref: '#/components/parameters/Node'
+    put:
+      tags:
+        - developers
+      summary: evicts the node
+      operationId: nodeEvict
+      description: |
+        Marks an offline node as EVICTED and tries to restore the redundancy
+        of the DRBD resources of the evicted node by placing them on other
+        nodes. Evicting an online node is not possible. An evicted node can
+        be reactivated using node restore.
+      responses:
+        '200':
+          description: node evicted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiCallRcList'
+        '500':
+          $ref: '#/components/responses/OperationFailed'
   /v1/nodes/{node}/config:
     parameters:
       - $ref: '#/components/parameters/Node'
@@ -1278,6 +1347,21 @@ paths:
   /v1/resource-definitions/{resource}:
     parameters:
       - $ref: '#/components/parameters/Resource'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific resource-definition
+      operationId: resourceDefinitionGet
+      description: Returns a specific resource-definition
+      responses:
+        '200':
+          description: Specified resource-definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceDefinition'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     put:
       tags:
         - developers
@@ -1862,6 +1946,21 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Resource'
       - $ref: '#/components/parameters/VolumeNumber'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific volume-definition
+      operationId: volumeDefinitionGet
+      description: Returns a specific volume-definition of a resource-definition
+      responses:
+        '200':
+          description: Specified volume-definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolumeDefinition'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     put:
       tags:
         - developers
@@ -2219,6 +2318,21 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Resource'
       - $ref: '#/components/parameters/Node'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific resource on a node
+      operationId: resourceGet
+      description: Returns a specific resource of a resource-definition on the given node
+      responses:
+        '200':
+          description: Specified resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     post:
       tags:
         - developers
@@ -2518,6 +2632,21 @@ paths:
       - $ref: '#/components/parameters/Resource'
       - $ref: '#/components/parameters/Node'
       - $ref: '#/components/parameters/VolumeNumber'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific volume of a resource
+      operationId: resourceVolumeGet
+      description: Returns a specific volume of a resource on the given node
+      responses:
+        '200':
+          description: Specified volume
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Volume'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     put:
       tags:
         - developers
@@ -3305,6 +3434,21 @@ paths:
   /v1/resource-groups/{resource_group}:
     parameters:
       - $ref: '#/components/parameters/ResourceGroupName'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific resource-group
+      operationId: resourceGroupGet
+      description: Returns a specific resource-group
+      responses:
+        '200':
+          description: Specified resource-group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceGroup'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     put:
       tags:
         - developers
@@ -3627,6 +3771,21 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ResourceGroupName'
       - $ref: '#/components/parameters/VolumeNumber'
+    get:
+      tags:
+        - developers
+      summary: Lists a specific volume-group
+      operationId: volumeGroupGet
+      description: Returns a specific volume-group of a resource-group
+      responses:
+        '200':
+          description: Specified volume-group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolumeGroup'
+        '404':
+          $ref: '#/components/responses/ObjectNotFound'
     put:
       tags:
         - developers
