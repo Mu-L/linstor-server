@@ -33,7 +33,11 @@ public class LvmCommands
      * We had cases where we rejected "/dev/drbd" but LVM still found (the suspended) DRBD device via
      * /dev/block/147:1000. The reason LVM took that path is because we allowed "everything else" (using "'a|.*|'")
      */
-    private static final String LVM_CONF_IGNORE_DRBD_DEVICES = "devices { filter=[\"r|^/dev/drbd.*|\"] }";
+    // also skip devices whose IO is suspended (e.g. a LUKS volume between the suspend and
+    // take-snapshot dispatches of a snapshot creation) - reading them would block until the
+    // external command timeout
+    private static final String LVM_CONF_IGNORE_DRBD_DEVICES =
+        "devices { ignore_suspended_devices=1 filter=[\"r|^/dev/drbd.*|\"] }";
 
     public static final int LVS_COL_IDENTIFIER = 0;
     public static final int LVS_COL_PATH = 1;
@@ -705,20 +709,26 @@ public class LvmCommands
 
     public static synchronized OutputData vgscan(ExtCmd extCmd, boolean ignoreCache) throws StorageException
     {
+        // vgscan intentionally runs without the usual PV whitelist (it has to see PVs of foreign nodes on
+        // shared VGs), so it may open any block device. A device whose IO is currently suspended (e.g. a
+        // LUKS volume between the suspend and take-snapshot dispatches of a snapshot creation) would block
+        // the scan until the external command timeout, hence ignore_suspended_devices.
         String[] cmd;
         if (ignoreCache)
         {
             cmd = new String[]
             {
                 "vgscan", "-qq", // quite and auto-"no"
-                "--cache" // yes, that means to bypass LVMs cache...
+                "--cache", // yes, that means to bypass LVMs cache...
+                "--config", "devices { ignore_suspended_devices=1 }"
             };
         }
         else
         {
             cmd = new String[]
             {
-                "vgscan", "-qq" // quite and auto-"no"
+                "vgscan", "-qq", // quite and auto-"no"
+                "--config", "devices { ignore_suspended_devices=1 }"
             };
         }
 

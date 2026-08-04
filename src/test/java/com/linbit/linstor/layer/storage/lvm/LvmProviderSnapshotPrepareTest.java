@@ -52,7 +52,8 @@ public class LvmProviderSnapshotPrepareTest extends GenericDbBase
     private static final String LVS_COLUMNS =
         "lv_name,lv_path,lv_size,vg_name,pool_lv,data_percent,lv_attr,metadata_percent,chunk_size,stripes,origin";
     private static final String VGS_THICK_COLUMNS = "vg_name,vg_extent_size,vg_size,vg_free";
-    private static final String IGNORE_DRBD_CONFIG = "devices { filter=[\"r|^/dev/drbd.*|\"] }";
+    private static final String IGNORE_DRBD_CONFIG =
+        "devices { ignore_suspended_devices=1 filter=[\"r|^/dev/drbd.*|\"] }";
 
     private static final String NODE_NAME_STR = "node";
     private static final String RSC_NAME_STR = "rsc";

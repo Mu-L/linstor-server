@@ -36,7 +36,8 @@ public class LvmUtilsExtCmdTest
     private static final String VGS_THICK_COLUMNS = "vg_name,vg_extent_size,vg_size,vg_free";
     private static final String VGS_THIN_COLUMNS =
         "vg_name,vg_extent_size,vg_size,vg_free,lv_name,lv_size,data_percent";
-    private static final String IGNORE_DRBD_CONFIG = "devices { filter=[\"r|^/dev/drbd.*|\"] }";
+    private static final String IGNORE_DRBD_CONFIG =
+        "devices { ignore_suspended_devices=1 filter=[\"r|^/dev/drbd.*|\"] }";
 
     private TestExtCmd extCmd;
     private ExtCmdFactory extCmdFactory;
