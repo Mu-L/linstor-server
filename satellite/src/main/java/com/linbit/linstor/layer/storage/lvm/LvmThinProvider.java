@@ -44,7 +44,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 @Singleton
-public class LvmThinProvider extends LvmProvider
+public class LvmThinProvider extends LvmProvider implements ProbeVlmStorageProvider
 {
     public static final String PROBE_VLM_NAME_THIN = ".probeVolumeThinProv";
 
@@ -609,6 +609,15 @@ public class LvmThinProvider extends LvmProvider
         }
 
         return ret;
+    }
+
+    @Override
+    protected @Nullable String getReadOnlyProbeDevice(final StorPool storPoolRef)
+    {
+        // unlike a thick LV, a thin volume does not inherit its queue limits from the PV: they come
+        // from the thin pool (e.g. discard granularity = chunk size), so keep probing with an actual
+        // thin LV instead of the PV
+        return null;
     }
 
     @Override

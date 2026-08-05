@@ -24,7 +24,6 @@ import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.interfaces.StorPoolInfo;
 import com.linbit.linstor.layer.DeviceLayerUtils;
 import com.linbit.linstor.layer.storage.AbsStorageProvider;
-import com.linbit.linstor.layer.storage.ProbeVlmStorageProvider;
 import com.linbit.linstor.layer.storage.StorageLayerSizeCalculator;
 import com.linbit.linstor.layer.storage.lvm.utils.LvmCommands;
 import com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LvmVolumeType;
@@ -67,10 +66,7 @@ import java.util.stream.Stream;
 @Singleton
 public class LvmProvider
     extends AbsStorageProvider<LvsInfo, LvmData<Resource>, LvmData<Snapshot>>
-    implements ProbeVlmStorageProvider
 {
-    public static final String PROBE_VLM_NAME = ".probeVolume";
-
     private static final int TOLERANCE_FACTOR = 3;
     // FIXME: FORMAT should be private, only made public for LayeredSnapshotHelper
     public static final String FORMAT_RSC_TO_LVM_ID = "%s%s_%05d";
@@ -1265,50 +1261,16 @@ public class LvmProvider
     }
 
     @Override
-    public @Nullable String createTmpProbeVlm(final StorPool storPoolRef)
-        throws StorageException
+    protected @Nullable String getReadOnlyProbeDevice(final StorPool storPoolRef) throws StorageException
     {
-        final String volumeName = PROBE_VLM_NAME;
-        final String volumeGroup = getStorageName(storPoolRef);
-
-        LvmUtils.execWithRetry(
+        // a thick LV is a linear mapping onto the volume group's PVs, so its queue limits (min/opt IO
+        // size, discard granularity) are those of the underlying PV: read them from the PV instead of
+        // creating a temporary probe LV. Creating an LV writes VG metadata, which corrupts a shared VG
+        // when multiple satellites probe concurrently (the probe holds no shared-space lock).
+        final List<String> physicalVolumes = LvmUtils.getPhysicalVolumes(
             extCmdFactory,
-            Collections.singleton(volumeGroup),
-            config ->
-            {
-                return LvmCommands.createFat(
-                    extCmdFactory.create(),
-                    volumeGroup,
-                    volumeName,
-                    ProbeVlmStorageProvider.DFLT_PROBE_VLM_SIZE_KIB,
-                    config
-                );
-            }
+            getStorageName(storPoolRef)
         );
-
-        final String devPath = getDevicePath(volumeGroup, volumeName);
-        return devPath;
-    }
-
-    @Override
-    public void deleteTmpProbeVlm(final StorPool storPoolRef)
-        throws StorageException
-    {
-        final String volumeGroup = getStorageName(storPoolRef);
-
-        LvmUtils.execWithRetry(
-            extCmdFactory,
-            Collections.singleton(volumeGroup),
-            config ->
-            {
-                return LvmCommands.delete(
-                    extCmdFactory.create(),
-                    volumeGroup,
-                    PROBE_VLM_NAME,
-                    config,
-                    LvmVolumeType.VOLUME
-                );
-            }
-        );
+        return physicalVolumes.isEmpty() ? null : physicalVolumes.get(0);
     }
 }

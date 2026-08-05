@@ -1871,31 +1871,54 @@ public abstract class AbsStorageProvider<
         final StorPoolName storPoolObjName = storPoolObj.getName();
         errorReporter.logDebug("ENTER updateBlockDeviceInfo method: Storage pool \"%s\"", storPoolObjName.displayValue);
         Collection<VlmProviderObject<Resource>> vlmProviderList = storPoolObj.getVolumes();
+        boolean haveInfo = false;
         if (!CollectionUtils.isEmpty(vlmProviderList))
         {
             errorReporter.logDebug("updateBlockDeviceInfo: Have vlmProviderList with %d items", vlmProviderList.size());
             Iterator<VlmProviderObject<Resource>> vlmProviderIter = vlmProviderList.iterator();
-            boolean haveInfo = false;
             while (vlmProviderIter.hasNext() && !haveInfo)
             {
                 VlmProviderObject<Resource> vlmProvider = vlmProviderIter.next();
                 errorReporter.logDebug("updateBlockDeviceInfo: Have vlmProvider");
                 final @Nullable String storDevicePath = vlmProvider.getDevicePath();
+                if (storDevicePath != null)
+                {
+                    try
+                    {
+                        updateBlockDeviceInfoByDevice(storPoolObj, storDevicePath, propsChange);
+                        haveInfo = true;
+                    }
+                    catch (IOException ignored)
+                    {
+                    }
+                }
+            }
+        }
+        if (!haveInfo)
+        {
+            @Nullable String roProbeDevPath = null;
+            try
+            {
+                roProbeDevPath = getReadOnlyProbeDevice(storPoolObj);
+            }
+            catch (StorageException ignored)
+            {
+                errorReporter.logDebug("updateBlockDeviceInfo: Failed to find read-only probe device");
+            }
+            if (roProbeDevPath != null)
+            {
+                errorReporter.logDebug("updateBlockDeviceInfo: Using read-only probe device");
                 try
                 {
-                    updateBlockDeviceInfoByDevice(storPoolObj, storDevicePath, propsChange);
-                    haveInfo = true;
+                    updateBlockDeviceInfoByDevice(storPoolObj, roProbeDevPath, propsChange);
                 }
                 catch (IOException ignored)
                 {
                 }
             }
-        }
-        else
-        {
-            errorReporter.logDebug("updateBlockDeviceInfo: Don't have vlmProviderList, using temporary volumes");
-            if (this instanceof ProbeVlmStorageProvider storPrv)
+            else if (CollectionUtils.isEmpty(vlmProviderList) && this instanceof ProbeVlmStorageProvider storPrv)
             {
+                errorReporter.logDebug("updateBlockDeviceInfo: Don't have vlmProviderList, using temporary volumes");
                 try
                 {
                     final @Nullable String storDevicePath = storPrv.createTmpProbeVlm(storPoolObj);
@@ -1925,6 +1948,18 @@ public abstract class AbsStorageProvider<
             }
         }
         errorReporter.logDebug("EXIT updateBlockDeviceInfo method");
+    }
+
+    /**
+     * Returns a device path whose queue limits (min/opt IO size, discard granularity) match those of
+     * volumes of the given storage pool without requiring a volume to exist, or null if no such device
+     * is known. {@link #updateBlockDeviceInfo} prefers this device over creating a temporary probe
+     * volume: creating a volume writes the backing storage's metadata, which must never happen without
+     * the shared-space lock on shared storage pools - a lock this satellite-local probe cannot take.
+     */
+    protected @Nullable String getReadOnlyProbeDevice(final StorPool storPoolObj) throws StorageException
+    {
+        return null;
     }
 
     private void updateBlockDeviceInfoByDevice(

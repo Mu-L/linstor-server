@@ -55,6 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disconnect or a controller restart) being stuck forever: the resource stayed in the intermediate DRBD_DELETE
   state, leaving an orphaned backing volume on the node and its DRBD peers endlessly trying to connect. The
   deletion is now automatically resumed once all nodes of the resource-definition are connected again
+- Fixed satellites corrupting the metadata of a shared LVM volume group when starting simultaneously: probing an
+  empty thick LVM storage pool for its block-device properties no longer creates a temporary LV (an unserialized
+  VG metadata write); the properties are read from the pool's physical volume instead
 - Fixed snapshot creation of an IO-suspended volume (e.g. LUKS on a shared storage pool) failing with a `vgscan`
   timeout: the shared-VG rescan no longer opens devices whose IO is suspended
 - Fixed make-available for a resource in a shared storage pool failing with "No active resource found" when no
