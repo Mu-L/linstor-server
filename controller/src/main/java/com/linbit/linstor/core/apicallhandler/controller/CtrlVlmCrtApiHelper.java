@@ -12,6 +12,7 @@ import com.linbit.linstor.api.ApiCallRcWith;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
+import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.objects.AbsResource;
 import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.Node;
@@ -33,6 +34,7 @@ import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObje
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
 import com.linbit.linstor.storage.utils.LayerUtils;
+import com.linbit.linstor.utils.layer.LayerVlmUtils;
 
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlVlmListApiCallHandler.getVlmDescriptionInline;
 
@@ -40,6 +42,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -223,6 +226,8 @@ public class CtrlVlmCrtApiHelper
          * - storPool is Fat-provisioned or we have a map of the thin-free-spaces available
          * - the overrideVlmId property is not set; in this case we assume the volume already
          * exists on the storPool, which means we will not consume additional $volumeSize space
+         * - the volume does not reuse the data of an already existing volume of a shared storage
+         * pool, which also does not consume additional space
          */
 
         Set<StorPool> disklessPools = new HashSet<>();
@@ -257,7 +262,8 @@ public class CtrlVlmCrtApiHelper
         for (StorPool storPool : poolsToCheck)
         {
             if (getPeerPrivileged(rsc.getNode()).getConnectionStatus() == ApiConsts.ConnectionStatus.ONLINE &&
-                !isOverrideVlmIdPropertySetPrivileged(vlmDfn)
+                !isOverrideVlmIdPropertySetPrivileged(vlmDfn) &&
+                !reusesSharedVolume(rsc, vlmDfn, storPool)
             )
             {
                 /*
@@ -343,6 +349,41 @@ public class CtrlVlmCrtApiHelper
                 }
             }
         }
+    }
+
+    /**
+     * Whether the data of the volume to be created already exists in the given shared storage pool
+     * because another resource of the rsc-dfn has a volume backed by the same shared data. Creating
+     * such a volume only attaches to the shared data instead of allocating new space - the shared
+     * pool's free space already accounts for it - so the free-space check has to be skipped.
+     */
+    private boolean reusesSharedVolume(Resource rsc, VolumeDefinition vlmDfn, StorPool storPool)
+    {
+        boolean reuses = false;
+        SharedStorPoolName sharedSpName = storPool.getSharedStorPoolName();
+        if (sharedSpName.isShared())
+        {
+            Iterator<Resource> rscIt = rsc.getResourceDefinition().iterateResource();
+            while (rscIt.hasNext() && !reuses)
+            {
+                Resource otherRsc = rscIt.next();
+                @Nullable Volume otherVlm = otherRsc.equals(rsc) ?
+                    null :
+                    otherRsc.getVolume(vlmDfn.getVolumeNumber());
+                if (otherVlm != null)
+                {
+                    for (StorPool otherSp : LayerVlmUtils.getStorPoolMap(otherVlm).values())
+                    {
+                        if (sharedSpName.equals(otherSp.getSharedStorPoolName()))
+                        {
+                            reuses = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return reuses;
     }
 
     private ReadOnlyProps getCtrlPropsPrivileged()

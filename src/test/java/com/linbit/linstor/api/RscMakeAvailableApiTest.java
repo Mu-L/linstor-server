@@ -345,6 +345,33 @@ public class RscMakeAvailableApiTest extends ApiTestBase
     }
 
     @Test
+    public void makeAvailableSharedStorPoolRscIgnoresFreeSpace() throws Exception
+    {
+        // the shared LV already exists, so creating another leg for it does not allocate any new
+        // space: a full shared storage pool must not fail the free-space check
+        Resource rsc = createInactiveSharedStorPoolRsc();
+
+        enterScope();
+        nodesMap.get(testNode2Name)
+            .getStorPool(new StorPoolName(SHARED_SP_NAME))
+            .getFreeSpaceTracker()
+            .setCapacityInfo(0, 10_000_000);
+        commitAndCleanUp(true);
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue),
+            false
+        );
+
+        Resource newRsc = nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME));
+        assertThat(newRsc).isNotNull();
+        assertThat(newRsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isTrue();
+    }
+
+    @Test
     public void makeAvailableRefusesSharedRscCreationWhenSnapshotMissingOnNode() throws Exception
     {
         // moving the active copy of a shared resource to a node that does not hold its snapshots is

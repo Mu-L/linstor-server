@@ -72,6 +72,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed make-available for a resource in a shared storage pool failing with "No active resource found" when no
   resource of that shared storage pool was active anywhere (e.g. after cleanly stopping the consumer): the resource is
   now created on the requested node reusing the shared data, ending with a usable (active) resource
+- Fixed creating an additional resource that reuses the existing data of a shared storage pool (e.g. via
+  make-available) failing the free-space check on a (nearly) full pool: the shared volume already exists and the
+  pool's free space already accounts for it, so attaching another resource to it consumes no additional space
 - Fixed deleting a thick LVM snapshot re-activating the snapshot (and implicitly its origin LV) before the removal,
   leaving the origin LV of an INACTIVE resource active after the deletion - dangerous for shared storage pools
 - Fixed deleting a snapshot in a shared storage pool hanging forever: a device-manager run that only processes snapshots
