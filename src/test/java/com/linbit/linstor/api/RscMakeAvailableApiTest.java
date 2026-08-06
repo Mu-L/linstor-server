@@ -26,6 +26,7 @@ import com.linbit.linstor.core.objects.SnapshotDefinitionControllerFactory;
 import com.linbit.linstor.core.objects.SnapshotVolumeDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
+import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.LayerPayload.DrbdRscDfnPayload;
 import com.linbit.linstor.netcom.Peer;
@@ -549,6 +550,31 @@ public class RscMakeAvailableApiTest extends ApiTestBase
         assertThat(nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME))).isNotNull();
         // the snapshot's data is not on the shared space, so no objects were propagated
         assertThat(snapDfn.getSnapshot(testNode2Name)).isNull();
+    }
+
+    @Test
+    public void makeAvailableDualPrimarySharedRefusedWhileResizing() throws Exception
+    {
+        // counterpart of the resize guard (a resize is refused while the resource is active on two
+        // nodes): the dual-active window must also not open while a volume is still being resized
+        Resource rsc = createInactiveSharedStorPoolRsc();
+
+        enterScope();
+        rsc.getStateFlags().disableFlags(Resource.Flags.INACTIVE);
+        rscDfnMap.get(new ResourceName(SHARED_RSC_NAME))
+            .getVolumeDfn(new VolumeNumber(0))
+            .getFlags()
+            .enableFlags(VolumeDefinition.Flags.RESIZE);
+        commitAndCleanUp(true);
+
+        evaluateTest(
+            new MakeAvailableCall(ApiConsts.FAIL_IN_USE)
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue)
+                .setAutoManageDualPrimary(true)
+        );
+
+        assertThat(nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME))).isNull();
     }
 
     /*

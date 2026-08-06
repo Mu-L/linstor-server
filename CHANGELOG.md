@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (re)activated copies automatically receive the snapshot objects. The active copy can therefore be moved freely
   (make-available, activate) while snapshots exist; if no copy is active at all, one is activated before taking a
   snapshot or rolling back
+- Resizing a volume backed by a shared storage pool is now refused while its resource is active on more than one
+  node (the dual-active window of a live migration), since the shared data cannot be safely resized while multiple
+  nodes are accessing it; conversely, make-available with `auto_manage_dual_primary` refuses to open the
+  dual-active window while a volume of the resource is still being resized
 - Removed the access-control security subsystem (object protection, ACLs, security identities/roles/types and the
   protobuf sign-in API); it had always been running at `NO_SECURITY` level. The `SEC_*` database tables are dropped on
   upgrade, which makes a downgrade to older versions impossible. LDAP authentication for the REST API, satellite

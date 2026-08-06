@@ -329,6 +329,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         if (updateForResize)
         {
             VolumeDefinitionResizeCheckUtils.ensureNoThickLvmSnapshots(vlmDfn);
+            VolumeDefinitionResizeCheckUtils.ensureSharedDataNotActiveOnMultipleNodes(vlmDfn);
 
             Iterator<Resource> itRsc = vlmDfn.getResourceDefinition().iterateResource();
             while (itRsc.hasNext())

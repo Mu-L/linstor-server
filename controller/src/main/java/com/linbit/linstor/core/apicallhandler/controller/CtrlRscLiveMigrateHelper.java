@@ -15,6 +15,7 @@ import com.linbit.linstor.core.objects.ResourceConnection;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.core.objects.StorPool;
+import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.repository.SystemConfRepository;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.netcom.Peer;
@@ -159,7 +160,8 @@ public class CtrlRscLiveMigrateHelper
      * shared storage pool at once.
      *
      * @throws ApiRcException {@link ApiConsts#FAIL_INVLD_LAYER_STACK} if the source resource uses DRBD,
-     *     {@link ApiConsts#FAIL_EXISTS_SNAPSHOT} if the source node still has snapshots of the resource
+     *     {@link ApiConsts#FAIL_EXISTS_SNAPSHOT} if the source node still has snapshots of the resource,
+     *     {@link ApiConsts#FAIL_IN_USE} if a volume of the resource is currently being resized
      */
     public void ensureSharedDualActiveSupported(Resource srcRsc)
     {
@@ -190,6 +192,30 @@ public class CtrlRscLiveMigrateHelper
                                 "migration source still has snapshots."
                         )
                         .setCorrection("Delete the snapshots first.")
+                        .setSkipErrorReport(true)
+                        .build()
+                );
+            }
+        }
+        // the counterpart of VolumeDefinitionResizeCheckUtils#ensureSharedDataNotActiveOnMultipleNodes,
+        // which refuses a resize while the dual-active window is already open
+        Iterator<VolumeDefinition> vlmDfnIt = rscDfn.iterateVolumeDfn();
+        while (vlmDfnIt.hasNext())
+        {
+            VolumeDefinition vlmDfn = vlmDfnIt.next();
+            if (vlmDfn.getFlags().isSet(VolumeDefinition.Flags.RESIZE))
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.entryBuilder(
+                        ApiConsts.FAIL_IN_USE,
+                        "Volume definition " + vlmDfn.getVolumeNumber() + " of resource '" +
+                            rscDfn.getName().displayValue + "' is currently being resized"
+                    )
+                        .setCause(
+                            "Activating a shared resource on two nodes is not supported while one of " +
+                                "its volumes is being resized."
+                        )
+                        .setCorrection("Wait for the resize to finish.")
                         .setSkipErrorReport(true)
                         .build()
                 );
