@@ -9,6 +9,7 @@ import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.backupshipping.BackupShippingUtils;
 import com.linbit.linstor.core.BackupInfoManager;
+import com.linbit.linstor.core.SharedResourceManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.autohelper.AutoHelperContext;
 import com.linbit.linstor.core.apicallhandler.controller.autohelper.CtrlRscAutoHelper;
@@ -21,6 +22,7 @@ import com.linbit.linstor.core.apicallhandler.response.OperationDescription;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.apicallhandler.response.ResponseConverter;
 import com.linbit.linstor.core.identifier.ResourceName;
+import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.Node;
@@ -61,7 +63,10 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +95,7 @@ public class CtrlSnapshotRestoreApiCallHandler
     private final CtrlRscAutoHelper autoHelper;
     private final CtrlPropsHelper ctrlPropsHelper;
     private final BackupInfoManager backupInfoMgr;
+    private final SharedResourceManager sharedRscMgr;
     private final CtrlSatelliteUpdateCaller ctrlStltUpdateCaller;
     private final CtrlRscAutoBalanceHelper ctrlRscAutoBalanceHelper;
 
@@ -108,6 +114,7 @@ public class CtrlSnapshotRestoreApiCallHandler
         CtrlRscAutoHelper ctrlRscAutoHelperRef,
         CtrlPropsHelper ctrlPropsHelperRef,
         BackupInfoManager backupInfoMgrRef,
+        SharedResourceManager sharedRscMgrRef,
         CtrlSatelliteUpdateCaller ctrlStltUpdateCallerRef,
         CtrlRscAutoBalanceHelper ctrlRscAutoBalanceHelperRef
     )
@@ -125,6 +132,7 @@ public class CtrlSnapshotRestoreApiCallHandler
         autoHelper = ctrlRscAutoHelperRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
         backupInfoMgr = backupInfoMgrRef;
+        sharedRscMgr = sharedRscMgrRef;
         ctrlStltUpdateCaller = ctrlStltUpdateCallerRef;
         ctrlRscAutoBalanceHelper = ctrlRscAutoBalanceHelperRef;
     }
@@ -247,6 +255,46 @@ public class CtrlSnapshotRestoreApiCallHandler
         ).transform(responses -> responseConverter.reportingExceptions(context, responses));
     }
 
+    /**
+     * Returns the snapshots to restore from when no nodes were given. Snapshots without shared
+     * storage pools restore on every node holding the snapshot (each node has its own snapshot
+     * data). Per-node snapshots of the same shared space all refer to the same data, so exactly one
+     * of them is chosen per shared space - preferably on the node with the active resource copy,
+     * since reading a thick snapshot implicitly activates its origin.
+     */
+    private Collection<Snapshot> selectRestoreSnapshots(SnapshotDefinition fromSnapshotDfn)
+    {
+        List<Snapshot> ret = new ArrayList<>();
+        Map<Set<SharedStorPoolName>, Snapshot> sharedExecutors = new HashMap<>();
+        Map<Set<SharedStorPoolName>, Boolean> sharedExecutorsActive = new HashMap<>();
+        for (Snapshot snapshot : new TreeSet<>(fromSnapshotDfn.getAllSnapshots()))
+        {
+            Set<SharedStorPoolName> sharedSpNames = sharedRscMgr.getSharedSpNames(snapshot);
+            if (!sharedSpNames.isEmpty())
+            {
+                @Nullable Resource rsc = fromSnapshotDfn.getResourceDefinition()
+                    .getResource(snapshot.getNodeName());
+                boolean active = rsc != null &&
+                    !rsc.getStateFlags().isSomeSet(
+                        Resource.Flags.INACTIVE,
+                        Resource.Flags.INACTIVE_PERMANENTLY
+                    );
+                @Nullable Snapshot executor = sharedExecutors.get(sharedSpNames);
+                if (executor == null || (active && !sharedExecutorsActive.get(sharedSpNames)))
+                {
+                    sharedExecutors.put(sharedSpNames, snapshot);
+                    sharedExecutorsActive.put(sharedSpNames, active);
+                }
+            }
+            else
+            {
+                ret.add(snapshot);
+            }
+        }
+        ret.addAll(sharedExecutors.values());
+        return ret;
+    }
+
     private Flux<ApiCallRc> restoreResourceInTransaction(
         List<String> nodeNameStrs,
         ResourceName fromRscName,
@@ -317,7 +365,7 @@ public class CtrlSnapshotRestoreApiCallHandler
 
             if (nodeNameStrs.isEmpty())
             {
-                for (Snapshot snapshot : fromSnapshotDfn.getAllSnapshots())
+                for (Snapshot snapshot : selectRestoreSnapshots(fromSnapshotDfn))
                 {
                     restoredResources.add(
                         restoreOnNode(

@@ -9,6 +9,7 @@ import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.BackupInfoManager;
+import com.linbit.linstor.core.SharedResourceManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.mgr.SnapshotRollbackManager;
@@ -129,6 +130,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
     private final CtrlVlmDfnCrtApiHelper ctrlVlmDfnCrtApiHelper;
     private final ZfsChecks zfsChecks;
     private final CtrlRscCrtApiHelper ctrlRscCrtApiHelper;
+    private final SharedResourceManager sharedRscMgr;
 
     @Inject
     public CtrlSnapshotRollbackApiCallHandler(
@@ -151,7 +153,8 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         CtrlRscMakeAvailableApiCallHandler ctrlRscMakeAvailableApiCallHandlerRef,
         CtrlVlmDfnCrtApiHelper ctrlVlmDfnCrtApiHelperRef,
         ZfsChecks zfsChecksRef,
-        CtrlRscCrtApiHelper ctrlRscCrtApiHelperRef
+        CtrlRscCrtApiHelper ctrlRscCrtApiHelperRef,
+        SharedResourceManager sharedRscMgrRef
     )
     {
         scopeRunner = scopeRunnerRef;
@@ -174,6 +177,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         ctrlVlmDfnCrtApiHelper = ctrlVlmDfnCrtApiHelperRef;
         zfsChecks = zfsChecksRef;
         ctrlRscCrtApiHelper = ctrlRscCrtApiHelperRef;
+        sharedRscMgr = sharedRscMgrRef;
     }
 
     @Override
@@ -223,14 +227,18 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
             snapshotNameStr
         );
 
-        return scopeRunner
-            .fluxInTransactionalScope(
-                "prepare rollback",
-                lockGuardFactory.create()
-                    .read(LockObj.NODES_MAP)
-                    .write(LockObj.RSC_DFN_MAP)
-                    .buildDeferred(),
-                () -> prepareRollbackInTransaction(rscNameStr, snapshotNameStr, zfsRollbackStrategyRef)
+        // a shared-SP resource that is not active anywhere has to be activated first: both the
+        // safety-snapshot and the rollback itself are only performed by the node using the shared data
+        return ctrlSnapshotCrtHandler.activateSharedRscs(rscNameStr, Collections.emptyList())
+            .concatWith(
+                scopeRunner.fluxInTransactionalScope(
+                    "prepare rollback",
+                    lockGuardFactory.create()
+                        .read(LockObj.NODES_MAP)
+                        .write(LockObj.RSC_DFN_MAP)
+                        .buildDeferred(),
+                    () -> prepareRollbackInTransaction(rscNameStr, snapshotNameStr, zfsRollbackStrategyRef)
+                )
             )
             .transform(responses -> responseConverter.reportingExceptions(context, responses));
     }
@@ -299,6 +307,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
             {
                 // new mechanic, "rollback via restore"
                 Map<NodeName, Boolean> rscNodes = currentRscNodeDisks(rscDfn);
+                List<String> sharedRestoreNodes = sharedSpActiveNodeNames(rscDfn);
 
                 ApiCallRcImpl responses = new ApiCallRcImpl();
 
@@ -320,7 +329,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
                             )
                     )
                     .concatWith(
-                        restoreSnap(rscDfn, snapshotDfn)
+                        restoreSnap(rscDfn, snapshotDfn, sharedRestoreNodes)
                             .onErrorResume(
                                 exc -> rollbackToSafetySnap(snapshotDfn, true).concatWith(Flux.error(exc))
                             )
@@ -486,18 +495,56 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
 
     private Flux<ApiCallRc> restoreSnap(ResourceDefinition rscDfn, SnapshotDefinition snapDfn)
     {
+        return restoreSnap(rscDfn, snapDfn, Collections.emptyList());
+    }
+
+    /**
+     * @param nodeNamesRef the nodes to restore on; empty means all nodes holding the snapshot (of
+     *     which the restore handler picks a single one for shared storage pools). The rollback of a
+     *     shared-SP resource passes the nodes that were active before the resources were deleted, so
+     *     the restored (active) resource ends up where the rolled-back one was used.
+     */
+    private Flux<ApiCallRc> restoreSnap(
+        ResourceDefinition rscDfn,
+        SnapshotDefinition snapDfn,
+        List<String> nodeNamesRef
+    )
+    {
         ResourceName rscName = rscDfn.getName();
         // ensure the vlmDfns are in the state that they were when the snapshot was made
         return resetVlmDfns(rscDfn, snapDfn)
             .concatWith(
                 ctrlSnapRstApiCallHandler.restoreSnapshotForRollback(
-                    Collections.emptyList(),
+                    nodeNamesRef,
                     rscName,
                     snapDfn.getName(),
                     rscName,
                     Collections.emptyMap()
                 )
             );
+    }
+
+    /**
+     * Names of the nodes holding an active copy of a shared-SP resource of the given
+     * resource-definition. Empty for resource-definitions without shared storage pools.
+     */
+    private List<String> sharedSpActiveNodeNames(ResourceDefinition rscDfn)
+    {
+        List<String> ret = new ArrayList<>();
+        Iterator<Resource> rscIter = ctrlSnapshotHelper.iterateResource(rscDfn);
+        while (rscIter.hasNext())
+        {
+            Resource rsc = rscIter.next();
+            if (sharedRscMgr.isBackedBySharedStorPool(rsc) &&
+                !rsc.getStateFlags().isSomeSet(
+                    Resource.Flags.INACTIVE,
+                    Resource.Flags.INACTIVE_PERMANENTLY
+                ))
+            {
+                ret.add(rsc.getNode().getName().displayValue);
+            }
+        }
+        return ret;
     }
 
     private Flux<ApiCallRc> rollbackToSafetySnap(SnapshotDefinition snapDfn, boolean restoreStarted)
@@ -838,7 +885,13 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         while (rscIter.hasNext())
         {
             Resource rsc = rscIter.next();
-            nodes.put(rsc.getNode().getName(), !isDiskless(rsc));
+            // an inactive shared-SP copy does not participate in the rollback and is not
+            // recreated afterwards: making it available again would move the activation to a
+            // node without the snapshots, which is refused
+            if (!sharedRscMgr.isInactiveShared(rsc))
+            {
+                nodes.put(rsc.getNode().getName(), !isDiskless(rsc));
+            }
         }
 
         return nodes;

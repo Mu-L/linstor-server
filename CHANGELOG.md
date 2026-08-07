@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Snapshots of resources in shared storage pools are now registered on every node holding a copy of the resource,
+  matching the shared data: the snapshot exists once on the shared pool, so every copy effectively holds it. Only
+  the node with the active copy performs the snapshot storage operations (create, delete, restore); new or
+  (re)activated copies automatically receive the snapshot objects. The active copy can therefore be moved freely
+  (make-available, activate) while snapshots exist; if no copy is active at all, one is activated before taking a
+  snapshot or rolling back
 - Removed the access-control security subsystem (object protection, ACLs, security identities/roles/types and the
   protobuf sign-in API); it had always been running at `NO_SECURITY` level. The `SEC_*` database tables are dropped on
   upgrade, which makes a downgrade to older versions impossible. LDAP authentication for the REST API, satellite
@@ -55,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disconnect or a controller restart) being stuck forever: the resource stayed in the intermediate DRBD_DELETE
   state, leaving an orphaned backing volume on the node and its DRBD peers endlessly trying to connect. The
   deletion is now automatically resumed once all nodes of the resource-definition are connected again
+- Fixed snapshot rollback of a resource in a shared storage pool failing when another node holds an inactive copy:
+  non-participating inactive copies are no longer recreated after the rollback (they can simply be made available
+  again); if no copy is active at all, one is activated before the rollback
 - Fixed satellites corrupting the metadata of a shared LVM volume group when starting simultaneously: probing an
   empty thick LVM storage pool for its block-device properties no longer creates a temporary LV (an unserialized
   VG metadata write); the properties are read from the pool's physical volume instead

@@ -11,9 +11,11 @@ import com.linbit.linstor.core.apicallhandler.controller.mgr.SnapshotRollbackMan
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.identifier.ResourceName;
+import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
+import com.linbit.linstor.core.objects.FreeSpaceMgr;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
@@ -68,6 +70,8 @@ public class SnapshotRollbackApiTest extends ApiTestBase
     private static final String TEST_SP_NAME = "TestStorPool";
     private static final String TEST_SNAP_NAME = "snap1";
     private static final long TEST_VLM_SIZE = 100 * 1024L;
+    private static final String SHARED_SP_NAME = "SharedPool";
+    private static final String SHARED_SPACE_NAME = "SharedSpace";
 
     @Inject
     private Provider<CtrlSnapshotCrtApiCallHandler> snapCrtApiCallHandlerProvider;
@@ -96,6 +100,7 @@ public class SnapshotRollbackApiTest extends ApiTestBase
     protected ExtToolsManager mockExtToolsMgr;
 
     private final NodeName testNodeName;
+    private final NodeName testNode2Name;
     private final ResourceName testRscName;
     private final SnapshotName testSnapName;
     private final StorPoolName testStorPoolName;
@@ -108,6 +113,7 @@ public class SnapshotRollbackApiTest extends ApiTestBase
     public SnapshotRollbackApiTest() throws Exception
     {
         testNodeName = new NodeName(TEST_NODE_NAME);
+        testNode2Name = new NodeName(TEST_NODE_2_NAME);
         testRscName = new ResourceName(TEST_RSC_NAME);
         testSnapName = new SnapshotName(TEST_SNAP_NAME);
         testStorPoolName = new StorPoolName(TEST_SP_NAME);
@@ -199,6 +205,58 @@ public class SnapshotRollbackApiTest extends ApiTestBase
         assertThat(rscDfn.getVolumeDfn(new VolumeNumber(1))).isNull();
     }
 
+    @Test
+    public void rollbackCloneStrategySharedSpSkipsInactiveCopy() throws Exception
+    {
+        // shared-SP resource active on the first node, an INACTIVE copy on the second, the snapshot
+        // only exists on the active node: the rollback must not fail trying to make the resource
+        // available on the second node (that would move the activation away from the snapshots);
+        // the non-participating copy is simply not recreated
+        deploySharedResource();
+        createSharedSnapshot();
+
+        ApiCallRc rollbackRc = collect(
+            snapRollbackApiCallHandlerProvider.get().rollbackSnapshot(TEST_RSC_NAME, TEST_SNAP_NAME, null)
+        );
+        assertThat(rollbackRc).noneMatch(entry -> entry.isError());
+
+        ResourceDefinition rscDfn = rscDfnMap.get(testRscName);
+        // the safety snapshot was deleted again, only the user snapshot remains
+        assertThat(rscDfn.getSnapshotDfns()).hasSize(1);
+        assertThat(rscDfn.getSnapshotDfn(testSnapName)).isNotNull();
+        Resource rsc = rscDfn.getResource(testNodeName);
+        assertThat(rsc).isNotNull();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rscDfn.getResource(testNode2Name)).isNull();
+    }
+
+    @Test
+    public void rollbackCloneStrategySharedSpAllInactiveActivatesHolder() throws Exception
+    {
+        // with every copy of the shared storage pool inactive, the rollback has to activate the node
+        // holding the snapshots first: both the safety snapshot and the rollback itself are only
+        // performed by the node using the shared data
+        deploySharedResource();
+        createSharedSnapshot();
+
+        enterScope();
+        rscDfnMap.get(testRscName).getResource(testNodeName).getStateFlags()
+            .enableFlags(Resource.Flags.INACTIVE);
+        leaveScope();
+
+        ApiCallRc rollbackRc = collect(
+            snapRollbackApiCallHandlerProvider.get().rollbackSnapshot(TEST_RSC_NAME, TEST_SNAP_NAME, null)
+        );
+        assertThat(rollbackRc).noneMatch(entry -> entry.isError());
+
+        ResourceDefinition rscDfn = rscDfnMap.get(testRscName);
+        assertThat(rscDfn.getSnapshotDfns()).hasSize(1);
+        Resource rsc = rscDfn.getResource(testNodeName);
+        assertThat(rsc).isNotNull();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rscDfn.getResource(testNode2Name)).isNull();
+    }
+
     /*
      * rollback via "zfs rollback" strategy, only applicable if everything is ZFS
      */
@@ -250,7 +308,6 @@ public class SnapshotRollbackApiTest extends ApiTestBase
         // second satellite so that the rolled-back resources have a DRBD peer whose
         // ready-state has to be awaited
         stubSatellitePeer(mockSatellite2, mockExtToolsMgr, new SatelliteState(), false);
-        NodeName testNode2Name = new NodeName(TEST_NODE_2_NAME);
 
         enterScope();
         Node testNode2 = nodeFactory.create(testNode2Name, Node.Type.SATELLITE, null);
@@ -604,6 +661,96 @@ public class SnapshotRollbackApiTest extends ApiTestBase
         leaveScope();
 
         return snapDfn;
+    }
+
+    /**
+     * Creates a second node, a shared storage pool on both nodes and a STORAGE-only
+     * {@link #TEST_RSC_NAME} resource on both: the copy on the first node stays active, the one on
+     * the second node is flagged INACTIVE. Both satellites are online afterwards.
+     */
+    private void deploySharedResource() throws Exception
+    {
+        stubSatellitePeer(mockSatellite2, mockExtToolsMgr, new SatelliteState(), false);
+
+        enterScope();
+
+        Node testNode2 = nodeFactory.create(testNode2Name, Node.Type.SATELLITE, null);
+        testNode2.setPeer(mockSatellite2);
+        nodesMap.put(testNode2Name, testNode2);
+
+        StorPoolName sharedSpName = new StorPoolName(SHARED_SP_NAME);
+        StorPoolDefinition storPoolDfn = storPoolDefinitionFactory.create(sharedSpName);
+        storPoolDfnMap.put(sharedSpName, storPoolDfn);
+        FreeSpaceMgr fsm = freeSpaceMgrFactory.getInstance(new SharedStorPoolName(SHARED_SPACE_NAME));
+        for (Node node : Arrays.asList(testNode, testNode2))
+        {
+            StorPool storPool = storPoolFactory.create(
+                node,
+                storPoolDfn,
+                DeviceProviderKind.LVM,
+                fsm,
+                false
+            );
+            storPool.getFreeSpaceTracker().setCapacityInfo(10_000_000, 10_000_000);
+        }
+
+        rscDfnMap.put(
+            testRscName,
+            resourceDefinitionTestFactory.builder(TEST_RSC_NAME)
+                .setLayerStack(new ArrayList<>(Collections.singletonList(DeviceLayerKind.STORAGE)))
+                .build()
+        );
+        volumeDefinitionTestFactory.builder(TEST_RSC_NAME, 0)
+            .setSize(TEST_VLM_SIZE)
+            .build();
+
+        Map<String, String> rscProps = new TreeMap<>();
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, SHARED_SP_NAME);
+        for (String nodeNameStr : Arrays.asList(TEST_NODE_NAME, TEST_NODE_2_NAME))
+        {
+            ctrlRscCrtApiHelper.createResourceDb(
+                nodeNameStr,
+                TEST_RSC_NAME,
+                0L,
+                rscProps,
+                Collections.emptyList(),
+                null,
+                null,
+                null,
+                null,
+                Collections.emptyList(),
+                Resource.DiskfulBy.USER,
+                false
+            );
+        }
+        // the copy on the second node is just a registered, unused copy of the shared data
+        rscDfnMap.get(testRscName).getResource(testNode2Name)
+            .getStateFlags().enableFlags(Resource.Flags.INACTIVE);
+
+        leaveScope();
+
+        satelliteOnline();
+        setSatelliteOnline(mockSatellite2, true);
+        Mockito.when(mockPeer.isOnline()).thenReturn(true);
+    }
+
+    /**
+     * Takes {@link #TEST_SNAP_NAME} of the shared resource deployed by {@link #deploySharedResource()}
+     * and asserts that the snapshot objects were registered on both copies.
+     */
+    private void createSharedSnapshot() throws Exception
+    {
+        ApiCallRc snapRc = collect(
+            snapCrtApiCallHandlerProvider.get()
+                .createSnapshot(Collections.emptyList(), TEST_RSC_NAME, TEST_SNAP_NAME, Collections.emptyMap())
+        );
+        assertThat(snapRc).noneMatch(entry -> entry.isError());
+
+        SnapshotDefinition snapDfn = rscDfnMap.get(testRscName).getSnapshotDfn(testSnapName);
+        assertThat(snapDfn.getFlags().isSet(SnapshotDefinition.Flags.SUCCESSFUL)).isTrue();
+        assertThat(snapDfn.getAllSnapshots()).hasSize(2);
+        assertThat(snapDfn.getSnapshot(testNodeName)).isNotNull();
+        assertThat(snapDfn.getSnapshot(testNode2Name)).isNotNull();
     }
 
     private void createDeployedSnapshot(DeviceProviderKind providerKind) throws Exception

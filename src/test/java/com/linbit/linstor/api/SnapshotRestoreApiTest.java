@@ -13,6 +13,7 @@ import com.linbit.linstor.core.apicallhandler.controller.FreeCapacityFetcher;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.RemoteName;
 import com.linbit.linstor.core.identifier.ResourceName;
+import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -572,6 +573,107 @@ public class SnapshotRestoreApiTest extends ApiTestBase
         );
 
         leaveScope();
+    }
+
+    @Test
+    public void restoreSnapshotPicksExecutorPerSharedSpace() throws Exception
+    {
+        // two copies of the resource on two DIFFERENT shared spaces: their snapshots refer to
+        // different shared data, so a restore without given nodes has to pick one restore source
+        // per shared space instead of a single one across all shared snapshots
+        stubSatellitePeer(mockSatellite2, mockExtToolsMgr, new SatelliteState(), false);
+        NodeName testNode2Name = new NodeName(TEST_NODE_2_NAME);
+
+        enterScope();
+        Node testNode2 = nodeFactory.create(testNode2Name, Node.Type.SATELLITE, null);
+        testNode2.setPeer(mockSatellite2);
+        nodesMap.put(testNode2Name, testNode2);
+
+        rscDfnMap.put(
+            testRscName,
+            resourceDefinitionTestFactory.builder(TEST_RSC_NAME)
+                .setLayerStack(new ArrayList<>(Collections.singletonList(DeviceLayerKind.STORAGE)))
+                .build()
+        );
+        volumeDefinitionTestFactory.builder(TEST_RSC_NAME, 0)
+            .setSize(TEST_VLM_SIZE)
+            .build();
+
+        StorPoolDefinition storPoolDfn = storPoolDefinitionFactory.create(testStorPoolName);
+        storPoolDfnMap.put(testStorPoolName, storPoolDfn);
+        int sharedSpaceNr = 0;
+        for (Node node : Arrays.asList(testNode, testNode2))
+        {
+            StorPool storPool = storPoolFactory.create(
+                node,
+                storPoolDfn,
+                DeviceProviderKind.LVM,
+                freeSpaceMgrFactory.getInstance(new SharedStorPoolName("SharedSpace" + sharedSpaceNr)),
+                false
+            );
+            storPool.getFreeSpaceTracker().setCapacityInfo(10_000_000, 10_000_000);
+            sharedSpaceNr++;
+        }
+
+        Map<String, String> rscProps = new TreeMap<>();
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, TEST_SP_NAME);
+        for (String nodeNameStr : Arrays.asList(TEST_NODE_NAME, TEST_NODE_2_NAME))
+        {
+            ctrlRscCrtApiHelper.createResourceDb(
+                nodeNameStr,
+                TEST_RSC_NAME,
+                0L,
+                rscProps,
+                Collections.emptyList(),
+                null,
+                null,
+                null,
+                null,
+                Collections.emptyList(),
+                Resource.DiskfulBy.USER,
+                false
+            );
+        }
+        leaveScope();
+
+        satelliteOnline();
+        setSatelliteOnline(mockSatellite2, true);
+
+        // both copies are the active one of their own shared space, so both take the snapshot
+        ApiCallRc snapRc = collect(
+            snapCrtApiCallHandlerProvider.get()
+                .createSnapshot(Collections.emptyList(), TEST_RSC_NAME, TEST_SNAP_NAME, Collections.emptyMap())
+        );
+        assertThat(snapRc).noneMatch(entry -> entry.isError());
+        assertThat(rscDfnMap.get(testRscName).getSnapshotDfn(testSnapName).getAllSnapshots()).hasSize(2);
+
+        enterScope();
+        rscDfnMap.put(
+            testTargetRscName,
+            resourceDefinitionTestFactory.builder(TEST_TARGET_RSC_NAME)
+                .setLayerStack(new ArrayList<>(Collections.singletonList(DeviceLayerKind.STORAGE)))
+                .build()
+        );
+        volumeDefinitionTestFactory.builder(TEST_TARGET_RSC_NAME, 0)
+            .setSize(TEST_VLM_SIZE)
+            .build();
+        leaveScope();
+
+        ApiCallRc restoreRc = collect(
+            snapRestoreApiCallHandlerProvider.get().restoreSnapshot(
+                Collections.emptyList(),
+                TEST_RSC_NAME,
+                TEST_SNAP_NAME,
+                TEST_TARGET_RSC_NAME,
+                Collections.emptyMap()
+            )
+        );
+        assertThat(restoreRc).noneMatch(entry -> entry.isError());
+
+        // one restore source per shared space: both nodes end up with a restored resource
+        ResourceDefinition targetRscDfn = rscDfnMap.get(testTargetRscName);
+        assertThat(targetRscDfn.getResource(testNodeName)).isNotNull();
+        assertThat(targetRscDfn.getResource(testNode2Name)).isNotNull();
     }
 
     private void createRscDfn(String rscNameStr) throws Exception
