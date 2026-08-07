@@ -12,8 +12,13 @@ import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.interfaces.RscLayerDataApi;
 import com.linbit.linstor.api.prop.LinStorObject;
+import com.linbit.linstor.core.SharedResourceManager;
+import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
+import com.linbit.linstor.core.apicallhandler.controller.internal.helpers.AtomicUpdateSatelliteData;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
+import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
+import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
@@ -34,6 +39,7 @@ import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.utils.SuspendLayerUtils;
+import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.stateflags.StateFlags;
@@ -51,12 +57,15 @@ import static com.linbit.linstor.utils.layer.LayerVlmUtils.getStorPoolMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import reactor.core.publisher.Flux;
 
 @Singleton
 public class CtrlSnapshotCrtHelper
@@ -68,6 +77,9 @@ public class CtrlSnapshotCrtHelper
     private final SnapshotControllerFactory snapshotFactory;
     private final SnapshotVolumeControllerFactory snapshotVolumeControllerFactory;
     private final CtrlPropsHelper ctrlPropsHelper;
+    private final SharedResourceManager sharedRscMgr;
+    private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
+    private final ErrorReporter errorReporter;
 
     @Inject
     public CtrlSnapshotCrtHelper(
@@ -77,7 +89,10 @@ public class CtrlSnapshotCrtHelper
         SnapshotVolumeDefinitionControllerFactory snapshotVolumeDefinitionControllerFactoryRef,
         SnapshotControllerFactory snapshotFactoryRef,
         SnapshotVolumeControllerFactory snapshotVolumeControllerFactoryRef,
-        CtrlPropsHelper ctrlPropsHelperRef
+        CtrlPropsHelper ctrlPropsHelperRef,
+        SharedResourceManager sharedRscMgrRef,
+        CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
+        ErrorReporter errorReporterRef
     )
     {
         ctrlSnapshotHelper = ctrlSnapshotHelperRef;
@@ -87,6 +102,9 @@ public class CtrlSnapshotCrtHelper
         snapshotFactory = snapshotFactoryRef;
         snapshotVolumeControllerFactory = snapshotVolumeControllerFactoryRef;
         ctrlPropsHelper = ctrlPropsHelperRef;
+        sharedRscMgr = sharedRscMgrRef;
+        ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
+        errorReporter = errorReporterRef;
     }
 
     public SnapshotDefinition createSnapshots(
@@ -309,6 +327,119 @@ public class CtrlSnapshotCrtHelper
                 ctrlPropsHelper.getProps(rsc.getVolume(snapshotVolumeDefinition.getVolumeNumber())),
                 ctrlPropsHelper.getProps(snapVlm, true)
             );
+        }
+        return snapshot;
+    }
+
+    /**
+     * Ensures the given resource's node holds the per-node Snapshot objects of every usable snapshot
+     * whose data lives on a shared storage pool the resource uses. The snapshot data exists once on
+     * the shared pool, so every node holding a copy of the resource effectively also holds those
+     * snapshots: this creates the missing objects so LINSTOR's view matches that. Snapshots on other
+     * shared spaces or on nodes without shared storage pools are not touched - their data is not
+     * accessible from this resource's pools. Noop for resources without shared storage pools.
+     */
+    public List<SnapshotDefinition> ensureSnapshotObjectsPresent(Resource rsc)
+    {
+        List<SnapshotDefinition> createdFor = new ArrayList<>();
+        if (sharedRscMgr.isBackedBySharedStorPool(rsc))
+        {
+            NodeName nodeName = rsc.getNode().getName();
+            for (SnapshotDefinition snapDfn : rsc.getResourceDefinition().getSnapshotDfns())
+            {
+                if (snapDfn.getSnapshot(nodeName) == null &&
+                    snapDfn.getFlags().isSet(SnapshotDefinition.Flags.SUCCESSFUL) &&
+                    snapDfn.getFlags().isUnset(SnapshotDefinition.Flags.DELETE))
+                {
+                    @Nullable Snapshot peerSnap = sharedRscMgr.findSnapshotOnSharedSp(snapDfn, rsc);
+                    if (peerSnap != null)
+                    {
+                        createSnapshotObjectsOnly(snapDfn, rsc, peerSnap);
+                        createdFor.add(snapDfn);
+                    }
+                }
+            }
+        }
+        return createdFor;
+    }
+
+    /**
+     * Satellite update for the snapshot objects created by {@link #ensureSnapshotObjectsPresent(Resource)}.
+     * Without it the new node would only learn about the snapshots on its next full sync - and a restore
+     * from such a snapshot would silently create an empty volume, since the satellite cannot find the
+     * snapshot to restore from.
+     */
+    public Flux<ApiCallRc> updateSatellitesForNewSnapshotObjects(
+        ResourceDefinition rscDfn,
+        Collection<SnapshotDefinition> snapDfnsRef
+    )
+    {
+        Flux<ApiCallRc> flux = Flux.empty();
+        if (!snapDfnsRef.isEmpty())
+        {
+            flux = ctrlSatelliteUpdateCaller.updateSatellites(
+                new AtomicUpdateSatelliteData().add(rscDfn).addSnapDfns(snapDfnsRef),
+                CtrlSatelliteUpdateCaller.notConnectedWarn()
+            )
+                .transform(
+                    updateResponses -> CtrlResponseUtils.combineResponses(
+                        errorReporter,
+                        updateResponses,
+                        rscDfn.getName(),
+                        "Registered snapshot(s) of {1} on {0}"
+                    )
+                );
+        }
+        return flux;
+    }
+
+    /**
+     * Creates the per-node Snapshot (and snapshot volume) objects of the given snapshot-definition for
+     * the given resource - metadata only: the snapshot data was created by another node of the shared
+     * storage pool, so no storage operation results from this. Props and the creation timestamp are
+     * mirrored from the given peer snapshot, which has to live on a shared storage pool the resource
+     * uses (see {@link SharedResourceManager#findSnapshotOnSharedSp}).
+     */
+    private Snapshot createSnapshotObjectsOnly(SnapshotDefinition snapshotDfn, Resource rsc, Snapshot peerSnap)
+    {
+        Snapshot snapshot = createSnapshot(snapshotDfn, rsc);
+        ctrlPropsHelper.copy(
+            ctrlPropsHelper.getProps(peerSnap, true),
+            ctrlPropsHelper.getProps(snapshot, true)
+        );
+        ctrlPropsHelper.copy(
+            ctrlPropsHelper.getProps(peerSnap, false),
+            ctrlPropsHelper.getProps(snapshot, false)
+        );
+        try
+        {
+            @Nullable Instant peerCreateTs = peerSnap.getCreateTimestamp().orElse(null);
+            if (peerCreateTs != null)
+            {
+                snapshot.setCreateTimestamp(peerCreateTs);
+            }
+        }
+        catch (DatabaseException dbExc)
+        {
+            throw new ApiDatabaseException(dbExc);
+        }
+
+        for (SnapshotVolumeDefinition snapVlmDfn : snapshotDfn.getAllSnapshotVolumeDefinitions())
+        {
+            SnapshotVolume snapVlm = createSnapshotVolume(rsc, snapshot, snapVlmDfn);
+
+            @Nullable SnapshotVolume peerSnapVlm = peerSnap.getVolume(snapVlmDfn.getVolumeNumber());
+            if (peerSnapVlm != null)
+            {
+                ctrlPropsHelper.copy(
+                    ctrlPropsHelper.getProps(peerSnapVlm, true),
+                    ctrlPropsHelper.getProps(snapVlm, true)
+                );
+                ctrlPropsHelper.copy(
+                    ctrlPropsHelper.getProps(peerSnapVlm, false),
+                    ctrlPropsHelper.getProps(snapVlm, false)
+                );
+            }
         }
         return snapshot;
     }

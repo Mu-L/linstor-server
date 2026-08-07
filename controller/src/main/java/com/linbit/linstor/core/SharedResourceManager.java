@@ -1,8 +1,11 @@
 package com.linbit.linstor.core;
 
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
+import com.linbit.linstor.core.objects.Snapshot;
+import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.utils.layer.LayerVlmUtils;
 
@@ -20,6 +23,68 @@ public class SharedResourceManager
     @Inject
     public SharedResourceManager()
     {
+    }
+
+    public boolean isBackedBySharedStorPool(Resource rsc)
+    {
+        return !SharedStorPoolManager.getSharedSpNames(LayerVlmUtils.getStorPools(rsc)).isEmpty();
+    }
+
+    public boolean isBackedBySharedStorPool(Snapshot snap)
+    {
+        return !SharedStorPoolManager.getSharedSpNames(LayerVlmUtils.getStorPools(snap)).isEmpty();
+    }
+
+    /**
+     * Returns the shared storage pool names of the pools backing the given snapshot - i.e. the
+     * shared spaces holding the snapshot's data. Empty for snapshots without shared storage pools.
+     */
+    public Set<SharedStorPoolName> getSharedSpNames(Snapshot snap)
+    {
+        return SharedStorPoolManager.getSharedSpNames(LayerVlmUtils.getStorPools(snap));
+    }
+
+    /**
+     * Returns a per-node snapshot of the given snapshot-definition that is backed by a shared
+     * storage pool the given resource also uses - i.e. a snapshot whose data exists on shared data
+     * the resource's node has access to. Null if there is no such snapshot, e.g. because the
+     * snapshot was taken on a different shared space or on a node without shared storage pools.
+     * The check is based on the snapshots' storage pools rather than on sibling resources, so it
+     * also matches when the resource the snapshot was created from no longer exists.
+     */
+    public @Nullable Snapshot findSnapshotOnSharedSp(SnapshotDefinition snapDfn, Resource rsc)
+    {
+        @Nullable Snapshot ret = null;
+        Set<SharedStorPoolName> rscSharedNames = SharedStorPoolManager.getSharedSpNames(
+            LayerVlmUtils.getStorPools(rsc)
+        );
+        if (!rscSharedNames.isEmpty())
+        {
+            for (Snapshot snap : new TreeSet<>(snapDfn.getAllSnapshots()))
+            {
+                Set<SharedStorPoolName> snapSharedNames = getSharedSpNames(snap);
+                snapSharedNames.retainAll(rscSharedNames);
+                if (!snapSharedNames.isEmpty())
+                {
+                    ret = snap;
+                    break;
+                }
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Returns true if the given resource is an inactive copy of a shared storage pool, i.e. a copy that
+     * does not currently use the shared data.
+     */
+    public boolean isInactiveShared(Resource rsc)
+    {
+        return rsc.getStateFlags().isSomeSet(
+                Resource.Flags.INACTIVE,
+                Resource.Flags.INACTIVE_PERMANENTLY
+            ) &&
+            isBackedBySharedStorPool(rsc);
     }
 
     public boolean isActivationAllowed(Resource rsc)

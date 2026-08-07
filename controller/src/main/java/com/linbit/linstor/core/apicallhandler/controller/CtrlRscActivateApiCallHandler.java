@@ -15,6 +15,7 @@ import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.apicallhandler.response.ResponseConverter;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Resource.Flags;
+import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
@@ -52,6 +53,7 @@ public class CtrlRscActivateApiCallHandler
     private final CtrlTransactionHelper ctrlTransactionHelper;
     private final SharedResourceManager sharedRscMgr;
     private final CtrlRscLayerDataFactory ctrlRscLayerDataFactory;
+    private final CtrlSnapshotCrtHelper ctrlSnapCrtHelper;
 
     @Inject
     public CtrlRscActivateApiCallHandler(
@@ -63,7 +65,8 @@ public class CtrlRscActivateApiCallHandler
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         SharedResourceManager sharedRscMgrRef,
         CtrlRscLayerDataFactory ctrlRscLayerDataFactoryRef,
-        ErrorReporter errorReporterRef
+        ErrorReporter errorReporterRef,
+        CtrlSnapshotCrtHelper ctrlSnapCrtHelperRef
     )
     {
         sharedRscMgr = sharedRscMgrRef;
@@ -75,6 +78,7 @@ public class CtrlRscActivateApiCallHandler
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         ctrlRscLayerDataFactory = ctrlRscLayerDataFactoryRef;
         errorReporter = errorReporterRef;
+        ctrlSnapCrtHelper = ctrlSnapCrtHelperRef;
     }
 
     public Flux<ApiCallRc> activateRsc(String nodeNameRef, String rscNameRef)
@@ -136,27 +140,38 @@ public class CtrlRscActivateApiCallHandler
             {
                 checkIfReactivatable(rsc);
 
+                // a copy of a shared-SP resource also holds all snapshots of the resource-definition
+                // (the snapshot data lives once on the shared pool): create any missing per-node
+                // snapshot objects, e.g. for copies registered before this invariant existed
+                List<SnapshotDefinition> newSnapObjs = ctrlSnapCrtHelper.ensureSnapshotObjectsPresent(rsc);
+
                 unsetFlag(rsc, Resource.Flags.INACTIVE, Resource.Flags.INACTIVATING);
                 setFlag(rsc, Resource.Flags.REACTIVATE);
 
                 ResourceDataUtils.recalculateVolatileRscData(ctrlRscLayerDataFactory, rsc);
 
                 ctrlTransactionHelper.commit();
-                ret = ctrlSatelliteUpdateCaller.updateSatellites(rsc, Flux.empty()).transform(
-                    updateResponses -> CtrlResponseUtils.combineResponses(
-                        errorReporter,
-                        updateResponses,
-                        rsc.getResourceDefinition().getName(),
-                        Collections.singleton(rsc.getNode().getName()),
-                        "Reactivating resource on {0}",
-                        "Resource updated on {0}"
-                    ).concatWith(
-                        completeActivation(
-                            rsc.getNode().getName().displayValue,
-                            rsc.getResourceDefinition().getName().displayValue
+                // push the snapshot objects the activation just created for this node, so the
+                // satellite can use them (e.g. as a restore source) before its next full sync
+                ret = ctrlSnapCrtHelper
+                    .updateSatellitesForNewSnapshotObjects(rsc.getResourceDefinition(), newSnapObjs)
+                    .concatWith(
+                        ctrlSatelliteUpdateCaller.updateSatellites(rsc, Flux.empty()).transform(
+                            updateResponses -> CtrlResponseUtils.combineResponses(
+                                errorReporter,
+                                updateResponses,
+                                rsc.getResourceDefinition().getName(),
+                                Collections.singleton(rsc.getNode().getName()),
+                                "Reactivating resource on {0}",
+                                "Resource updated on {0}"
+                            ).concatWith(
+                                completeActivation(
+                                    rsc.getNode().getName().displayValue,
+                                    rsc.getResourceDefinition().getName().displayValue
+                                )
+                            )
                         )
-                    )
-                );
+                    );
             }
             else
             {

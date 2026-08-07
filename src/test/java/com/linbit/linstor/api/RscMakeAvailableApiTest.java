@@ -7,15 +7,23 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlRscCrtApiHelper;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscMakeAvailableApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.FreeCapacityFetcher;
 import com.linbit.linstor.annotation.Nullable;
+import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
+import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.identifier.StorPoolName;
+import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.FreeSpaceMgr;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceConnection;
 import com.linbit.linstor.core.objects.ResourceDefinition;
+import com.linbit.linstor.core.objects.Snapshot;
+import com.linbit.linstor.core.objects.SnapshotControllerFactory;
+import com.linbit.linstor.core.objects.SnapshotDefinition;
+import com.linbit.linstor.core.objects.SnapshotDefinitionControllerFactory;
+import com.linbit.linstor.core.objects.SnapshotVolumeDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.layer.LayerPayload;
@@ -55,11 +63,17 @@ public class RscMakeAvailableApiTest extends ApiTestBase
     private static final String PROP_KEY_TWO_PRIMARIES = "allow-two-primaries";
     private static final String PROP_KEY_PROTOCOL = "protocol";
     private static final String SHARED_RSC_NAME = "SharedRsc";
+    private static final String SHARED_SP_NAME = "SharedPool";
+    private static final String SHARED_SPACE_NAME = "SharedSpace";
 
     @Inject
     private Provider<CtrlRscMakeAvailableApiCallHandler> rscMakeAvailableApiCallHandlerProvider;
     @Inject
     private CtrlRscCrtApiHelper ctrlRscCrtApiHelper;
+    @Inject
+    private SnapshotDefinitionControllerFactory snapshotDefinitionFactory;
+    @Inject
+    private SnapshotControllerFactory snapshotFactory;
 
     @Bind
     @Mock
@@ -330,6 +344,186 @@ public class RscMakeAvailableApiTest extends ApiTestBase
         assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isTrue();
     }
 
+    @Test
+    public void makeAvailableRefusesSharedRscCreationWhenSnapshotMissingOnNode() throws Exception
+    {
+        // moving the active copy of a shared resource to a node that does not hold its snapshots is
+        // allowed: the snapshot data lives once on the shared pool, so the new copy receives the
+        // per-node snapshot objects and can manage the snapshots' shared backing data
+        Resource rsc = createInactiveSharedStorPoolRsc();
+        SnapshotDefinition snapDfn = createSnapshotOnNode(rsc, "snap1");
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue),
+            false
+        );
+
+        Resource newRsc = nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME));
+        assertThat(newRsc).isNotNull();
+        assertThat(newRsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isTrue();
+        assertThat(snapDfn.getSnapshot(testNode2Name)).isNotNull();
+    }
+
+    @Test
+    public void makeAvailableDualPrimarySharedRscCreationWithSnapshotObjects() throws Exception
+    {
+        // same as above: nothing is in use, so auto_manage_dual_primary degrades to a plain attach;
+        // the new copy receives the snapshot objects as well
+        Resource rsc = createInactiveSharedStorPoolRsc();
+        SnapshotDefinition snapDfn = createSnapshotOnNode(rsc, "snap1");
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue)
+                .setAutoManageDualPrimary(true),
+            false
+        );
+
+        Resource newRsc = nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME));
+        assertThat(newRsc).isNotNull();
+        assertThat(newRsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(snapDfn.getSnapshot(testNode2Name)).isNotNull();
+    }
+
+    @Test
+    public void makeAvailableActivationSelfHealsSnapshotObjects() throws Exception
+    {
+        // both copies exist and are INACTIVE, but only the first node holds the snapshot objects
+        // (legacy state): reactivating on the second node creates the missing objects there
+        Resource rsc = createInactiveSharedStorPoolRsc();
+        Resource rsc2 = createInactiveSharedStorPoolRscOnNode(testNode2Name);
+        SnapshotDefinition snapDfn = createSnapshotOnNode(rsc, "snap1");
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue),
+            false
+        );
+
+        assertThat(rsc2.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isTrue();
+        assertThat(snapDfn.getSnapshot(testNode2Name)).isNotNull();
+    }
+
+    @Test
+    public void makeAvailableActivatesInactiveSharedStorPoolRscWithSnapshotsOnSameNode() throws Exception
+    {
+        // reactivating on the node that holds the snapshots stays allowed
+        Resource rsc = createInactiveSharedStorPoolRsc();
+        createSnapshotOnNode(rsc, "snap1");
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME),
+            false
+        );
+
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+    }
+
+    @Test
+    public void createResourceDbCreatesSnapshotObjectsForSharedRsc() throws Exception
+    {
+        // the plain resource-create path also propagates the snapshot objects to the new copy of the
+        // shared storage pool: the snapshot data lives once on the shared pool, so every copy holds it
+        Resource rsc = createInactiveSharedStorPoolRsc();
+        SnapshotDefinition snapDfn = createSnapshotOnNode(rsc, "snap1");
+
+        enterScope();
+        Map<String, String> rscProps = new TreeMap<>();
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, SHARED_SP_NAME);
+        ctrlRscCrtApiHelper.createResourceDb(
+            testNode2Name.displayValue,
+            SHARED_RSC_NAME,
+            0L,
+            rscProps,
+            Collections.emptyList(),
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyList(),
+            Resource.DiskfulBy.USER,
+            false
+        );
+        commitAndCleanUp(true);
+
+        assertThat(nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME))).isNotNull();
+        assertThat(snapDfn.getSnapshot(testNode2Name)).isNotNull();
+    }
+
+    @Test
+    public void createResourceDbDoesNotPropagateForeignSnapshots() throws Exception
+    {
+        // mixed setup: the existing copy and its snapshot live on a standalone (non-shared) storage
+        // pool of the first node. A new copy on a shared pool of the second node has no access to
+        // that snapshot's data, so it must not receive the snapshot objects
+        Node node2 = createSecondNode();
+        createStorPool(testSatelliteNode, testStorPoolName, DeviceProviderKind.LVM);
+        createStorPool(
+            node2,
+            new StorPoolName(SHARED_SP_NAME),
+            DeviceProviderKind.LVM,
+            new SharedStorPoolName(SHARED_SPACE_NAME)
+        );
+
+        enterScope();
+        ResourceDefinition rscDfn = resourceDefinitionTestFactory.builder(SHARED_RSC_NAME)
+            .setLayerStack(new ArrayList<>(Collections.singletonList(DeviceLayerKind.STORAGE)))
+            .build();
+        rscDfnMap.put(rscDfn.getName(), rscDfn);
+        volumeDefinitionTestFactory.builder(SHARED_RSC_NAME, 0)
+            .setSize(100 * 1024L)
+            .build();
+        Map<String, String> rscProps = new TreeMap<>();
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, testStorPoolName.displayValue);
+        ctrlRscCrtApiHelper.createResourceDb(
+            testNodeName.displayValue,
+            SHARED_RSC_NAME,
+            0L,
+            rscProps,
+            Collections.emptyList(),
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyList(),
+            Resource.DiskfulBy.USER,
+            false
+        );
+        commitAndCleanUp(true);
+
+        Resource standaloneRsc = testSatelliteNode.getResource(new ResourceName(SHARED_RSC_NAME));
+        SnapshotDefinition snapDfn = createSnapshotOnNode(standaloneRsc, "snap1");
+
+        enterScope();
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, SHARED_SP_NAME);
+        ctrlRscCrtApiHelper.createResourceDb(
+            testNode2Name.displayValue,
+            SHARED_RSC_NAME,
+            0L,
+            rscProps,
+            Collections.emptyList(),
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyList(),
+            Resource.DiskfulBy.USER,
+            false
+        );
+        commitAndCleanUp(true);
+
+        assertThat(nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME))).isNotNull();
+        // the snapshot's data is not on the shared space, so no objects were propagated
+        assertThat(snapDfn.getSnapshot(testNode2Name)).isNull();
+    }
+
     /*
      * auto_manage_dual_primary (live migration) tests
      */
@@ -564,8 +758,8 @@ public class RscMakeAvailableApiTest extends ApiTestBase
      */
     private Resource createInactiveSharedStorPoolRsc() throws Exception
     {
-        StorPoolName sharedSpName = new StorPoolName("SharedPool");
-        SharedStorPoolName sharedSpaceName = new SharedStorPoolName("SharedSpace");
+        StorPoolName sharedSpName = new StorPoolName(SHARED_SP_NAME);
+        SharedStorPoolName sharedSpaceName = new SharedStorPoolName(SHARED_SPACE_NAME);
 
         Node node2 = createSecondNode();
         createStorPool(testSatelliteNode, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName);
@@ -581,11 +775,21 @@ public class RscMakeAvailableApiTest extends ApiTestBase
             .build();
         commitAndCleanUp(true);
 
+        return createInactiveSharedStorPoolRscOnNode(testNodeName);
+    }
+
+    /**
+     * Creates the {@link #SHARED_RSC_NAME} resource on the given node and flags it INACTIVE. The
+     * rsc-dfn and the shared storage pools have to exist already (see
+     * {@link #createInactiveSharedStorPoolRsc()}).
+     */
+    private Resource createInactiveSharedStorPoolRscOnNode(NodeName nodeName) throws Exception
+    {
         enterScope();
         Map<String, String> rscProps = new TreeMap<>();
-        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, sharedSpName.displayValue);
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, SHARED_SP_NAME);
         ctrlRscCrtApiHelper.createResourceDb(
-            testNodeName.displayValue,
+            nodeName.displayValue,
             SHARED_RSC_NAME,
             0L,
             rscProps,
@@ -600,12 +804,37 @@ public class RscMakeAvailableApiTest extends ApiTestBase
         );
         commitAndCleanUp(true);
 
-        Resource rsc = testSatelliteNode.getResource(new ResourceName(SHARED_RSC_NAME));
+        Resource rsc = nodesMap.get(nodeName).getResource(new ResourceName(SHARED_RSC_NAME));
         enterScope();
         rsc.getStateFlags().enableFlags(Resource.Flags.INACTIVE);
         commitAndCleanUp(true);
 
         return rsc;
+    }
+
+    /**
+     * Creates a snapshot definition with a single snapshot (including its snapshot volume, so the
+     * snapshot records the storage pools its data lives on) on the given resource's node.
+     */
+    private SnapshotDefinition createSnapshotOnNode(Resource rsc, String snapNameRef) throws Exception
+    {
+        enterScope();
+        SnapshotDefinition snapDfn = snapshotDefinitionFactory.create(
+            rsc.getResourceDefinition(),
+            new SnapshotName(snapNameRef),
+            new SnapshotDefinition.Flags[] {SnapshotDefinition.Flags.SUCCESSFUL}
+        );
+        SnapshotVolumeDefinition snapVlmDfn = snapshotVolumeDefinitionFactory.create(
+            snapDfn,
+            rsc.getResourceDefinition().getVolumeDfn(new VolumeNumber(0)),
+            100 * 1024L,
+            new SnapshotVolumeDefinition.Flags[0]
+        );
+        Snapshot snap = snapshotFactory.create(rsc, snapDfn, new Snapshot.Flags[] {});
+        snapshotVolumeFactory.create(rsc, snap, snapVlmDfn);
+        commitAndCleanUp(true);
+
+        return snapDfn;
     }
 
     private void addStorPool() throws Exception

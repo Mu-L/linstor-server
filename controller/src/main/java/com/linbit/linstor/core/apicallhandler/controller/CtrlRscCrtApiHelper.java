@@ -38,6 +38,7 @@ import com.linbit.linstor.core.objects.Resource.Flags;
 import com.linbit.linstor.core.objects.ResourceControllerFactory;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.Snapshot;
+import com.linbit.linstor.core.objects.SnapshotDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
@@ -122,6 +123,7 @@ public class CtrlRscCrtApiHelper
     private final CtrlRscLayerDataFactory layerDataHelper;
     private final Provider<CtrlRscToggleDiskApiCallHandler> toggleDiskHelper;
     private final SharedResourceManager sharedRscMgr;
+    private final CtrlSnapshotCrtHelper ctrlSnapCrtHelper;
     private final BackupInfoManager backupInfoMgr;
     private final ScheduleBackupService scheduleBackupService;
     private final CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandler;
@@ -148,6 +150,7 @@ public class CtrlRscCrtApiHelper
         CtrlRscLayerDataFactory layerDataHelperRef,
         Provider<CtrlRscToggleDiskApiCallHandler> toggleDiskHelperRef,
         SharedResourceManager sharedRscMgrRef,
+        CtrlSnapshotCrtHelper ctrlSnapCrtHelperRef,
         BackupInfoManager backupInfoMgrRef,
         ScheduleBackupService scheduleBackupServiceRef,
         CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandlerRef,
@@ -173,6 +176,7 @@ public class CtrlRscCrtApiHelper
         layerDataHelper = layerDataHelperRef;
         toggleDiskHelper = toggleDiskHelperRef;
         sharedRscMgr = sharedRscMgrRef;
+        ctrlSnapCrtHelper = ctrlSnapCrtHelperRef;
         backupInfoMgr = backupInfoMgrRef;
         scheduleBackupService = scheduleBackupServiceRef;
         ctrlRscActivateApiCallHandler = ctrlRscActivateApiCallHandlerRef;
@@ -580,6 +584,18 @@ public class CtrlRscCrtApiHelper
             !sharedRscMgr.isActivationAllowed(rsc))
         {
             autoFlux.add(ctrlRscActivateApiCallHandler.deactivateRsc(nodeNameStr, rscNameStr));
+        }
+
+        // a copy of a shared-SP resource also holds all snapshots of the resource-definition (the
+        // snapshot data lives once on the shared pool): create the per-node snapshot objects for the
+        // new copy and push them to its satellite, which otherwise would not know about the snapshots
+        // (and e.g. restore an empty volume instead of the snapshot) until its next full sync
+        List<SnapshotDefinition> newSnapObjs = ctrlSnapCrtHelper.ensureSnapshotObjectsPresent(rsc);
+        if (!newSnapObjs.isEmpty())
+        {
+            autoFlux.add(
+                ctrlSnapCrtHelper.updateSatellitesForNewSnapshotObjects(rsc.getResourceDefinition(), newSnapObjs)
+            );
         }
 
         return new PairNonNull<>(autoFlux, new ApiCallRcWith<>(responses, rsc));
