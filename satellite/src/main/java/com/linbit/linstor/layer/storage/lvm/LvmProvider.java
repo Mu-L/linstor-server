@@ -231,10 +231,28 @@ public class LvmProvider
              * implicitly also activates its origin, which "lvremove <snapshot>" would leave active - fatal
              * for INACTIVE resources in shared storage pools. lvremove works on inactive LVs anyways.
              */
-            setDevicePath = !snapVlmData.getRscLayerObject()
-                .getAbsResource()
-                .getFlags()
-                .isSet(Snapshot.Flags.DELETE);
+            Snapshot snap = snapVlmData.getRscLayerObject().getAbsResource();
+            setDevicePath = !snap.getFlags().isSet(Snapshot.Flags.DELETE);
+
+            if (setDevicePath && snapVlmData.getStorPool().isShared())
+            {
+                /*
+                 * Every copy of a shared storage pool resource holds the snapshot objects, but only the
+                 * node with the active copy may activate the snapshot LV: activating a thick snapshot
+                 * implicitly also activates its origin, interfering with the peer actively using the
+                 * shared volume. The same applies when this node holds no copy at all (e.g. it was
+                 * deleted while the snapshot remains).
+                 */
+                @Nullable Resource localRsc = snap.getResourceDefinition().getResource(snap.getNodeName());
+                if (localRsc == null ||
+                    localRsc.getStateFlags().isSomeSet(
+                        Resource.Flags.INACTIVE,
+                        Resource.Flags.INACTIVE_PERMANENTLY
+                    ))
+                {
+                    setDevicePath = false;
+                }
+            }
 
             lvcreateOptions = getLvcreateSnapshotOptions(vlmDataRef);
         }

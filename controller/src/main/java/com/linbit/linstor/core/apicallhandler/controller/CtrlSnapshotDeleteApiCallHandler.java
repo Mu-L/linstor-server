@@ -9,6 +9,7 @@ import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.backupshipping.BackupShippingUtils;
 import com.linbit.linstor.core.BackupInfoManager;
+import com.linbit.linstor.core.SharedResourceManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
@@ -21,6 +22,7 @@ import com.linbit.linstor.core.apicallhandler.response.ResponseConverter;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.SnapshotName;
+import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.core.objects.SnapshotDefinition;
@@ -63,6 +65,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     private final CtrlPropsHelper propsHelper;
     private final ErrorReporter errorReporter;
     private final BackupInfoManager backupInfoMgr;
+    private final SharedResourceManager sharedRscMgr;
     // Provider breaks a Guice construction cycle:
     // CtrlRscDfnDeleteApiCallHandler -> CtrlRscDfnTruncateApiCallHandler -> AutoSnapshotTask ->
     // CtrlSnapshotCrtApiCallHandler -> CtrlSnapshotDeleteApiCallHandler -> (here)
@@ -79,6 +82,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
         CtrlPropsHelper propsHelperRef,
         ErrorReporter errorReporterRef,
         BackupInfoManager backupInfoMgrRef,
+        SharedResourceManager sharedRscMgrRef,
         Provider<CtrlRscDfnDeleteApiCallHandler> ctrlRscDfnDeleteApiCallHandlerProviderRef
     )
     {
@@ -91,6 +95,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
         propsHelper = propsHelperRef;
         errorReporter = errorReporterRef;
         backupInfoMgr = backupInfoMgrRef;
+        sharedRscMgr = sharedRscMgrRef;
         ctrlRscDfnDeleteApiCallHandlerProvider = ctrlRscDfnDeleteApiCallHandlerProviderRef;
     }
 
@@ -229,16 +234,69 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
         }
         ensureSnapshotNotQueued(snapshotDfn);
 
+        Flux<ApiCallRc> phase2Flux = Flux.empty();
         if (nodeNamesStrListRef == null || nodeNamesStrListRef.isEmpty())
         {
-            markSnapshotDfnDeleted(snapshotDfn);
+            /*
+             * Snapshots in shared storage pools exist once on the shared data but are registered on
+             * every node holding a copy of the resource. Only the node with the active copy may remove
+             * the backing snapshot (an inactive node's lvremove would interfere with the active peer's
+             * kernel mappings, e.g. thick LVM activates origin and snapshots together), so the deletion
+             * is staggered: the "executor" snapshots are deleted first, the remaining per-node objects
+             * afterwards - their satellites then find the backing snapshot already gone.
+             */
+            List<Snapshot> deferredSnaps = new ArrayList<>();
+            List<Snapshot> executorSnaps = new ArrayList<>();
             for (Snapshot snapshot : getAllSnapshots(snapshotDfn))
             {
-                responses.addEntry(
-                    "Marked snapshot for deletion " + getSnapshotDescriptionInline(snapshot),
-                    ApiConsts.DELETED
-                );
-                markSnapshotDeleted(snapshot);
+                @Nullable Resource rsc = snapshotDfn.getResourceDefinition()
+                    .getResource(snapshot.getNodeName());
+                boolean deferred;
+                if (rsc != null)
+                {
+                    deferred = sharedRscMgr.isInactiveShared(rsc);
+                }
+                else
+                {
+                    // no resource on the snapshot's node: defer if the snapshot lives on a shared
+                    // pool and another node holds the active copy (the executor)
+                    deferred = sharedRscMgr.isBackedBySharedStorPool(snapshot);
+                }
+                if (deferred)
+                {
+                    deferredSnaps.add(snapshot);
+                }
+                else
+                {
+                    executorSnaps.add(snapshot);
+                }
+            }
+
+            if (executorSnaps.isEmpty() || deferredSnaps.isEmpty())
+            {
+                // no active copy at all (nothing holds kernel mappings, any node may delete) or
+                // nothing to defer: delete everything at once
+                markSnapshotDfnDeleted(snapshotDfn);
+                for (Snapshot snapshot : getAllSnapshots(snapshotDfn))
+                {
+                    responses.addEntry(
+                        "Marked snapshot for deletion " + getSnapshotDescriptionInline(snapshot),
+                        ApiConsts.DELETED
+                    );
+                    markSnapshotDeleted(snapshot);
+                }
+            }
+            else
+            {
+                for (Snapshot snapshot : executorSnaps)
+                {
+                    responses.addEntry(
+                        "Marked snapshot for deletion " + getSnapshotDescriptionInline(snapshot),
+                        ApiConsts.DELETED
+                    );
+                    markSnapshotDeleted(snapshot);
+                }
+                phase2Flux = deleteDeferredSharedSnapshots(rscName, snapshotName);
             }
         }
         else
@@ -291,7 +349,75 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
         ctrlTransactionHelper.commit();
 
         return Flux.<ApiCallRc>just(responses)
-            .concatWith(deleteSnapshotsOnNodes(rscName, snapshotName));
+            .concatWith(deleteSnapshotsOnNodes(rscName, snapshotName))
+            .concatWith(phase2Flux);
+    }
+
+    /**
+     * Second phase of a staggered shared-SP snapshot deletion: once the executor node removed the
+     * backing snapshot (and its per-node objects are gone), the remaining per-node snapshot objects
+     * are deleted as well - their satellites find the backing snapshot already removed.
+     */
+    private Flux<ApiCallRc> deleteDeferredSharedSnapshots(ResourceName rscName, SnapshotName snapshotName)
+    {
+        return scopeRunner.fluxInTransactionalScope(
+            "Delete deferred shared snapshots",
+            lockGuardFactory.buildDeferred(LockType.WRITE, LockObj.RSC_DFN_MAP),
+            () -> deleteDeferredSharedSnapshotsInTransaction(rscName, snapshotName),
+            MDC.getCopyOfContextMap()
+        );
+    }
+
+    private Flux<ApiCallRc> deleteDeferredSharedSnapshotsInTransaction(
+        ResourceName rscName,
+        SnapshotName snapshotName
+    )
+    {
+        Flux<ApiCallRc> flux = Flux.empty();
+        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapshotName, false);
+        if (snapshotDfn != null)
+        {
+            boolean executorPending = false;
+            for (Snapshot snapshot : getAllSnapshots(snapshotDfn))
+            {
+                if (isFlagSet(snapshot, Snapshot.Flags.DELETE))
+                {
+                    executorPending = true;
+                    break;
+                }
+            }
+            if (executorPending)
+            {
+                // the executor could not confirm the deletion of the backing snapshot (e.g. satellite
+                // offline or failed): keep the remaining per-node objects, a retry of the deletion
+                // cleans them up once the backing snapshot is gone
+                flux = Flux.just(
+                    ApiCallRcImpl.singleApiCallRc(
+                        ApiConsts.WARN_NOT_CONNECTED,
+                        "Deletion of the backing snapshot was not confirmed yet; the snapshot " +
+                            "objects of the remaining nodes are kept until the deletion is retried"
+                    )
+                );
+            }
+            else
+            {
+                ApiCallRcImpl responses = new ApiCallRcImpl();
+                markSnapshotDfnDeleted(snapshotDfn);
+                for (Snapshot snapshot : getAllSnapshots(snapshotDfn))
+                {
+                    responses.addEntry(
+                        "Marked snapshot for deletion " + getSnapshotDescriptionInline(snapshot),
+                        ApiConsts.DELETED
+                    );
+                    markSnapshotDeleted(snapshot);
+                }
+                ctrlTransactionHelper.commit();
+
+                flux = Flux.<ApiCallRc>just(responses)
+                    .concatWith(deleteSnapshotsOnNodes(rscName, snapshotName));
+            }
+        }
+        return flux;
     }
 
     private void ensureSnapshotNotQueued(SnapshotDefinition snapDfn)

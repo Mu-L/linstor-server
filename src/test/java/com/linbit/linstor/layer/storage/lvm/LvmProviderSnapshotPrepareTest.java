@@ -26,6 +26,7 @@ import com.linbit.linstor.layer.storage.lvm.utils.LvmUtils;
 import com.linbit.linstor.propscon.ReadOnlyPropsImpl;
 import com.linbit.linstor.security.GenericDbBase;
 import com.linbit.linstor.storage.StorageConstants;
+import com.linbit.linstor.test.factories.StorPoolTestFactory;
 import com.linbit.linstor.storage.interfaces.categories.resource.VlmProviderObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.storage.kinds.DeviceProviderKind;
@@ -59,6 +60,7 @@ public class LvmProviderSnapshotPrepareTest extends GenericDbBase
     private static final String RSC_NAME_STR = "rsc";
     private static final String SNAP_NAME_STR = "snap";
     private static final String SP_NAME_STR = "lvmSp";
+    private static final String SHARED_SPACE_NAME = "SharedSpace";
     private static final String RSC_LV_ID = "rsc_00000";
     private static final String SNAP_LV_ID = "rsc_00000_snap";
     private static final long VLM_SIZE_IN_KIB = 4096L;
@@ -106,13 +108,27 @@ public class LvmProviderSnapshotPrepareTest extends GenericDbBase
         );
 
         vg = "vg_" + testMethodName.getMethodName();
+    }
 
+    /**
+     * Creates the {@link #RSC_NAME_STR} resource with one volume and a snapshot of it.
+     *
+     * @param sharedSp whether the backing storage pool belongs to a shared space
+     * @param rscInactive whether the resource is flagged INACTIVE
+     */
+    private void createScenario(boolean sharedSp, boolean rscInactive) throws Exception
+    {
         Resource rsc = resourceTestFactory.builder(NODE_NAME_STR, RSC_NAME_STR)
             .setLayerStack(Collections.singletonList(DeviceLayerKind.STORAGE))
             .build();
-        StorPool storPool = storPoolTestFactory.builder(NODE_NAME_STR, SP_NAME_STR)
-            .setDriverKind(DeviceProviderKind.LVM)
-            .build();
+        StorPoolTestFactory.StorPoolBuilder storPoolBuilder = storPoolTestFactory
+            .builder(NODE_NAME_STR, SP_NAME_STR)
+            .setDriverKind(DeviceProviderKind.LVM);
+        if (sharedSp)
+        {
+            storPoolBuilder.setFreeSpaceMgrName(SHARED_SPACE_NAME);
+        }
+        StorPool storPool = storPoolBuilder.build();
         storPool.getProps().setProp(
             StorageConstants.CONFIG_LVM_VOLUME_GROUP_KEY,
             vg,
@@ -122,7 +138,10 @@ public class LvmProviderSnapshotPrepareTest extends GenericDbBase
             .setSize(VLM_SIZE_IN_KIB)
             .setStorPoolData(storPool)
             .build();
-        rsc.getStateFlags().enableFlags(Resource.Flags.INACTIVE);
+        if (rscInactive)
+        {
+            rsc.getStateFlags().enableFlags(Resource.Flags.INACTIVE);
+        }
 
         SnapshotDefinition snapDfn = snapshotDefinitionFactory.create(
             rsc.getResourceDefinition(),
@@ -144,6 +163,7 @@ public class LvmProviderSnapshotPrepareTest extends GenericDbBase
     @Test
     public void prepareDoesNotActivateSnapshotFlaggedForDeletion() throws Exception
     {
+        createScenario(false, true);
         snap.getFlags().enableFlags(Snapshot.Flags.DELETE);
         expectPrepareCommands();
 
@@ -160,6 +180,39 @@ public class LvmProviderSnapshotPrepareTest extends GenericDbBase
     {
         // without the DELETE flag a known but inactive snapshot has to be re-activated (e.g. after a
         // satellite reboot) since snapshot restore and backup shipping require an active snapshot LV
+        createScenario(false, true);
+        expectPrepareCommands();
+        expect(lvchangeActivateCommand(SNAP_LV_ID), "");
+
+        lvmProvider.prepare(Collections.emptyList(), Collections.singletonList(snapVlmData));
+
+        assertThat(extCmd.getUncalledCommands()).isEmpty();
+        assertThat(snapVlmData.exists()).isTrue();
+    }
+
+    @Test
+    public void prepareDoesNotActivateSnapshotOfInactiveSharedSpCopy() throws Exception
+    {
+        // every copy of a shared-SP resource holds the snapshot objects, but an inactive copy's node
+        // must not activate the snapshot LV: activating a thick snapshot implicitly activates its
+        // origin, interfering with the peer actively using the shared volume
+        createScenario(true, true);
+        expect(vgscanCommand(), "");
+        expectPrepareCommands();
+
+        lvmProvider.prepare(Collections.emptyList(), Collections.singletonList(snapVlmData));
+
+        assertThat(extCmd.getUncalledCommands()).isEmpty();
+        assertThat(snapVlmData.exists()).isTrue();
+        assertThat(snapVlmData.getDevicePath()).isNull();
+    }
+
+    @Test
+    public void prepareReactivatesSnapshotOfActiveSharedSpCopy() throws Exception
+    {
+        // the node using the shared volume manages the snapshots: reactivation stays allowed there
+        createScenario(true, false);
+        expect(vgscanCommand(), "");
         expectPrepareCommands();
         expect(lvchangeActivateCommand(SNAP_LV_ID), "");
 
@@ -189,6 +242,16 @@ public class LvmProviderSnapshotPrepareTest extends GenericDbBase
     private void expect(String[] argv, String stdOut)
     {
         extCmd.setExpectedBehavior(new Command(argv), new TestOutputData(argv, stdOut, "", 0));
+    }
+
+    private String[] vgscanCommand()
+    {
+        return new String[]
+        {
+            "vgscan", "-qq",
+            "--cache",
+            "--config", "devices { ignore_suspended_devices=1 }"
+        };
     }
 
     private String[] pvDisplayCommand()

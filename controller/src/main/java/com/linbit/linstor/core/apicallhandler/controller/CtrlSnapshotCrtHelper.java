@@ -6,6 +6,7 @@ import com.linbit.drbd.md.MdException;
 import com.linbit.drbd.md.MetaData;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
+import com.linbit.linstor.LinstorParsingUtils;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
@@ -60,10 +61,12 @@ import javax.inject.Singleton;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import reactor.core.publisher.Flux;
 
@@ -169,6 +172,13 @@ public class CtrlSnapshotCrtHelper
                     {
                         warnNodeOffline(rscName.displayValue, responses, rsc.getNode().getName().displayValue);
                     }
+                    else if (sharedRscMgr.isInactiveShared(rsc))
+                    {
+                        // only the active copy takes the snapshot of the shared data, but every copy
+                        // of a shared storage pool also holds the snapshot: register the objects here
+                        // as well (see takeSnapshot, which skips inactive shared copies)
+                        createSnapshotOnNode(snapshotDfn, snapshotVolumeDefinitions, rsc);
+                    }
                     else
                     {
                         Snapshot snap = createSnapshotOnNode(snapshotDfn, snapshotVolumeDefinitions, rsc);
@@ -202,6 +212,23 @@ public class CtrlSnapshotCrtHelper
                     Snapshot snap = createSnapshotOnNode(snapshotDfn, snapshotVolumeDefinitions, rsc);
                     setNodeIds(rsc, snap);
                     resourceFound = true;
+                }
+            }
+
+            // every copy of a shared storage pool also holds the snapshot data: register the snapshot
+            // objects on all copies sharing a storage pool with a snapshotted resource, even if their
+            // nodes were not requested
+            Iterator<Resource> sharedRscIterator = ctrlSnapshotHelper.iterateResource(rscDfn);
+            while (sharedRscIterator.hasNext())
+            {
+                Resource rsc = sharedRscIterator.next();
+                if (!isDisklessPrivileged(rsc) &&
+                    snapshotDfn.getSnapshot(rsc.getNode().getName()) == null &&
+                    !isEvacuatingPrivileged(rsc) &&
+                    isNodeOnline(rsc) &&
+                    sharedRscMgr.findSnapshotOnSharedSp(snapshotDfn, rsc) != null)
+                {
+                    createSnapshotOnNode(snapshotDfn, snapshotVolumeDefinitions, rsc);
                 }
             }
         }
@@ -539,6 +566,121 @@ public class CtrlSnapshotCrtHelper
             Resource.Flags.EBS_INITIATOR
         );
         return isDiskless;
+    }
+
+    /**
+     * Returns the resources that have to be activated before a snapshot of the given resource-definition
+     * can be created: one for every shared storage pool backing the resource-definition where currently no
+     * copy is active. The chosen resource must be activatable and its satellite online.
+     *
+     * @param nodeNameStrs if not empty, resources on these nodes are preferred, since the snapshot
+     *     was requested there
+     *
+     * @throws ApiRcException {@link ApiConsts#FAIL_ONLY_ONE_ACT_RSC_PER_SHARED_STOR_POOL_ALLOWED} if all
+     *     copies of a shared storage pool are inactive but none of them can be activated
+     */
+    public List<Resource> findSharedRscsToActivate(ResourceName rscName, Collection<String> nodeNameStrs)
+    {
+        final ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+        Set<NodeName> requestedNodes = new HashSet<>();
+        for (String nodeNameStr : nodeNameStrs)
+        {
+            requestedNodes.add(LinstorParsingUtils.asNodeName(nodeNameStr));
+        }
+
+        List<Resource> ret = new ArrayList<>();
+        Set<Resource> visited = new HashSet<>();
+        Iterator<Resource> rscIterator = rscDfn.iterateResource();
+        while (rscIterator.hasNext())
+        {
+            Resource rsc = rscIterator.next();
+            if (
+                !visited.contains(rsc) && !isDisklessPrivileged(rsc) &&
+                    sharedRscMgr.isBackedBySharedStorPool(rsc)
+            )
+            {
+                TreeSet<Resource> sharedGroup = sharedRscMgr.getSharedResources(rsc);
+                sharedGroup.add(rsc);
+                visited.addAll(sharedGroup);
+
+                boolean anyActive = false;
+                for (Resource sharedRsc : sharedGroup)
+                {
+                    if (
+                        !sharedRsc.getStateFlags().isSomeSet(
+                            Resource.Flags.INACTIVE,
+                            Resource.Flags.INACTIVE_PERMANENTLY
+                        )
+                    )
+                    {
+                        anyActive = true;
+                        break;
+                    }
+                }
+                if (!anyActive)
+                {
+                    ret.add(findRscToActivate(sharedGroup, requestedNodes, rscName));
+                }
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Picks the resource of an all-inactive shared group that should be activated, preferring resources
+     * on the given requested nodes.
+     *
+     * @throws ApiRcException {@link ApiConsts#FAIL_ONLY_ONE_ACT_RSC_PER_SHARED_STOR_POOL_ALLOWED} if none
+     *     of the resources can be activated
+     */
+    private Resource findRscToActivate(
+        TreeSet<Resource> sharedGroup,
+        Set<NodeName> requestedNodes,
+        ResourceName rscName
+    )
+    {
+        @Nullable Resource candidate = null;
+        for (Resource sharedRsc : sharedGroup)
+        {
+            if (
+                !sharedRsc.getStateFlags().isSet(Resource.Flags.INACTIVE_PERMANENTLY) &&
+                    !isDisklessPrivileged(sharedRsc) &&
+                    !isEvacuatingPrivileged(sharedRsc) &&
+                    isNodeOnline(sharedRsc)
+            )
+            {
+                boolean requested = requestedNodes.isEmpty() ||
+                    requestedNodes.contains(sharedRsc.getNode().getName());
+                if (requested)
+                {
+                    candidate = sharedRsc;
+                    break;
+                }
+                if (candidate == null)
+                {
+                    candidate = sharedRsc;
+                }
+            }
+        }
+        if (candidate == null)
+        {
+            throw new ApiRcException(
+                ApiCallRcImpl.entryBuilder(
+                    ApiConsts.FAIL_ONLY_ONE_ACT_RSC_PER_SHARED_STOR_POOL_ALLOWED,
+                    "Cannot create snapshot of resource '" + rscName.displayValue +
+                        "' since all of its resources in a shared storage pool are inactive " +
+                        "and none of them can be activated"
+                )
+                    .setCause(
+                        "Snapshotting shared data requires an active resource, but no inactive copy " +
+                            "is activatable: the node has to be online and not evacuating."
+                    )
+                    .setCorrection("Activate one of the resources first.")
+                    .setSkipErrorReport(true)
+                    .build()
+            );
+        }
+        return candidate;
     }
 
     private boolean isNodeOnline(Resource rsc)

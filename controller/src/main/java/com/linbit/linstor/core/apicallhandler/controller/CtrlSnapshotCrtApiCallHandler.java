@@ -13,6 +13,7 @@ import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.backupshipping.BackupShippingUtils;
 import com.linbit.linstor.core.BackgroundRunner;
 import com.linbit.linstor.core.BackgroundRunner.RunConfig;
+import com.linbit.linstor.core.SharedResourceManager;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.internal.helpers.AtomicUpdateSatelliteData;
@@ -86,6 +87,8 @@ public class CtrlSnapshotCrtApiCallHandler
     private final CtrlSnapshotDeleteApiCallHandler ctrlSnapshotDeleteApiCallHandler;
     private final EbsStatusManagerService ebsStatusMgr;
     private final BackgroundRunner backgroundRunner;
+    private final CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandler;
+    private final SharedResourceManager sharedRscMgr;
 
     @Inject
     public CtrlSnapshotCrtApiCallHandler(
@@ -100,7 +103,9 @@ public class CtrlSnapshotCrtApiCallHandler
         ErrorReporter errorReporterRef,
         CtrlSnapshotDeleteApiCallHandler ctrlSnapshotDeleteApiCallHandlerRef,
         EbsStatusManagerService ebsStatusManagerServiceRef,
-        BackgroundRunner backgroundRunnerRef
+        BackgroundRunner backgroundRunnerRef,
+        CtrlRscActivateApiCallHandler ctrlRscActivateApiCallHandlerRef,
+        SharedResourceManager sharedRscMgrRef
     )
     {
         scopeRunner = scopeRunnerRef;
@@ -115,6 +120,8 @@ public class CtrlSnapshotCrtApiCallHandler
         ctrlSnapshotDeleteApiCallHandler = ctrlSnapshotDeleteApiCallHandlerRef;
         ebsStatusMgr = ebsStatusManagerServiceRef;
         backgroundRunner = backgroundRunnerRef;
+        ctrlRscActivateApiCallHandler = ctrlRscActivateApiCallHandlerRef;
+        sharedRscMgr = sharedRscMgrRef;
     }
 
     /**
@@ -183,12 +190,21 @@ public class CtrlSnapshotCrtApiCallHandler
     {
         Flux<ApiCallRc> fluxInTransactionalScope = scopeRunner
             .fluxInTransactionalScope(
-                "Create (multi) snapshot",
+                "Activate shared resources for snapshot",
                 lockGuardFactory.create()
-                    .read(LockObj.NODES_MAP)
-                    .write(LockObj.RSC_DFN_MAP)
+                    .read(LockObj.NODES_MAP, LockObj.RSC_DFN_MAP)
                     .buildDeferred(),
-                () -> createSnapshotInTransaction(req)
+                () -> activateSharedRscsInScope(req)
+            )
+            .concatWith(
+                scopeRunner.fluxInTransactionalScope(
+                    "Create (multi) snapshot",
+                    lockGuardFactory.create()
+                        .read(LockObj.NODES_MAP)
+                        .write(LockObj.RSC_DFN_MAP)
+                        .buildDeferred(),
+                    () -> createSnapshotInTransaction(req)
+                )
             );
         if (handleErrors)
         {
@@ -198,6 +214,55 @@ public class CtrlSnapshotCrtApiCallHandler
         }
         return fluxInTransactionalScope;
 
+    }
+
+    /**
+     * Snapshots of resources backed by a shared storage pool are only created on the node with the active
+     * resource. If no copy of a shared storage pool is active at all, one is activated here before the
+     * snapshot objects are created.
+     */
+    private Flux<ApiCallRc> activateSharedRscsInScope(CreateMultiSnapRequest req)
+    {
+        Flux<ApiCallRc> flux = Flux.empty();
+        for (SnapReq snapReq : req.getSnapRequests())
+        {
+            flux = flux.concatWith(activateSharedRscsInScope(snapReq.getRscName(), snapReq.getNodeNames()));
+        }
+        return flux;
+    }
+
+    /**
+     * Scoped variant of {@link #activateSharedRscsInScope(CreateMultiSnapRequest)} for snapshot-based
+     * operations outside of snapshot create (e.g. rollback, which needs an active copy for its
+     * safety-snapshot and the rollback itself).
+     */
+    public Flux<ApiCallRc> activateSharedRscs(String rscNameStr, List<String> nodeNameStrs)
+    {
+        return scopeRunner.fluxInTransactionalScope(
+            "Activate shared resources for snapshot",
+            lockGuardFactory.create()
+                .read(LockObj.NODES_MAP, LockObj.RSC_DFN_MAP)
+                .buildDeferred(),
+            () -> activateSharedRscsInScope(rscNameStr, nodeNameStrs)
+        );
+    }
+
+    private Flux<ApiCallRc> activateSharedRscsInScope(String rscNameStr, List<String> nodeNameStrs)
+    {
+        Flux<ApiCallRc> flux = Flux.empty();
+        for (Resource rsc : ctrlSnapshotCrtHelper.findSharedRscsToActivate(
+            LinstorParsingUtils.asRscName(rscNameStr),
+            nodeNameStrs
+        ))
+        {
+            flux = flux.concatWith(
+                ctrlRscActivateApiCallHandler.activateRsc(
+                    rsc.getNode().getName().displayValue,
+                    rsc.getResourceDefinition().getName().displayValue
+                )
+            );
+        }
+        return flux;
     }
 
     private Flux<ApiCallRc> createSnapshotInTransaction(CreateMultiSnapRequest req)
@@ -706,7 +771,13 @@ public class CtrlSnapshotCrtApiCallHandler
         {
             for (Snapshot snapshot : allSnapshots)
             {
-                setTakeSnapshotPrivileged(snapshot, true);
+                @Nullable Resource rsc = snapshot.getResourceDefinition().getResource(snapshot.getNodeName());
+                if (rsc == null || !sharedRscMgr.isInactiveShared(rsc))
+                {
+                    // an inactive copy of a shared storage pool holds the snapshot objects, but the
+                    // snapshot of the shared data is only taken by the node with the active copy
+                    setTakeSnapshotPrivileged(snapshot, true);
+                }
             }
             ctrlTransactionHelper.commit();
 
