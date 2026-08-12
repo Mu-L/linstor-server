@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed a DRBD resource deletion that was interrupted after the "prepare deletion" step (e.g. by a satellite
+  disconnect or a controller restart) being stuck forever: the resource stayed in the intermediate DRBD_DELETE
+  state, leaving an orphaned backing volume on the node and its DRBD peers endlessly trying to connect. The
+  deletion is now automatically resumed once all nodes of the resource-definition are connected again
 - Fixed make-available for a resource in a shared storage pool failing with "No active resource found" when no
   resource of that shared storage pool was active anywhere (e.g. after cleanly stopping the consumer): the resource is
   now created on the requested node reusing the shared data, ending with a usable (active) resource

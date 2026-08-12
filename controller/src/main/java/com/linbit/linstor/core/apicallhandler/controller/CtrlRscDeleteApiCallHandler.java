@@ -123,6 +123,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
     {
         List<Flux<ApiCallRc>> fluxes = new ArrayList<>();
         Set<NodeName> nodeNamesToDelete = new TreeSet<>();
+        Set<NodeName> nodeNamesToResumeDrbdDelete = new TreeSet<>();
 
         Iterator<Resource> rscIter = rscDfn.iterateResource();
         while (rscIter.hasNext())
@@ -130,11 +131,17 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
             Resource rsc = rscIter.next();
             if (
                 !rsc.getNode().getFlags().isSet(Node.Flags.DELETE) &&
-                !rscDfn.getFlags().isSet(ResourceDefinition.Flags.DELETE) &&
-                rsc.getStateFlags().isSet(Resource.Flags.DELETE)
+                !rscDfn.getFlags().isSet(ResourceDefinition.Flags.DELETE)
             )
             {
-                nodeNamesToDelete.add(rsc.getNode().getName());
+                if (rsc.getStateFlags().isSet(Resource.Flags.DELETE))
+                {
+                    nodeNamesToDelete.add(rsc.getNode().getName());
+                }
+                else if (rsc.getStateFlags().isSet(Resource.Flags.DRBD_DELETE))
+                {
+                    nodeNamesToResumeDrbdDelete.add(rsc.getNode().getName());
+                }
             }
         }
 
@@ -148,8 +155,74 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
                 )
             );
         }
+        for (NodeName nodeName : nodeNamesToResumeDrbdDelete)
+        {
+            fluxes.add(resumeDrbdDelete(contextRef, nodeName, rscDfn.getName()));
+        }
 
         return fluxes;
+    }
+
+    /**
+     * Restart from here when connection established and DRBD_DELETE (but not DELETE) flag set.
+     * <p>
+     * The DRBD_DELETE flag is persisted, but the flux continuing with the remaining deletion steps only
+     * exists in memory. If the satellite connection is lost or the controller is restarted after the
+     * DRBD_DELETE commit but before the satellite confirmed the DRBD teardown, the resource would
+     * otherwise remain in the DRBD_DELETE state indefinitely.
+     */
+    private Flux<ApiCallRc> resumeDrbdDelete(
+        ResponseContext context,
+        NodeName nodeName,
+        ResourceName rscName
+    )
+    {
+        return scopeRunner
+            .fluxInTransactionlessScope(
+                "Resume DRBD-delete of resource",
+                LockGuard.createDeferred(rscDfnMapLock.readLock()),
+                () -> resumeDrbdDeleteInScope(context, nodeName, rscName)
+            )
+            .transform(responses -> responseConverter.reportingExceptions(context, responses));
+    }
+
+    private Flux<ApiCallRc> resumeDrbdDeleteInScope(
+        ResponseContext context,
+        NodeName nodeName,
+        ResourceName rscName
+    )
+    {
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, false);
+
+        Flux<ApiCallRc> flux;
+        if (rsc == null || !rsc.getStateFlags().isSet(Resource.Flags.DRBD_DELETE))
+        {
+            flux = Flux.empty();
+        }
+        else
+        {
+            errorReporter.logInfo(
+                "Resuming interrupted deletion of resource %s/%s (DRBD cleanup step)",
+                nodeName,
+                rscName
+            );
+
+            Flux<ApiCallRc> next = deleteResourceOnPeers(nodeName.displayValue, rscName.displayValue, context);
+            flux = ctrlSatelliteUpdateCaller.updateSatellites(rsc, next)
+                .transform(
+                    updateResponses -> CtrlResponseUtils.combineResponses(
+                        errorReporter,
+                        updateResponses,
+                        rscName,
+                        Collections.singleton(nodeName),
+                        "Preparing deletion of resource on {0}",
+                        "Preparing deletion of resource on {0}"
+                    )
+                )
+                .concatWith(next)
+                .onErrorResume(CtrlResponseUtils.DelayedApiRcException.class, ignored -> Flux.empty());
+        }
+        return flux;
     }
 
     public Flux<ApiCallRc> deleteResource(String nodeNameStr, String rscNameStr)

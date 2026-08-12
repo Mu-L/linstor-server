@@ -3,10 +3,13 @@ package com.linbit.linstor.api;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.api.utils.AbsApiCallTester;
 import com.linbit.linstor.core.ApiTestBase;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlRscApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscCrtApiHelper;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscDeleteApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscDfnDeleteApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.FreeCapacityFetcher;
+import com.linbit.linstor.core.apicallhandler.response.ApiOperation;
+import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
 import com.linbit.linstor.core.identifier.StorPoolName;
@@ -19,6 +22,7 @@ import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.netcom.Peer;
+import com.linbit.linstor.netcom.PeerClosingConnectionException;
 import com.linbit.linstor.satellitestate.SatelliteResourceState;
 import com.linbit.linstor.satellitestate.SatelliteState;
 import com.linbit.linstor.storage.interfaces.layers.drbd.DrbdRscDfnObject.TransportType;
@@ -30,6 +34,7 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -40,6 +45,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import reactor.core.publisher.Flux;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -256,6 +262,77 @@ public class RscDeleteApiTest extends ApiTestBase
     }
 
     @Test
+    public void reconnectResumesDrbdDeleteMarkedResource() throws Exception
+    {
+        Mockito.when(mockPeer.isOnline()).thenReturn(true);
+        setSatelliteOnline(mockSatellite, true);
+
+        createStorPool(testSatelliteNode, testStorPoolName, DeviceProviderKind.LVM);
+        createRscOnNode(TEST_NODE_NAME, 0L, TEST_SP_NAME);
+
+        // the satellite connection dies while the DRBD-delete update is in flight, taking the
+        // in-memory continuation of the deletion with it
+        Mockito.when(mockSatellite.apiCall(Mockito.anyString(), Mockito.any()))
+            .thenReturn(Flux.error(new PeerClosingConnectionException()));
+
+        evaluateTest(new DeleteRscCall(), false);
+
+        // the deletion is now stuck in the intermediate DRBD_DELETE state
+        Resource rsc = testSatelliteNode.getResource(testRscName);
+        assertThat(rsc).isNotNull();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.DRBD_DELETE)).isTrue();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.DELETE)).isFalse();
+        Iterator<Volume> vlmIt = rsc.iterateVolumes();
+        assertThat(vlmIt.hasNext()).isTrue();
+        assertThat(vlmIt.next().getFlags().isSet(Volume.Flags.DRBD_DELETE)).isTrue();
+
+        // satellite reconnects and processes updates again
+        Mockito.when(mockSatellite.apiCall(Mockito.anyString(), Mockito.any())).thenReturn(Flux.empty());
+
+        Collection<Flux<ApiCallRc>> fluxes = rscDeleteApiCallHandlerProvider.get()
+            .resourceDefinitionConnected(testRscDfn, makeDeleteRscContext());
+        assertThat(fluxes).isNotEmpty();
+        for (Flux<ApiCallRc> flux : fluxes)
+        {
+            collect(flux);
+        }
+
+        // the re-driven deletion sequence must complete
+        assertThat(testSatelliteNode.getResource(testRscName)).isNull();
+        assertThat(testRscDfn.getResourceCount()).isEqualTo(0);
+    }
+
+    @Test
+    public void reconnectResumesDeleteMarkedResource() throws Exception
+    {
+        createStorPool(testSatelliteNode, testStorPoolName, DeviceProviderKind.LVM);
+        createRscOnNode(TEST_NODE_NAME, 0L, TEST_SP_NAME);
+
+        // satellite offline: the delete only reaches the DELETE state (see deleteRscOfflineSatellite)
+        evaluateTest(new DeleteRscCall(), false);
+
+        Resource rsc = testSatelliteNode.getResource(testRscName);
+        assertThat(rsc).isNotNull();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.DELETE)).isTrue();
+
+        // satellite reconnects and processes updates again
+        Mockito.when(mockPeer.isOnline()).thenReturn(true);
+        setSatelliteOnline(mockSatellite, true);
+
+        Collection<Flux<ApiCallRc>> fluxes = rscDeleteApiCallHandlerProvider.get()
+            .resourceDefinitionConnected(testRscDfn, makeDeleteRscContext());
+        assertThat(fluxes).isNotEmpty();
+        for (Flux<ApiCallRc> flux : fluxes)
+        {
+            collect(flux);
+        }
+
+        // the re-driven deletion sequence must complete
+        assertThat(testSatelliteNode.getResource(testRscName)).isNull();
+        assertThat(testRscDfn.getResourceCount()).isEqualTo(0);
+    }
+
+    @Test
     public void deleteLastDiskfulWithDisklessAttachedRejected() throws Exception
     {
         createStorPool(testSatelliteNode, testStorPoolName, DeviceProviderKind.LVM);
@@ -352,6 +429,15 @@ public class RscDeleteApiTest extends ApiTestBase
     /*
      * helpers
      */
+
+    private ResponseContext makeDeleteRscContext()
+    {
+        return CtrlRscApiCallHandler.makeRscContext(
+            ApiOperation.makeDeleteOperation(),
+            TEST_NODE_NAME,
+            TEST_RSC_NAME
+        );
+    }
 
     private Node createSecondNode() throws Exception
     {
