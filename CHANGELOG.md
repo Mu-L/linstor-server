@@ -65,6 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deletion was never executed
 - Fixed LDAP sign-in using the configured `search_filter` as the LDAP search base; the configured `search_base` was
   never used, so restricting sign-in via a search filter did not work as documented
+- Erase LUKS headers with 2 shred passes instead of 4 to avoid command timeouts on slow storage; also fixed
+  misleading error messages on erase failures
 - Fixed deleting a controller property namespace always failing the property whitelist check (the namespace was
   prepended twice to the property keys), rejecting and rolling back the whole modification
 - Fixed deleting a resource connection reporting an internal error instead of success (the already deleted connection

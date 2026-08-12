@@ -238,6 +238,7 @@ public class CryptSetupCommands implements Luks
 
             OutputData outputData = extCommand.exec(
                 "shred",
+                "-n", "1",
                 "-s", "16M", // luks might only have 2M large headers, but we do not care. better safe than sorry :)
                 "-z",
                 backingDeviceRef
@@ -251,14 +252,14 @@ public class CryptSetupCommands implements Luks
         catch (IOException ioExc)
         {
             throw new StorageException(
-                "Failed to initialize dm-crypt",
+                "Failed to erase LUKS headers from device '" + backingDeviceRef + "'",
                 ioExc
             );
         }
         catch (ChildProcessTimeoutException exc)
         {
             throw new StorageException(
-                "Initializing dm-crypt device timed out",
+                "Erasing LUKS headers from device '" + backingDeviceRef + "' timed out",
                 exc
             );
         }
