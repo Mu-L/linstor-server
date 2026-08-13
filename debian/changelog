@@ -1,3 +1,152 @@
+linstor-server (1.35.0~rc.1-1) experimental; urgency=medium
+
+  [ Rene Peinthor ]
+  * Remove protobuf SignIn API call
+  * Remove security-related debug console commands
+  * Remove ShutdownProtHolder, shutdown no longer requires access checks
+  * Base API authentication gate on Peer.isAuthenticated()
+  * Replace sign-in subsystem with slim LDAP authentication
+  * Remove security model unit tests
+  * Mechanically strip access-control security constructs
+  * Remove access-control security classes
+  * Remove security leftovers from the server module
+  * Remove remaining access-control code from controller, satellite and tests
+  * Drop the SEC_* database tables
+  * Clean up remaining security-related comments
+  * Use PROPS_CONTAINERS instead of dropped SEC_CONFIGURATION for DB healt [...]
+  * PeerRest: Remove authenticatedUser
+  * Refuse startup when the DB was migrated by a newer LINSTOR
+  * auto-verify-algo: update satellites when the algorithm changes
+  * renovate: silence gradle-wrapper updates
+  * build.gradle: update syntax to gradle 9/10
+  * Update dependency org.postgresql:postgresql to v42.7.13
+  * Allow snapshots on thick LVM storage pools
+  * SuspendManager: resume non-root layers before their root layer
+  * gradle: Exclude generated classes from JaCoCo coverage report
+  * satellite: Add unit tests for drbdstate event parsing and drbd/storage utils
+  * tests: Fix silently skipped ProcCryptoUtils test and add real two-node case
+  * tests: Add unit tests for server utils, API RC classes and S3 name parsers
+  * controller: Add test source set and autoplacer strategy unit tests
+  * tests: Add lvs/vgs and zfs list output parsing tests via TestExtCmd
+  * tests: Add StltExtToolsChecker version detection tests
+  * tests: Add DmSetupUtils output parsing tests
+  * controller: Add TaskScheduleService unit tests
+  * tests: Add SQL migration tests against in-memory H2
+  * gradle: Include per-module test execution data in coverage report
+  * tests: Add layer data DB driver tests
+  * tests: Extend Node and Rsc API call scenarios
+  * tests: Add CtrlConfApiCallHandler API suite
+  * tests: Add resource definition and volume definition API suites
+  * tests: Add resource group, node delete and make-available API suites
+  * tests: Add schedule and remote API suites
+  * tests: Add storage pool, volume definition create and lost node API suites
+  * tests: Add resource delete and toggle disk API suites
+  * tests: Add snapshot API suite
+  * gradle: Raise test worker heap to 2g
+  * Fix controller property namespace deletion always being rejected
+  * tests: Add node, resource and volume connection API suites
+  * tests: Add net interface, KVS and external files API suites
+  * tests: Add snapshot restore and rollback API suites
+  * tests: Add volume definition delete, resource activate and volume modi [...]
+  * tests: Add volume group and query size info API suites
+  * tests: Add resource definition clone API suite
+  * Fix resource connection delete reporting an internal error
+  * Fix rsc-dfn staying marked down after ZFS-strategy snapshot rollback
+  * Fix NPE when modifying a netif on a node without active stlt conn
+  * Fix query-size-info cache misses for non-canonical rsc grp names
+  * Fix NPEs in connection API calls for unknown objects
+  * Fix zfs rollback strategy not waiting for resources to become ready
+  * update version numbers to v1.34.2 release
+  * Add unmake-available API and make-available auto_manage_dual_primary
+  * DevMgr: request shared locks for snapshot-only dispatches
+  * CHANGELOG.md: wrap text around 120 characters
+  * Fix stale lvs/vgs cache for shared LVM storage pools
+  * Fix thick LVM snapshot delete activating the origin LV
+  * Fix make-available failing for shared-SP resources not active anywhere
+  * linstor-common: use correct property types
+  * h2: upgrade to 2.4.240 and auto-migrate 1.x databases
+  * lukslayer: erase headers with 2 shred passes instead of 4
+  * Fix vgscan/pvdisplay hanging on IO-suspended devices
+  * Probe thick LVM block-device properties from the PV, not a probe LV
+  * Register shared-SP snapshots on all copies of the resource
+  * Snapshot only the active copy of a shared-SP resource
+  * Fix snapshot rollback failing for shared-SP resources with inactive copies
+  * cryptutils-shred: enable io based progress mode
+
+  [ Gabor Hernadi ]
+  * GitHub: Add workflow actions
+  * GitLabCI: Fix vmshed_variants for single testruns
+  * Stlt: Keep re-authenticated controller connection open
+  * Stlt: Only draw fullSyncId for the active controller connection
+  * FullSync: Refuse outdated FullSyncs instead of reporting success
+  * Ctrl: Ignore auth responses of replaced connections
+  * Node,connect: Only complete peer-local fluxSink on connect
+  * Node,Peer: Make fullSync related fields volatile
+  * DRBD: check blocked ports on the actual local bind addresses
+  * LsBlkEntry: Parse empty string for DISC_GRAN as 0
+  * AutoHelper: move into dedicated package
+  * AutoHelperType: Fixed checkstyle issues + removed All enum
+  * AutoHelper: Add final updateSatellite if required
+  * docs,checkstyle: Define and enforce Java import ordering
+  * Codestyle: Remove unused imports from tests
+  * Codestyle: Fix 'HiddenField' warnings in test-records
+
+  [ LINBOT ]
+  * Update dependency io.sentry:sentry to v8.48.0
+  * Update dependency ch.qos.logback:logback-classic to v1.5.38
+  * Update dependency org.apache.httpcomponents.client5:httpclient5 to v5.6.2
+  * Update dependency org.junit:junit-bom to v6.1.2
+  * Update dependency org.mariadb.jdbc:mariadb-java-client to v3.5.9
+  * Update dependency com.github.spotbugs:spotbugs-annotations to v4.10.3
+  * Update dependency checkstyle to v13.8.0
+  * Update dependency io.sentry:sentry to v8.49.0
+  * Update dependency com.google.errorprone:error_prone_core to v2.50.0
+  * Update actions/cache action to v6
+  * Update actions/checkout action to v7
+  * Update actions/setup-java action to v5
+  * Update actions/upload-artifact action to v7
+  * Update gradle/actions action to v6
+  * fix(deps): update dependency io.sentry:sentry to v8.50.0
+  * fix(deps): update dependency ch.qos.logback:logback-classic to v1.6.0
+  * fix(deps): update dependency checkstyle to v13.9.0
+  * fix(deps): update dependency ch.qos.logback:logback-classic to v1.6.1
+  * fix(deps): update dependency io.sentry:sentry to v8.50.1
+  * fix(deps): update dependency io.fabric8:kubernetes-client to v7.8.0
+  * fix(deps): update dependency io.sentry:sentry to v8.51.0
+  * fix(deps): update dependency org.mariadb.jdbc:mariadb-java-client to v3.5.10
+  * fix(deps): update dependency io.sentry:sentry to v8.52.0
+  * fix(deps): update dependency org.junit:junit-bom to v6.1.3
+  * fix(deps): update dependency checkstyle to v13.10.0
+  * fix(deps): update dependency ch.qos.logback:logback-classic to v1.6.2
+  * fix(deps): update dependency org.apache.httpcomponents.client5:httpcli [...]
+  * fix(deps): update dependency io.sentry:sentry to v8.53.0
+
+  [ Roland Kammerer ]
+  * linstor-controller: allow execution of journalctl
+
+  [ Ryan Ronnander ]
+  * Drbd: fix proxy port target setter clobbering the source port
+  * Drbd: reallocate resource-connection proxy ports on startup
+  * Drbd: restore deallocated ports when setPorts fails
+
+  [ Johanna Kucera ]
+  * Fix some checkstyle errors
+  * Node: make getPeer nonnull
+
+  [ Moritz Tanner ]
+  * Add resource-definition truncate API
+  * Add snapshot delete-empty-resource-definition API
+  * Document existing REST endpoints in OpenAPI spec
+  * gitlab-ci: Make Gradle cache opt-in per job
+  * CtrlRscDelete: resume DRBD_DELETE on reconnect
+  * Skip free-space check when reusing shared SP data
+  * Refuse resize while shared resource is dual-active
+
+  [ Liang Li ]
+  * Add linstor-controller-ha-setup script
+
+ -- Rene Peinthor <rene.peinthor@linbit.com>  Thu, 13 Aug 2026 13:11:09 +0000
+
 linstor-server (1.34.2-1) experimental; urgency=medium
 
   [ Rene Peinthor ]
