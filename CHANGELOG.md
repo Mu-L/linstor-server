@@ -60,8 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   can also be run manually via the new `linstor-database migrate-h2` command.
   The original database file is kept as `<database>.mv.db.h2v1.bak`.
   Old-format `error-report.mv.db` files are moved aside and recreated empty
-- The controller now refuses to start with a clear error message when the SQL database was already migrated
-  by a newer LINSTOR version, instead of failing while partially loading the unknown schema
 
 ### Fixed
 
