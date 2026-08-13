@@ -14,6 +14,7 @@ import com.linbit.linstor.storage.data.adapter.luks.LuksVlmData;
 import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo.Version;
+import com.linbit.linstor.storage.utils.DeviceStatUtils;
 import com.linbit.linstor.storage.utils.Luks;
 import com.linbit.utils.ShellUtils;
 import com.linbit.utils.StringUtils;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -234,7 +236,13 @@ public class CryptSetupCommands implements Luks
     {
         try
         {
-            final ExtCmd extCommand = extCmdFactory.create();
+            // writing to a thick-LVM origin with active COW snapshots is amplified by a copy-out
+            // per snapshot and can take arbitrarily long; watch I/O progress instead of enforcing
+            // a fixed wall-clock timeout
+            final ExtCmd extCommand = extCmdFactory.create().setIoProgressMode(
+                true,
+                DeviceStatUtils.resolveSysStatFiles(extCmdFactory, Collections.singletonList(backingDeviceRef))
+            );
 
             OutputData outputData = extCommand.exec(
                 "shred",
