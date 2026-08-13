@@ -33,6 +33,7 @@ override_dh_install:
 	cp $(CURDIR)/build/install/linstor-server/bin/Controller $(CURDIR)/debian/linstor-controller/$(LS_PREFIX)/bin
 	cp $(CURDIR)/build/install/linstor-server/bin/linstor-config $(CURDIR)/debian/linstor-controller/$(LS_PREFIX)/bin
 	cp $(CURDIR)/build/install/linstor-server/bin/linstor-database $(CURDIR)/debian/linstor-controller/$(LS_PREFIX)/bin
+	install -m755 $(CURDIR)/scripts/linstor-controller-ha-setup.py $(CURDIR)/debian/linstor-controller/$(LS_PREFIX)/bin/linstor-controller-ha-setup
 	cp $(CURDIR)/controller/build/libs/* $(CURDIR)/debian/linstor-controller/$(LS_PREFIX)/lib
 	if [ -f "$(CURDIR)/libs/controller-st.jar" ]; then cp "$(CURDIR)/libs/controller-st.jar" $(CURDIR)/debian/linstor-controller/$(LS_PREFIX)/lib; fi
 	mkdir -p $(CURDIR)/debian/linstor-controller/etc/linstor

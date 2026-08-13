@@ -604,6 +604,10 @@ distributions {
             from("scripts/linstor-satellite.service") {
                 into("systemd")
             }
+            from("scripts/linstor-controller-ha-setup.py") {
+                into("bin")
+                rename { "linstor-controller-ha-setup" }
+            }
             from(project(":controller").configurations.h2v1migration) {
                 into("lib/migration")
             }

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `linstor-controller-ha-setup` script that makes the controller highly available via the drbd-reactor promoter,
+  optionally with a virtual IP
 - Snapshot support for thick LVM (`LVM`) storage pools: create, delete, restore into a new resource and rollback. Each
   snapshot reserves its origin's size as CoW area in the volume group, so it can never become invalid. Restore and
   rollback copy the full data with `dd`. Deleting a resource that still has snapshots renames the backing LV
