@@ -26,11 +26,13 @@ import com.linbit.linstor.layer.DeviceLayerUtils;
 import com.linbit.linstor.layer.storage.AbsStorageProvider;
 import com.linbit.linstor.layer.storage.StorageLayerSizeCalculator;
 import com.linbit.linstor.layer.storage.lvm.utils.LvmCommands;
+import com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LvmLockMode;
 import com.linbit.linstor.layer.storage.lvm.utils.LvmCommands.LvmVolumeType;
 import com.linbit.linstor.layer.storage.lvm.utils.LvmUtils;
 import com.linbit.linstor.layer.storage.lvm.utils.LvmUtils.LvsInfo;
 import com.linbit.linstor.layer.storage.lvm.utils.LvmUtils.VgsInfo;
 import com.linbit.linstor.layer.storage.utils.PmemUtils;
+import com.linbit.linstor.layer.storage.utils.SharedStorageUtils;
 import com.linbit.linstor.layer.storage.utils.StorageConfigReader;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.InvalidValueException;
@@ -208,6 +210,7 @@ public class LvmProvider
     {
         boolean setDevicePath;
         String lvcreateOptions;
+        LvmLockMode lockMode = LvmLockMode.DEFAULT;
         if (vlmDataRef.getVolume() instanceof Volume)
         {
             LvmData<Resource> vlmData = (LvmData<Resource>) vlmDataRef;
@@ -220,6 +223,7 @@ public class LvmProvider
              */
             setDevicePath &= !isCloning(vlmData);
 
+            lockMode = getRequiredLockMode(vlmData);
             lvcreateOptions = getLvcreateOptions(vlmData);
         }
         else
@@ -288,8 +292,15 @@ public class LvmProvider
             vlmDataRef.setUsableSize(getUsableSize(info));
             vlmDataRef.setAttributes(info.attributes);
 
-            if (!info.attributes.contains("a") && setDevicePath)
+            boolean lvActive = info.attributes.contains("a");
+            /*
+             * With a non-default lock mode the activation command is also run for an already active
+             * LV: it converts the persistent lvmlockd LV lock if it is held in the other mode and is
+             * a noop otherwise.
+             */
+            if (setDevicePath && (!lvActive || lockMode != LvmLockMode.DEFAULT))
             {
+                final LvmLockMode lockModeFinal = lockMode;
                 LvmUtils.execWithRetry(
                     extCmdFactory,
                     Collections.singleton(vlmDataRef.getVolumeGroup()),
@@ -297,16 +308,40 @@ public class LvmProvider
                         extCmdFactory.create(),
                         vlmDataRef.getVolumeGroup(),
                         vlmDataRef.getIdentifier(),
-                        config
+                        config,
+                        lockModeFinal
                     )
                 );
-                LvmUtils.recacheNextLvs();
+                if (!lvActive)
+                {
+                    LvmUtils.recacheNextLvs();
+                }
             }
             // deactivating a volume MUST NOT happen within the prepare step
             // as other layers might still hold the device open
 
             updateStripesPropIfNeeded(vlmDataRef, info.stripes);
         }
+    }
+
+    /**
+     * The lvmlockd lock mode the LV of the given volume has to be activated with. In storage pools
+     * with external locking the LV lock is held exclusively as long as this resource is the only one
+     * using the shared LV. As soon as another resource (leg) of the rsc-dfn shares the LV - e.g. the
+     * target of a live migration - the lock is downgraded to a shared lock so both legs can be active
+     * at once, and upgraded back to an exclusive lock after the second leg is removed.
+     */
+    private LvmLockMode getRequiredLockMode(LvmData<Resource> vlmDataRef)
+    {
+        LvmLockMode lockMode = LvmLockMode.DEFAULT;
+        StorPool storPool = vlmDataRef.getStorPool();
+        if (storPool.isExternalLocking() && storPool.getDeviceProviderKind().isSharedVolumeSupported())
+        {
+            lockMode = SharedStorageUtils.isNeededBySharedResource(vlmDataRef) ?
+                LvmLockMode.SHARED :
+                LvmLockMode.EXCLUSIVE;
+        }
+        return lockMode;
     }
 
     private void updateStripesPropIfNeeded(LvmData<?> vlmDataRef, @Nullable Integer stripesRef)

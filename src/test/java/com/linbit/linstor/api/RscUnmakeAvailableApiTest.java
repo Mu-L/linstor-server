@@ -9,6 +9,7 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlRscUnmakeAvailableA
 import com.linbit.linstor.core.apicallhandler.controller.FreeCapacityFetcher;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
+import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.Node;
@@ -29,6 +30,7 @@ import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 import javax.inject.Inject;
 import javax.inject.Provider;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -50,6 +52,7 @@ public class RscUnmakeAvailableApiTest extends ApiTestBase
     private static final String TEST_RSC_NAME = "TestRsc";
     private static final String TEST_SP_NAME = "TestStorPool";
     private static final String TEST_DISKLESS_SP_NAME = "TestDisklessPool";
+    private static final String SHARED_RSC_NAME = "SharedRsc";
 
     private static final String PROP_KEY_TWO_PRIMARIES = "allow-two-primaries";
     private static final String PROP_KEY_PROTOCOL = "protocol";
@@ -305,9 +308,59 @@ public class RscUnmakeAvailableApiTest extends ApiTestBase
         assertThat(getLiveMigrateMarker(InternalApiConsts.KEY_LIVE_MIGRATE_PREV_PROTOCOL)).isNull();
     }
 
+    @Test
+    public void unmakeAvailableExternalLockingSecondLegDeleted() throws Exception
+    {
+        // reverting a live migration on an externally locked (e.g. lvmlockd) shared storage pool:
+        // the leg on the migration source is deactivated first - releasing its LV locks, so the
+        // remaining leg can upgrade back to exclusive locks - and then deleted; the shared data
+        // stays with the other leg
+        Mockito.when(mockPeer.isOnline()).thenReturn(true);
+        setSatelliteOnline(mockSatellite, true);
+        setSatelliteOnline(mockSatellite2, true);
+
+        Node node2 = createSecondNode();
+        createDualActiveExternalLockingRsc(node2);
+
+        evaluateTest(
+            new UnmakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME),
+            false
+        );
+
+        assertThat(testSatelliteNode.getResource(new ResourceName(SHARED_RSC_NAME))).isNull();
+        assertThat(node2.getResource(new ResourceName(SHARED_RSC_NAME))).isNotNull();
+    }
+
     /*
      * helpers
      */
+
+    /**
+     * Creates a shared storage pool with external locking on both nodes and a STORAGE-only rscDfn
+     * {@link #SHARED_RSC_NAME} with an active resource on both nodes, mirroring the dual-active
+     * state during a live migration.
+     */
+    private void createDualActiveExternalLockingRsc(Node node2) throws Exception
+    {
+        StorPoolName sharedSpName = new StorPoolName("SharedPool");
+        SharedStorPoolName sharedSpaceName = new SharedStorPoolName("SharedSpace");
+        createStorPool(testSatelliteNode, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName, true);
+        createStorPool(node2, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName, true);
+
+        enterScope();
+        ResourceDefinition sharedRscDfn = resourceDefinitionTestFactory.builder(SHARED_RSC_NAME)
+            .setLayerStack(new ArrayList<>(Collections.singletonList(DeviceLayerKind.STORAGE)))
+            .build();
+        rscDfnMap.put(sharedRscDfn.getName(), sharedRscDfn);
+        volumeDefinitionTestFactory.builder(SHARED_RSC_NAME, 0)
+            .setSize(100 * 1024L)
+            .build();
+        commitAndCleanUp(true);
+
+        createRscOnNode(TEST_NODE_NAME, SHARED_RSC_NAME, 0L, sharedSpName.displayValue);
+        createRscOnNode(TEST_NODE_2_NAME, SHARED_RSC_NAME, 0L, sharedSpName.displayValue);
+    }
 
     private Node createSecondNode() throws Exception
     {
@@ -350,7 +403,44 @@ public class RscUnmakeAvailableApiTest extends ApiTestBase
         return storPool;
     }
 
+    private StorPool createStorPool(
+        Node node,
+        StorPoolName storPoolName,
+        DeviceProviderKind kind,
+        SharedStorPoolName sharedStorPoolName,
+        boolean externalLocking
+    )
+        throws Exception
+    {
+        enterScope();
+
+        StorPoolDefinition storPoolDfn = storPoolDfnMap.get(storPoolName);
+        if (storPoolDfn == null)
+        {
+            storPoolDfn = storPoolDefinitionFactory.create(storPoolName);
+            storPoolDfnMap.put(storPoolName, storPoolDfn);
+        }
+        StorPool storPool = storPoolFactory.create(
+            node,
+            storPoolDfn,
+            kind,
+            freeSpaceMgrFactory.getInstance(sharedStorPoolName),
+            externalLocking
+        );
+        storPool.getFreeSpaceTracker().setCapacityInfo(10_000_000, 10_000_000);
+
+        commitAndCleanUp(true);
+
+        return storPool;
+    }
+
     private void createRscOnNode(String nodeNameStr, long flags, String storPoolNameStr) throws Exception
+    {
+        createRscOnNode(nodeNameStr, TEST_RSC_NAME, flags, storPoolNameStr);
+    }
+
+    private void createRscOnNode(String nodeNameStr, String rscNameStr, long flags, String storPoolNameStr)
+        throws Exception
     {
         enterScope();
 
@@ -358,7 +448,7 @@ public class RscUnmakeAvailableApiTest extends ApiTestBase
         rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, storPoolNameStr);
         ctrlRscCrtApiHelper.createResourceDb(
             nodeNameStr,
-            TEST_RSC_NAME,
+            rscNameStr,
             flags,
             rscProps,
             Collections.emptyList(),

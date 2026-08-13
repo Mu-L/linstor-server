@@ -423,7 +423,7 @@ public class RscMakeAvailableApiTest extends ApiTestBase
         // both copies exist and are INACTIVE, but only the first node holds the snapshot objects
         // (legacy state): reactivating on the second node creates the missing objects there
         Resource rsc = createInactiveSharedStorPoolRsc();
-        Resource rsc2 = createInactiveSharedStorPoolRscOnNode(testNode2Name);
+        Resource rsc2 = createSharedStorPoolRscOnNode(testNode2Name, true);
         SnapshotDefinition snapDfn = createSnapshotOnNode(rsc, "snap1");
 
         evaluateTest(
@@ -569,6 +569,71 @@ public class RscMakeAvailableApiTest extends ApiTestBase
 
         evaluateTest(
             new MakeAvailableCall(ApiConsts.FAIL_IN_USE)
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue)
+                .setAutoManageDualPrimary(true)
+        );
+
+        assertThat(nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME))).isNull();
+    }
+
+    /*
+     * shared storage pool with external locking (e.g. lvmlockd) tests
+     */
+
+    @Test
+    public void makeAvailableExternalLockingDeactivatesActiveCopy() throws Exception
+    {
+        // without auto_manage_dual_primary an externally locked shared pool behaves like any other
+        // shared pool: the active copy is deactivated before the new leg takes over the shared data
+        Resource rsc = createSharedStorPoolRsc(DeviceProviderKind.LVM, true, false);
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue),
+            false
+        );
+
+        Resource newRsc = nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME));
+        assertThat(newRsc).isNotNull();
+        assertThat(newRsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isTrue();
+    }
+
+    @Test
+    public void makeAvailableDualPrimaryExternalLockingDualActive() throws Exception
+    {
+        // live migration on an externally locked shared pool: the migration source stays active and
+        // the new leg is created INACTIVE first - giving the source satellite the chance to downgrade
+        // its LV locks to shared locks - and activated afterwards, ending with both legs active
+        Resource rsc = createSharedStorPoolRsc(DeviceProviderKind.LVM, true, false);
+
+        evaluateTest(
+            new MakeAvailableCall()
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue)
+                .setAutoManageDualPrimary(true),
+            false
+        );
+
+        Resource newRsc = nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME));
+        assertThat(newRsc).isNotNull();
+        assertThat(newRsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+        // the dual-active window is not managed via DRBD net options
+        assertThat(getLiveMigrateMarker(InternalApiConsts.KEY_LIVE_MIGRATE_SOURCE_NODE)).isNull();
+    }
+
+    @Test
+    public void makeAvailableDualPrimaryExternalLockingUnsupportedProvider() throws Exception
+    {
+        // a dual-active window on an externally locked pool requires the backing volumes to support
+        // shared locks, which ZFS volumes do not
+        createSharedStorPoolRsc(DeviceProviderKind.ZFS, true, false);
+
+        evaluateTest(
+            new MakeAvailableCall(ApiConsts.FAIL_INVLD_PROVIDER)
                 .setRscName(SHARED_RSC_NAME)
                 .setNodeName(testNode2Name.displayValue)
                 .setAutoManageDualPrimary(true)
@@ -811,12 +876,27 @@ public class RscMakeAvailableApiTest extends ApiTestBase
      */
     private Resource createInactiveSharedStorPoolRsc() throws Exception
     {
+        return createSharedStorPoolRsc(DeviceProviderKind.LVM, false, true);
+    }
+
+    /**
+     * Creates a second node, a shared storage pool of the given kind on both nodes, a STORAGE-only
+     * rscDfn {@link #SHARED_RSC_NAME} with one volume definition and a single diskful resource on the
+     * first node.
+     */
+    private Resource createSharedStorPoolRsc(
+        DeviceProviderKind kind,
+        boolean externalLocking,
+        boolean inactive
+    )
+        throws Exception
+    {
         StorPoolName sharedSpName = new StorPoolName(SHARED_SP_NAME);
         SharedStorPoolName sharedSpaceName = new SharedStorPoolName(SHARED_SPACE_NAME);
 
         Node node2 = createSecondNode();
-        createStorPool(testSatelliteNode, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName);
-        createStorPool(node2, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName);
+        createStorPool(testSatelliteNode, sharedSpName, kind, sharedSpaceName, externalLocking);
+        createStorPool(node2, sharedSpName, kind, sharedSpaceName, externalLocking);
 
         enterScope();
         ResourceDefinition sharedRscDfn = resourceDefinitionTestFactory.builder(SHARED_RSC_NAME)
@@ -828,15 +908,15 @@ public class RscMakeAvailableApiTest extends ApiTestBase
             .build();
         commitAndCleanUp(true);
 
-        return createInactiveSharedStorPoolRscOnNode(testNodeName);
+        return createSharedStorPoolRscOnNode(testNodeName, inactive);
     }
 
     /**
-     * Creates the {@link #SHARED_RSC_NAME} resource on the given node and flags it INACTIVE. The
-     * rsc-dfn and the shared storage pools have to exist already (see
-     * {@link #createInactiveSharedStorPoolRsc()}).
+     * Creates the {@link #SHARED_RSC_NAME} resource on the given node, optionally flagging it
+     * INACTIVE. The rsc-dfn and the shared storage pools have to exist already (see
+     * {@link #createSharedStorPoolRsc(DeviceProviderKind, boolean, boolean)}).
      */
-    private Resource createInactiveSharedStorPoolRscOnNode(NodeName nodeName) throws Exception
+    private Resource createSharedStorPoolRscOnNode(NodeName nodeName, boolean inactive) throws Exception
     {
         enterScope();
         Map<String, String> rscProps = new TreeMap<>();
@@ -858,9 +938,12 @@ public class RscMakeAvailableApiTest extends ApiTestBase
         commitAndCleanUp(true);
 
         Resource rsc = nodesMap.get(nodeName).getResource(new ResourceName(SHARED_RSC_NAME));
-        enterScope();
-        rsc.getStateFlags().enableFlags(Resource.Flags.INACTIVE);
-        commitAndCleanUp(true);
+        if (inactive)
+        {
+            enterScope();
+            rsc.getStateFlags().enableFlags(Resource.Flags.INACTIVE);
+            commitAndCleanUp(true);
+        }
 
         return rsc;
     }
@@ -897,7 +980,7 @@ public class RscMakeAvailableApiTest extends ApiTestBase
 
     private StorPool createStorPool(Node node, StorPoolName storPoolName, DeviceProviderKind kind) throws Exception
     {
-        return createStorPool(node, storPoolName, kind, new SharedStorPoolName(node.getName(), storPoolName));
+        return createStorPool(node, storPoolName, kind, new SharedStorPoolName(node.getName(), storPoolName), false);
     }
 
     private StorPool createStorPool(
@@ -905,6 +988,18 @@ public class RscMakeAvailableApiTest extends ApiTestBase
         StorPoolName storPoolName,
         DeviceProviderKind kind,
         SharedStorPoolName sharedStorPoolName
+    )
+        throws Exception
+    {
+        return createStorPool(node, storPoolName, kind, sharedStorPoolName, false);
+    }
+
+    private StorPool createStorPool(
+        Node node,
+        StorPoolName storPoolName,
+        DeviceProviderKind kind,
+        SharedStorPoolName sharedStorPoolName,
+        boolean externalLocking
     )
         throws Exception
     {
@@ -922,7 +1017,7 @@ public class RscMakeAvailableApiTest extends ApiTestBase
             storPoolDfn,
             kind,
             fsm,
-            false
+            externalLocking
         );
         storPool.getFreeSpaceTracker().setCapacityInfo(10_000_000, 10_000_000);
 

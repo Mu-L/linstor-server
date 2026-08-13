@@ -25,6 +25,7 @@ import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
 import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.apicallhandler.response.ResponseConverter;
+import com.linbit.linstor.core.apis.ResourceApi;
 import com.linbit.linstor.core.apis.ResourceWithPayloadApi;
 import com.linbit.linstor.core.apis.VolumeApi;
 import com.linbit.linstor.core.identifier.SharedStorPoolName;
@@ -162,10 +163,12 @@ public class CtrlRscMakeAvailableApiCallHandler
      * @param autoManageDualPrimaryRef if true, the resource is additionally prepared for a live migration
      *     from the node it is currently in use on (the migration source) to the given node: for DRBD
      *     resources allow-two-primaries (and protocol C if needed) is set between the two nodes, for
-     *     resources in a shared storage pool the resource is activated on both nodes. Reverted by
-     *     unmake-available on the migration-source node. If the resource is not in use on any node there
-     *     is no migration to prepare and the resource is simply made available, so clients that cannot
-     *     distinguish a live-migration attach from a plain attach can always set the option.
+     *     resources in a shared storage pool the resource is activated on both nodes (for pools with
+     *     external locking the satellites switch the LV locks to shared mode for that dual-active
+     *     window). Reverted by unmake-available on the migration-source node. If the resource is not in
+     *     use on any node there is no migration to prepare and the resource is simply made available, so
+     *     clients that cannot distinguish a live-migration attach from a plain attach can always set the
+     *     option.
      */
     public Flux<ApiCallRc> makeResourceAvailable(
         String nodeNameRef,
@@ -360,9 +363,31 @@ public class CtrlRscMakeAvailableApiCallHandler
                 @Nullable Resource activeRsc = getActiveRsc(createRscPojo, node, rscDfn);
                 if (activeRsc != null && autoManageDualPrimaryRef)
                 {
-                    // dual-active for a live migration: keep the source resource active and create the
-                    // new resource active as well
-                    flux = createSharedRsc(node, createRscPojo, copyAllSnapsRef, snapNamesToCopyRef, true);
+                    if (hasExternalLocking(activeRsc))
+                    {
+                        /*
+                         * The active resource holds an exclusive lock on the shared volumes (e.g.
+                         * lvmlockd). Its satellite only downgrades to shared locks once it sees the
+                         * second leg, so create the new resource INACTIVE first (resource creation
+                         * waits for all satellites of the rsc-dfn) and activate it afterwards, when
+                         * the shared lock can be acquired.
+                         */
+                        flux = createSharedRsc(
+                            node,
+                            withAdditionalInitFlags(createRscPojo, Resource.Flags.INACTIVE),
+                            copyAllSnapsRef,
+                            snapNamesToCopyRef,
+                            false
+                        ).concatWith(
+                            ctrlRscActivateApiCallHandler.activateRsc(nodeNameRef, rscNameRef)
+                        );
+                    }
+                    else
+                    {
+                        // dual-active for a live migration: keep the source resource active and create
+                        // the new resource active as well
+                        flux = createSharedRsc(node, createRscPojo, copyAllSnapsRef, snapNamesToCopyRef, true);
+                    }
                 }
                 else if (activeRsc != null)
                 {
@@ -668,6 +693,20 @@ public class CtrlRscMakeAvailableApiCallHandler
             );
         }
         return flux;
+    }
+
+    private boolean hasExternalLocking(Resource rsc)
+    {
+        boolean extLocking = false;
+        for (StorPool sp : LayerVlmUtils.getStorPools(rsc))
+        {
+            if (sp.isExternalLocking())
+            {
+                extLocking = true;
+                break;
+            }
+        }
+        return extLocking;
     }
 
     private @Nullable Resource getActiveRsc(Resource myRsc)
@@ -1013,7 +1052,10 @@ public class CtrlRscMakeAvailableApiCallHandler
         return foundPeer;
     }
 
-    private @Nullable ResourceWithPayloadApi getSharedResourceCreationPojo(ResourceDefinition rscDfnRef, Node nodeRef)
+    private @Nullable ResourceWithPayloadApi getSharedResourceCreationPojo(
+        ResourceDefinition rscDfnRef,
+        Node nodeRef
+    )
     {
         @Nullable ResourceWithPayloadApi ret = null;
         // build Map<SharedStorPoolName, StorPool> of current node
@@ -1125,7 +1167,7 @@ public class CtrlRscMakeAvailableApiCallHandler
                         null,
                         null,
                         null,
-                        0,
+                        0L,
                         Collections.emptyMap(),
                         vlmApiList,
                         null,
@@ -1149,6 +1191,42 @@ public class CtrlRscMakeAvailableApiCallHandler
             }
         }
         return ret;
+    }
+
+    /**
+     * Copies the given creation pojo (as built by {@link #getSharedResourceCreationPojo}) with the
+     * given resource init flag additionally set, since the flags of a {@link RscPojo} are immutable.
+     */
+    private ResourceWithPayloadApi withAdditionalInitFlags(
+        ResourceWithPayloadApi createRscPojoRef,
+        Resource.Flags flagRef
+    )
+    {
+        ResourceApi rscApi = createRscPojoRef.getRscApi();
+        return new ResourceWithPayloadPojo(
+            new RscPojo(
+                rscApi.getName(),
+                rscApi.getNodeName(),
+                rscApi.getNodeUuid(),
+                null,
+                rscApi.getUuid(),
+                rscApi.getFlags() | flagRef.flagValue,
+                rscApi.getProps(),
+                new ArrayList<>(rscApi.getVlmList()),
+                null,
+                null,
+                null,
+                null,
+                rscApi.getLayerData(),
+                rscApi.getCreateTimestamp().orElse(null),
+                rscApi.getEffectivePropsPojo()
+            ),
+            createRscPojoRef.getLayerStack(),
+            createRscPojoRef.getDrbdNodeId(),
+            createRscPojoRef.getPortCount(),
+            createRscPojoRef.getPorts(),
+            createRscPojoRef.isDrbdClient()
+        );
     }
 
     private AutoSelectFilterPojo createAutoSelectConfig(

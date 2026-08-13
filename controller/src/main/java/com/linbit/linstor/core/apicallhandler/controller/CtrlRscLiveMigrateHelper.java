@@ -164,6 +164,8 @@ public class CtrlRscLiveMigrateHelper
      * shared storage pool at once.
      *
      * @throws ApiRcException {@link ApiConsts#FAIL_INVLD_LAYER_STACK} if the source resource uses DRBD,
+     *     {@link ApiConsts#FAIL_INVLD_PROVIDER} if an externally locked storage pool's provider cannot
+     *     activate volumes with shared locks,
      *     {@link ApiConsts#FAIL_EXISTS_SNAPSHOT} if the source node still has snapshots of the resource,
      *     {@link ApiConsts#FAIL_IN_USE} if a volume of the resource is currently being resized
      */
@@ -180,6 +182,25 @@ public class CtrlRscLiveMigrateHelper
                     true
                 )
             );
+        }
+        for (StorPool sp : LayerVlmUtils.getStorPools(srcRsc))
+        {
+            if (sp.isExternalLocking() && !sp.getDeviceProviderKind().isSharedVolumeSupported())
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.entryBuilder(
+                        ApiConsts.FAIL_INVLD_PROVIDER,
+                        "Storage pool '" + sp.getName().displayValue + "' of provider kind '" +
+                            sp.getDeviceProviderKind().name() + "' cannot activate volumes with a shared lock"
+                    )
+                        .setCause(
+                            "Activating the resource on two nodes of an externally locked storage pool " +
+                                "requires the backing volumes to support shared locks."
+                        )
+                        .setSkipErrorReport(true)
+                        .build()
+                );
+            }
         }
         for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
         {

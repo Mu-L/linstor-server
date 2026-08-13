@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `FAIL_UNKNOWN_ERROR`
 - Shared storage pools with external locking (e.g. lvmlockd) are now treated like other shared storage pools:
   only one copy is active at a time, and snapshots, cloning and toggle-disk recognize the shared backing data
+- make-available with `auto_manage_dual_primary` on such pools now keeps the active copy active for the live
+  migration: the backing LVs are locked exclusively, downgraded to shared locks during the dual-active window
 
 ## [1.35.0-rc.1] - 2026-08-13
 

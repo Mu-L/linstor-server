@@ -506,6 +506,18 @@ public class LvmCommands
     )
         throws StorageException
     {
+        return activateVolume(extCmd, volumeGroup, targetId, lvmConfig, LvmLockMode.DEFAULT);
+    }
+
+    public static synchronized OutputData activateVolume(
+        ExtCmd extCmd,
+        String volumeGroup,
+        String targetId,
+        String lvmConfig,
+        LvmLockMode lockMode
+    )
+        throws StorageException
+    {
         String failMsg = "Failed to activate volume " + volumeGroup + File.separator + targetId;
         return genericExecutor(
             extCmd.setSaveWithoutSharedLocks(false),
@@ -513,7 +525,7 @@ public class LvmCommands
                 "lvchange",
                 lvmConfig,
                 (Collection<String>) null,
-                "-ay",  // activate volume
+                lockMode.activateArg,  // activate volume
                 "-K",   // these parameters are needed to set a
                 // snapshot to active and enabled
                 "-y",   // activating a thick snapshot also affects its origin, which lvchange
@@ -749,6 +761,29 @@ public class LvmCommands
         LvmVolumeType(String descrRef)
         {
             descr = descrRef;
+        }
+    }
+
+    /**
+     * The lock mode an LV is activated with in a volume group using external locking (lvmlockd).
+     * Re-running the activation command with a different mode converts the persistent LV lock of an
+     * already active LV: downgrading to {@link #SHARED} always succeeds, upgrading to
+     * {@link #EXCLUSIVE} succeeds once no other node holds the shared lock anymore.
+     */
+    public enum LvmLockMode
+    {
+        /** Plain activation: no external locking, or the (exclusive by default) lock mode does not matter */
+        DEFAULT("-ay"),
+        /** Exclusive LV lock, preventing any concurrent activation on other nodes */
+        EXCLUSIVE("-aey"),
+        /** Shared LV lock, allowing the LV to be active on multiple nodes at once */
+        SHARED("-asy");
+
+        private final String activateArg;
+
+        LvmLockMode(String activateArgRef)
+        {
+            activateArg = activateArgRef;
         }
     }
 
