@@ -32,6 +32,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -132,7 +133,18 @@ public class DbConnectionPool implements ControllerSQLDatabase
 
         if (isH2DataSource())
         {
-            dbConnectionUrl += ";DB_CLOSE_ON_EXIT=FALSE";
+            // H2 2.x rejects AUTO_SERVER=TRUE combined with DB_CLOSE_ON_EXIT=FALSE
+            if (dbConnectionUrl.toUpperCase(Locale.ROOT).contains("AUTO_SERVER=TRUE"))
+            {
+                errorLog.logWarning(
+                    "AUTO_SERVER is enabled in the database connection URL, leaving H2's shutdown hook " +
+                        "(DB_CLOSE_ON_EXIT) active. H2 might close the database before LINSTOR finishes its shutdown."
+                );
+            }
+            else
+            {
+                dbConnectionUrl += ";DB_CLOSE_ON_EXIT=FALSE";
+            }
         }
 
         errorLog.logInfo("SQL database connection URL is \"%s\"", dbConnectionUrl);

@@ -63,6 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the controller refusing to open an H2 database whose connection URL contains `AUTO_SERVER=TRUE`: H2 2.x
+  rejects that setting combined with the internally added `DB_CLOSE_ON_EXIT=FALSE`, which is now skipped instead
 - Fixed a DRBD resource deletion that was interrupted after the "prepare deletion" step (e.g. by a satellite
   disconnect or a controller restart) being stuck forever: the resource stayed in the intermediate DRBD_DELETE
   state, leaving an orphaned backing volume on the node and its DRBD peers endlessly trying to connect. The
