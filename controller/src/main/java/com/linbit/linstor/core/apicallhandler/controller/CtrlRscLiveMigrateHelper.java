@@ -59,6 +59,10 @@ public class CtrlRscLiveMigrateHelper
         rscConnHelper = rscConnHelperRef;
     }
 
+    /**
+     * Whether the resource's data lives in a shared storage pool, including pools whose locks are
+     * managed externally (e.g. lvmlockd) instead of by LINSTOR.
+     */
     public boolean hasSharedStorPool(Resource rsc)
     {
         boolean shared = false;

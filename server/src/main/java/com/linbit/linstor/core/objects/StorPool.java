@@ -356,7 +356,24 @@ public class StorPool extends AbsCoreObj<StorPool>
         return externalLocking;
     }
 
+    /**
+     * Whether the pool's backing storage is shared with pools on other nodes (they have the same
+     * shared storage pool name), i.e. the data written by one node is visible to the others - no
+     * matter whether LINSTOR or an external lock manager (e.g. lvmlockd) serializes the access.
+     */
     public boolean isShared()
+    {
+        checkDeleted();
+        return freeSpaceTracker.getName().isShared();
+    }
+
+    /**
+     * Whether LINSTOR itself has to serialize access to the shared backing storage, i.e. the pool
+     * takes part in the controller's shared storage pool locking. False for non-shared pools (no
+     * serialization needed) as well as for shared pools with external locking, where an external
+     * lock manager (e.g. lvmlockd) arbitrates instead of LINSTOR.
+     */
+    public boolean usesLinstorLocking()
     {
         checkDeleted();
         return freeSpaceTracker.getName().isShared() && !externalLocking;

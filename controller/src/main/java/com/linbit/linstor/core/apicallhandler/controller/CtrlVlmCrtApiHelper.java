@@ -361,7 +361,7 @@ public class CtrlVlmCrtApiHelper
     {
         boolean reuses = false;
         SharedStorPoolName sharedSpName = storPool.getSharedStorPoolName();
-        if (sharedSpName.isShared())
+        if (storPool.isShared())
         {
             Iterator<Resource> rscIt = rsc.getResourceDefinition().iterateResource();
             while (rscIt.hasNext() && !reuses)

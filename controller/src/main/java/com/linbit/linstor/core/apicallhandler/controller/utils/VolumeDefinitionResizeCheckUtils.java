@@ -179,7 +179,7 @@ public class VolumeDefinitionResizeCheckUtils
                 for (StorPool sp : LayerVlmUtils.getStorPools(rsc, true))
                 {
                     SharedStorPoolName sharedSpName = sp.getSharedStorPoolName();
-                    if (sharedSpName.isShared())
+                    if (sp.isShared())
                     {
                         activeNodesBySharedName
                             .computeIfAbsent(sharedSpName, ignored -> new TreeSet<>())

@@ -1079,7 +1079,7 @@ public class LvmProvider
         for (LvmData<?> vlmData : combinedList)
         {
             StorPool storPool = vlmData.getStorPool();
-            if (storPool.getSharedStorPoolName().isShared())
+            if (storPool.isShared())
             {
                 ret = true;
                 break;

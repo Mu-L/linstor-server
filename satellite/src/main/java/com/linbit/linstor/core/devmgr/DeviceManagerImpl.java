@@ -1197,7 +1197,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
         TreeSet<SharedStorPoolName> curRequiredLocks = new TreeSet<>();
         for (StorPool sp : allStorPools)
         {
-            if (sp.isShared())
+            if (sp.usesLinstorLocking())
             {
                 curRequiredLocks.add(sp.getSharedStorPoolName());
             }
@@ -1279,7 +1279,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                             for (StorPool sp : LayerVlmUtils.getStorPools(rsc, true))
                             {
                                 SharedStorPoolName sharedName = sp.getSharedStorPoolName();
-                                if (sp.isShared())
+                                if (sp.usesLinstorLocking())
                                 {
                                     requiredSharedLocks.add(sharedName);
                                 }
@@ -1293,7 +1293,7 @@ class DeviceManagerImpl implements Runnable, SystemService, DeviceManager, Devic
                                 for (StorPool sp : LayerVlmUtils.getStorPools(snapshot, true))
                                 {
                                     SharedStorPoolName sharedName = sp.getSharedStorPoolName();
-                                    if (sp.isShared())
+                                    if (sp.usesLinstorLocking())
                                     {
                                         requiredSharedLocks.add(sharedName);
                                     }

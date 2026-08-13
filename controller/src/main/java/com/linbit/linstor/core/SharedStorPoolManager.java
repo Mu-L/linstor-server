@@ -56,8 +56,8 @@ public class SharedStorPoolManager
     public boolean isActive(StorPool sp)
     {
         boolean ret;
-        if (!sp.isShared())
-        { // not shared
+        if (!sp.usesLinstorLocking())
+        { // no LINSTOR lock needed
             ret = true;
         }
         else
@@ -408,17 +408,22 @@ public class SharedStorPoolManager
         return ret;
     }
 
-    static Set<SharedStorPoolName> getSharedSpNames(Collection<StorPool> storPoolsRef)
+    /**
+     * Returns the lock names for the given storage pools, i.e. the shared storage pool names of the
+     * pools whose access LINSTOR itself has to serialize. Externally locked pools (e.g. lvmlockd)
+     * share their data just as well, but take no part in LINSTOR's locking.
+     */
+    private static Set<SharedStorPoolName> getSharedSpNames(Collection<StorPool> storPoolsRef)
     {
         return groupBySharedSpName(storPoolsRef).keySet();
     }
 
-    static Map<SharedStorPoolName, StorPool> groupBySharedSpName(Collection<StorPool> storPools)
+    private static Map<SharedStorPoolName, StorPool> groupBySharedSpName(Collection<StorPool> storPools)
     {
         HashMap<SharedStorPoolName, StorPool> ret = new HashMap<>();
         for (StorPool sp : storPools)
         {
-            if (sp.isShared())
+            if (sp.usesLinstorLocking())
             {
                 StorPool oldSp = ret.put(sp.getSharedStorPoolName(), sp);
                 if (oldSp != null)

@@ -16,6 +16,12 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeSet;
 
+/**
+ * Finds resources whose backing data lives in the same shared storage pool. In contrast to
+ * {@link SharedStorPoolManager}, which manages the LINSTOR-internal locks and therefore ignores
+ * storage pools with external locking (e.g. lvmlockd), the data of two storage pools is shared
+ * whenever they have the same shared storage pool name - no matter who manages the locks.
+ */
 @Singleton
 public class SharedResourceManager
 {
@@ -27,12 +33,12 @@ public class SharedResourceManager
 
     public boolean isBackedBySharedStorPool(Resource rsc)
     {
-        return !SharedStorPoolManager.getSharedSpNames(LayerVlmUtils.getStorPools(rsc)).isEmpty();
+        return !getDataSharedSpNames(LayerVlmUtils.getStorPools(rsc)).isEmpty();
     }
 
     public boolean isBackedBySharedStorPool(Snapshot snap)
     {
-        return !SharedStorPoolManager.getSharedSpNames(LayerVlmUtils.getStorPools(snap)).isEmpty();
+        return !getDataSharedSpNames(LayerVlmUtils.getStorPools(snap)).isEmpty();
     }
 
     /**
@@ -41,7 +47,7 @@ public class SharedResourceManager
      */
     public Set<SharedStorPoolName> getSharedSpNames(Snapshot snap)
     {
-        return SharedStorPoolManager.getSharedSpNames(LayerVlmUtils.getStorPools(snap));
+        return getDataSharedSpNames(LayerVlmUtils.getStorPools(snap));
     }
 
     /**
@@ -55,9 +61,7 @@ public class SharedResourceManager
     public @Nullable Snapshot findSnapshotOnSharedSp(SnapshotDefinition snapDfn, Resource rsc)
     {
         @Nullable Snapshot ret = null;
-        Set<SharedStorPoolName> rscSharedNames = SharedStorPoolManager.getSharedSpNames(
-            LayerVlmUtils.getStorPools(rsc)
-        );
+        Set<SharedStorPoolName> rscSharedNames = getDataSharedSpNames(LayerVlmUtils.getStorPools(rsc));
         if (!rscSharedNames.isEmpty())
         {
             for (Snapshot snap : new TreeSet<>(snapDfn.getAllSnapshots()))
@@ -91,7 +95,7 @@ public class SharedResourceManager
     {
         boolean ret = true;
         Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc);
-        Set<SharedStorPoolName> sharedSpNames = SharedStorPoolManager.getSharedSpNames(storPools);
+        Set<SharedStorPoolName> sharedSpNames = getDataSharedSpNames(storPools);
 
         Iterator<Resource> rscIt = rsc.getResourceDefinition().iterateResource();
         while (rscIt.hasNext())
@@ -100,7 +104,7 @@ public class SharedResourceManager
             if (!tmpRsc.equals(rsc))
             {
                 Set<StorPool> tmpStorPools = LayerVlmUtils.getStorPools(tmpRsc);
-                Set<SharedStorPoolName> tmpSharedSpNames = SharedStorPoolManager.getSharedSpNames(tmpStorPools);
+                Set<SharedStorPoolName> tmpSharedSpNames = getDataSharedSpNames(tmpStorPools);
 
                 tmpSharedSpNames.retainAll(sharedSpNames);
                 if (!tmpSharedSpNames.isEmpty())
@@ -128,7 +132,7 @@ public class SharedResourceManager
     {
         TreeSet<Resource> result;
         Set<StorPool> storPools = LayerVlmUtils.getStorPools(rsc);
-        Set<SharedStorPoolName> sharedSpNames = SharedStorPoolManager.getSharedSpNames(storPools);
+        Set<SharedStorPoolName> sharedSpNames = getDataSharedSpNames(storPools);
 
         result = getSharedResources(sharedSpNames, rsc.getResourceDefinition());
         result.remove(rsc);
@@ -146,7 +150,7 @@ public class SharedResourceManager
         {
             Resource tmpRsc = rscIt.next();
             Set<StorPool> tmpStorPools = LayerVlmUtils.getStorPools(tmpRsc);
-            Set<SharedStorPoolName> tmpSharedSpNames = SharedStorPoolManager.getSharedSpNames(tmpStorPools);
+            Set<SharedStorPoolName> tmpSharedSpNames = getDataSharedSpNames(tmpStorPools);
 
             tmpSharedSpNames.retainAll(sharedSpNames);
             if (!tmpSharedSpNames.isEmpty())
@@ -156,5 +160,18 @@ public class SharedResourceManager
         }
 
         return result;
+    }
+
+    private static Set<SharedStorPoolName> getDataSharedSpNames(Set<StorPool> storPools)
+    {
+        Set<SharedStorPoolName> ret = new TreeSet<>();
+        for (StorPool sp : storPools)
+        {
+            if (sp.isShared())
+            {
+                ret.add(sp.getSharedStorPoolName());
+            }
+        }
+        return ret;
     }
 }

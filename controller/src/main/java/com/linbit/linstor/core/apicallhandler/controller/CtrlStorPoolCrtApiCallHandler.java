@@ -208,7 +208,9 @@ public class CtrlStorPoolCrtApiCallHandler
                 externalLockingRef
             );
 
-            if (storPool.isShared() && !deviceProviderKindRef.isSharedVolumeSupported())
+            // with external locking the admin is responsible for the lock manager coping with the
+            // provider; only pools LINSTOR arbitrates itself are restricted at creation
+            if (storPool.usesLinstorLocking() && !deviceProviderKindRef.isSharedVolumeSupported())
             {
                 throw new ApiRcException(ApiCallRcImpl.simpleEntry(
                     ApiConsts.FAIL_INVLD_STOR_DRIVER,
