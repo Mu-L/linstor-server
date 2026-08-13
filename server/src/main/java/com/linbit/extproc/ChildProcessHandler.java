@@ -242,6 +242,9 @@ public class ChildProcessHandler
             );
         }
         int exitCode = -1;
+        // Measured rather than reporting the configured timeout: the two can differ (e.g. a
+        // stray interrupt), and the measured value is the one worth having in an ErrorReport
+        final long startedAtMs = System.currentTimeMillis();
         try
         {
             Interruptor intrAction = new Interruptor();
@@ -264,7 +267,11 @@ public class ChildProcessHandler
         }
         catch (InterruptedException interrupted)
         {
-            throw new ChildProcessTimeoutException();
+            long waitedMs = System.currentTimeMillis() - startedAtMs;
+            throw new ChildProcessTimeoutException(
+                "The process did not exit within " + waitedMs + "ms (timeout: " + timeout + "ms)",
+                waitedMs
+            );
         }
         return exitCode;
     }
@@ -310,7 +317,8 @@ public class ChildProcessHandler
     {
         long lastPidIoBytes = -1;
         long lastDeviceSectors = -1;
-        long stallStartMs = System.currentTimeMillis();
+        final long startedAtMs = System.currentTimeMillis();
+        long stallStartMs = startedAtMs;
         int exitCode = -1;
 
         while (true)
@@ -327,7 +335,11 @@ public class ChildProcessHandler
             catch (InterruptedException ignored)
             {
                 Thread.currentThread().interrupt();
-                throw new ChildProcessTimeoutException();
+                long waitedMs = System.currentTimeMillis() - startedAtMs;
+                throw new ChildProcessTimeoutException(
+                    "Interrupted after waiting " + waitedMs + "ms for the process to exit",
+                    waitedMs
+                );
             }
 
             long now = System.currentTimeMillis();
@@ -352,7 +364,11 @@ public class ChildProcessHandler
             else
             if (now - stallStartMs >= ioStallTimeout)
             {
-                throw new ChildProcessTimeoutException();
+                throw new ChildProcessTimeoutException(
+                    "No I/O progress within " + (now - stallStartMs) + "ms (I/O stall timeout: " +
+                        ioStallTimeout + "ms), total runtime " + (now - startedAtMs) + "ms",
+                    now - startedAtMs
+                );
             }
         }
         return exitCode;

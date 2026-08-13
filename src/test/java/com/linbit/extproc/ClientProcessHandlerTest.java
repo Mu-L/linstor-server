@@ -84,6 +84,43 @@ public class ClientProcessHandlerTest
     }
 
     @Test
+    public void testTimeoutReportsWaitedTime() throws IOException
+    {
+        ProcessBuilder pBuilder = new ProcessBuilder(
+            new String[]
+            {
+                TEST_PROGRAM,
+                "13",
+                "15000",
+                "sigterm"
+            }
+        );
+        Process childProc = pBuilder.start();
+
+        ChildProcessHandler cph = new ChildProcessHandler(childProc, intrTimer);
+        cph.setTimeout(ChildProcessHandler.TimeoutType.WAIT, 250L);
+        cph.setTimeout(ChildProcessHandler.TimeoutType.TERM, 500L);
+        cph.setTimeout(ChildProcessHandler.TimeoutType.KILL, 500L);
+        try
+        {
+            cph.waitFor();
+            fail("Expected ChildProcessTimeoutException not thrown");
+        }
+        catch (ChildProcessTimeoutException timeoutExc)
+        {
+            // the waited time survives the auto-term re-wrap in waitFor()
+            if (timeoutExc.getWaitedTimeMs() < 250L)
+            {
+                fail("Timeout does not report how long was waited: " + timeoutExc.getWaitedTimeMs());
+            }
+            if (timeoutExc.getMessage() == null || !timeoutExc.getMessage().contains("ms"))
+            {
+                fail("Timeout has no usable message: " + timeoutExc.getMessage());
+            }
+        }
+    }
+
+    @Test
     public void testWaitForDestroy() throws ChildProcessTimeoutException, IOException
     {
         ProcessBuilder pBuilder = new ProcessBuilder(

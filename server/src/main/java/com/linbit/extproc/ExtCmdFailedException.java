@@ -20,7 +20,11 @@ public class ExtCmdFailedException extends LinStorException
     public ExtCmdFailedException(String[] command, ChildProcessTimeoutException cause)
     {
         super(
-            String.format("The external command '%s' did not complete within the timeout", command[0]),
+            String.format(
+                "The external command '%s' did not complete within the timeout%s",
+                command[0],
+                waitedSecondsText(cause, " (waited %s seconds)")
+            ),
             String.format(EXCEPTION_DESCR_FORMAT, command[0]),
             """
             The external command did not complete within the timeout.
@@ -32,9 +36,28 @@ public class ExtCmdFailedException extends LinStorException
             Check whether the external program and the operating system are still operating properly.
             Check whether the system's load is within normal parameters.
             """,
-            String.format(EXCEPTION_DETAILS_FORMAT, ShellUtils.joinShellQuote(command)),
+            String.format(EXCEPTION_DETAILS_FORMAT, ShellUtils.joinShellQuote(command)) +
+                waitedSecondsText(cause, "\nThe command was given up on after waiting %s seconds."),
             cause
         );
+    }
+
+    /**
+     * {@code format} with the waited seconds filled in, or "" when the cause does not know
+     * how long was waited. Seconds rather than ms, as requested in the issue: an operator
+     * skimming an ErrorReport compares this against timeouts that are configured in seconds.
+     */
+    private static String waitedSecondsText(ChildProcessTimeoutException cause, String format)
+    {
+        long waitedMs = cause.getWaitedTimeMs();
+        String ret = "";
+        if (waitedMs >= 0)
+        {
+            // manual formatting instead of "%.1f": String.format is locale dependent and an
+            // ErrorReport should not switch between "45.5" and "45,5" with the system locale
+            ret = String.format(format, waitedMs / 1000 + "." + waitedMs % 1000 / 100);
+        }
+        return ret;
     }
 
     public ExtCmdFailedException(String[] command, IOException cause)

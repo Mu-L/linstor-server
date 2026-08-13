@@ -114,12 +114,21 @@ public class Commands
         }
         catch (ChildProcessTimeoutException | IOException exc)
         {
+            String causeText;
+            if (exc instanceof IOException)
+            {
+                causeText = "External command threw an IOException";
+            }
+            else
+            {
+                long waitedMs = ((ChildProcessTimeoutException) exc).getWaitedTimeMs();
+                causeText = "External command timed out" +
+                    (waitedMs >= 0 ? " after " + waitedMs / 1000 + " seconds" : "");
+            }
             throw new StorageException(
                 failMsgExc,
                 null,
-                (exc instanceof IOException) ?
-                    "External command threw an IOException" :
-                    "External command timed out",
+                causeText,
                 null,
                 String.format("External command: %s", ShellUtils.joinShellQuote(command)),
                 exc
