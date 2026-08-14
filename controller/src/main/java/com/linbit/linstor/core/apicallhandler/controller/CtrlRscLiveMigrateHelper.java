@@ -6,6 +6,7 @@ import com.linbit.linstor.PriorityProps;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
+import com.linbit.linstor.core.SharedResourceManager;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.objects.Node;
@@ -32,6 +33,7 @@ import javax.inject.Singleton;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Shared logic of "make-available --auto-manage-dual-primary" and "unmake-available": determining the
@@ -48,15 +50,18 @@ public class CtrlRscLiveMigrateHelper
 
     private final SystemConfRepository systemConfRepository;
     private final CtrlRscConnectionHelper rscConnHelper;
+    private final SharedResourceManager sharedRscMgr;
 
     @Inject
     public CtrlRscLiveMigrateHelper(
         SystemConfRepository systemConfRepositoryRef,
-        CtrlRscConnectionHelper rscConnHelperRef
+        CtrlRscConnectionHelper rscConnHelperRef,
+        SharedResourceManager sharedRscMgrRef
     )
     {
         systemConfRepository = systemConfRepositoryRef;
         rscConnHelper = rscConnHelperRef;
+        sharedRscMgr = sharedRscMgrRef;
     }
 
     /**
@@ -161,16 +166,27 @@ public class CtrlRscLiveMigrateHelper
 
     /**
      * Verifies that the resource of the given migration source supports being active on two nodes of a
-     * shared storage pool at once.
+     * shared storage pool at once. The source's data must live in a shared storage pool: the caller
+     * finds it via {@link SharedResourceManager}, i.e. as the active copy of the shared data the
+     * migration target reuses. Note that none of the checks restricts the conflicting operation
+     * itself - e.g. any number of concurrent clones of the source may run, they only delay opening
+     * the dual-active window until they finish.
      *
      * @throws ApiRcException {@link ApiConsts#FAIL_INVLD_LAYER_STACK} if the source resource uses DRBD,
      *     {@link ApiConsts#FAIL_INVLD_PROVIDER} if an externally locked storage pool's provider cannot
      *     activate volumes with shared locks,
-     *     {@link ApiConsts#FAIL_EXISTS_SNAPSHOT} if the source node still has snapshots of the resource,
-     *     {@link ApiConsts#FAIL_IN_USE} if a volume of the resource is currently being resized
+     *     {@link ApiConsts#FAIL_EXISTS_SNAPSHOT} if snapshots of the resource or its shared data exist,
+     *     {@link ApiConsts#FAIL_IN_USE} if the resource is currently being cloned or one of its volumes
+     *     is being resized
      */
     public void ensureSharedDualActiveSupported(Resource srcRsc)
     {
+        if (!sharedRscMgr.isBackedBySharedStorPool(srcRsc))
+        {
+            throw new ImplementationError(
+                "Dual-active checked for resource without shared storage pool: " + srcRsc
+            );
+        }
         ResourceDefinition rscDfn = srcRsc.getResourceDefinition();
         if (srcRsc.hasDrbd())
         {
@@ -204,19 +220,43 @@ public class CtrlRscLiveMigrateHelper
         }
         for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
         {
-            if (snapDfn.getSnapshot(srcRsc.getNode().getName()) != null)
+            // the snapshot data lives once on the shared pool, so snapshots forbid the dual-active
+            // window even if the migration source is missing the per-node snapshot objects
+            if (snapDfn.getSnapshot(srcRsc.getNode().getName()) != null ||
+                sharedRscMgr.findSnapshotOnSharedSp(snapDfn, srcRsc) != null)
             {
                 throw new ApiRcException(
                     ApiCallRcImpl.entryBuilder(
                         ApiConsts.FAIL_EXISTS_SNAPSHOT,
-                        "Resource '" + rscDfn.getName().displayValue + "' still has snapshots on node '" +
-                            srcRsc.getNode().getName().displayValue + "'"
+                        "Resource '" + rscDfn.getName().displayValue + "' still has snapshot '" +
+                            snapDfn.getName().displayValue + "'"
                     )
                         .setCause(
-                            "Activating a shared resource on two nodes is not supported while the " +
-                                "migration source still has snapshots."
+                            "Activating a shared resource on two nodes is not supported while " +
+                                "snapshots of the resource or its shared data exist."
                         )
                         .setCorrection("Delete the snapshots first.")
+                        .setSkipErrorReport(true)
+                        .build()
+                );
+            }
+        }
+        for (Map.Entry<String, String> cloneProp : srcRsc.getProps().map().entrySet())
+        {
+            if (cloneProp.getKey().startsWith(InternalApiConsts.CLONE_PROP_PREFIX))
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.entryBuilder(
+                        ApiConsts.FAIL_IN_USE,
+                        "Resource '" + rscDfn.getName().displayValue + "' is currently being cloned to '" +
+                            cloneProp.getValue() + "'"
+                    )
+                        .setCause(
+                            "Activating a shared resource on two nodes is not supported while a clone " +
+                                "of the resource is in progress: the clone reads from a snapshot of the " +
+                                "shared data."
+                        )
+                        .setCorrection("Wait for the clone to finish.")
                         .setSkipErrorReport(true)
                         .build()
                 );

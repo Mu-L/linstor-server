@@ -577,6 +577,71 @@ public class RscMakeAvailableApiTest extends ApiTestBase
         assertThat(nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME))).isNull();
     }
 
+    @Test
+    public void makeAvailableDualPrimarySharedRefusedWithSnapshots() throws Exception
+    {
+        // opening the dual-active window is refused while the migration source still has snapshots
+        Resource rsc = createInactiveSharedStorPoolRsc();
+        createSnapshotOnNode(rsc, "snap1");
+
+        enterScope();
+        rsc.getStateFlags().disableFlags(Resource.Flags.INACTIVE);
+        commitAndCleanUp(true);
+
+        evaluateTest(
+            new MakeAvailableCall(ApiConsts.FAIL_EXISTS_SNAPSHOT)
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue)
+                .setAutoManageDualPrimary(true)
+        );
+
+        assertThat(nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME))).isNull();
+    }
+
+    @Test
+    public void makeAvailableDualPrimarySharedRefusedWithSnapshotsOnOtherNodeOnly() throws Exception
+    {
+        // the snapshot data lives once on the shared pool, so the dual-active window stays refused
+        // even if the migration source is missing the per-node snapshot objects (legacy state, see
+        // makeAvailableActivationSelfHealsSnapshotObjects)
+        Resource rsc = createInactiveSharedStorPoolRsc();
+        Resource rsc2 = createSharedStorPoolRscOnNode(testNode2Name, false);
+        createSnapshotOnNode(rsc, "snap1");
+
+        evaluateTest(
+            new MakeAvailableCall(ApiConsts.FAIL_EXISTS_SNAPSHOT)
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNodeName.displayValue)
+                .setAutoManageDualPrimary(true)
+        );
+
+        assertThat(rsc.getStateFlags().isSet(Resource.Flags.INACTIVE)).isTrue();
+        assertThat(rsc2.getStateFlags().isSet(Resource.Flags.INACTIVE)).isFalse();
+    }
+
+    @Test
+    public void makeAvailableDualPrimarySharedRefusedWhileCloning() throws Exception
+    {
+        // an in-progress clone reads from a snapshot of the shared data, so the source satellite must
+        // keep its copy exclusively locked: the dual-active window must not open until the clone is
+        // finished
+        Resource rsc = createInactiveSharedStorPoolRsc();
+
+        enterScope();
+        rsc.getStateFlags().disableFlags(Resource.Flags.INACTIVE);
+        rsc.getProps().setProp(InternalApiConsts.CLONE_PROP_PREFIX + "clonedRsc", "clonedRsc");
+        commitAndCleanUp(true);
+
+        evaluateTest(
+            new MakeAvailableCall(ApiConsts.FAIL_IN_USE)
+                .setRscName(SHARED_RSC_NAME)
+                .setNodeName(testNode2Name.displayValue)
+                .setAutoManageDualPrimary(true)
+        );
+
+        assertThat(nodesMap.get(testNode2Name).getResource(new ResourceName(SHARED_RSC_NAME))).isNull();
+    }
+
     /*
      * shared storage pool with external locking (e.g. lvmlockd) tests
      */
