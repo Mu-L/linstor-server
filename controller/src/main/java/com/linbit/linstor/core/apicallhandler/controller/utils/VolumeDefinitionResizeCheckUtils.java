@@ -4,8 +4,6 @@ import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
-import com.linbit.linstor.core.identifier.NodeName;
-import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.Snapshot;
@@ -23,7 +21,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
@@ -169,57 +166,11 @@ public class VolumeDefinitionResizeCheckUtils
     public static void ensureSharedDataNotActiveOnMultipleNodes(VolumeDefinition vlmDfnRef)
     {
         ResourceDefinition rscDfn = vlmDfnRef.getResourceDefinition();
-        Map<SharedStorPoolName, Set<NodeName>> activeNodesBySharedName = new TreeMap<>();
-        Iterator<Resource> rscIt = rscDfn.iterateResource();
-        while (rscIt.hasNext())
-        {
-            Resource rsc = rscIt.next();
-            if (rsc.getStateFlags().isUnset(Resource.Flags.INACTIVE))
-            {
-                for (StorPool sp : LayerVlmUtils.getStorPools(rsc, true))
-                {
-                    SharedStorPoolName sharedSpName = sp.getSharedStorPoolName();
-                    if (sp.isShared())
-                    {
-                        activeNodesBySharedName
-                            .computeIfAbsent(sharedSpName, ignored -> new TreeSet<>())
-                            .add(rsc.getNode().getName());
-                    }
-                }
-            }
-        }
-        for (Map.Entry<SharedStorPoolName, Set<NodeName>> entry : activeNodesBySharedName.entrySet())
-        {
-            Set<NodeName> activeNodes = entry.getValue();
-            if (activeNodes.size() > 1)
-            {
-                StringBuilder nodeList = new StringBuilder();
-                for (NodeName nodeName : activeNodes)
-                {
-                    nodeList.append("'").append(nodeName.displayValue).append("', ");
-                }
-                nodeList.setLength(nodeList.length() - 2); // cut last ", "
-
-                throw new ApiRcException(
-                    ApiCallRcImpl.entryBuilder(
-                        ApiConsts.FAIL_IN_USE,
-                        "Volume definition " + vlmDfnRef.getVolumeNumber() + " of '" + rscDfn.getName() +
-                            "' cannot be resized while its resource is active on multiple nodes (" +
-                            nodeList + ") of the shared storage pool '" + entry.getKey() + "'"
-                    )
-                        .setCause(
-                            "The data shared by these resources cannot be resized while more than one " +
-                                "node uses it, e.g. during a live migration."
-                        )
-                        .setCorrection(
-                            "Finish the live migration and remove the migration-source resource " +
-                                "(unmake-available) first."
-                        )
-                        .setSkipErrorReport(true)
-                        .build()
-                );
-            }
-        }
+        ResourceDefinitionUtils.ensureSharedDataNotActiveOnMultipleNodes(
+            rscDfn,
+            "Volume definition " + vlmDfnRef.getVolumeNumber() + " of '" + rscDfn.getName() + "'",
+            "resized"
+        );
     }
 
     /**

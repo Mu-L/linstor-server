@@ -1403,6 +1403,14 @@ public class CtrlRscDfnApiCallHandler
 
             final ResourceDefinition srcRscDfn = ctrlApiDataLoader.loadRscDfn(srcRscName);
 
+            // the counterpart of CtrlRscLiveMigrateHelper#ensureSharedDualActiveSupported, which
+            // refuses opening the dual-active window while a clone is in progress
+            ResourceDefinitionUtils.ensureSharedDataNotActiveOnMultipleNodes(
+                srcRscDfn,
+                "Resource definition '" + srcRscDfn.getName() + "'",
+                "cloned"
+            );
+
             final LayerPayload payload = createRscDfnPayload(srcRscDfn);
             final List<DeviceLayerKind> layerStack = CollectionUtils.isEmpty(layerList) ?
                 srcRscDfn.getLayerStack() : LinstorParsingUtils.asDeviceLayerKind(layerList);

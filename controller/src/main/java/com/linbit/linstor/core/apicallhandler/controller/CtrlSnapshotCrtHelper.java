@@ -16,6 +16,7 @@ import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.SharedResourceManager;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
 import com.linbit.linstor.core.apicallhandler.controller.internal.helpers.AtomicUpdateSatelliteData;
+import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDefinitionUtils;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.ApiRcException;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
@@ -473,6 +474,13 @@ public class CtrlSnapshotCrtHelper
 
     private void ensureSnapshotsViable(ResourceDefinition rscDfn)
     {
+        // the counterpart of CtrlRscLiveMigrateHelper#ensureSharedDualActiveSupported, which refuses
+        // opening the dual-active window while snapshots exist
+        ResourceDefinitionUtils.ensureSharedDataNotActiveOnMultipleNodes(
+            rscDfn,
+            "Resource definition '" + rscDfn.getName() + "'",
+            "snapshotted"
+        );
         Iterator<Resource> rscIterator = ctrlSnapshotHelper.iterateResource(rscDfn);
         // ctrl, node, sp, rg, rd, r
         int diskFullConnected = 0;

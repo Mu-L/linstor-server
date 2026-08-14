@@ -69,6 +69,9 @@ public class RscDfnCloneApiTest extends ApiTestBase
     private static final String NO_SP_RSC_GRP = "NoStorPoolGrp";
     private static final String TEST_NET_IF = "eth0";
     private static final long TEST_VLM_SIZE = 100 * 1024L;
+    private static final String SHARED_RSC_NAME = "SharedRsc";
+    private static final String SHARED_SP_NAME = "SharedPool";
+    private static final String SHARED_SPACE_NAME = "SharedSpace";
 
     private static final String UP_TO_DATE = "UpToDate";
 
@@ -155,6 +158,8 @@ public class RscDfnCloneApiTest extends ApiTestBase
         createResourceOnNode(TEST_NODE_A);
         createResourceOnNode(TEST_NODE_B);
 
+        deploySharedResource();
+
         // the satellites report the DRBD volumes as UpToDate; without a reported disk state the
         // clone API refuses to clone
         setDiskState(stltStateA, UP_TO_DATE);
@@ -193,15 +198,24 @@ public class RscDfnCloneApiTest extends ApiTestBase
 
     private void createStorPool(Node node, StorPoolName storPoolName, DeviceProviderKind kind) throws Exception
     {
+        createStorPool(node, storPoolName, kind, new SharedStorPoolName(node.getName(), storPoolName));
+    }
+
+    private void createStorPool(
+        Node node,
+        StorPoolName storPoolName,
+        DeviceProviderKind kind,
+        SharedStorPoolName sharedStorPoolName
+    )
+        throws Exception
+    {
         StorPoolDefinition storPoolDfn = storPoolDfnMap.get(storPoolName);
         if (storPoolDfn == null)
         {
             storPoolDfn = storPoolDefinitionFactory.create(storPoolName);
             storPoolDfnMap.put(storPoolName, storPoolDfn);
         }
-        FreeSpaceMgr fsm = freeSpaceMgrFactory.getInstance(
-            new SharedStorPoolName(node.getName(), storPoolName)
-        );
+        FreeSpaceMgr fsm = freeSpaceMgrFactory.getInstance(sharedStorPoolName);
         StorPool storPool = storPoolFactory.create(
             node,
             storPoolDfn,
@@ -214,11 +228,16 @@ public class RscDfnCloneApiTest extends ApiTestBase
 
     private void createResourceOnNode(String nodeName) throws Exception
     {
+        createResourceOnNode(nodeName, TEST_RSC_NAME, TEST_SP_NAME);
+    }
+
+    private void createResourceOnNode(String nodeName, String rscName, String storPoolName) throws Exception
+    {
         Map<String, String> rscProps = new TreeMap<>();
-        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, TEST_SP_NAME);
+        rscProps.put(ApiConsts.KEY_STOR_POOL_NAME, storPoolName);
         ctrlRscCrtApiHelper.createResourceDb(
             nodeName,
-            TEST_RSC_NAME,
+            rscName,
             0L,
             rscProps,
             Collections.emptyList(),
@@ -230,6 +249,34 @@ public class RscDfnCloneApiTest extends ApiTestBase
             Resource.DiskfulBy.USER,
             false
         );
+    }
+
+    /**
+     * Creates a shared storage pool on both nodes and deploys a STORAGE-only resource
+     * {@link #SHARED_RSC_NAME} on both nodes. Both copies are flagged INACTIVE. Must be called
+     * from within the setUp scope: a per-test storPoolDfnMap.put conflicts with the transaction
+     * manager the setUp scope stamped on the existing storage pool definitions.
+     */
+    private void deploySharedResource() throws Exception
+    {
+        StorPoolName sharedSpName = new StorPoolName(SHARED_SP_NAME);
+        SharedStorPoolName sharedSpaceName = new SharedStorPoolName(SHARED_SPACE_NAME);
+        createStorPool(testNodeA, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName);
+        createStorPool(testNodeB, sharedSpName, DeviceProviderKind.LVM, sharedSpaceName);
+
+        ResourceDefinition sharedRscDfn = resourceDefinitionTestFactory.builder(SHARED_RSC_NAME)
+            .setLayerStack(new ArrayList<>(Collections.singletonList(DeviceLayerKind.STORAGE)))
+            .build();
+        rscDfnMap.put(sharedRscDfn.getName(), sharedRscDfn);
+        volumeDefinitionTestFactory.builder(SHARED_RSC_NAME, 0)
+            .setSize(TEST_VLM_SIZE)
+            .build();
+
+        ResourceName sharedRscName = new ResourceName(SHARED_RSC_NAME);
+        createResourceOnNode(TEST_NODE_A, SHARED_RSC_NAME, SHARED_SP_NAME);
+        createResourceOnNode(TEST_NODE_B, SHARED_RSC_NAME, SHARED_SP_NAME);
+        testNodeA.getResource(sharedRscName).getStateFlags().enableFlags(Resource.Flags.INACTIVE);
+        testNodeB.getResource(sharedRscName).getStateFlags().enableFlags(Resource.Flags.INACTIVE);
     }
 
     private void setDiskState(SatelliteState stltState, String diskState) throws Exception
@@ -415,6 +462,25 @@ public class RscDfnCloneApiTest extends ApiTestBase
             new CloneRscDfnCall(ApiConsts.FAIL_INVLD_PROVIDER)
                 .setIntoRscGrpName(FILE_RSC_GRP)
         );
+    }
+
+    @Test
+    public void cloneRefusedWhileSharedDualActive() throws Exception
+    {
+        // during the dual-active window of a live migration both copies of a shared storage pool
+        // use the shared data at once: cloning has to wait until only one copy is active again
+        enterScope();
+        ResourceName sharedRscName = new ResourceName(SHARED_RSC_NAME);
+        testNodeA.getResource(sharedRscName).getStateFlags().disableFlags(Resource.Flags.INACTIVE);
+        testNodeB.getResource(sharedRscName).getStateFlags().disableFlags(Resource.Flags.INACTIVE);
+        leaveScope();
+
+        evaluateTest(
+            new CloneRscDfnCall(ApiConsts.FAIL_IN_USE)
+                .setSrcName(SHARED_RSC_NAME)
+        );
+
+        assertThat(rscDfnMap.get(cloneRscName)).isNull();
     }
 
     @Test

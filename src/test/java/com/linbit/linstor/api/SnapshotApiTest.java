@@ -358,6 +358,25 @@ public class SnapshotApiTest extends ApiTestBase
         assertThat(snapDfn.getAllSnapshots()).hasSize(2);
     }
 
+    @Test
+    public void crtSnapSharedSpRefusedWhileDualActive() throws Exception
+    {
+        // during the dual-active window of a live migration both copies use the shared data at
+        // once: the snapshot has to wait until only one copy is active again
+        Resource[] rscs = deploySharedResource();
+        setRscActive(rscs[0], true);
+        setRscActive(rscs[1], true);
+        satelliteOnline();
+        satellite2Online();
+
+        evaluateTest(
+            new CreateSnapshotCall(ApiConsts.FAIL_IN_USE)
+                .setRscName(SHARED_RSC_NAME)
+        );
+
+        assertThat(rscDfnMap.get(sharedRscName).getSnapshotDfn(testSnapName)).isNull();
+    }
+
     /*
      * snapshot delete tests (flux based)
      */
