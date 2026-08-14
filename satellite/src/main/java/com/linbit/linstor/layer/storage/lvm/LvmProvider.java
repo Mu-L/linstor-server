@@ -316,6 +316,11 @@ public class LvmProvider
      * using the shared LV. As soon as another resource (leg) of the rsc-dfn shares the LV - e.g. the
      * target of a live migration - the lock is downgraded to a shared lock so both legs can be active
      * at once, and upgraded back to an exclusive lock after the second leg is removed.
+     *
+     * Snapshots take precedence over sharing: lvmlockd requires the origin LV's lock in exclusive
+     * mode both to create a snapshot and for as long as any snapshot of the LV exists. The lock is
+     * therefore upgraded before a (clone-)snapshot is created and only downgraded back to a shared
+     * lock once the LV has no snapshot LVs left.
      */
     private LvmLockMode getRequiredLockMode(LvmData<Resource> vlmDataRef)
     {
@@ -323,11 +328,57 @@ public class LvmProvider
         StorPool storPool = vlmDataRef.getStorPool();
         if (storPool.isExternalLocking() && storPool.getDeviceProviderKind().isSharedVolumeSupported())
         {
-            lockMode = SharedStorageUtils.isNeededBySharedResource(vlmDataRef) ?
-                LvmLockMode.SHARED :
-                LvmLockMode.EXCLUSIVE;
+            boolean exclusive = requiresExclusiveLvLock(vlmDataRef) ||
+                !SharedStorageUtils.isNeededBySharedResource(vlmDataRef);
+            lockMode = exclusive ? LvmLockMode.EXCLUSIVE : LvmLockMode.SHARED;
         }
         return lockMode;
+    }
+
+    /**
+     * Whether pending snapshot work or existing snapshot LVs force the LV lock of the given volume
+     * into exclusive mode even while another leg of the rsc-dfn shares the LV.
+     */
+    private boolean requiresExclusiveLvLock(LvmData<Resource> vlmDataRef)
+    {
+        Resource rsc = vlmDataRef.getRscLayerObject().getAbsResource();
+        return !getCloneForKeyProps(rsc).isEmpty() ||
+            hasLocalSnapshots(rsc) ||
+            hasCachedSnapshotLvs(extractVolumeGroup(vlmDataRef), asLvIdentifier(vlmDataRef));
+    }
+
+    private boolean hasLocalSnapshots(Resource rscRef)
+    {
+        boolean found = false;
+        for (SnapshotDefinition snapDfn : rscRef.getResourceDefinition().getSnapshotDfns())
+        {
+            @Nullable Snapshot snap = snapDfn.getSnapshot(rscRef.getNode().getName());
+            if (snap != null && !snap.isDeleted() && snap.getFlags().isUnset(Snapshot.Flags.DELETE))
+            {
+                found = true;
+                break;
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Whether the cached "lvs" data lists snapshot LVs of the given LV. Based on the possibly stale
+     * {@link #infoListCache}; see {@link #hasThickSnapshots} for the variant confirming a hit with a
+     * fresh query.
+     */
+    private boolean hasCachedSnapshotLvs(String volumeGroupRef, String lvmIdRef)
+    {
+        boolean found = false;
+        for (LvsInfo info : infoListCache.values())
+        {
+            if (volumeGroupRef.equals(info.volumeGroup) && lvmIdRef.equals(info.origin))
+            {
+                found = true;
+                break;
+            }
+        }
+        return found;
     }
 
     /**
@@ -861,15 +912,7 @@ public class LvmProvider
      */
     private boolean hasThickSnapshots(String volumeGroupRef, String lvmIdRef) throws StorageException
     {
-        boolean hasSnapshots = false;
-        for (LvsInfo info : infoListCache.values())
-        {
-            if (volumeGroupRef.equals(info.volumeGroup) && lvmIdRef.equals(info.origin))
-            {
-                hasSnapshots = true;
-                break;
-            }
-        }
+        boolean hasSnapshots = hasCachedSnapshotLvs(volumeGroupRef, lvmIdRef);
         if (hasSnapshots)
         {
             LvmUtils.recacheNextLvs();

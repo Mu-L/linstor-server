@@ -613,7 +613,7 @@ public abstract class AbsStorageProvider<
         errorReporter.logInfo("Lv snapshot created %s/%s", vlmData.getIdentifier(), cloneRscName);
     }
 
-    private Set<Map.Entry<String, String>> getCloneForKeyProps(Resource rsc)
+    protected Set<Map.Entry<String, String>> getCloneForKeyProps(Resource rsc)
     {
         final ReadOnlyProps props = rsc.getProps();
         return props.map().entrySet().stream()
