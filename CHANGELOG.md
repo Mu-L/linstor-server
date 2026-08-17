@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migration: the backing LVs are locked exclusively, downgraded to shared locks during the dual-active window
 - Opening the dual-active window is refused while snapshots (including leftover snapshot data on the shared
   pool) exist or the resource is being cloned; snapshot creation and cloning are refused while dual-active
+- Nodes no longer holding the active copy of a shared storage pool now deactivate snapshot LVs and renamed
+  (`_deleted_*`) origin LVs, releasing their LV locks and stale device-mapper state
 
 ## [1.35.0-rc.1] - 2026-08-13
 

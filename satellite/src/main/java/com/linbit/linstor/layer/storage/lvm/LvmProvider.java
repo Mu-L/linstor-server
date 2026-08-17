@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Singleton
@@ -81,6 +82,10 @@ public class LvmProvider
     /** @see com.linbit.linstor.layer.storage.zfs.ZfsProvider - uses the same prefix for renamed origins */
     private static final String LVM_DELETED_PREFIX = "_deleted_";
     private static final String FORMAT_LVM_DELETED_ID = LVM_DELETED_PREFIX + "%s_%s";
+    /** Matches the {@link TimeUtils#getRenameTime()} part of a {@link #FORMAT_LVM_DELETED_ID} name */
+    private static final Pattern LVM_DELETED_TIME_PATTERN = Pattern.compile(
+        "\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d{3}"
+    );
 
     private static final String DFLT_RESTORE_DD_BLOCKSIZE = "64k";
 
@@ -236,27 +241,8 @@ public class LvmProvider
              * for INACTIVE resources in shared storage pools. lvremove works on inactive LVs anyways.
              */
             Snapshot snap = snapVlmData.getRscLayerObject().getAbsResource();
-            setDevicePath = !snap.getFlags().isSet(Snapshot.Flags.DELETE);
-
-            if (setDevicePath && snapVlmData.getStorPool().isShared())
-            {
-                /*
-                 * Every copy of a shared storage pool resource holds the snapshot objects, but only the
-                 * node with the active copy may activate the snapshot LV: activating a thick snapshot
-                 * implicitly also activates its origin, interfering with the peer actively using the
-                 * shared volume. The same applies when this node holds no copy at all (e.g. it was
-                 * deleted while the snapshot remains).
-                 */
-                @Nullable Resource localRsc = snap.getResourceDefinition().getResource(snap.getNodeName());
-                if (localRsc == null ||
-                    localRsc.getStateFlags().isSomeSet(
-                        Resource.Flags.INACTIVE,
-                        Resource.Flags.INACTIVE_PERMANENTLY
-                    ))
-                {
-                    setDevicePath = false;
-                }
-            }
+            setDevicePath = !snap.getFlags().isSet(Snapshot.Flags.DELETE) &&
+                !isSnapshotLvBarredFromActivation(snapVlmData);
 
             lvcreateOptions = getLvcreateSnapshotOptions(vlmDataRef);
         }
@@ -342,6 +328,43 @@ public class LvmProvider
                 LvmLockMode.EXCLUSIVE;
         }
         return lockMode;
+    }
+
+    /**
+     * Every copy of a shared storage pool resource holds the snapshot objects, but only the node
+     * with the active copy may keep the snapshot LV active: activating a thick snapshot implicitly
+     * also activates its origin, interfering with the peer actively using the shared volume. The
+     * same applies when this node holds no copy at all (e.g. it was deleted while the snapshot
+     * remains).
+     */
+    private boolean isSnapshotLvBarredFromActivation(LvmData<Snapshot> snapVlmDataRef)
+    {
+        boolean barred = false;
+        if (snapVlmDataRef.getStorPool().isShared())
+        {
+            Snapshot snap = snapVlmDataRef.getRscLayerObject().getAbsResource();
+            @Nullable Resource localRsc = snap.getResourceDefinition().getResource(snap.getNodeName());
+            barred = localRsc == null ||
+                localRsc.getStateFlags().isSomeSet(
+                    Resource.Flags.INACTIVE,
+                    Resource.Flags.INACTIVE_PERMANENTLY
+                );
+        }
+        return barred;
+    }
+
+    private void deactivateLv(String volumeGroupRef, String lvIdRef) throws StorageException
+    {
+        LvmUtils.execWithRetry(
+            extCmdFactory,
+            Collections.singleton(volumeGroupRef),
+            config -> LvmCommands.deactivateVolume(
+                extCmdFactory.create(),
+                volumeGroupRef,
+                lvIdRef,
+                config
+            )
+        );
     }
 
     private void updateStripesPropIfNeeded(LvmData<?> vlmDataRef, @Nullable Integer stripesRef)
@@ -589,6 +612,14 @@ public class LvmProvider
                 oldLvmId,
                 newLvmId
             );
+            /*
+             * The renamed LV (and its snapshots) must stay active here: deactivating a thick origin
+             * also deactivates its snapshot LVs, and an in-progress rollback-via-restore still reads
+             * from the snapshot device without anything reactivating it. Once the volume gets
+             * deactivated on this node - it no longer holds the active copy of a shared storage
+             * pool - deactivateRenamedOrigins releases the renamed origin together with its
+             * snapshot LVs (and with them any lvmlockd locks).
+             */
             LvmUtils.execWithRetry(
                 extCmdFactory,
                 Collections.singleton(volumeGroup),
@@ -677,20 +708,52 @@ public class LvmProvider
     }
 
     @Override
-    protected void deactivateLvImpl(LvmData<Resource> vlmDataRef, String lvIdRef)
+    protected void deactivateLvImpl(LvmData<Resource> vlmDataRef, String ignoredLvIdRef)
         throws StorageException, DatabaseException
     {
-        LvmUtils.execWithRetry(
-            extCmdFactory,
-            Collections.singleton(vlmDataRef.getVolumeGroup()),
-            config -> LvmCommands.deactivateVolume(
-                extCmdFactory.create(),
-                vlmDataRef.getVolumeGroup(),
-                vlmDataRef.getIdentifier(),
-                config
-            )
-        );
+        deactivateLv(vlmDataRef.getVolumeGroup(), vlmDataRef.getIdentifier());
+        deactivateRenamedOrigins(vlmDataRef);
         LvmUtils.recacheNextLvs();
+    }
+
+    /**
+     * Deactivates still active renamed ("_deleted_") origins of the given volume. The rename keeps
+     * the LV - and implicitly its snapshot LVs, which deactivate together with their origin - active
+     * on the node that deleted or restored the volume. That is legitimate while the node holds the
+     * active copy of a shared storage pool, but once the volume is deactivated here the node must
+     * release its device nodes and, on externally locked storage pools, its lvmlockd locks: they
+     * would block the removal of the renamed LV together with its last snapshot from every other
+     * node. Reached on every dispatch of an INACTIVE copy, so leftovers are also cleaned up late.
+     */
+    private void deactivateRenamedOrigins(LvmData<Resource> vlmDataRef) throws StorageException
+    {
+        if (vlmDataRef.getStorPool().isShared())
+        {
+            String volumeGroup = vlmDataRef.getVolumeGroup();
+            String renamedPrefix = LVM_DELETED_PREFIX + vlmDataRef.getIdentifier() + "_";
+            for (LvsInfo info : infoListCache.values())
+            {
+                if (volumeGroup.equals(info.volumeGroup) &&
+                    isRenamedOrigin(renamedPrefix, info.identifier) &&
+                    info.attributes.contains("a"))
+                {
+                    deactivateLv(volumeGroup, info.identifier);
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether the given LV is a renamed ("<code>_deleted_</code>") origin matching the given renamed
+     * prefix ("<code>_deleted_&lt;lvId&gt;_</code>"). The trailing rename time is matched exactly:
+     * with a prefix check alone a volume would also match the renamed origins of every volume whose
+     * identifier merely extends its own (e.g. "web_00000" of resource "web" vs "web_00000_00000" of
+     * resource "web_00000").
+     */
+    private boolean isRenamedOrigin(String renamedPrefixRef, String lvIdRef)
+    {
+        return lvIdRef.startsWith(renamedPrefixRef) &&
+            LVM_DELETED_TIME_PATTERN.matcher(lvIdRef.substring(renamedPrefixRef.length())).matches();
     }
 
     @Override
