@@ -10,7 +10,7 @@ spec:
       description: vmshed version to use
     build_helpers_version:
       type: string
-      default: 1f0bb4e39252edf7dd1d27e6bb1580c92b19815f
+      default: bbebcdb3f5f69354111219750b347d30f81f41a9
       description: build-helpers version or tag to use
     vmshed_torun:
       type: string
@@ -182,7 +182,8 @@ workflow:
     - |
       mkdir build-helpers
       BUILD_HELPERS_VERSION=$[[ inputs.build_helpers_version ]]
-      curl -sSfL $LINBIT_REGISTRY_URL/repository/test-suite/build-helpers-$BUILD_HELPERS_VERSION.tar.gz | tar -xvz -C ./build-helpers
+      PULP_FILES_URL=https://pulp.at.linbit.com/pulp/content/file
+      curl -sSfL $PULP_FILES_URL/test-suite/build-helpers-$BUILD_HELPERS_VERSION.tar.gz | tar -xvz -C ./build-helpers
       . build-helpers/gitlab-utils.sh
     - |
       ci_prepare_tools
