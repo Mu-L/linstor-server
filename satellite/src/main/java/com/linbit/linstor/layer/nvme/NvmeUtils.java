@@ -22,6 +22,7 @@ import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.Volume;
+import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.types.LsIpAddress;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.storage.DeviceProviderMapper;
@@ -45,9 +46,6 @@ import com.linbit.linstor.utils.layer.LayerVlmUtils;
 import com.linbit.utils.ExceptionThrowingBiConsumer;
 import com.linbit.utils.StringUtils;
 
-import static com.linbit.linstor.api.ApiConsts.KEY_PREF_NIC;
-import static com.linbit.linstor.layer.storage.spdk.utils.SpdkUtils.SPDK_PATH_PREFIX;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -67,6 +65,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+
+import static com.linbit.linstor.api.ApiConsts.KEY_PREF_NIC;
+import static com.linbit.linstor.layer.storage.spdk.utils.SpdkUtils.SPDK_PATH_PREFIX;
 
 /**
  * Class for processing NvmeRscData
@@ -583,8 +584,8 @@ public class NvmeUtils
         boolean isWaiting,
         RSC_DATA rscData,
         String subsystemName,
-            BiConsumer<RSC_DATA, @Nonnull Boolean> setExistsRscFunc,
-            ExceptionThrowingBiConsumer<VLM_DATA, @Nonnull Boolean, DatabaseException> setExistsVlmFunc,
+        BiConsumer<RSC_DATA, @Nonnull Boolean> setExistsRscFunc,
+        ExceptionThrowingBiConsumer<VLM_DATA, @Nonnull Boolean, DatabaseException> setExistsVlmFunc,
         ExceptionThrowingBiConsumer<VLM_DATA, String, DatabaseException> setDevPathVlmFunc
     )
         throws StorageException
@@ -623,8 +624,12 @@ public class NvmeUtils
 
                 for (VLM_DATA vlmData : rscData.getVlmLayerObjects().values())
                 {
+                    // we skip waiting if the vlm needs to be deleted. however, even if the vlm is currently being
+                    // deleted we still want to run a single check if the volume exists or not and propagate this
+                    // info via the exists boolean so that the caller above us can issue a disconnect.
+                    boolean waitForVlm = isWaiting && !isVlmDeleted(vlmData);
                     output = executeCmdAfterWaiting(
-                        isWaiting,
+                        waitForVlm,
                         "/bin/bash",
                         "-c",
                         "grep -H -r -w " + (vlmData.getVlmNr().getValue() + 1) + " " +
@@ -660,15 +665,34 @@ public class NvmeUtils
                             nvmeNamespacePart.substring(nvmeNamespacePart.lastIndexOf('n') + 1)
                         );
 
-                        String devicePath = "/dev/nvme" + nvmeRscIdx + "n" + nvmeVlmIdx;
-                        DeviceUtils.waitUntilDeviceVisible(
-                            devicePath,
-                            DFLT_WAIT_UNTIL_DEVICE_CREATED_TIMEOUT_IN_MS,
-                            errorReporter,
-                            fsWatch
-                        );
+                        @Nullable String devicePath = "/dev/nvme" + nvmeRscIdx + "n" + nvmeVlmIdx;
+                        boolean exists;
+
+                        if (waitForVlm)
+                        {
+                            DeviceUtils.waitUntilDeviceVisible(
+                                devicePath,
+                                DFLT_WAIT_UNTIL_DEVICE_CREATED_TIMEOUT_IN_MS,
+                                errorReporter,
+                                fsWatch
+                            );
+                            exists = true;
+                        }
+                        else
+                        {
+                            if (Files.exists(Paths.get(devicePath)))
+                            {
+                                exists = true;
+                            }
+                            else
+                            {
+                                success = false;
+                                exists = false;
+                                devicePath = null;
+                            }
+                        }
                         setDevPathVlmFunc.accept(vlmData, devicePath);
-                        setExistsVlmFunc.accept(vlmData, true);
+                        setExistsVlmFunc.accept(vlmData, exists);
                     }
                 }
             }
@@ -679,6 +703,17 @@ public class NvmeUtils
         }
 
         return success;
+    }
+
+    public static <VLM_DATA extends VlmProviderObject<Resource>> boolean isVlmDeleted(VLM_DATA vlmData)
+    {
+        Volume vlm = (Volume) vlmData.getVolume();
+        VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
+        return vlm.getFlags()
+            .isSomeSet(
+                Volume.Flags.DELETE,
+                Volume.Flags.CLONING
+            ) || vlmDfn.getFlags().isSet(VolumeDefinition.Flags.DELETE);
     }
 
     private <VLM_DATA extends VlmProviderObject<Resource>, RSC_DATA extends AbsRscData<Resource, VLM_DATA>>

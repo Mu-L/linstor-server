@@ -7,12 +7,10 @@ import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.core.devmgr.DeviceHandler;
 import com.linbit.linstor.core.devmgr.exceptions.ResourceException;
 import com.linbit.linstor.core.devmgr.exceptions.VolumeException;
-import com.linbit.linstor.core.objects.AbsVolume;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.Resource.Flags;
 import com.linbit.linstor.core.objects.Snapshot;
 import com.linbit.linstor.core.objects.Volume;
-import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.pojos.LocalPropsChangePojo;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.event.common.ResourceState;
@@ -26,9 +24,6 @@ import com.linbit.linstor.storage.data.adapter.nvme.NvmeVlmData;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
-import static com.linbit.linstor.layer.nvme.NvmeUtils.NVME_SUBSYSTEMS_PATH;
-import static com.linbit.linstor.layer.nvme.NvmeUtils.NVME_SUBSYSTEM_PREFIX;
-
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -38,6 +33,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+
+import static com.linbit.linstor.layer.nvme.NvmeUtils.NVME_SUBSYSTEMS_PATH;
+import static com.linbit.linstor.layer.nvme.NvmeUtils.NVME_SUBSYSTEM_PREFIX;
 
 /**
  * Class for managing NVMe Target and Initiator
@@ -131,33 +129,28 @@ public class NvmeLayer implements DeviceLayer
         NvmeRscData<Resource> nvmeRscData = (NvmeRscData<Resource>) rscData;
 
         StateFlags<Flags> rscFlags = nvmeRscData.getAbsResource().getStateFlags();
+        boolean isRscDeleting = rscFlags.isSomeSet(
+            Resource.Flags.DELETE,
+            Resource.Flags.DISK_REMOVING,
+            Resource.Flags.INACTIVE
+        );
         if (nvmeRscData.isInitiator())
         {
             // reading a NVMe Target resource associated with a NVMe Initiator to determine if they belong to SPDK
             final Resource targetRsc = nvmeUtils.getTargetResource(nvmeRscData);
             nvmeRscData.setSpdk(nvmeUtils.isSpdkResource(targetRsc.getLayerData()));
 
-            nvmeUtils.setDevicePaths(nvmeRscData, nvmeRscData.exists());
+
+            nvmeUtils.setDevicePaths(nvmeRscData, nvmeRscData.exists() && !isRscDeleting);
 
             // disconnect
-            if (
-                nvmeRscData.exists() && rscFlags.isSomeSet(Resource.Flags.DELETE,
-                    Resource.Flags.DISK_REMOVING,
-                    Resource.Flags.INACTIVE
-                )
-            )
+            if (nvmeRscData.exists() && isRscDeleting)
             {
                 // disconnect
                 nvmeUtils.disconnect(nvmeRscData);
             }
             // connect
-            else if (!nvmeRscData.exists() &&
-                !rscFlags.isSomeSet(
-                    Resource.Flags.DELETE,
-                    Resource.Flags.DISK_REMOVING,
-                    Resource.Flags.INACTIVE
-                )
-            )
+            else if (!nvmeRscData.exists() && !isRscDeleting)
             {
                 // connect
                 nvmeUtils.connect(nvmeRscData);
@@ -168,25 +161,18 @@ public class NvmeLayer implements DeviceLayer
             }
             else
             {
-
                 boolean cleanedUpVlm = false;
                 for (NvmeVlmData<Resource> nvmeVlmData : nvmeRscData.getVlmLayerObjects().values())
                 {
                     // if volumes-/definitions get deleted, nvme will take care of removing the device accordingly
                     // however, we still need to set those vlmData to not exists so that the deviceHandler does not
                     // complain about us not having properly cleaned up
-                    AbsVolume<Resource> vlm = nvmeVlmData.getVolume();
-                    VolumeDefinition vlmDfn = vlm.getVolumeDefinition();
-                    if (((Volume) vlm).getFlags()
-                        .isSomeSet(
-                            Volume.Flags.DELETE,
-                            Volume.Flags.CLONING
-                        ) || vlmDfn.getFlags().isSet(VolumeDefinition.Flags.DELETE))
+                    if (NvmeUtils.isVlmDeleted(nvmeVlmData))
                     {
                         nvmeVlmData.setExists(false);
                         errorReporter.logTrace(
                             "NVMe volume '%d' of resource '%s' deleted",
-                            vlmDfn.getVolumeNumber().value,
+                            nvmeVlmData.getVlmNr().value,
                             nvmeVlmData.getRscLayerObject().getSuffixedResourceName()
                         );
                         cleanedUpVlm = true;
@@ -210,11 +196,7 @@ public class NvmeLayer implements DeviceLayer
 
             nvmeRscData.setExists(nvmeUtils.isTargetConfigured(nvmeRscData));
 
-            if (rscFlags.isSomeSet(
-                Resource.Flags.DELETE,
-                Resource.Flags.DISK_REMOVING,
-                Resource.Flags.INACTIVE
-            ))
+            if (isRscDeleting)
             {
                 if (nvmeRscData.exists())
                 {

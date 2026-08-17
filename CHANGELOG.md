@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed race while unsetting "DrbdOptions/ExactSize" which could cause "Resize not allowed during resync" ErrorReports.
+- Fixed rare race-condition finding the devicePath in NvmeUtils while deleting a volume-definition.
 
 ## [1.35.0-rc.1] - 2026-08-13
 
