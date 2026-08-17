@@ -842,9 +842,7 @@ public class LvmProvider
         String snapVolumeGroup = sourceSnapVlmDataRef.getVolumeGroup();
         String snapLvId = asSnapLvIdentifier(sourceSnapVlmDataRef);
 
-        // a thick snapshot cannot be snapshotted again - restore by creating a new LV and copying the data.
-        // The source snapshot is active: snapshots are created active and updateInfo reactivates known
-        // but inactive LVs (i.e. after a satellite reboot)
+        // a thick snapshot cannot be snapshotted again - restore by creating a new LV and copying the data
         LvmUtils.execWithRetry(
             extCmdFactory,
             Collections.singleton(volumeGroup),
@@ -854,6 +852,27 @@ public class LvmProvider
                 targetId,
                 vlmDataRef.getExpectedSize(),
                 config
+            )
+        );
+        LvmUtils.recacheNextLvs();
+
+        /*
+         * The source snapshot is not necessarily active: snapshots are created active, but
+         * deactivating an inactive copy of a shared storage pool also deactivates its snapshot LVs
+         * (they deactivate together with their renamed origin), and the restore dispatches never
+         * contain the source snapshot, so updateInfo cannot reactivate it either. The implicit
+         * activation of the renamed origin is legitimate: the node performing the restore holds the
+         * active copy, and the next deactivation releases it again.
+         */
+        LvmUtils.execWithRetry(
+            extCmdFactory,
+            Collections.singleton(snapVolumeGroup),
+            config -> LvmCommands.activateVolume(
+                extCmdFactory.create(),
+                snapVolumeGroup,
+                snapLvId,
+                config,
+                LvmLockMode.DEFAULT
             )
         );
         LvmUtils.recacheNextLvs();
