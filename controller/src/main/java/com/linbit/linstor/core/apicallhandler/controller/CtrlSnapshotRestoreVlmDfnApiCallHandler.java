@@ -89,12 +89,12 @@ class CtrlSnapshotRestoreVlmDfnApiCallHandler
 
         try
         {
-            ResourceDefinition fromRscDfn = ctrlApiDataLoader.loadRscDfn(fromRscNameStr, true);
+            ResourceDefinition fromRscDfn = ctrlApiDataLoader.loadRscDfn(fromRscNameStr);
 
             SnapshotName fromSnapshotName = LinstorParsingUtils.asSnapshotName(fromSnapshotNameStr);
-            SnapshotDefinition fromSnapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(fromRscDfn, fromSnapshotName, true);
+            SnapshotDefinition fromSnapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(fromRscDfn, fromSnapshotName);
 
-            ResourceDefinition toRscDfn = ctrlApiDataLoader.loadRscDfn(toRscNameStr, true);
+            ResourceDefinition toRscDfn = ctrlApiDataLoader.loadRscDfn(toRscNameStr);
 
             if (backupInfoMgr.restoreContainsRscDfn(toRscDfn))
             {

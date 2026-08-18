@@ -171,7 +171,7 @@ class CtrlVlmDfnApiCallHandler
                 );
             }
 
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr, true);
+            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr);
             if (backupInfoMgr.restoreContainsRscDfn(rscDfn))
             {
                 throw new ApiRcException(

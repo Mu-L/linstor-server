@@ -173,7 +173,7 @@ class CtrlStorPoolDfnApiCallHandler
         try
         {
             requireStorPoolDfnChangeAccess();
-            StorPoolDefinition storPoolDfn = ctrlApiDataLoader.loadStorPoolDfn(storPoolNameStr, true);
+            StorPoolDefinition storPoolDfn = ctrlApiDataLoader.loadStorPoolDfn(storPoolNameStr);
 
             if (storPoolDfnUuid != null && !storPoolDfnUuid.equals(storPoolDfn.getUuid()))
             {
@@ -226,7 +226,7 @@ class CtrlStorPoolDfnApiCallHandler
         {
             requireStorPoolDfnChangeAccess();
 
-            StorPoolDefinition storPoolDfn = ctrlApiDataLoader.loadStorPoolDfn(storPoolNameStr, true);
+            StorPoolDefinition storPoolDfn = ctrlApiDataLoader.loadStorPoolDfn(storPoolNameStr);
 
             Iterator<StorPool> storPoolIterator = getPrivilegedStorPoolIterator(storPoolDfn);
 

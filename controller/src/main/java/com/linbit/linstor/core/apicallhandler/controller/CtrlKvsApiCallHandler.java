@@ -113,7 +113,7 @@ public class CtrlKvsApiCallHandler
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
         try
         {
-            KeyValueStore kvs = ctrlApiDataLoader.loadKvs(kvsNameStr, false);
+            @Nullable KeyValueStore kvs = ctrlApiDataLoader.loadKvsOrNull(kvsNameStr);
             if (kvsUuid != null && kvs != null && !kvsUuid.equals(kvs.getUuid()))
             {
                 throw new ApiRcException(
@@ -182,7 +182,7 @@ public class CtrlKvsApiCallHandler
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
         try
         {
-            @Nullable KeyValueStore kvs = ctrlApiDataLoader.loadKvs(kvsNameStr, false);
+            @Nullable KeyValueStore kvs = ctrlApiDataLoader.loadKvsOrNull(kvsNameStr);
             if (kvsUuidRef != null && kvs != null && !kvsUuidRef.equals(kvs.getUuid()))
             {
                 throw new ApiRcException(

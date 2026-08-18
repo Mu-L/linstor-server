@@ -287,7 +287,7 @@ class CtrlRscConnectionApiCallHandler
         try
         {
             ResourceConnection rscConn =
-                ctrlRscConnectionHelper.loadRscConn(nodeName1Str, nodeName2Str, rscNameStr, true);
+                ctrlRscConnectionHelper.loadRscConn(nodeName1Str, nodeName2Str, rscNameStr);
             UUID rscConnUuid = rscConn.getUuid();
             // remember the resources before the delete, accessing them through the deleted
             // connection object would throw an AccessToDeletedDataException

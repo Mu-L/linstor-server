@@ -201,7 +201,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         boolean notifyStlts = false;
         ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
         VolumeNumber vlmNr = LinstorParsingUtils.asVlmNr(vlmNrInt);
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, true);
+        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr);
 
         if (vlmDfnUuid != null && !vlmDfnUuid.equals(vlmDfn.getUuid()))
         {
@@ -426,7 +426,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         ApiCallRcImpl responses = new ApiCallRcImpl();
         ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
         VolumeNumber vlmNr = LinstorParsingUtils.asVlmNr(vlmNrInt);
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, true);
+        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr);
 
         Props vlmDfnProps = getVlmDfnProps(vlmDfn);
 
@@ -587,7 +587,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
 
     private Flux<ApiCallRc> updateSatellitesInScope(ResourceName rscName, VolumeNumber vlmNr)
     {
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, false);
+        @Nullable VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfnOrNull(rscName, vlmNr);
 
         Flux<ApiCallRc> flux;
 
@@ -688,7 +688,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
 
     private Flux<ApiCallRc> resizeDrbdInTransaction(ResourceName rscName, VolumeNumber vlmNr)
     {
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, false);
+        @Nullable VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfnOrNull(rscName, vlmNr);
 
         Flux<ApiCallRc> flux;
 
@@ -733,7 +733,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
 
     private Flux<ApiCallRc> resizeNonDrbdInTransaction(ResourceName rscName, VolumeNumber vlmNr)
     {
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, false);
+        @Nullable VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfnOrNull(rscName, vlmNr);
 
         Flux<ApiCallRc> flux;
 
@@ -790,7 +790,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
 
     private Flux<ApiCallRc> finishResizeInTransaction(ResourceName rscName, VolumeNumber vlmNr)
     {
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, false);
+        @Nullable VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfnOrNull(rscName, vlmNr);
 
         if (vlmDfn != null)
         {

@@ -1,6 +1,7 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.linstor.LinstorParsingUtils;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -134,7 +135,7 @@ public class CtrlNodeLostApiCallHandler
     {
         requireNodesMapChangeAccess();
         NodeName nodeName = LinstorParsingUtils.asNodeName(nodeNameStr);
-        Node node = ctrlApiDataLoader.loadNode(nodeName, false);
+        @Nullable Node node = ctrlApiDataLoader.loadNodeOrNull(nodeName);
         if (node == null)
         {
             throw new ApiRcException(ApiCallRcImpl

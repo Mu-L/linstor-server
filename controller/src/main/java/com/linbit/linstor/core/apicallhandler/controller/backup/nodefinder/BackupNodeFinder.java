@@ -227,12 +227,12 @@ public class BackupNodeFinder
                 {
                     throw new ImplementationError("Remote Type not allowed here");
                 }
-                Node prevNode = null;
+                @Nullable Node prevNode = null;
                 // if prevNode is null it is impossible to find out which node(s) need(s) to make the inc, so we return
                 // an empty list instead
                 if (prevNodeStr != null)
                 {
-                    prevNode = ctrlApiDataLoader.loadNode(prevNodeStr, false);
+                    prevNode = ctrlApiDataLoader.loadNodeOrNull(prevNodeStr);
                     // if node in same-node-category, only return that node, else group
                     if (prevNode != null)
                     {

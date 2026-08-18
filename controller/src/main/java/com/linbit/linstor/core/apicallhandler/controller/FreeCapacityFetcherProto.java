@@ -119,7 +119,7 @@ public class FreeCapacityFetcherProto implements FreeCapacityFetcher
     {
         Stream<Node> nodeStream = nodesFilter.isEmpty() ?
             nodeRepository.getMapForView().values().stream() :
-            nodesFilter.stream().map(nodeName -> ctrlApiDataLoader.loadNode(nodeName, true));
+            nodesFilter.stream().map(nodeName -> ctrlApiDataLoader.loadNode(nodeName));
 
         return buildFreeSpaceRequests(nodeStream);
     }

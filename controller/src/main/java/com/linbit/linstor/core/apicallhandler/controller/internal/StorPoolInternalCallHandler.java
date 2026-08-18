@@ -169,8 +169,7 @@ public class StorPoolInternalCallHandler
                         {
                             StorPool storPool = ctrlApiDataLoader.loadStorPool(
                                 capacityInfoPojo.getStorPoolName(),
-                                node,
-                                true
+                                node
                             );
                             if (storPool.getUuid().equals(capacityInfoPojo.getStorPoolUuid()))
                             {

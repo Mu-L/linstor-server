@@ -45,7 +45,7 @@ class CtrlRscConnectionHelper
         String rscNameStr
     )
     {
-        ResourceConnection rscConn = loadRscConn(nodeName1, nodeName2, rscNameStr, false);
+        @Nullable ResourceConnection rscConn = loadRscConnOrNull(nodeName1, nodeName2, rscNameStr);
         if (rscConn == null)
         {
             rscConn = createRscConn(nodeName1, nodeName2, rscNameStr, null);
@@ -69,12 +69,12 @@ class CtrlRscConnectionHelper
         @Nullable ResourceConnection.Flags[] initFlags
     )
     {
-        Node node1 = ctrlApiDataLoader.loadNode(nodeName1Str, true);
-        Node node2 = ctrlApiDataLoader.loadNode(nodeName2Str, true);
+        Node node1 = ctrlApiDataLoader.loadNode(nodeName1Str);
+        Node node2 = ctrlApiDataLoader.loadNode(nodeName2Str);
         ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
 
-        Resource rsc1 = ctrlApiDataLoader.loadRsc(node1.getName(), rscName, true);
-        Resource rsc2 = ctrlApiDataLoader.loadRsc(node2.getName(), rscName, true);
+        Resource rsc1 = ctrlApiDataLoader.loadRsc(node1.getName(), rscName);
+        Resource rsc2 = ctrlApiDataLoader.loadRsc(node2.getName(), rscName);
 
         return createRscConn(rsc1, rsc2, initFlags);
     }
@@ -113,27 +113,22 @@ class CtrlRscConnectionHelper
         return rscConn;
     }
 
-    public @Nullable ResourceConnection loadRscConn(
+    public ResourceConnection loadRscConn(
         String nodeName1Str,
         String nodeName2Str,
-        String rscNameStr,
-        boolean failIfNull
+        String rscNameStr
     )
     {
         ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
         NodeName nodeName1 = LinstorParsingUtils.asNodeName(nodeName1Str);
         NodeName nodeName2 = LinstorParsingUtils.asNodeName(nodeName2Str);
 
-        Resource rsc1 = ctrlApiDataLoader.loadRsc(nodeName1, rscName, failIfNull);
-        Resource rsc2 = ctrlApiDataLoader.loadRsc(nodeName2, rscName, failIfNull);
+        Resource rsc1 = ctrlApiDataLoader.loadRsc(nodeName1, rscName);
+        Resource rsc2 = ctrlApiDataLoader.loadRsc(nodeName2, rscName);
 
-        ResourceConnection rscConn = null;
-        if (rsc1 != null && rsc2 != null)
-        {
-            rscConn = rsc1.getAbsResourceConnection(rsc2);
-        }
+        @Nullable ResourceConnection rscConn = rsc1.getAbsResourceConnection(rsc2);
 
-        if (failIfNull && rscConn == null)
+        if (rscConn == null)
         {
             throw new ApiRcException(
                 ApiCallRcImpl.simpleEntry(
@@ -145,6 +140,27 @@ class CtrlRscConnectionHelper
                     )
                 )
             );
+        }
+        return rscConn;
+    }
+
+    public @Nullable ResourceConnection loadRscConnOrNull(
+        String nodeName1Str,
+        String nodeName2Str,
+        String rscNameStr
+    )
+    {
+        ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
+        NodeName nodeName1 = LinstorParsingUtils.asNodeName(nodeName1Str);
+        NodeName nodeName2 = LinstorParsingUtils.asNodeName(nodeName2Str);
+
+        @Nullable Resource rsc1 = ctrlApiDataLoader.loadRscOrNull(nodeName1, rscName);
+        @Nullable Resource rsc2 = ctrlApiDataLoader.loadRscOrNull(nodeName2, rscName);
+
+        @Nullable ResourceConnection rscConn = null;
+        if (rsc1 != null && rsc2 != null)
+        {
+            rscConn = rsc1.getAbsResourceConnection(rsc2);
         }
         return rscConn;
     }

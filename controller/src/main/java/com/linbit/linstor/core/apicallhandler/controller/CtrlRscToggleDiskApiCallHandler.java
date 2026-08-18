@@ -310,7 +310,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
                 context,
                 rsc.getNode().getName(),
                 rsc.getResourceDefinition().getName(),
-                ctrlApiDataLoader.loadNode(migrateFromNodeNameStr, true).getName()
+                ctrlApiDataLoader.loadNode(migrateFromNodeNameStr).getName()
             )));
     }
 
@@ -454,7 +454,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
 
         errorReporter.logInfo("Toggle Disk on %s/%s %s", nodeNameStr, rscNameStr, toggleOpRef);
 
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, true);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName);
         ResourceDefinition rscDfn = rsc.getResourceDefinition();
 
         // 1. Determine what action to take
@@ -941,8 +941,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         {
             Resource migrateFromRsc = ctrlApiDataLoader.loadRsc(
                 migrateFromNodeNameStr,
-                rscDfn.getName().displayValue,
-                true
+                rscDfn.getName().displayValue
             );
             setMigrateFrom(rsc, migrateFromRsc.getNode().getName());
             ctrlRscDeleteApiHelper.ensureNotInUse(migrateFromRsc);
@@ -1240,7 +1239,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     {
         Flux<ApiCallRc> responses;
 
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, true);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName);
 
         ApiCallRcImpl offlineWarnings = new ApiCallRcImpl();
 
@@ -1348,7 +1347,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         ResourceName rscName
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, true);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName);
 
         unmarkDiskAdding(rsc);
 
@@ -1390,7 +1389,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
     {
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, true);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName);
 
         List<DeviceLayerKind> layerList = null;
         LayerPayload payload = new LayerPayload();
@@ -1441,7 +1440,7 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
                 context,
                 nodeName,
                 rscName,
-                ctrlApiDataLoader.loadNode(migrateFromNodeNameStr, true).getName()
+                ctrlApiDataLoader.loadNode(migrateFromNodeNameStr).getName()
             );
         }
 
@@ -1539,8 +1538,8 @@ public class CtrlRscToggleDiskApiCallHandler implements CtrlSatelliteConnectionL
         NodeName migrateFromNodeName
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, true);
-        Resource migrateFromRsc = ctrlApiDataLoader.loadRsc(migrateFromNodeName, rscName, false);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName);
+        @Nullable Resource migrateFromRsc = ctrlApiDataLoader.loadRscOrNull(migrateFromNodeName, rscName);
 
         getPropsPrivileged(rsc).map().remove(ApiConsts.KEY_RSC_MIGRATE_FROM);
 

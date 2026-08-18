@@ -210,9 +210,9 @@ public class CtrlBackupCreateApiCallHandler
                     )
                 );
             }
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, true);
+            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef);
             AbsRemote remote;
-            SnapshotDefinition prevSnapDfn = null;
+            @Nullable SnapshotDefinition prevSnapDfn = null;
             @Nullable SnapshotDefinition snapDfn = rscDfn.getSnapshotDfn(new SnapshotName(snapName));
 
             if (
@@ -659,7 +659,7 @@ public class CtrlBackupCreateApiCallHandler
                 .read(LockObj.NODES_MAP)
                 .write(LockObj.RSC_DFN_MAP)
                 .buildDeferred(),
-            () -> deleteNodeQueueAndReQueueSnapsIfNeededInTransaction(ctrlApiDataLoader.loadNode(nodeName, false))
+            () -> deleteNodeQueueAndReQueueSnapsIfNeededInTransaction(ctrlApiDataLoader.loadNodeOrNull(nodeName))
         );
     }
 
@@ -679,7 +679,7 @@ public class CtrlBackupCreateApiCallHandler
         );
     }
 
-    private Flux<ApiCallRc> deleteNodeQueueAndReQueueSnapsIfNeededInTransaction(Node node)
+    private Flux<ApiCallRc> deleteNodeQueueAndReQueueSnapsIfNeededInTransaction(@Nullable Node node)
     {
         Flux<ApiCallRc> flux = Flux.empty();
         if (node != null && !node.isDeleted())
@@ -950,7 +950,7 @@ public class CtrlBackupCreateApiCallHandler
     )
         throws InvalidNameException
     {
-        SnapshotDefinition prevSnapDfn = null;
+        @Nullable SnapshotDefinition prevSnapDfn = null;
         if (allowIncremental)
         {
             String prevSnapName;
@@ -973,7 +973,7 @@ public class CtrlBackupCreateApiCallHandler
 
             if (prevSnapName != null)
             {
-                prevSnapDfn = ctrlApiDataLoader.loadSnapshotDfn(rscDfn, new SnapshotName(prevSnapName), false);
+                prevSnapDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(rscDfn, new SnapshotName(prevSnapName));
                 if (
                     prevSnapDfn == null || prevSnapDfn.isDeleted() ||
                         prevSnapDfn.getFlags().isSet(SnapshotDefinition.Flags.DELETE)
@@ -1084,7 +1084,7 @@ public class CtrlBackupCreateApiCallHandler
                             );
                         if (prevNodeStr != null)
                         {
-                            Node prevNode = ctrlApiDataLoader.loadNode(prevNodeStr, false);
+                            @Nullable Node prevNode = ctrlApiDataLoader.loadNodeOrNull(prevNodeStr);
                             if (prevNode != null)
                             {
                                 boolean isNodeAvailable = !prevNode.getFlags()
@@ -1170,7 +1170,7 @@ public class CtrlBackupCreateApiCallHandler
         List<Node> nodes = new ArrayList<>(nodesList);
         Node ret = null;
         // check prefNode first so in case pref exists, it is not checked twice
-        Node pref = prefNode == null ? null : ctrlApiDataLoader.loadNode(prefNode, false);
+        @Nullable Node pref = prefNode == null ? null : ctrlApiDataLoader.loadNodeOrNull(prefNode);
         if (pref != null && nodes.contains(pref) && getFreeShippingSlots(pref) > 0)
         {
             ret = pref;

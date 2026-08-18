@@ -120,7 +120,7 @@ public class CtrlRscActivateApiCallHandler
         ResponseContext contextRef
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStrRef, rscNameStrRef, true);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStrRef, rscNameStrRef);
         Flux<ApiCallRc> ret;
         boolean isActive = !isFlagSet(rsc, Resource.Flags.INACTIVE);
         if (isActive == activate)
@@ -224,7 +224,7 @@ public class CtrlRscActivateApiCallHandler
 
     private Flux<ApiCallRc> finishInactivateInTransaction(String nodeNameStrRef, String rscNameStrRef)
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStrRef, rscNameStrRef, true);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStrRef, rscNameStrRef);
         unsetFlag(rsc, Resource.Flags.INACTIVATING);
         ResourceDataUtils.recalculateVolatileRscData(ctrlRscLayerDataFactory, rsc);
         ctrlTransactionHelper.commit();
@@ -291,7 +291,7 @@ public class CtrlRscActivateApiCallHandler
         String rscNameRef
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameRef, rscNameRef, true);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameRef, rscNameRef);
         unsetFlag(rsc, Resource.Flags.REACTIVATE);
         ctrlTransactionHelper.commit();
 

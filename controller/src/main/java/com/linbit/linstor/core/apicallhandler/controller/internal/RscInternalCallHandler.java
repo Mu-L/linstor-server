@@ -383,8 +383,7 @@ public class RscInternalCallHandler
         {
             Resource rsc = apiDataLoader.loadRsc(
                 nodeName,
-                rscName,
-                true
+                rscName
             );
             for (SnapshotDefinition snapDfn : rsc.getResourceDefinition().getSnapshotDfns())
             {

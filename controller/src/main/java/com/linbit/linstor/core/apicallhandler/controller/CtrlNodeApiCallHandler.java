@@ -506,7 +506,7 @@ public class CtrlNodeApiCallHandler
         {
             requireNodesMapChangeAccess();
             NodeName nodeName = LinstorParsingUtils.asNodeName(nodeNameStr);
-            Node node = ctrlApiDataLoader.loadNode(nodeName, true);
+            Node node = ctrlApiDataLoader.loadNode(nodeName);
             if (nodeUuid != null && !nodeUuid.equals(node.getUuid()))
             {
                 throw new ApiRcException(ApiCallRcImpl.simpleEntry(
@@ -621,7 +621,7 @@ public class CtrlNodeApiCallHandler
         {
             for (String nodeStr : nodes)
             {
-                Node node = ctrlApiDataLoader.loadNode(new NodeName(nodeStr), true);
+                Node node = ctrlApiDataLoader.loadNode(new NodeName(nodeStr));
                 node.getPeer(); // check for access
 
                 if (!node.getFlags().isSet(Node.Flags.EVICTED))
@@ -1100,7 +1100,7 @@ public class CtrlNodeApiCallHandler
 
     public StltConfig getConfig(String nodeName)
     {
-        return ctrlApiDataLoader.loadNode(nodeName, true).getPeer().getStltConfig();
+        return ctrlApiDataLoader.loadNode(nodeName).getPeer().getStltConfig();
     }
 
     public Flux<ApiCallRc> setGlobalConfig(SatelliteConfigApi config)
@@ -1133,7 +1133,7 @@ public class CtrlNodeApiCallHandler
         throws IOException
     {
         Flux<ApiCallRc> flux;
-        Peer curPeer = ctrlApiDataLoader.loadNode(nodeName, true).getPeer();
+        Peer curPeer = ctrlApiDataLoader.loadNode(nodeName).getPeer();
         if (!curPeer.isOnline())
         {
             flux = Flux.empty();
@@ -1217,7 +1217,7 @@ public class CtrlNodeApiCallHandler
                     Map<String, String> objRefs = new TreeMap<>();
                     objRefs.put(ApiConsts.KEY_NODE, nodeName);
 
-                    Node node = ctrlApiDataLoader.loadNode(nodeName, true);
+                    Node node = ctrlApiDataLoader.loadNode(nodeName);
 
                     StateFlags<Node.Flags> nodeFlags = node.getFlags();
                     boolean wasNodeEvicted = nodeFlags.isSet(Node.Flags.EVICTED);
@@ -1410,7 +1410,7 @@ public class CtrlNodeApiCallHandler
             lockGuardFactory.createDeferred().write(LockObj.NODES_MAP).build(),
             () ->
             {
-                Node node = ctrlApiDataLoader.loadNode(nodeName, true);
+                Node node = ctrlApiDataLoader.loadNode(nodeName);
                 if (node.getPeer().isOnline())
                 {
                     throw new ApiRcException(
@@ -1553,7 +1553,7 @@ public class CtrlNodeApiCallHandler
     {
         Flux<ApiCallRc> flux;
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
-        Node nodeToEvacuate = ctrlApiDataLoader.loadNode(nodeNameEvacuateSourceStrRef, true);
+        Node nodeToEvacuate = ctrlApiDataLoader.loadNode(nodeNameEvacuateSourceStrRef);
         NodeName nodeNameEvacuateSource = nodeToEvacuate.getName();
         try
         {

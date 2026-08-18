@@ -114,7 +114,7 @@ public class CtrlDrbdProxyEnableApiCallHandler
     {
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr);
 
         ResourceConnection rscConn = drbdProxyHelper.enableProxy(
             rscConnUuid,

@@ -153,7 +153,7 @@ public class CtrlRscAutoPlaceApiCallHandler
     {
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr);
         AutoSelectorConfig rscGrpSelectConfig = rscDfn.getResourceGroup().getAutoPlaceConfig();
 
         AutoSelectFilterPojo mergedSelectFilter = AutoSelectFilterPojo.merge(
@@ -538,7 +538,7 @@ public class CtrlRscAutoPlaceApiCallHandler
         }
         else
         {
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStrRef, true);
+            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStrRef);
             if (rscDfn.getDiskfulCount() == 0)
             {
                 throw new ApiRcException(

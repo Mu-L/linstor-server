@@ -90,7 +90,7 @@ public class RscDfnInternalCallHandler
 
     private Flux<ApiCallRc> markRscDfnFailedInTransaction(String rscName)
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
         try
         {
             rscDfn.getFlags().enableFlags(ResourceDefinition.Flags.FAILED);
@@ -132,7 +132,7 @@ public class RscDfnInternalCallHandler
         Flux<ApiCallRc> flux = Flux.empty();
         Peer currentPeer = peer.get();
 
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
 
         try
         {

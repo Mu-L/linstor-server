@@ -194,10 +194,9 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     )
     {
         ApiCallRcImpl responses = new ApiCallRcImpl();
-        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(
+        @Nullable SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(
             rscNameRef,
-            snapshotNameRef,
-            false
+            snapshotNameRef
         );
 
         if (snapshotDfn == null)
@@ -374,7 +373,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
     )
     {
         Flux<ApiCallRc> flux = Flux.empty();
-        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapshotName, false);
+        @Nullable SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(rscName, snapshotName);
         if (snapshotDfn != null)
         {
             boolean executorPending = false;
@@ -457,7 +456,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
 
     private Flux<ApiCallRc> deleteSnapshotsOnNodesInScope(ResourceName rscName, SnapshotName snapshotName)
     {
-        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapshotName, false);
+        @Nullable SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(rscName, snapshotName);
 
         Flux<ApiCallRc> flux;
         if (snapshotDfn == null)
@@ -508,7 +507,7 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
 
     private Flux<ApiCallRc> deleteDataInTransaction(ResourceName rscName, SnapshotName snapshotName)
     {
-        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapshotName, false);
+        @Nullable SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(rscName, snapshotName);
 
         Flux<ApiCallRc> flux;
         if (snapshotDfn == null)

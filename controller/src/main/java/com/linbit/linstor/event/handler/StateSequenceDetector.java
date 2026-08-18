@@ -1,6 +1,7 @@
 package com.linbit.linstor.event.handler;
 
 import com.linbit.ImplementationError;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlApiDataLoader;
 import com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller;
@@ -53,7 +54,7 @@ public class StateSequenceDetector
             {
                 NodeName nodeName = eventIdentifier.getNodeName();
                 ResourceName rscName = eventIdentifier.getResourceName();
-                Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, false);
+                @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeName, rscName);
                 if (rsc != null)
                 {
                     rsc.getProps()

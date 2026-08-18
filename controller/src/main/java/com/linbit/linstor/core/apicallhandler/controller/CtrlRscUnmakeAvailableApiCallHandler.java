@@ -103,7 +103,7 @@ public class CtrlRscUnmakeAvailableApiCallHandler
     {
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
-        @Nullable ResourceDefinition rscDfn = dataLoader.loadRscDfn(rscNameRef, false);
+        @Nullable ResourceDefinition rscDfn = dataLoader.loadRscDfnOrNull(rscNameRef);
         if (rscDfn == null)
         {
             return Flux.just(
@@ -113,8 +113,8 @@ public class CtrlRscUnmakeAvailableApiCallHandler
                 )
             );
         }
-        dataLoader.loadNode(nodeNameRef, true); // unknown node is most likely a typo, fail
-        @Nullable Resource rsc = dataLoader.loadRsc(nodeNameRef, rscNameRef, false);
+        dataLoader.loadNode(nodeNameRef); // unknown node is most likely a typo, fail
+        @Nullable Resource rsc = dataLoader.loadRscOrNull(nodeNameRef, rscNameRef);
 
         Flux<ApiCallRc> deleteFlux = Flux.empty();
         if (rsc != null)

@@ -222,7 +222,7 @@ public class CtrlNodeCrtApiCallHandler
     {
         Flux<ApiCallRc> flux;
         ApiCallRcImpl responses = new ApiCallRcImpl();
-        AbsRemote remote = dataLoader.loadRemote(ebsRemoteNameStrRef, true);
+        AbsRemote remote = dataLoader.loadRemote(ebsRemoteNameStrRef);
         if (!(remote instanceof EbsRemote))
         {
             throw new ApiRcException(

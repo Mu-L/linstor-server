@@ -1,5 +1,6 @@
 package com.linbit.linstor.core.apicallhandler.controller;
 
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -124,7 +125,7 @@ public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     {
         requireRscDfnMapChangeAccess();
 
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(rscNameRef);
 
         if (rscDfn == null)
         {
@@ -169,7 +170,7 @@ public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
 
     private Flux<ApiCallRc> deleteResourceDefinitionIfEmptyInTransaction(ResourceName rscName)
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(rscName);
 
         Flux<ApiCallRc> flux;
         if (rscDfn == null || rscDfn.isDeleted() || rscDfn.getResourceCount() > 0 || hasSnapshotsPrivileged(rscDfn))
@@ -189,7 +190,7 @@ public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     {
         requireRscDfnMapChangeAccess();
 
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(rscNameRef);
 
         if (rscDfn == null)
         {
@@ -248,7 +249,7 @@ public class CtrlRscDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
 
     private Flux<ApiCallRc> deleteDataInTransaction(ResourceName rscName)
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(rscName);
 
         return rscDfn == null ?
             Flux.empty() :

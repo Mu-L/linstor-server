@@ -132,7 +132,7 @@ public class CtrlVlmApiCallHandler
 
         try
         {
-            Volume vlm = ctrlApiDataLoader.loadVlm(nodeNameStr, rscNameStr, vlmNrInt, true);
+            Volume vlm = ctrlApiDataLoader.loadVlm(nodeNameStr, rscNameStr, vlmNrInt);
 
             if (vlmUuid != null && !vlmUuid.equals(vlm.getUuid()))
             {

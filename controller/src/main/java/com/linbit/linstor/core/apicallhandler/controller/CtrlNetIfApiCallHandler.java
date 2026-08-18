@@ -99,7 +99,7 @@ class CtrlNetIfApiCallHandler
 
         try
         {
-            Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
+            Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
 
             if (node.getNodeType().isSpecial())
             {
@@ -173,7 +173,7 @@ class CtrlNetIfApiCallHandler
 
         try
         {
-            NetInterface netIf = loadNetIf(nodeNameStr, netIfNameStr);
+            NetInterface netIf = ctrlApiDataLoader.loadNetIf(nodeNameStr, netIfNameStr);
             Node node = netIf.getNode();
             Node.Type nodeType = netIf.getNode().getNodeType();
             @Nullable NetInterface activeStltConn = node.getActiveStltConn();
@@ -283,7 +283,7 @@ class CtrlNetIfApiCallHandler
 
         try
         {
-            NetInterface netIf = loadNetIf(nodeNameStr, netIfNameStr, false);
+            @Nullable NetInterface netIf = ctrlApiDataLoader.loadNetIfOrNull(nodeNameStr, netIfNameStr);
             if (netIf == null)
             {
                 responseConverter.addWithDetail(responses, context, ApiCallRcImpl
@@ -421,32 +421,6 @@ class CtrlNetIfApiCallHandler
             ), illegalArgExc);
         }
         return type;
-    }
-
-    private NetInterface loadNetIf(String nodeNameStr, String netIfNameStr)
-    {
-        return loadNetIf(nodeNameStr, netIfNameStr, true);
-    }
-
-    private @Nullable NetInterface loadNetIf(String nodeNameStr, String netIfNameStr, boolean failIfNull)
-    {
-        Node node = ctrlApiDataLoader.loadNode(nodeNameStr, failIfNull);
-        NetInterface netIf = null;
-        if (node != null)
-        {
-            netIf = node.getNetInterface(
-                LinstorParsingUtils.asNetInterfaceName(netIfNameStr)
-            );
-        }
-
-        if (failIfNull && netIf == null)
-        {
-            throw new ApiRcException(ApiCallRcImpl.simpleEntry(
-                ApiConsts.FAIL_NOT_FOUND_NET_IF,
-                "Node '" + nodeNameStr + "' has no network interface named '" + netIfNameStr + "'."
-            ));
-        }
-        return netIf;
     }
 
     private void setAddress(NetInterface netIf, String addressStr)

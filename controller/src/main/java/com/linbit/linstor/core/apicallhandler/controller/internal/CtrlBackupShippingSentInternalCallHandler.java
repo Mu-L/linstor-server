@@ -153,7 +153,7 @@ public class CtrlBackupShippingSentInternalCallHandler
             rscNameRef,
             successRef ? "finished successfully" : "failed"
         );
-        SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfn(rscNameRef, snapNameRef, false);
+        @Nullable SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(rscNameRef, snapNameRef);
         Flux<ApiCallRc> ret = Flux.empty();
         if (snapDfn != null)
         {
@@ -411,7 +411,7 @@ public class CtrlBackupShippingSentInternalCallHandler
         if (scheduleName != null && remoteForSchedule != null)
         {
             ResourceDefinition rscDfn = snapDfn.getResourceDefinition();
-            Schedule schedule = ctrlApiDataLoader.loadSchedule(scheduleName, false);
+            @Nullable Schedule schedule = ctrlApiDataLoader.loadScheduleOrNull(scheduleName);
             if (schedule != null)
             {
                 boolean lastBackupIncremental = scheduledBackupsHandler.rescheduleShipping(

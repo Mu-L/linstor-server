@@ -251,8 +251,8 @@ class CtrlVlmConnectionApiCallHandler
         int vlmNrInt
     )
     {
-        Node node1 = ctrlApiDataLoader.loadNode(nodeName1Str, true);
-        Node node2 = ctrlApiDataLoader.loadNode(nodeName2Str, true);
+        Node node1 = ctrlApiDataLoader.loadNode(nodeName1Str);
+        Node node2 = ctrlApiDataLoader.loadNode(nodeName2Str);
 
         Resource rsc1 = getRsc(node1, rscNameStr);
         Resource rsc2 = getRsc(node2, rscNameStr);
@@ -290,8 +290,8 @@ class CtrlVlmConnectionApiCallHandler
         int vlmNr
     )
     {
-        Node node1 = ctrlApiDataLoader.loadNode(nodeName1, true);
-        Node node2 = ctrlApiDataLoader.loadNode(nodeName2, true);
+        Node node1 = ctrlApiDataLoader.loadNode(nodeName1);
+        Node node2 = ctrlApiDataLoader.loadNode(nodeName2);
 
         Resource rsc1 = getRsc(node1, rscNameStr);
         Resource rsc2 = getRsc(node2, rscNameStr);
@@ -309,7 +309,7 @@ class CtrlVlmConnectionApiCallHandler
 
     private Resource getRsc(Node node, String rscNameStr)
     {
-        return ctrlApiDataLoader.loadRsc(node.getName(), LinstorParsingUtils.asRscName(rscNameStr), true);
+        return ctrlApiDataLoader.loadRsc(node.getName(), LinstorParsingUtils.asRscName(rscNameStr));
     }
 
     private Volume getVlm(Resource rsc, int vlmNr)

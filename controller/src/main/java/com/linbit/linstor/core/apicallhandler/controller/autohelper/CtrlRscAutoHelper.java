@@ -105,7 +105,7 @@ public class CtrlRscAutoHelper
 
     public AutoHelperResult manage(ApiCallRcImpl apiCallRcImplRef, ResponseContext context, String rscNameStrRef)
     {
-        return manage(new AutoHelperContext(apiCallRcImplRef, context, dataLoader.loadRscDfn(rscNameStrRef, true)));
+        return manage(new AutoHelperContext(apiCallRcImplRef, context, dataLoader.loadRscDfn(rscNameStrRef)));
     }
 
     public Flux<ApiCallRc> manageAll(AutoHelperContext autoCtxWithoutRscDfn)

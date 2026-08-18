@@ -186,7 +186,7 @@ public class CtrlBackupL2LDstApiCallHandler
                 // good case, continue
                 // search for incremental base
                 Snapshot incrementalBaseSnap = null;
-                ResourceDefinition targetRscDfn = ctrlApiDataLoader.loadRscDfn(dstRscName, false);
+                @Nullable ResourceDefinition targetRscDfn = ctrlApiDataLoader.loadRscDfnOrNull(dstRscName);
                 if (targetRscDfn != null)
                 {
                     incrementalBaseSnap = backupRestoreApiCallHandler.getIncrementalBaseL2LPrivileged(
@@ -432,7 +432,7 @@ public class CtrlBackupL2LDstApiCallHandler
                 }
                 stltRemote.setAllPorts(newPorts);
                 ctrlTransactionHelper.commit();
-                SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapName, true);
+                SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapName);
 
                 return ctrlSatelliteUpdateCaller.updateSatellites(stltRemote)
                     .concatWith(
@@ -647,7 +647,7 @@ public class CtrlBackupL2LDstApiCallHandler
                     "Expected type StltRemote, instead got " + remote.getClass().getCanonicalName()
                 );
             }
-            Snapshot snap = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapName, true)
+            Snapshot snap = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapName)
                 .getSnapshot(new NodeName(nodeName));
             BackupShippingDstData data = backupInfoMgr.getL2LDstData(snap);
             Node node = snap.getNode();
@@ -761,7 +761,7 @@ public class CtrlBackupL2LDstApiCallHandler
                     shippingStatus = InternalApiConsts.VALUE_ABORTING;
                 }
                 // no need to parse string into SnapshotName since the snap exists on other cluster with that name
-                SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, actualSnapName, false);
+                @Nullable SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(rscName, actualSnapName);
                 if (snapDfn != null)
                 {
                     try

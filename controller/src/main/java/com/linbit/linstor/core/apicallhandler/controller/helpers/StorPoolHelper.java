@@ -51,8 +51,8 @@ public class StorPoolHelper
         boolean externalLockingRef
     )
     {
-        Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
-        StorPoolDefinition storPoolDef = ctrlApiDataLoader.loadStorPoolDfn(storPoolNameStr, false);
+        Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
+        @Nullable StorPoolDefinition storPoolDef = ctrlApiDataLoader.loadStorPoolDfnOrNull(storPoolNameStr);
 
         if (!isDeviceProviderKindAllowed(node, deviceProviderKindRef))
         {

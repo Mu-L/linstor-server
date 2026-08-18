@@ -215,10 +215,10 @@ public class CtrlRscMakeAvailableApiCallHandler
     {
         Flux<ApiCallRc> flux = Flux.empty();
 
-        ResourceDefinition rscDfn = dataLoader.loadRscDfn(rscNameRef, true);
-        @Nullable Resource rsc = dataLoader.loadRsc(nodeNameRef, rscNameRef, false);
+        ResourceDefinition rscDfn = dataLoader.loadRscDfn(rscNameRef);
+        @Nullable Resource rsc = dataLoader.loadRscOrNull(nodeNameRef, rscNameRef);
         List<DeviceLayerKind> layerStack = getLayerStack(layerStackRef, rscDfn);
-        Node node = dataLoader.loadNode(nodeNameRef, true);
+        Node node = dataLoader.loadNode(nodeNameRef);
         // if there is a shared storage pool already containing the shared resource on the given node,
         // the resource has to be created reusing the shared data instead of placing it anywhere
         @Nullable ResourceWithPayloadApi createRscPojo = rsc == null ?
@@ -621,8 +621,8 @@ public class CtrlRscMakeAvailableApiCallHandler
         String tgtNodeNameRef
     )
     {
-        Resource srcRsc = dataLoader.loadRsc(srcNodeNameRef, rscNameRef, true);
-        Resource tgtRsc = dataLoader.loadRsc(tgtNodeNameRef, rscNameRef, true);
+        Resource srcRsc = dataLoader.loadRsc(srcNodeNameRef, rscNameRef);
+        Resource tgtRsc = dataLoader.loadRsc(tgtNodeNameRef, rscNameRef);
 
         ApiCallRcImpl responses = liveMigrateHelper.setDualPrimaryProps(srcRsc, tgtRsc);
 
@@ -868,7 +868,7 @@ public class CtrlRscMakeAvailableApiCallHandler
                 }
                 else
                 {
-                    Node node = dataLoader.loadNode(nodeNameRef, true);
+                    Node node = dataLoader.loadNode(nodeNameRef);
                     boolean isEbsInitSupported;
                     boolean hasEbsTargetWithoutInit = false;
                     isEbsInitSupported = node.getPeer().getExtToolsManager()

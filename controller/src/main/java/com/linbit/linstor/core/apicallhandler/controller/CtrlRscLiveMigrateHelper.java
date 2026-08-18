@@ -330,7 +330,7 @@ public class CtrlRscLiveMigrateHelper
         @Nullable ResourceConnection markerRscConn = null;
         if (markerSrc != null && markerTgt != null)
         {
-            markerRscConn = rscConnHelper.loadRscConn(markerSrc, markerTgt, rscNameStr, false);
+            markerRscConn = rscConnHelper.loadRscConnOrNull(markerSrc, markerTgt, rscNameStr);
         }
 
         changed |= removeProp(rscDfnProps, KEY_ALLOW_TWO_PRIMARIES, ApiConsts.NAMESPC_DRBD_NET_OPTIONS);

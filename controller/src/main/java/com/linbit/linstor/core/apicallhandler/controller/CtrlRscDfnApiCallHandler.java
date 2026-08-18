@@ -477,7 +477,7 @@ public class CtrlRscDfnApiCallHandler
             requireRscDfnMapChangeAccess();
 
             ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
             if (backupInfoMgr.restoreContainsRscDfn(rscDfn))
             {
                 throw new ApiRcException(
@@ -581,7 +581,7 @@ public class CtrlRscDfnApiCallHandler
             if (rscGroupName != null &&
                 !rscDfn.getResourceGroup().getName().getName().equalsIgnoreCase(rscGroupName))
             {
-                ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGroupName, true);
+                ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGroupName);
 
                 int curDiskfulRscCount = getDiskfulResourceCount(rscDfn);
                 int newReplCount = getReplicaCount(rscGrp);
@@ -861,7 +861,7 @@ public class CtrlRscDfnApiCallHandler
          */
 
         Flux<ApiCallRc> ret = Flux.empty();
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(srcRscName, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(srcRscName);
         List<Resource> diskfulRscs = rscDfn.getDiskfulResources();
 
         List<Resource> toActivate = new ArrayList<>();
@@ -991,7 +991,7 @@ public class CtrlRscDfnApiCallHandler
     private Flux<Set<NodeName>> getNodeNamesForClone(String srcRscNameRef)
     {
         Set<NodeName> ret = new HashSet<>();
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(srcRscNameRef, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(srcRscNameRef);
         List<Resource> diskfulRscs = rscDfn.getDiskfulResources();
         removeInactiveResources(diskfulRscs);
         for (Resource rsc : diskfulRscs)
@@ -1401,7 +1401,7 @@ public class CtrlRscDfnApiCallHandler
             ApiCallRcImpl responses = new ApiCallRcImpl();
             requireRscDfnMapChangeAccess();
 
-            final ResourceDefinition srcRscDfn = ctrlApiDataLoader.loadRscDfn(srcRscName, true);
+            final ResourceDefinition srcRscDfn = ctrlApiDataLoader.loadRscDfn(srcRscName);
 
             final LayerPayload payload = createRscDfnPayload(srcRscDfn);
             final List<DeviceLayerKind> layerStack = CollectionUtils.isEmpty(layerList) ?
@@ -1782,7 +1782,7 @@ public class CtrlRscDfnApiCallHandler
                 rscGrpNameStr = rscGrpNameStrPrm;
             }
 
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameStr, false);
+            @Nullable ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroupOrNull(rscGrpNameStr);
             if (rscGrp == null)
             {
                 if (InternalApiConsts.DEFAULT_RSC_GRP_NAME.equalsIgnoreCase(rscGrpNameStr))
@@ -2059,8 +2059,8 @@ public class CtrlRscDfnApiCallHandler
     )
     {
         Flux<ApiCallRc> flux;
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, true);
-        ExternalFile extFile = ctrlApiDataLoader.loadExtFile(extFileNameRef, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef);
+        ExternalFile extFile = ctrlApiDataLoader.loadExtFile(extFileNameRef);
 
         try
         {
@@ -2107,7 +2107,7 @@ public class CtrlRscDfnApiCallHandler
 
     public boolean isResourceSynced(String resourceName)
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(resourceName, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(resourceName);
         return SatelliteResourceStateDrbdUtils.allResourcesUpToDate(
             rscDfn.streamResource().filter(resource -> !resource.isDiskless())
                 .map(AbsResource::getNode).collect(Collectors.toSet()),

@@ -1099,8 +1099,8 @@ public class CtrlBackupApiCallHandler
         throws InvalidNameException, DatabaseException, InvalidValueException
     {
         Flux<ApiCallRc> flux = Flux.empty();
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, true);
-        AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef);
+        AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef);
         // immediately remove any queued snapshots
         for (SnapshotDefinition snapDfn : rscDfn.getSnapshotDfns())
         {
@@ -1224,7 +1224,7 @@ public class CtrlBackupApiCallHandler
                 {
                     // it should not be possible for this remote to be a stltRemote, but just in case someone didn't pay
                     // attention while calling this method...
-                    remote = ctrlApiDataLoader.loadRemote(((StltRemote) remote).getLinstorRemoteName(), true);
+                    remote = ctrlApiDataLoader.loadRemote(((StltRemote) remote).getLinstorRemoteName());
                 }
                 String localClusterId;
                 try
@@ -1274,8 +1274,7 @@ public class CtrlBackupApiCallHandler
         for (PairNonNull<String, String> remoteSnapPair : remoteSnapPairList)
         {
             StltRemote remote = (StltRemote) ctrlApiDataLoader.loadRemote(
-                new RemoteName(remoteSnapPair.objA, true),
-                true
+                new RemoteName(remoteSnapPair.objA, true)
             );
             ret.computeIfAbsent(remote.getOtherRscName(), ignored -> new ArrayList<>())
                 .add(remoteSnapPair.objB);
@@ -1628,7 +1627,7 @@ public class CtrlBackupApiCallHandler
             }
             long poolAllocSize = 0;
             long poolDlSize = 0;
-            StorPool sp = ctrlApiDataLoader.loadStorPool(targetStorPool, nodeName, true);
+            StorPool sp = ctrlApiDataLoader.loadStorPool(targetStorPool, nodeName);
             Long freeSpace = remainingFreeSpace.get(sp.getName().value);
             if (freeSpace == null)
             {

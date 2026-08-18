@@ -256,7 +256,7 @@ public class CtrlRscCrtApiHelper
         boolean allowDualActiveSharedRef
     )
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr);
 
         boolean canChangeMinIo = false;
         if (rscDfn != null)
@@ -284,7 +284,7 @@ public class CtrlRscCrtApiHelper
         Resource rsc;
         ApiCallRcImpl responses = new ApiCallRcImpl();
 
-        Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
+        Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
         if (backupInfoMgr.restoreContainsRscDfn(rscDfn))
         {
             throw new ApiRcException(
@@ -305,7 +305,7 @@ public class CtrlRscCrtApiHelper
             );
         }
 
-        Resource rscForToggleDiskful = ctrlApiDataLoader.loadRsc(node.getName(), rscDfn.getName(), false);
+        @Nullable Resource rscForToggleDiskful = ctrlApiDataLoader.loadRscOrNull(node.getName(), rscDfn.getName());
         if (rscForToggleDiskful != null && !isFlagSet(rscForToggleDiskful, Resource.Flags.DRBD_DISKLESS))
         {
             // diskful resource, do not try to toggle this
@@ -319,8 +319,8 @@ public class CtrlRscCrtApiHelper
             rsc = rscForToggleDiskful;
 
             String storPoolNameStr = storPoolName;
-            StorPool storPool = storPoolNameStr == null ?
-                null : ctrlApiDataLoader.loadStorPool(storPoolNameStr, nodeNameStr, false);
+            @Nullable StorPool storPool = storPoolNameStr == null ?
+                null : ctrlApiDataLoader.loadStorPoolOrNull(storPoolNameStr, nodeNameStr);
 
             boolean isDiskless = FlagsHelper.isFlagEnabled(adjustedFlags, Resource.Flags.DISKLESS) || // needed for
                                                                                               // compatibility
@@ -399,7 +399,7 @@ public class CtrlRscCrtApiHelper
             if (storPoolName != null)
             {
                 // null if resource is created with "-d" (diskless)
-                StorPool storPool = ctrlApiDataLoader.loadStorPool(storPoolName, nodeNameStr, true);
+                StorPool storPool = ctrlApiDataLoader.loadStorPool(storPoolName, nodeNameStr);
 
                 Iterator<VolumeDefinition> vlmDfnIt = getVlmDfnIterator(rscDfn);
                 while (vlmDfnIt.hasNext())
@@ -432,12 +432,11 @@ public class CtrlRscCrtApiHelper
 
             // compatibility
             String storPoolNameStr = storPoolName;
-            StorPool storPool = storPoolNameStr == null ?
+            @Nullable StorPool storPool = storPoolNameStr == null ?
                 null :
-                ctrlApiDataLoader.loadStorPool(
+                ctrlApiDataLoader.loadStorPoolOrNull(
                     storPoolNameStr,
-                    nodeNameStr,
-                    false
+                    nodeNameStr
                 );
 
             boolean isStorPoolDiskless = false;
@@ -528,7 +527,7 @@ public class CtrlRscCrtApiHelper
 
             for (VolumeApi vlmApi : vlmApiList)
             {
-                VolumeDefinition vlmDfn = loadVlmDfn(rscDfn, vlmApi.getVlmNr(), true);
+                VolumeDefinition vlmDfn = loadVlmDfn(rscDfn, vlmApi.getVlmNr());
 
                 Volume vlmData = ctrlVlmCrtApiHelper.createVolumeResolvingStorPool(
                     rsc,
@@ -1365,23 +1364,20 @@ public class CtrlRscCrtApiHelper
 
     private VolumeDefinition loadVlmDfn(
         ResourceDefinition rscDfn,
-        int vlmNr,
-        boolean failIfNull
+        int vlmNr
     )
     {
-        return loadVlmDfn(rscDfn, LinstorParsingUtils.asVlmNr(vlmNr), failIfNull);
+        return loadVlmDfn(rscDfn, LinstorParsingUtils.asVlmNr(vlmNr));
     }
 
     private VolumeDefinition loadVlmDfn(
         ResourceDefinition rscDfn,
-        VolumeNumber vlmNr,
-        boolean failIfNull
+        VolumeNumber vlmNr
     )
     {
-        VolumeDefinition vlmDfn;
-        vlmDfn = rscDfn.getVolumeDfn(vlmNr);
+        @Nullable VolumeDefinition vlmDfn = rscDfn.getVolumeDfn(vlmNr);
 
-        if (failIfNull && vlmDfn == null)
+        if (vlmDfn == null)
         {
             String rscName = rscDfn.getName().displayValue;
             throw new ApiRcException(ApiCallRcImpl

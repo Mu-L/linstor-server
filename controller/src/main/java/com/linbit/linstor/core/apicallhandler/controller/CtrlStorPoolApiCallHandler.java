@@ -163,7 +163,7 @@ public class CtrlStorPoolApiCallHandler
         List<Flux<ApiCallRc>> specialPropFluxes = new ArrayList<>();
         try
         {
-            StorPool storPool = loadStorPool(nodeNameStr, storPoolNameStr, true);
+            StorPool storPool = loadStorPool(nodeNameStr, storPoolNameStr);
 
             if (storPoolUuid != null && !storPoolUuid.equals(storPool.getUuid()))
             {
@@ -343,7 +343,7 @@ public class CtrlStorPoolApiCallHandler
                 );
             }
 
-            StorPool storPool = loadStorPool(nodeNameStr, storPoolNameStr, false);
+            @Nullable StorPool storPool = loadStorPoolOrNull(nodeNameStr, storPoolNameStr);
 
             if (storPool == null)
             {
@@ -509,14 +509,21 @@ public class CtrlStorPoolApiCallHandler
         }
     }
 
-    private @Nullable StorPool loadStorPool(String nodeNameStr, String storPoolNameStr, boolean failIfNull)
+    private StorPool loadStorPool(String nodeNameStr, String storPoolNameStr)
     {
-        StorPool result = null;
-        Node node = ctrlApiDataLoader.loadNode(nodeNameStr, failIfNull);
-        StorPoolDefinition storPoolDfn = ctrlApiDataLoader.loadStorPoolDfn(storPoolNameStr, failIfNull);
+        Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
+        StorPoolDefinition storPoolDfn = ctrlApiDataLoader.loadStorPoolDfn(storPoolNameStr);
+        return ctrlApiDataLoader.loadStorPool(storPoolDfn, node);
+    }
+
+    private @Nullable StorPool loadStorPoolOrNull(String nodeNameStr, String storPoolNameStr)
+    {
+        @Nullable StorPool result = null;
+        @Nullable Node node = ctrlApiDataLoader.loadNodeOrNull(nodeNameStr);
+        @Nullable StorPoolDefinition storPoolDfn = ctrlApiDataLoader.loadStorPoolDfnOrNull(storPoolNameStr);
         if (node != null && storPoolDfn != null)
         {
-            result = ctrlApiDataLoader.loadStorPool(storPoolDfn, node, failIfNull);
+            result = ctrlApiDataLoader.loadStorPoolOrNull(storPoolDfn, node);
         }
 
         return result;

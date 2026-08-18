@@ -306,7 +306,7 @@ public class CtrlBackupRestoreApiCallHandler
     {
         // 1. Ensure node is ready
         String nodeNameStr = nodeNameStrRef;
-        Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
+        Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
         if (!node.getPeer().isOnline())
         {
             throw new ApiRcException(
@@ -423,7 +423,7 @@ public class CtrlBackupRestoreApiCallHandler
             }
             while (currentMetaFile != null);
 
-            @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(targetRscName, false);
+            @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(targetRscName);
             if (rscDfn != null)
             {
                 NodeName nodeName = node.getName();
@@ -433,10 +433,9 @@ public class CtrlBackupRestoreApiCallHandler
                 // In case that download happened on a different node, that node will be used instead.
                 for (PairNonNull<S3MetafileNameInfo, BackupMetaDataPojo> metadata : metadataChain)
                 {
-                    @Nullable SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfn(
+                    @Nullable SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(
                         rscDfn,
-                        new SnapshotName(metadata.objA.snapName),
-                        false
+                        new SnapshotName(metadata.objA.snapName)
                     );
                     if (snapDfn != null)
                     {
@@ -488,7 +487,7 @@ public class CtrlBackupRestoreApiCallHandler
                 if (spaceEntry != null && spaceEntry.getValue() < 0)
                 {
                     spTooFull.add(
-                        ctrlApiDataLoader.loadStorPool(spaceEntry.getKey(), nodeNameStr, true).getName().displayValue
+                        ctrlApiDataLoader.loadStorPool(spaceEntry.getKey(), nodeNameStr).getName().displayValue
                     );
                 }
             }
@@ -631,7 +630,7 @@ public class CtrlBackupRestoreApiCallHandler
     private boolean hasTargetRscDfnResources(String targetRscNameRef)
     {
         boolean ret = false;
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(targetRscNameRef, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(targetRscNameRef);
         if (rscDfn != null)
         {
             ret = rscDfn.getResourceCount() > 0;
@@ -1002,7 +1001,10 @@ public class CtrlBackupRestoreApiCallHandler
         long totalSize = 0;
         for (Entry<Integer, VlmDfnMetaPojo> vlmDfnMetaEntry : metadata.getRscDfn().getVlmDfns().entrySet())
         {
-            VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(targetRscName, vlmDfnMetaEntry.getKey(), false);
+            @Nullable VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfnOrNull(
+                targetRscName,
+                vlmDfnMetaEntry.getKey()
+            );
             if (vlmDfn == null)
             {
                 vlmDfn = ctrlVlmDfnCrtApiHelper.createVlmDfnData(
@@ -1208,7 +1210,7 @@ public class CtrlBackupRestoreApiCallHandler
         ApiCallRcImpl responsesRef
     )
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(targetRscName, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(targetRscName);
         ApiCallRcImpl apiCallRcs = new ApiCallRcImpl();
 
         try
@@ -1255,7 +1257,7 @@ public class CtrlBackupRestoreApiCallHandler
                 if (dstRscGrpRef != null && !dstRscGrpRef.isBlank() &&
                     !rscDfn.getResourceGroup().getName().value.equalsIgnoreCase(dstRscGrpRef))
                 {
-                    rscDfn.setResourceGroup(ctrlApiDataLoader.loadResourceGroup(dstRscGrpRef, true));
+                    rscDfn.setResourceGroup(ctrlApiDataLoader.loadResourceGroup(dstRscGrpRef));
                 }
             }
             else
@@ -1265,7 +1267,7 @@ public class CtrlBackupRestoreApiCallHandler
                 {
                     if (rscDfn.getResourceCount() == 0 || forceMoveRscGrpRef)
                     {
-                        rscDfn.setResourceGroup(ctrlApiDataLoader.loadResourceGroup(dstRscGrpRef, true));
+                        rscDfn.setResourceGroup(ctrlApiDataLoader.loadResourceGroup(dstRscGrpRef));
                     }
                     else
                     {
@@ -1355,14 +1357,13 @@ public class CtrlBackupRestoreApiCallHandler
             Snapshot incrementalBaseSnap = null;
             if (data.getDstBaseSnapName() != null)
             {
-                SnapshotDefinition baseSnapDfn = ctrlApiDataLoader.loadSnapshotDfn(
+                @Nullable SnapshotDefinition baseSnapDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(
                     data.getDstRscName(),
-                    data.getDstBaseSnapName(),
-                    false
+                    data.getDstBaseSnapName()
                 );
                 if (baseSnapDfn != null)
                 {
-                    Node baseNode = ctrlApiDataLoader.loadNode(data.getDstActualNodeName(), true);
+                    Node baseNode = ctrlApiDataLoader.loadNode(data.getDstActualNodeName());
                     incrementalBaseSnap = baseSnapDfn.getSnapshot(baseNode.getName());
                 }
             }
@@ -1623,7 +1624,7 @@ public class CtrlBackupRestoreApiCallHandler
         {
             try
             {
-                Node node = ctrlApiDataLoader.loadNode(new NodeName(dstNodeRef), false);
+                @Nullable Node node = ctrlApiDataLoader.loadNodeOrNull(new NodeName(dstNodeRef));
                 if (node != null)
                 {
                     if (
@@ -1940,7 +1941,7 @@ public class CtrlBackupRestoreApiCallHandler
             successRef ? "finished successfully" : "failed"
         );
         Flux<ApiCallRc> flux = Flux.empty();
-        SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfn(rscNameRef, snapNameRef, false);
+        @Nullable SnapshotDefinition snapDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(rscNameRef, snapNameRef);
         if (snapDfn != null)
         {
             try

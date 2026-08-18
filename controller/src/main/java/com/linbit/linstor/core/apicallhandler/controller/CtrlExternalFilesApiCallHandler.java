@@ -121,7 +121,7 @@ public class CtrlExternalFilesApiCallHandler
 
     private Flux<ExtFileStatusPojo> getStatusInTransaction(String extFileNameStr, String nodeNameStr)
     {
-        Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
+        Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
         Peer peer = node.getPeer();
 
         byte[] reqMsg;
@@ -170,7 +170,7 @@ public class CtrlExternalFilesApiCallHandler
         boolean allowed = false;
         try (LockGuard lg = lockGuardFactory.build(LockType.READ, LockObj.EXT_FILE_MAP, LockObj.NODES_MAP))
         {
-            Node node = ctrlApiDataLoader.loadNode(nodeName, false);
+            @Nullable Node node = ctrlApiDataLoader.loadNodeOrNull(nodeName);
             ExternalFileName extFileName = LinstorParsingUtils.asExtFileName(fileName);
 
             if (node != null)
@@ -206,7 +206,7 @@ public class CtrlExternalFilesApiCallHandler
     )
     {
         ExternalFileName extFileName = LinstorParsingUtils.asExtFileName(extFileNameStr);
-        @Nullable ExternalFile extFile = ctrlApiDataLoader.loadExtFile(extFileName, false);
+        @Nullable ExternalFile extFile = ctrlApiDataLoader.loadExtFileOrNull(extFileName);
         try
         {
             if (extFile == null)
@@ -328,7 +328,7 @@ public class CtrlExternalFilesApiCallHandler
     {
         Flux<ApiCallRc> flux;
         ExternalFileName extFileName = LinstorParsingUtils.asExtFileName(extFileNameStrRef);
-        ExternalFile extFile = ctrlApiDataLoader.loadExtFile(extFileName, false);
+        @Nullable ExternalFile extFile = ctrlApiDataLoader.loadExtFileOrNull(extFileName);
         String extFileDescription = getExtFileDescription(extFileNameStrRef);
 
         if (extFile == null)

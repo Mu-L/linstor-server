@@ -169,7 +169,7 @@ public class CtrlRscApiCallHandler
         List<Flux<ApiCallRc>> specialPropFluxes = new ArrayList<>();
         try
         {
-            Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStr, rscNameStr, true);
+            Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStr, rscNameStr);
 
             if (rscUuid != null && !rscUuid.equals(rsc.getUuid()))
             {
@@ -284,7 +284,7 @@ public class CtrlRscApiCallHandler
     )
     {
         // fake load and fail if not exists
-        ctrlApiDataLoader.loadRscDfn(rscNameStr, true);
+        ctrlApiDataLoader.loadRscDfn(rscNameStr);
 
         List<String> rscList = new ArrayList<>();
         rscList.add(rscNameStr);

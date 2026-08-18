@@ -249,7 +249,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         @Nullable String zfsRollbackStrategyRef
     )
     {
-        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscNameStr, snapshotNameStr, true);
+        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscNameStr, snapshotNameStr);
         ResourceDefinition rscDfn = snapshotDfn.getResourceDefinition();
 
         boolean useOldRollback = zfsChecks.useOldRollback(snapshotDfn, zfsRollbackStrategyRef);
@@ -732,7 +732,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
 
     private Flux<ApiCallRc> updateForRollbackInScope(ResourceName rscName, String snapNameStr)
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
 
         Set<NodeName> diskNodeNames = new HashSet<>();
 
@@ -804,7 +804,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         NodeName nodeName
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, true);
+        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName);
 
         getProps(rsc).map().remove(ApiConsts.KEY_RSC_ROLLBACK_TARGET);
 
@@ -825,7 +825,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
 
     private Flux<ApiCallRc> finishRollbackInScope(ResourceName rscName, String snapNameStr)
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
         unmarkDownPrivileged(rscDfn);
 
         ctrlTransactionHelper.commit();
@@ -1084,7 +1084,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
         Throwable exception
     )
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
         unmarkDownPrivileged(rscDfn);
         ctrlTransactionHelper.commit();
         Flux<ApiCallRc> nextStep = Flux.error(exception);
@@ -1121,7 +1121,7 @@ public class CtrlSnapshotRollbackApiCallHandler implements CtrlSatelliteConnecti
 
     private Flux<ApiCallRc> startRollbackInTransaction(ResourceName rscName, SnapshotName snapshotName)
     {
-        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapshotName, true);
+        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapshotName);
         ResourceDefinition rscDfn = snapshotDfn.getResourceDefinition();
         Iterator<Resource> rscIter = iterateResourcePrivileged(rscDfn);
         while (rscIter.hasNext())

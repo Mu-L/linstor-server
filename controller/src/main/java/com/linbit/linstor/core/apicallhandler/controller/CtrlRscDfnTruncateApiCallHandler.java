@@ -144,7 +144,7 @@ public class CtrlRscDfnTruncateApiCallHandler
      */
     public Flux<ApiCallRc> truncateRscDfnInTransaction(ResourceName rscName, boolean suppressNodeOfflineWarningRef)
     {
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(rscName);
         if (rscDfn == null)
         {
             throw new ApiRcException(
@@ -287,7 +287,7 @@ public class CtrlRscDfnTruncateApiCallHandler
     private Flux<ApiCallRc> runPreMarkDeleteFluxInTx(TruncateContext truncateCtxRef)
     {
         Flux<ApiCallRc> flux;
-        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(truncateCtxRef.rscName, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(truncateCtxRef.rscName);
         if (rscDfn != null)
         {
             @Nullable Flux<ApiCallRc> preMarkDeleteFlux = truncateCtxRef.preMarkForDeleteAction.apply(rscDfn);
@@ -341,7 +341,7 @@ public class CtrlRscDfnTruncateApiCallHandler
     )
     {
         Flux<ApiCallRc> flux;
-        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(truncateCtxRef.rscName, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(truncateCtxRef.rscName);
         if (rscDfn != null)
         {
             flux = Flux.empty();

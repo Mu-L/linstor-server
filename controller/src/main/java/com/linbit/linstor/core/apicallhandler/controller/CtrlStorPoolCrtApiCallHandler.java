@@ -150,7 +150,7 @@ public class CtrlStorPoolCrtApiCallHandler
                             )
                         );
                     }
-                    AbsRemote remote = dataLoader.loadRemote(ebsRemoteName, true);
+                    AbsRemote remote = dataLoader.loadRemote(ebsRemoteName);
                     if (!(remote instanceof EbsRemote))
                     {
                         throw new ApiRcException(
@@ -164,7 +164,7 @@ public class CtrlStorPoolCrtApiCallHandler
                 }
                 case EBS_TARGET:
                 {
-                    Node node = dataLoader.loadNode(nodeNameStr, true);
+                    Node node = dataLoader.loadNode(nodeNameStr);
                     if (node.getStorPoolCount() > 0)
                     {
                         throw new ApiRcException(

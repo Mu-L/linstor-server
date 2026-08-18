@@ -138,7 +138,7 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
     {
         ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
         VolumeNumber vlmNr = LinstorParsingUtils.asVlmNr(vlmNrInt);
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, false);
+        @Nullable VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfnOrNull(rscName, vlmNr);
 
         if (vlmDfn == null)
         {
@@ -247,7 +247,7 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
 
     private Flux<ApiCallRc> updateSatellitesInScope(ResourceName rscName, VolumeNumber vlmNr)
     {
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, false);
+        @Nullable VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfnOrNull(rscName, vlmNr);
 
         Flux<ApiCallRc> flux;
 
@@ -284,7 +284,7 @@ public class CtrlVlmDfnDeleteApiCallHandler implements CtrlSatelliteConnectionLi
 
     private Flux<ApiCallRc> deleteDataInTransaction(ResourceName rscName, VolumeNumber vlmNr)
     {
-        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr, false);
+        @Nullable VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfnOrNull(rscName, vlmNr);
 
         Flux<ApiCallRc> flux;
 

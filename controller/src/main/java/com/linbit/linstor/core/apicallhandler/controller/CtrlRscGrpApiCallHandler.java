@@ -572,7 +572,7 @@ public class CtrlRscGrpApiCallHandler
                 validateStorPoolNames(autoApiRef.getStorPoolDisklessNameList());
             }
 
-            ResourceGroup rscGrpData = ctrlApiDataLoader.loadResourceGroup(rscGrpNameStrRef, true);
+            ResourceGroup rscGrpData = ctrlApiDataLoader.loadResourceGroup(rscGrpNameStrRef);
 
             if (autoApiRef != null)
             {
@@ -801,9 +801,8 @@ public class CtrlRscGrpApiCallHandler
         try
         {
             requireRscGrpMapChangeAccess();
-            ResourceGroup rscGrpData = ctrlApiDataLoader.loadResourceGroup(
-                LinstorParsingUtils.asRscGrpName(rscGrpNameStrRef),
-                false
+            @Nullable ResourceGroup rscGrpData = ctrlApiDataLoader.loadResourceGroupOrNull(
+                LinstorParsingUtils.asRscGrpName(rscGrpNameStrRef)
             );
             if (rscGrpData == null)
             {
@@ -1034,7 +1033,7 @@ public class CtrlRscGrpApiCallHandler
         ApiCallRcImpl apiCallRc = new ApiCallRcImpl();
         try
         {
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
+            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef);
             List<String> layerStackStr;
             List<DeviceLayerKind> layerStackDevLayerKind;
 
@@ -1265,7 +1264,7 @@ public class CtrlRscGrpApiCallHandler
     )
     {
         Flux<ApiCallRcWith<List<MaxVlmSizeCandidatePojo>>> flux;
-        ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
+        ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef);
         AutoSelectorConfig selectFilter = rscGrp.getAutoPlaceConfig();
 
         flux = qmvsHelper.queryMaxVlmSize(selectFilter.getApiData(), null, 0, thinFreeCapacities);
@@ -1309,7 +1308,7 @@ public class CtrlRscGrpApiCallHandler
     )
     {
         Flux<ApiCallRcWith<QuerySizeInfoResponsePojo>> flux;
-        ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(querySizeInfoReqRef.getRscGrpName(), true);
+        ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(querySizeInfoReqRef.getRscGrpName());
         AutoSelectFilterPojo autoSelectFilterData = querySizeInfoReqRef.getAutoSelectFilterData();
         flux = Flux.just(
             querySizeInfoImpl(thinFreeCapacities, rscGrp, autoSelectFilterData)
@@ -1514,7 +1513,7 @@ public class CtrlRscGrpApiCallHandler
     )
     {
         List<Flux<ApiCallRc>> fluxList = new ArrayList<>();
-        ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
+        ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef);
 
         AutoSelectorConfig rgAutoPlaceConfig = rscGrp.getAutoPlaceConfig();
         AutoSelectFilterPojo autoPlaceConfig = AutoSelectFilterPojo.merge(

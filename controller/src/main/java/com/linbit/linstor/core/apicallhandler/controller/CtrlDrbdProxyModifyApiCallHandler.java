@@ -82,7 +82,7 @@ public class CtrlDrbdProxyModifyApiCallHandler
         try
         {
             ResourceName rscName = LinstorParsingUtils.asRscName(rscNameStr);
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
             if (rscDfnUuid != null && !rscDfnUuid.equals(rscDfn.getUuid()))
             {
                 throw new ApiRcException(ApiCallRcImpl

@@ -87,7 +87,7 @@ public class NodeInternalCallHandler
             Peer currentPeer = peerProvider.get();
             NodeName nodeName = new NodeName(nodeNameStr);
 
-            Node node = ctrlApiDataLoader.loadNode(nodeName, false);
+            @Nullable Node node = ctrlApiDataLoader.loadNodeOrNull(nodeName);
             if (node != null && !node.isDeleted() && node.getFlags().isUnset(Node.Flags.DELETE))
             {
                 if (node.getUuid().equals(nodeUuid))
@@ -245,7 +245,7 @@ public class NodeInternalCallHandler
                     Set<StorPool> changedStorPoolSet = new HashSet<>();
                     for (Entry<String, List<String>> entry : deletedStorPoolPropsRef.entrySet())
                     {
-                        StorPool storPool = ctrlApiDataLoader.loadStorPool(entry.getKey(), node, true);
+                        StorPool storPool = ctrlApiDataLoader.loadStorPool(entry.getKey(), node);
                         Props spProps = storPool.getProps();
                         boolean changedSp = delete(spProps, entry.getValue());
                         if (changedSp)
@@ -255,7 +255,7 @@ public class NodeInternalCallHandler
                     }
                     for (Entry<String, Map<String, String>> entry : changedStorPoolPropsRef.entrySet())
                     {
-                        StorPool storPool = ctrlApiDataLoader.loadStorPool(entry.getKey(), node, true);
+                        StorPool storPool = ctrlApiDataLoader.loadStorPool(entry.getKey(), node);
                         Props spProps = storPool.getProps();
                         boolean changedSp = update(spProps, entry.getValue());
                         if (changedSp)

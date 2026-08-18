@@ -217,7 +217,7 @@ public class ResourceStateEventHandler implements EventHandler
         try (LockGuard ignored = lockGuardFactory.build(LockType.WRITE, LockObj.RSC_DFN_MAP))
         {
             @Nullable ResourceDefinition rscDfn = null;
-            @Nullable Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, resourceName, false);
+            @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeName, resourceName);
             if (rsc != null && !rsc.isDeleted())
             {
                 rscDfn = rsc.getResourceDefinition();
@@ -237,7 +237,7 @@ public class ResourceStateEventHandler implements EventHandler
             }
             if (rscDfn == null)
             {
-                rscDfn = ctrlApiDataLoader.loadRscDfn(resourceName, false);
+                rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(resourceName);
             }
             if (rscDfn != null && Boolean.TRUE.equals(inUseRef))
             {
@@ -287,7 +287,7 @@ public class ResourceStateEventHandler implements EventHandler
         // EventProcessor has already taken write lock on NodesMap
         try (LockGuard ignored = lockGuardFactory.build(LockType.WRITE, LockObj.RSC_DFN_MAP))
         {
-            Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, resourceName, false);
+            @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeName, resourceName);
 
             if (rsc != null)
             {

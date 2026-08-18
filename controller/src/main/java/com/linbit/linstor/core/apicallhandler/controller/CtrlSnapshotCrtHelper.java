@@ -118,7 +118,7 @@ public class CtrlSnapshotCrtHelper
         ApiCallRcImpl responses
     )
     {
-        final ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+        final ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
 
         SnapshotDefinition snapshotDfn = createSnapshotDfnData(
             rscDfn,
@@ -192,7 +192,7 @@ public class CtrlSnapshotCrtHelper
         {
             for (String nodeNameStr : nodeNameStrs)
             {
-                Resource rsc = ctrlApiDataLoader.loadRsc(rscDfn, nodeNameStr, true);
+                Resource rsc = ctrlApiDataLoader.loadRsc(rscDfn, nodeNameStr);
 
                 if (isDisklessPrivileged(rsc))
                 {
@@ -581,7 +581,7 @@ public class CtrlSnapshotCrtHelper
      */
     public List<Resource> findSharedRscsToActivate(ResourceName rscName, Collection<String> nodeNameStrs)
     {
-        final ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, true);
+        final ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
         Set<NodeName> requestedNodes = new HashSet<>();
         for (String nodeNameStr : nodeNameStrs)
         {

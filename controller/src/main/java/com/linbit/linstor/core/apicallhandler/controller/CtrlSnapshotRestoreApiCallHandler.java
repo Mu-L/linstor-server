@@ -319,11 +319,11 @@ public class CtrlSnapshotRestoreApiCallHandler
 
         try
         {
-            ResourceDefinition fromRscDfn = ctrlApiDataLoader.loadRscDfn(fromRscName, true);
+            ResourceDefinition fromRscDfn = ctrlApiDataLoader.loadRscDfn(fromRscName);
 
-            SnapshotDefinition fromSnapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(fromRscDfn, fromSnapshotName, true);
+            SnapshotDefinition fromSnapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(fromRscDfn, fromSnapshotName);
 
-            ResourceDefinition toRscDfn = ctrlApiDataLoader.loadRscDfn(toRscName, true);
+            ResourceDefinition toRscDfn = ctrlApiDataLoader.loadRscDfn(toRscName);
 
             if (toRscDfn.getResourceCount() != 0)
             {
@@ -383,7 +383,7 @@ public class CtrlSnapshotRestoreApiCallHandler
             {
                 for (String nodeNameStr : nodeNameStrs)
                 {
-                    Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
+                    Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
                     restoredResources.add(
                         restoreOnNode(fromSnapshotDfn, toRscDfn, node, fromBackup, renameStorPoolMap, responses)
                     );
@@ -552,7 +552,7 @@ public class CtrlSnapshotRestoreApiCallHandler
 
     private Flux<ApiCallRc> unsetRestoreTargetInTransaction(ResourceName rscNameRef)
     {
-        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, false);
+        @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(rscNameRef);
         Flux<ApiCallRc> ret;
         if (rscDfn != null)
         {

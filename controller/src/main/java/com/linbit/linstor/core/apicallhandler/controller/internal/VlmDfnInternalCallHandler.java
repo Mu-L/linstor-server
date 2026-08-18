@@ -93,7 +93,7 @@ public class VlmDfnInternalCallHandler
         Peer currentPeer = peer.get();
         try
         {
-            Resource res = ctrlApiDataLoader.loadRsc(currentPeer.getNode().getName().displayValue, rscNameRef, true);
+            Resource res = ctrlApiDataLoader.loadRsc(currentPeer.getNode().getName().displayValue, rscNameRef);
             ResourceDefinition resDfn = res.getResourceDefinition();
             NodeName nodeName = res.getNode().getName();
 

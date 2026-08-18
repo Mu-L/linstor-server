@@ -157,7 +157,7 @@ public class CtrlScheduleApiCallHandler
     )
     {
         ScheduleName scheduleName = LinstorParsingUtils.asScheduleName(scheduleNameStr);
-        if (ctrlApiDataLoader.loadSchedule(scheduleName, false) != null)
+        if (ctrlApiDataLoader.loadScheduleOrNull(scheduleName) != null)
         {
             throw new ApiRcException(
                 ApiCallRcImpl.simpleEntry(
@@ -237,7 +237,7 @@ public class CtrlScheduleApiCallHandler
     )
     {
         ScheduleName scheduleName = LinstorParsingUtils.asScheduleName(scheduleNameStr);
-        Schedule schedule = ctrlApiDataLoader.loadSchedule(scheduleName, true);
+        Schedule schedule = ctrlApiDataLoader.loadSchedule(scheduleName);
         boolean modifyTask = false;
         String scheduleDescription = getScheduleDescription(scheduleName.displayValue);
         try
@@ -352,7 +352,7 @@ public class CtrlScheduleApiCallHandler
     {
         Flux<ApiCallRc> flux;
         ScheduleName scheduleName = LinstorParsingUtils.asScheduleName(scheduleNameStrRef);
-        Schedule schedule = ctrlApiDataLoader.loadSchedule(scheduleName, false);
+        @Nullable Schedule schedule = ctrlApiDataLoader.loadScheduleOrNull(scheduleName);
         String scheduleDescription = getScheduleDescription(scheduleNameStrRef);
 
         if (schedule == null)
@@ -650,7 +650,7 @@ public class CtrlScheduleApiCallHandler
             )
         )
         {
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, true);
+            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef);
             PriorityProps prioProps = new PriorityProps();
             final String rscDfnStr = "rscDfn";
             final String rscGrpStr = "rscGrp";

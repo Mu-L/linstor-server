@@ -149,7 +149,7 @@ public class StoragePools
                 {
                     try (LockGuard lg = lockGuardFactory.build(READ, NODES_MAP))
                     {
-                        ctrlApiDataLoader.loadNode(LinstorParsingUtils.asNodeName(nodeName), true, true);
+                        ctrlApiDataLoader.loadNode(LinstorParsingUtils.asNodeName(nodeName), true);
                     }
                     return null;
                 },

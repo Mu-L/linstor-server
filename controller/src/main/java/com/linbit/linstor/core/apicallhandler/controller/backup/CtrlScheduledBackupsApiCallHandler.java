@@ -580,8 +580,8 @@ public class CtrlScheduledBackupsApiCallHandler
     ) throws InvalidKeyException, DatabaseException, InvalidValueException
     {
         ApiCallRcImpl response = new ApiCallRcImpl();
-        AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef, true);
-        Schedule schedule = ctrlApiDataLoader.loadSchedule(scheduleNameRef, true);
+        AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef);
+        Schedule schedule = ctrlApiDataLoader.loadSchedule(scheduleNameRef);
         List<ResourceDefinition> rscDfnsToCheck = new ArrayList<>();
         Map<String, String> renameMap = new HashMap<>();
         if (storpoolRename != null)
@@ -597,7 +597,7 @@ public class CtrlScheduledBackupsApiCallHandler
             ReadOnlyProps.PATH_SEPARATOR;
         if (rscNameRef != null && !rscNameRef.isEmpty())
         {
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, true);
+            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef);
             Props propsRef = rscDfn.getProps();
             propsRef.setProp(
                 InternalApiConsts.KEY_TRIPLE_ENABLED,
@@ -656,7 +656,7 @@ public class CtrlScheduledBackupsApiCallHandler
         }
         else if (grpNameRef != null && !grpNameRef.isEmpty())
         {
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(grpNameRef, true);
+            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(grpNameRef);
             Props propsRef = rscGrp.getProps();
             propsRef.setProp(
                 InternalApiConsts.KEY_TRIPLE_ENABLED,
@@ -862,12 +862,12 @@ public class CtrlScheduledBackupsApiCallHandler
         String scheduleNameRef
     ) throws InvalidKeyException, DatabaseException, InvalidValueException
     {
-        AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef, true);
-        Schedule schedule = ctrlApiDataLoader.loadSchedule(scheduleNameRef, true);
+        AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef);
+        Schedule schedule = ctrlApiDataLoader.loadSchedule(scheduleNameRef);
         List<ResourceDefinition> rscDfnsToCheck = new ArrayList<>();
         if (rscNameRef != null && !rscNameRef.isEmpty())
         {
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef, true);
+            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameRef);
             Props propsRef = rscDfn.getProps();
             propsRef.removeProp(
                 InternalApiConsts.NAMESPC_SCHEDULE + ReadOnlyProps.PATH_SEPARATOR +
@@ -885,7 +885,7 @@ public class CtrlScheduledBackupsApiCallHandler
         }
         else if (grpNameRef != null && !grpNameRef.isEmpty())
         {
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(grpNameRef, true);
+            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(grpNameRef);
             Props propsRef = rscGrp.getProps();
             propsRef.removeProp(
                 InternalApiConsts.NAMESPC_SCHEDULE + ReadOnlyProps.PATH_SEPARATOR +

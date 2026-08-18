@@ -239,7 +239,7 @@ public class CtrlBackupL2LSrcApiCallHandler
         boolean copySnapsForEvac
     ) throws InvalidNameException
     {
-        AbsRemote remote = ctrlApiDataLoader.loadRemote(linstorRemoteNameRef, true);
+        AbsRemote remote = ctrlApiDataLoader.loadRemote(linstorRemoteNameRef);
 
         if (!(remote instanceof LinstorRemote linstorRemote))
         {
@@ -265,7 +265,7 @@ public class CtrlBackupL2LSrcApiCallHandler
         }
         // build list of possible base snapshots for incremental shipping
         Set<String> srcSnapDfnUuids = new HashSet<>();
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(srcRscNameRef, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(srcRscNameRef);
         SnapshotDefinition snapDfnToShip = null;
         @Nullable Instant crtTime = null;
         if (srcSnapNameRef != null)

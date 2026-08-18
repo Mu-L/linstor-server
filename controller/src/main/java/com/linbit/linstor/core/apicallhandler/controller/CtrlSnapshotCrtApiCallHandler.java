@@ -341,7 +341,7 @@ public class CtrlSnapshotCrtApiCallHandler
     )
     {
         Flux<ApiCallRc> flux;
-        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr, true);
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscNameStr);
 
         List<String> offlineNodeName = getOfflineNodeNames(rscDfn);
         if (!offlineNodeName.isEmpty())
@@ -633,7 +633,7 @@ public class CtrlSnapshotCrtApiCallHandler
     {
         Flux<ApiCallRc> retFlux = Flux.empty();
 
-        SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfn(rscName, snapshotName, false);
+        @Nullable SnapshotDefinition snapshotDfn = ctrlApiDataLoader.loadSnapshotDfnOrNull(rscName, snapshotName);
         // might be null when a snapshot (or backup-shipping) is aborted multiple times
         // which can happen as both, sender and receiver try to abort a failed shipment
         if (snapshotDfn != null)

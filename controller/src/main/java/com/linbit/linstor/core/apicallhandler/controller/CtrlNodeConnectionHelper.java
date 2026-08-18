@@ -39,8 +39,13 @@ public class CtrlNodeConnectionHelper
     {
         // when the connection would be created on demand, the nodes themselves still have to
         // exist - otherwise createNodeConn would run into a NullPointerException
-        Node node1 = ctrlApiDataLoader.loadNode(nodeName1, failIfNull || createIfNotExists);
-        Node node2 = ctrlApiDataLoader.loadNode(nodeName2, failIfNull || createIfNotExists);
+        boolean nodesMustExist = failIfNull || createIfNotExists;
+        @Nullable Node node1 = nodesMustExist ?
+            ctrlApiDataLoader.loadNode(nodeName1) :
+            ctrlApiDataLoader.loadNodeOrNull(nodeName1);
+        @Nullable Node node2 = nodesMustExist ?
+            ctrlApiDataLoader.loadNode(nodeName2) :
+            ctrlApiDataLoader.loadNodeOrNull(nodeName2);
 
         NodeConnection nodeConn = null;
         if (node1 != null && node2 != null)

@@ -117,16 +117,16 @@ public class CtrlNodeConnectionApiCallHandler
         }
         else if (nodeARef == null)
         {
-            ret = getNodeConnPojos(ctrlApiDataLoader.loadNode(nodeBRef, true), false);
+            ret = getNodeConnPojos(ctrlApiDataLoader.loadNode(nodeBRef), false);
         }
         else if (nodeBRef == null)
         {
-            ret = getNodeConnPojos(ctrlApiDataLoader.loadNode(nodeARef, true), false);
+            ret = getNodeConnPojos(ctrlApiDataLoader.loadNode(nodeARef), false);
         }
         else
         {
-            Node nodeA = ctrlApiDataLoader.loadNode(nodeARef, true);
-            Node nodeB = ctrlApiDataLoader.loadNode(nodeBRef, true);
+            Node nodeA = ctrlApiDataLoader.loadNode(nodeARef);
+            Node nodeB = ctrlApiDataLoader.loadNode(nodeBRef);
             ret = new TreeSet<>();
             NodeConnection nodeConn = nodeA.getNodeConnection(
                 nodeB

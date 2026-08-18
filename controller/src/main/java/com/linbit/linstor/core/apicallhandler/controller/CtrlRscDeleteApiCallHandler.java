@@ -192,7 +192,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ResourceName rscName
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, false);
+        @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeName, rscName);
 
         Flux<ApiCallRc> flux;
         if (rsc == null || !rsc.getStateFlags().isSet(Resource.Flags.DRBD_DELETE))
@@ -259,7 +259,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ResponseContext context
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStr, rscNameStr, false);
+        @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeNameStr, rscNameStr);
 
         if (rsc == null)
         {
@@ -292,7 +292,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ResponseContext context
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStr, rscNameStr, false);
+        @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeNameStr, rscNameStr);
 
         if (rsc == null)
         {
@@ -474,7 +474,7 @@ public class CtrlRscDeleteApiCallHandler implements CtrlSatelliteConnectionListe
         ResponseContext context
     )
     {
-        Resource rsc = ctrlApiDataLoader.loadRsc(nodeNameStr, rscNameStr, false);
+        @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeNameStr, rscNameStr);
 
         ApiCallRcImpl responses = new ApiCallRcImpl();
         Flux<ApiCallRc> flux;

@@ -162,7 +162,7 @@ public class CtrlVlmGrpApiCallHandler
                 );
             }
 
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
+            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef);
 
             List<VolumeGroup> vlmGrpsCreated = createVlmGrps(responses, rscGrp, vlmGrpApiListRef);
 
@@ -186,7 +186,7 @@ public class CtrlVlmGrpApiCallHandler
         List<VolumeGroupApi> ret;
         if (vlmNrRef != null)
         {
-            VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameRef, vlmNrRef, true);
+            VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameRef, vlmNrRef);
             if (vlmGrp == null)
             {
                 ret = Collections.emptyList();
@@ -198,7 +198,7 @@ public class CtrlVlmGrpApiCallHandler
         }
         else
         {
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef, true);
+            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameRef);
             ret = rscGrp.getApiData().getVlmGrpList();
         }
         return ret;
@@ -267,7 +267,7 @@ public class CtrlVlmGrpApiCallHandler
             List<String> prefixesIgnoringWhitelistCheck = new ArrayList<>();
             prefixesIgnoringWhitelistCheck.add(ApiConsts.NAMESPC_EBS + "/" + ApiConsts.NAMESPC_TAGS + "/");
 
-            VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameStr, vlmNrInt, true);
+            VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameStr, vlmNrInt);
 
             Map<String, PropertyChangedListener> propsChangedListeners = propsChangeListenerBuilder.get()
                 .buildPropsChangedListeners(vlmGrp, specialPropFluxes);
@@ -312,7 +312,7 @@ public class CtrlVlmGrpApiCallHandler
 
             ctrlTransactionHelper.commit();
 
-            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameStr, true);
+            ResourceGroup rscGrp = ctrlApiDataLoader.loadResourceGroup(rscGrpNameStr);
 
             responseConverter.addWithOp(
                 apiCallRcs,
@@ -361,7 +361,7 @@ public class CtrlVlmGrpApiCallHandler
         );
         try
         {
-            VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameRef, vlmNrRef, true);
+            VolumeGroup vlmGrp = ctrlApiDataLoader.loadVlmGrp(rscGrpNameRef, vlmNrRef);
             final UUID vlmGrpUUID = vlmGrp.getUuid();
             int vlmNr = vlmGrp.getVolumeNumber().value;
             vlmGrp.delete();

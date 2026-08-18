@@ -2,6 +2,7 @@ package com.linbit.linstor.core.apicallhandler.controller;
 
 import com.linbit.ImplementationError;
 import com.linbit.linstor.InternalApiConsts;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
@@ -162,7 +163,7 @@ public class CtrlRscDeleteApiHelper
         ResourceDefinition rscDfn = null;
         for (NodeName nodeName : nodeNames)
         {
-            Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, false);
+            @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeName, rscName);
             if (rsc != null)
             {
                 rscDfn = rsc.getResourceDefinition();
@@ -221,7 +222,7 @@ public class CtrlRscDeleteApiHelper
         List<Resource> rscList = new ArrayList<>();
         for (NodeName nodeName : nodeNames)
         {
-            Resource rsc = ctrlApiDataLoader.loadRsc(nodeName, rscName, false);
+            @Nullable Resource rsc = ctrlApiDataLoader.loadRscOrNull(nodeName, rscName);
             if (rsc != null)
             {
                 rscList.add(rsc);

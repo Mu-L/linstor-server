@@ -394,7 +394,7 @@ public class CtrlBackupApiHelper
     }
 
     /**
-     * Unlike {@link CtrlApiDataLoader#loadSnapshotDfn(String, String, boolean)} this method does not expect rscDfn to
+     * Unlike {@link CtrlApiDataLoader#loadSnapshotDfnOrNull(String, String)} this method does not expect rscDfn to
      * exist when trying to load snapDfn
      *
      *
@@ -405,7 +405,7 @@ public class CtrlBackupApiHelper
         SnapshotDefinition snapDfn = null;
         try
         {
-            ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName, false);
+            @Nullable ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfnOrNull(rscName);
             if (rscDfn != null)
             {
                 snapDfn = rscDfn.getSnapshotDfn(

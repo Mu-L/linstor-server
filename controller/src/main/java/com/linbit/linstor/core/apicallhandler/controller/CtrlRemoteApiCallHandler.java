@@ -966,7 +966,7 @@ public class CtrlRemoteApiCallHandler
                 LockType.WRITE, LockObj.REMOTE_MAP, LockObj.RSC_DFN_MAP, LockObj.RSC_GRP_MAP, LockObj.CTRL_CONFIG
             ),
             () -> {
-                @Nullable AbsRemote remote = loadRemote(remoteNameStrRef);
+                @Nullable AbsRemote remote = loadRemoteOrNull(remoteNameStrRef);
                 Flux<ApiCallRc> flux;
                 if (remote == null)
                 {
@@ -988,7 +988,7 @@ public class CtrlRemoteApiCallHandler
 
     private void checkRemoteNameAvailable(RemoteName remoteName)
     {
-        if (ctrlApiDataLoader.loadRemote(remoteName, false) != null)
+        if (ctrlApiDataLoader.loadRemoteOrNull(remoteName) != null)
         {
             throw new ApiRcException(
                 ApiCallRcImpl.simpleEntry(
@@ -1007,7 +1007,7 @@ public class CtrlRemoteApiCallHandler
         String remoteTypeDescrRef
     )
     {
-        AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef, true);
+        AbsRemote remote = ctrlApiDataLoader.loadRemote(remoteNameRef);
         if (!remoteTypeClassRef.isInstance(remote))
         {
             throw new ApiRcException(
@@ -1021,14 +1021,9 @@ public class CtrlRemoteApiCallHandler
         return (REMOTE_TYPE) remote;
     }
 
-    private @Nullable AbsRemote loadRemote(String remoteNameStr)
+    private @Nullable AbsRemote loadRemoteOrNull(String remoteNameStr)
     {
-        return loadRemote(LinstorParsingUtils.asRemoteName(remoteNameStr));
-    }
-
-    private @Nullable AbsRemote loadRemote(RemoteName remoteName)
-    {
-        return ctrlApiDataLoader.loadRemote(remoteName, false);
+        return ctrlApiDataLoader.loadRemoteOrNull(LinstorParsingUtils.asRemoteName(remoteNameStr));
     }
 
     private Flux<ApiCallRc> deleteInTransaction(AbsRemote remote) throws ImplementationError
@@ -1217,7 +1212,7 @@ public class CtrlRemoteApiCallHandler
 
     private Flux<ApiCallRc> cleanupIfNeededInTransaction(String remoteNameStr) throws ImplementationError
     {
-        AbsRemote remote = loadRemote(remoteNameStr);
+        @Nullable AbsRemote remote = loadRemoteOrNull(remoteNameStr);
         Flux<ApiCallRc> flux = Flux.empty();
         if (remote == null)
         {

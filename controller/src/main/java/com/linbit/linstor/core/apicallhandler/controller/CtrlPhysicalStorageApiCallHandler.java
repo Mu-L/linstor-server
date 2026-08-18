@@ -82,7 +82,7 @@ public class CtrlPhysicalStorageApiCallHandler
             "get physical storage",
             lockGuardFactory.buildDeferred(LockGuardFactory.LockType.READ, LockGuardFactory.LockObj.NODES_MAP),
             () -> {
-                Node node = ctrlApiDataLoader.loadNode(nodeName, true);
+                Node node = ctrlApiDataLoader.loadNode(nodeName);
                 return getPhysicalStorageForPeer(node.getPeer());
             }
         );
@@ -224,7 +224,7 @@ public class CtrlPhysicalStorageApiCallHandler
     )
     {
         Flux<ApiCallRc> response;
-        Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
+        Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
 
         if (devicePaths == null || devicePaths.isEmpty())
         {
@@ -307,7 +307,7 @@ public class CtrlPhysicalStorageApiCallHandler
     )
     {
         Flux<ApiCallRc> response;
-        Node node = ctrlApiDataLoader.loadNode(nodeNameStr, true);
+        Node node = ctrlApiDataLoader.loadNode(nodeNameStr);
 
         response = node.getPeer()
             .apiCall(
