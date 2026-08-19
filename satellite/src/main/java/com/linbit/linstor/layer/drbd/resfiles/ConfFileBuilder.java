@@ -637,7 +637,7 @@ public class ConfFileBuilder
             errorReporter.reportProblem(
                 Level.WARN,
                 new LinStorException(
-                    "Ignoring property '" + key + "' with value '" + value + "' as it is not whitelisted."
+                    "Ignoring property '" + key + "' with value '" + value + "' as it is not a valid property key."
                 ),
                 null,
                 "The whitelist was generated from 'drbdsetup xml-help {resource,peer-device,net,disk}-options'" +

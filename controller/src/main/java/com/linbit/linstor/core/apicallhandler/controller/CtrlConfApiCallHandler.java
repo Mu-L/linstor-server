@@ -1031,7 +1031,9 @@ public class CtrlConfApiCallHandler
                 }
                 else
                 {
-                    entry.setMessage("The key '" + fullKey + "' is not whitelisted");
+                    entry.setMessage("Invalid property key: " + fullKey);
+                    entry.setCause(CtrlPropsHelper.causeInvalidPropKey(fullKey));
+                    entry.setCorrection(CtrlPropsHelper.CORRECTION_INVALID_PROP_KEY);
                 }
                 entry.setReturnCode(ApiConsts.FAIL_INVLD_PROP | ApiConsts.MASK_CTRL_CONF | ApiConsts.MASK_CRT);
                 entry.setSkipErrorReport(true);
@@ -1526,7 +1528,9 @@ public class CtrlConfApiCallHandler
             else
             {
                 ApiCallRcEntry entry = new ApiCallRcEntry();
-                entry.setMessage("The key '" + fullKey + "' is not whitelisted");
+                entry.setMessage("Invalid property key: " + fullKey);
+                entry.setCause(CtrlPropsHelper.causeInvalidPropKey(fullKey));
+                entry.setCorrection(CtrlPropsHelper.CORRECTION_INVALID_PROP_KEY);
                 entry.setReturnCode(ApiConsts.FAIL_INVLD_PROP | ApiConsts.MASK_CTRL_CONF | ApiConsts.MASK_DEL);
                 apiCallRc.addEntry(entry);
             }

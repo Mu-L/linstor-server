@@ -365,11 +365,16 @@ public class CtrlRscGrpApiCallHandler
             // FIXME: this should change with the properties rework
             throw new ApiRcException(
                 ApiCallRcImpl
-                    .entryBuilder(ApiConsts.FAIL_INVLD_PROP, "Invalid property key")
+                    .entryBuilder(
+                        ApiConsts.FAIL_INVLD_PROP,
+                        "Invalid property key: " + ApiConsts.NAMESPC_DRBD_OPTIONS + "/" +
+                            ApiConsts.KEY_DRBD_EXACT_SIZE
+                    )
                     .setCause(
                         "The key '" + ApiConsts.NAMESPC_DRBD_OPTIONS + "/" + ApiConsts.KEY_DRBD_EXACT_SIZE +
-                            "' is not whitelisted."
+                            "' is not a valid property key for resource groups."
                     )
+                    .setCorrection("Set this property on the resource definition instead.")
                     .build()
             );
         }

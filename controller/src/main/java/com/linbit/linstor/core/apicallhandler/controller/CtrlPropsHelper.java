@@ -48,8 +48,21 @@ import java.util.Set;
 @Singleton
 public class CtrlPropsHelper
 {
+    /**
+     * The client command first (review request on the MR: these errors are usually hit from
+     * the command line), the API endpoint as fallback for GUI / API users.
+     */
+    public static final String CORRECTION_INVALID_PROP_KEY =
+        "Refer to 'linstor <object> set-property --help' for a list of valid property keys, " +
+        "or query the object's 'properties/info' API endpoint.";
+
     private final WhitelistProps propsWhiteList;
     private final SystemConfRepository systemConfRepository;
+
+    public static String causeInvalidPropKey(String key)
+    {
+        return "The key '" + key + "' is not a valid property key.";
+    }
 
     @Inject
     public CtrlPropsHelper(
@@ -398,7 +411,8 @@ public class CtrlPropsHelper
             {
                 throw new ApiRcException(ApiCallRcImpl
                     .entryBuilder(ApiConsts.FAIL_INVLD_PROP, "Invalid property key: " + key)
-                    .setCause("The key '" + key + "' is not whitelisted.")
+                    .setCause(causeInvalidPropKey(key))
+                    .setCorrection(CORRECTION_INVALID_PROP_KEY)
                     .build()
                 );
             }
@@ -519,8 +533,9 @@ public class CtrlPropsHelper
             {
                 throw new ApiRcException(
                     ApiCallRcImpl
-                        .entryBuilder(ApiConsts.FAIL_INVLD_PROP, "Invalid property key")
-                        .setCause("The key '" + key + "' is not whitelisted.")
+                        .entryBuilder(ApiConsts.FAIL_INVLD_PROP, "Invalid property key: " + key)
+                        .setCause(causeInvalidPropKey(key))
+                        .setCorrection(CORRECTION_INVALID_PROP_KEY)
                         .build()
                 );
             }
@@ -538,8 +553,9 @@ public class CtrlPropsHelper
                     {
                         throw new ApiRcException(
                             ApiCallRcImpl
-                                .entryBuilder(ApiConsts.FAIL_INVLD_PROP, "Invalid property key")
-                                .setCause("The key '" + key + "' is not whitelisted.")
+                                .entryBuilder(ApiConsts.FAIL_INVLD_PROP, "Invalid property key: " + key)
+                                .setCause(causeInvalidPropKey(key))
+                                .setCorrection(CORRECTION_INVALID_PROP_KEY)
                                 .build()
                         );
                     }
