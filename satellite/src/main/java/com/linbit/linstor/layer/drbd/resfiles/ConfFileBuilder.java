@@ -72,6 +72,9 @@ public class ConfFileBuilder
     public static final ExtToolsInfo.Version VERSION_9_34_0 = new ExtToolsInfo.Version(9, 34, 0);
     public static final ExtToolsInfo.Version VERSION_9_23_1 = new ExtToolsInfo.Version(9, 23, 1);
 
+    /** Placeholder disk path for diskful peer volumes; explained by a comment in the generated file */
+    public static final String PEER_DISK_PLACEHOLDER = "/dev/drbd/this/is/not/used";
+
     private final ErrorReporter errorReporter;
     private final DrbdRscData<Resource> localRscData;
     private final Collection<DrbdRscData<Resource>> remoteResourceData;
@@ -1132,7 +1135,7 @@ public class ConfFileBuilder
                 {
                     // Do not use the backing disk path from the peer resource because it may be 'none' when
                     // the peer resource is converting from diskless, but the path here should not be 'none'
-                    disk = "/dev/drbd/this/is/not/used";
+                    disk = PEER_DISK_PLACEHOLDER;
                 }
             }
             final String metaDisk;
@@ -1158,6 +1161,11 @@ public class ConfFileBuilder
             appendLine("volume %s", vlmNr.value);
             try (Section volumeSection = new Section())
             {
+                if (PEER_DISK_PLACEHOLDER.equals(disk))
+                {
+                    appendLine("# The disk path below is a placeholder: this node never opens a peer's");
+                    appendLine("# backing device, DRBD only needs to know that the peer has one.");
+                }
                 appendLine("disk        %s;", disk);
 
                 if (drbdVersionSupportsTiebreaker())
