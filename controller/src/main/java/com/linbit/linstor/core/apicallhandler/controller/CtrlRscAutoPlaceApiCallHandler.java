@@ -223,6 +223,27 @@ public class CtrlRscAutoPlaceApiCallHandler
             throw new ApiRcException(makePlaceCountTooLowResponse(rscNameStr, alreadyPlaced));
         }
 
+        // every replica of a DRBD resource needs a node id and DRBD only has 0-31 of those,
+        // so reject a placement that could never be deployed no matter how many nodes exist.
+        // Same check as on resource-group create/modify, but against the resources that are
+        // actually deployed.
+        List<DeviceLayerKind> rscDfnLayerStack = rscDfn.getLayerStack();
+        int totalAfterPlacement = alreadyPlacedDiskfulNotDeleting.size() +
+            alreadyPlacedDisklessNotDeleting.size() + additionalPlaceCount;
+        if ((rscDfnLayerStack.isEmpty() || rscDfnLayerStack.contains(DeviceLayerKind.DRBD)) &&
+            totalAfterPlacement > CtrlRscGrpApiCallHandler.MAX_DRBD_REPLICAS)
+        {
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_INVLD_PLACE_COUNT,
+                    "Auto-placing resource: " + rscNameStr + ", the requested placement would result in " +
+                        totalAfterPlacement + " replicas, but DRBD supports at most " +
+                        CtrlRscGrpApiCallHandler.MAX_DRBD_REPLICAS + " replicas per resource (node ids 0-31).",
+                    true
+                )
+            );
+        }
+
         @Nullable List<String> storPoolNameList = mergedSelectFilter.getStorPoolNameList();
         @Nullable List<String> storPoolDisklessNameList = mergedSelectFilter.getStorPoolDisklessNameList();
 

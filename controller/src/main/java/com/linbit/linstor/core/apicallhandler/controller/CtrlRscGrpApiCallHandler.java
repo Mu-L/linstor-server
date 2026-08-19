@@ -4,6 +4,7 @@ import com.linbit.ExhaustedPoolException;
 import com.linbit.ImplementationError;
 import com.linbit.SizeSpecParser;
 import com.linbit.ValueOutOfRangeException;
+import com.linbit.drbd.md.MetaData;
 import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorDataAlreadyExistsException;
 import com.linbit.linstor.LinStorException;
@@ -114,6 +115,9 @@ import reactor.core.publisher.Flux;
 @Singleton
 public class CtrlRscGrpApiCallHandler
 {
+    /** DRBD only has node ids 0-31, so one more replica than it has peers for */
+    public static final int MAX_DRBD_REPLICAS = MetaData.DRBD_MAX_PEERS + 1;
+
     private final ErrorReporter errorReporter;
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
@@ -243,6 +247,7 @@ public class CtrlRscGrpApiCallHandler
                     )
                 );
             }
+            checkPlaceCountSupportedByDrbd(rscGrpPojoRef.getAutoSelectFilter(), null, rscGrpNameStr);
 
             ResourceGroup rscGrp = createResourceGroup(rscGrpPojoRef);
 
@@ -305,6 +310,50 @@ public class CtrlRscGrpApiCallHandler
         }
 
         return responses;
+    }
+
+    /**
+     * Rejects a place count that DRBD can never satisfy: DRBD supports at most
+     * {@link #MAX_DRBD_REPLICAS} replicas per resource, but nothing stopped a resource group
+     * from being created with, say, 60 — which then only fails at spawn time, with the
+     * autoplacer blaming the node count.
+     *
+     * @param newFilterRef the filter of the current API call, may be null
+     * @param currentConfigRef the group's existing config, supplying the values the call leaves
+     *     unchanged; null while the group is only being created
+     */
+    private static void checkPlaceCountSupportedByDrbd(
+        @Nullable AutoSelectFilterApi newFilterRef,
+        @Nullable AutoSelectorConfig currentConfigRef,
+        String rscGrpNameStrRef
+    )
+    {
+        @Nullable Integer placeCount = newFilterRef == null ? null : newFilterRef.getReplicaCount();
+        if (placeCount == null && currentConfigRef != null)
+        {
+            placeCount = currentConfigRef.getReplicaCount();
+        }
+        @Nullable List<DeviceLayerKind> layerStack = newFilterRef == null ? null : newFilterRef.getLayerStackList();
+        if ((layerStack == null || layerStack.isEmpty()) && currentConfigRef != null)
+        {
+            layerStack = currentConfigRef.getLayerStackList();
+        }
+        // an unset layer stack defaults to a DRBD based one, so only an explicit stack without
+        // DRBD is free of DRBD's node id limit
+        boolean drbdBased = layerStack == null || layerStack.isEmpty() ||
+            layerStack.contains(DeviceLayerKind.DRBD);
+        if (drbdBased && placeCount != null && placeCount > MAX_DRBD_REPLICAS)
+        {
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_INVLD_PLACE_COUNT,
+                    getRscGrpDescription(rscGrpNameStrRef) + ", place-count " + placeCount +
+                        " can never be deployed: DRBD supports at most " + MAX_DRBD_REPLICAS +
+                        " replicas per resource (node ids 0-31).",
+                    true
+                )
+            );
+        }
     }
 
     private void checkProps(Map<String, String> overridePropsRef)
@@ -519,6 +568,11 @@ public class CtrlRscGrpApiCallHandler
             }
 
             ResourceGroup rscGrpData = ctrlApiDataLoader.loadResourceGroup(rscGrpNameStrRef, true);
+
+            if (autoApiRef != null)
+            {
+                checkPlaceCountSupportedByDrbd(autoApiRef, rscGrpData.getAutoPlaceConfig(), rscGrpNameStrRef);
+            }
 
             if (descriptionRef != null)
             {

@@ -223,6 +223,87 @@ public class RscGrpApiTest extends ApiTestBase
     }
 
     @Test
+    public void crtPlaceCountAboveDrbdLimit() throws Exception
+    {
+        enterScope();
+        // 60 replicas can never be deployed: DRBD only has node ids 0-31, and an unset
+        // layer stack defaults to a DRBD based one
+        evaluateTest(
+            new CreateRscGrpCall(MASK_RSC_GRP_CRT | ApiConsts.FAIL_INVLD_PLACE_COUNT)
+                .setAutoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setPlaceCount(60)
+                        .build()
+                )
+        );
+        assertThat(rscGrpMap.get(new ResourceGroupName("NewRscGrp"))).isNull();
+    }
+
+    @Test
+    public void crtPlaceCountJustAboveDrbdLimit() throws Exception
+    {
+        enterScope();
+        evaluateTest(
+            new CreateRscGrpCall(MASK_RSC_GRP_CRT | ApiConsts.FAIL_INVLD_PLACE_COUNT)
+                .setAutoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setPlaceCount(CtrlRscGrpApiCallHandler.MAX_DRBD_REPLICAS + 1)
+                        .build()
+                )
+        );
+        assertThat(rscGrpMap.get(new ResourceGroupName("NewRscGrp"))).isNull();
+    }
+
+    @Test
+    public void crtPlaceCountAtDrbdLimit() throws Exception
+    {
+        enterScope();
+        evaluateTest(
+            new CreateRscGrpCall(RC_RSC_GRP_CREATED)
+                .setAutoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setPlaceCount(CtrlRscGrpApiCallHandler.MAX_DRBD_REPLICAS)
+                        .build()
+                )
+        );
+        assertThat(rscGrpMap.get(new ResourceGroupName("NewRscGrp"))).isNotNull();
+    }
+
+    @Test
+    public void crtPlaceCountAboveDrbdLimitExplicitDrbdStack() throws Exception
+    {
+        enterScope();
+        evaluateTest(
+            new CreateRscGrpCall(MASK_RSC_GRP_CRT | ApiConsts.FAIL_INVLD_PLACE_COUNT)
+                .setAutoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setPlaceCount(60)
+                        .setLayerStackList(Arrays.asList(DeviceLayerKind.DRBD, DeviceLayerKind.STORAGE))
+                        .build()
+                )
+        );
+        assertThat(rscGrpMap.get(new ResourceGroupName("NewRscGrp"))).isNull();
+    }
+
+    @Test
+    public void crtPlaceCountAboveDrbdLimitStorageOnly() throws Exception
+    {
+        enterScope();
+        // without DRBD in the layer stack the DRBD node id limit does not apply
+        evaluateTest(
+            new CreateRscGrpCall(RC_RSC_GRP_CREATED)
+                .setAutoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setPlaceCount(60)
+                        .setLayerStackList(Collections.singletonList(DeviceLayerKind.STORAGE))
+                        .build()
+                )
+        );
+        assertThat(rscGrpMap.get(new ResourceGroupName("NewRscGrp")).getAutoPlaceConfig().getReplicaCount())
+            .isEqualTo(60);
+    }
+
+    @Test
     public void crtInvalidProp() throws Exception
     {
         enterScope();
@@ -313,6 +394,65 @@ public class RscGrpApiTest extends ApiTestBase
                         .build()
                 )
         );
+    }
+
+    @Test
+    public void modPlaceCountAboveDrbdLimit() throws Exception
+    {
+        int placeCountBefore = testRscGrp.getAutoPlaceConfig().getReplicaCount();
+        evaluateTest(
+            new ModifyRscGrpCall(MASK_RSC_GRP_CRT | ApiConsts.FAIL_INVLD_PLACE_COUNT)
+                .autoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setPlaceCount(60)
+                        .build()
+                )
+        );
+        // the rejected modify must not have changed the stored place count
+        assertThat(testRscGrp.getAutoPlaceConfig().getReplicaCount()).isEqualTo(placeCountBefore);
+    }
+
+    @Test
+    public void modPlaceCountAboveDrbdLimitStorageOnly() throws Exception
+    {
+        // switching to a storage-only stack and a place count above the DRBD limit in the
+        // same call is legal: the new stack governs
+        evaluateTest(
+            new ModifyRscGrpCall(RC_RSC_GRP_MODIFIED)
+                .autoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setPlaceCount(60)
+                        .setLayerStackList(Collections.singletonList(DeviceLayerKind.STORAGE))
+                        .build()
+                )
+        );
+        assertThat(testRscGrp.getAutoPlaceConfig().getReplicaCount()).isEqualTo(60);
+    }
+
+    @Test
+    public void modAddingDrbdChecksExistingPlaceCount() throws Exception
+    {
+        // legal while the stack is storage-only ...
+        evaluateTest(
+            new ModifyRscGrpCall(RC_RSC_GRP_MODIFIED)
+                .autoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setPlaceCount(60)
+                        .setLayerStackList(Collections.singletonList(DeviceLayerKind.STORAGE))
+                        .build()
+                )
+        );
+        // ... but adding DRBD back to the stack makes the stored place count impossible
+        evaluateTest(
+            new ModifyRscGrpCall(MASK_RSC_GRP_CRT | ApiConsts.FAIL_INVLD_PLACE_COUNT)
+                .autoSelectFilter(
+                    new AutoSelectFilterBuilder()
+                        .setLayerStackList(Arrays.asList(DeviceLayerKind.DRBD, DeviceLayerKind.STORAGE))
+                        .build()
+                )
+        );
+        assertThat(testRscGrp.getAutoPlaceConfig().getLayerStackList())
+            .containsExactly(DeviceLayerKind.STORAGE);
     }
 
     @Test
