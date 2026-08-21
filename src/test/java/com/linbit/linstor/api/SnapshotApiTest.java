@@ -45,6 +45,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,6 +57,7 @@ public class SnapshotApiTest extends ApiTestBase
 {
     private static final String TEST_NODE_NAME = "TestSatellite";
     private static final String TEST_NODE_2_NAME = "TestSatellite2";
+    private static final String TEST_NODE_3_NAME = "TestSatellite3";
     private static final String TEST_RSC_NAME = "TestRsc";
     private static final String TEST_TARGET_RSC_NAME = "TargetRsc";
     private static final String TEST_SP_NAME = "TestStorPool";
@@ -85,10 +88,14 @@ public class SnapshotApiTest extends ApiTestBase
     protected Peer mockSatellite2;
 
     @Mock
+    protected Peer mockSatellite3;
+
+    @Mock
     protected ExtToolsManager mockExtToolsMgr;
 
     private final NodeName testNodeName;
     private final NodeName testNode2Name;
+    private final NodeName testNode3Name;
     private final ResourceName testRscName;
     private final ResourceName sharedRscName;
     private final SnapshotName testSnapName;
@@ -96,13 +103,16 @@ public class SnapshotApiTest extends ApiTestBase
 
     private Node testNode;
     private Node testNode2;
+    private Node testNode3;
     private SatelliteState satelliteState;
     private SatelliteState satelliteState2;
+    private SatelliteState satelliteState3;
 
     public SnapshotApiTest() throws Exception
     {
         testNodeName = new NodeName(TEST_NODE_NAME);
         testNode2Name = new NodeName(TEST_NODE_2_NAME);
+        testNode3Name = new NodeName(TEST_NODE_3_NAME);
         testRscName = new ResourceName(TEST_RSC_NAME);
         sharedRscName = new ResourceName(SHARED_RSC_NAME);
         testSnapName = new SnapshotName(TEST_SNAP_NAME);
@@ -435,6 +445,86 @@ public class SnapshotApiTest extends ApiTestBase
         assertThat(rscDfnMap.get(testRscName).getSnapshotDfn(testSnapName)).isNull();
     }
 
+    @Test
+    public void delSnapSharedSpAllInactiveDeletesAllCopiesAtOnce() throws Exception
+    {
+        // no copy is active, so no node holds kernel mappings of the shared data, and the
+        // controller serializes the satellites via the shared storage pool locks: all per-node
+        // snapshots can be marked for deletion at once
+        Resource[] rscs = deploySharedResource();
+        SnapshotDefinition snapDfn = createSnapshotOnNode(rscs[0], TEST_SNAP_NAME);
+        addSnapshotOnNode(snapDfn, rscs[1]);
+        satelliteOnline();
+        satellite2Online();
+        List<Integer> deleteMarkedPerUpdate = recordDeleteMarkedSnapshotsPerUpdate(snapDfn);
+
+        evaluateTest(
+            new DeleteSnapshotCall()
+                .setRscName(SHARED_RSC_NAME),
+            false
+        );
+
+        assertThat(rscDfnMap.get(sharedRscName).getSnapshotDfn(testSnapName)).isNull();
+        assertThat(deleteMarkedPerUpdate).contains(2);
+    }
+
+    @Test
+    public void delSnapSharedSpExternallyLockedSingleExecutor() throws Exception
+    {
+        // without LINSTOR locking the external lock manager (e.g. lvmlockd) only serializes the
+        // individual storage commands, not the satellite's exists-check + remove sequence: even
+        // with no active copy only a single node at a time may see its copy marked for deletion,
+        // the other copy has to wait until the backing snapshot is confirmed gone
+        Resource[] rscs = deploySharedResource(true);
+        SnapshotDefinition snapDfn = createSnapshotOnNode(rscs[0], TEST_SNAP_NAME);
+        addSnapshotOnNode(snapDfn, rscs[1]);
+        satelliteOnline();
+        satellite2Online();
+        List<Integer> deleteMarkedPerUpdate = recordDeleteMarkedSnapshotsPerUpdate(snapDfn);
+
+        evaluateTest(
+            new DeleteSnapshotCall()
+                .setRscName(SHARED_RSC_NAME),
+            false
+        );
+
+        assertThat(rscDfnMap.get(sharedRscName).getSnapshotDfn(testSnapName)).isNull();
+        assertThat(deleteMarkedPerUpdate).isNotEmpty();
+        assertThat(deleteMarkedPerUpdate).allMatch(marked -> marked <= 1);
+    }
+
+    @Test
+    public void delSnapSharedSpExternallyLockedThreeCopiesKeepSingleExecutor() throws Exception
+    {
+        // with three registered copies the staggering must still hold: while all three per-node
+        // snapshots are registered the backing snapshot may still exist, so at most one of them
+        // (the executor) may be marked for deletion. Once the executor confirmed the backing
+        // snapshot gone - its per-node object is deleted - the remaining copies may be marked
+        // together, their satellites find nothing left to remove
+        Resource[] rscs = deploySharedResource(true);
+        Resource rsc3 = deployThirdSharedRscCopy(true);
+        SnapshotDefinition snapDfn = createSnapshotOnNode(rscs[0], TEST_SNAP_NAME);
+        addSnapshotOnNode(snapDfn, rscs[1]);
+        addSnapshotOnNode(snapDfn, rsc3);
+        satelliteOnline();
+        satellite2Online();
+        satellite3Online();
+        List<int[]> countsPerUpdate = recordDeleteMarkedAndRegisteredSnapshotsPerUpdate(snapDfn);
+
+        evaluateTest(
+            new DeleteSnapshotCall()
+                .setRscName(SHARED_RSC_NAME),
+            false
+        );
+
+        assertThat(rscDfnMap.get(sharedRscName).getSnapshotDfn(testSnapName)).isNull();
+        // the executor round happened: exactly one copy marked while all three were registered
+        assertThat(countsPerUpdate).anyMatch(counts -> counts[0] == 1 && counts[1] == 3);
+        // no update may see more than one marked copy unless a copy is already gone, i.e. the
+        // executor confirmed the deletion of the backing snapshot
+        assertThat(countsPerUpdate).allMatch(counts -> counts[0] <= 1 || counts[1] < 3);
+    }
+
     /*
      * snapshot restore tests (flux based) - validation paths only
      */
@@ -567,14 +657,27 @@ public class SnapshotApiTest extends ApiTestBase
         setSatelliteOnline(mockSatellite2, true);
     }
 
+    private void satellite3Online()
+    {
+        setSatelliteOnline(mockSatellite3, true);
+    }
+
+    private Resource[] deploySharedResource() throws Exception
+    {
+        return deploySharedResource(false);
+    }
+
     /**
      * Creates a second node and a shared storage pool on both nodes, and deploys a STORAGE-only
      * resource {@link #SHARED_RSC_NAME} on both nodes. Both copies are flagged INACTIVE; use
      * {@link #setRscActive(Resource, boolean)} to activate one.
      *
+     * @param externalLocking if true, an external lock manager (e.g. lvmlockd) serializes the
+     * access to the shared data instead of LINSTOR's shared storage pool locks
+     *
      * @return the two resources, index 0 on the first node, index 1 on the second
      */
-    private Resource[] deploySharedResource() throws Exception
+    private Resource[] deploySharedResource(boolean externalLocking) throws Exception
     {
         satelliteState2 = new SatelliteState();
         stubSatellitePeer(mockSatellite2, mockExtToolsMgr, satelliteState2, false);
@@ -600,7 +703,7 @@ public class SnapshotApiTest extends ApiTestBase
                 storPoolDfn,
                 DeviceProviderKind.LVM,
                 fsm,
-                false
+                externalLocking
             );
             storPool.getFreeSpaceTracker().setCapacityInfo(10_000_000, 10_000_000);
         }
@@ -621,6 +724,39 @@ public class SnapshotApiTest extends ApiTestBase
         rscs[0] = createSharedRscOnNode(testNodeName);
         rscs[1] = createSharedRscOnNode(testNode2Name);
         return rscs;
+    }
+
+    /**
+     * Adds a third node with a copy of the shared resource to the setup created by
+     * {@link #deploySharedResource(boolean)}. The copy is flagged INACTIVE like the others.
+     */
+    private Resource deployThirdSharedRscCopy(boolean externalLocking) throws Exception
+    {
+        satelliteState3 = new SatelliteState();
+        stubSatellitePeer(mockSatellite3, mockExtToolsMgr, satelliteState3, false);
+
+        enterScope();
+
+        testNode3 = nodeFactory.create(
+            testNode3Name,
+            Node.Type.SATELLITE,
+            null
+        );
+        testNode3.setPeer(mockSatellite3);
+        nodesMap.put(testNode3Name, testNode3);
+
+        StorPool storPool = storPoolFactory.create(
+            testNode3,
+            storPoolDfnMap.get(new StorPoolName(SHARED_SP_NAME)),
+            DeviceProviderKind.LVM,
+            freeSpaceMgrFactory.getInstance(new SharedStorPoolName(SHARED_SPACE_NAME)),
+            externalLocking
+        );
+        storPool.getFreeSpaceTracker().setCapacityInfo(10_000_000, 10_000_000);
+
+        leaveScope();
+
+        return createSharedRscOnNode(testNode3Name);
     }
 
     private Resource createSharedRscOnNode(NodeName nodeName) throws Exception
@@ -690,6 +826,91 @@ public class SnapshotApiTest extends ApiTestBase
         leaveScope();
 
         return snapDfn;
+    }
+
+    /**
+     * Registers an additional per-node snapshot of the given snapshot definition on the given
+     * resource's node, as it happens for every copy of a shared storage pool resource.
+     */
+    private Snapshot addSnapshotOnNode(SnapshotDefinition snapDfn, Resource rsc) throws Exception
+    {
+        enterScope();
+
+        Snapshot snap = snapshotFactory.create(rsc, snapDfn, new Snapshot.Flags[] {});
+        snapshotVolumeFactory.create(
+            rsc,
+            snap,
+            snapDfn.getSnapshotVolumeDefinition(new VolumeNumber(0))
+        );
+
+        leaveScope();
+
+        return snap;
+    }
+
+    /**
+     * Restubs both mocked satellites to record, at the time of each satellite update, how many
+     * per-node snapshots of the given snapshot definition are marked for deletion - i.e. how many
+     * satellites would remove the backing snapshot at once.
+     */
+    private List<Integer> recordDeleteMarkedSnapshotsPerUpdate(SnapshotDefinition snapDfn)
+    {
+        List<Integer> deleteMarkedPerUpdate = Collections.synchronizedList(new ArrayList<>());
+        Answer<Object> recordDeleteMarked = ignored ->
+        {
+            int marked = 0;
+            for (Snapshot snap : new ArrayList<>(snapDfn.getAllSnapshots()))
+            {
+                if (!snap.isDeleted() && snap.getFlags().isSet(Snapshot.Flags.DELETE))
+                {
+                    marked++;
+                }
+            }
+            deleteMarkedPerUpdate.add(marked);
+            return Flux.empty();
+        };
+        Mockito.when(mockSatellite.apiCall(Mockito.anyString(), Mockito.any()))
+            .thenAnswer(recordDeleteMarked);
+        Mockito.when(mockSatellite2.apiCall(Mockito.anyString(), Mockito.any()))
+            .thenAnswer(recordDeleteMarked);
+        return deleteMarkedPerUpdate;
+    }
+
+    /**
+     * Restubs all three mocked satellites to record, at the time of each satellite update, how many
+     * per-node snapshots of the given snapshot definition are marked for deletion and how many are
+     * still registered (not deleted), as an int pair [marked, registered]. A registered count lower
+     * than the initial one means the executor's copy is gone, i.e. the deletion of the backing
+     * snapshot was confirmed.
+     */
+    private List<int[]> recordDeleteMarkedAndRegisteredSnapshotsPerUpdate(SnapshotDefinition snapDfn)
+    {
+        List<int[]> countsPerUpdate = Collections.synchronizedList(new ArrayList<>());
+        Answer<Object> recordCounts = ignored ->
+        {
+            int marked = 0;
+            int registered = 0;
+            for (Snapshot snap : new ArrayList<>(snapDfn.getAllSnapshots()))
+            {
+                if (!snap.isDeleted())
+                {
+                    registered++;
+                    if (snap.getFlags().isSet(Snapshot.Flags.DELETE))
+                    {
+                        marked++;
+                    }
+                }
+            }
+            countsPerUpdate.add(new int[] {marked, registered});
+            return Flux.empty();
+        };
+        Mockito.when(mockSatellite.apiCall(Mockito.anyString(), Mockito.any()))
+            .thenAnswer(recordCounts);
+        Mockito.when(mockSatellite2.apiCall(Mockito.anyString(), Mockito.any()))
+            .thenAnswer(recordCounts);
+        Mockito.when(mockSatellite3.apiCall(Mockito.anyString(), Mockito.any()))
+            .thenAnswer(recordCounts);
+        return countsPerUpdate;
     }
 
     private void createRscDfnWithVlmDfn(String rscNameStr) throws Exception

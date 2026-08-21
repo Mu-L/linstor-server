@@ -21,6 +21,7 @@ import com.linbit.linstor.core.apicallhandler.response.ResponseContext;
 import com.linbit.linstor.core.apicallhandler.response.ResponseConverter;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.identifier.ResourceName;
+import com.linbit.linstor.core.identifier.SharedStorPoolName;
 import com.linbit.linstor.core.identifier.SnapshotName;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
@@ -45,7 +46,9 @@ import javax.inject.Singleton;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -268,6 +271,34 @@ public class CtrlSnapshotDeleteApiCallHandler implements CtrlSatelliteConnection
                 else
                 {
                     executorSnaps.add(snapshot);
+                }
+            }
+
+            /*
+             * Shared storage pools without LINSTOR locking rely on an external lock manager
+             * (e.g. lvmlockd), which only serializes the individual storage commands, not the
+             * satellite's exists-check + remove sequence: two nodes deleting the same backing
+             * snapshot concurrently would race, unlike on LINSTOR-locked pools, where the
+             * controller serializes the satellites via the shared storage pool locks. Ensure
+             * every externally locked shared space has an executor - without an active copy any
+             * node may remove the backing snapshot - so only a single node ever touches it.
+             */
+            Set<SharedStorPoolName> executorSharedSpaces = new TreeSet<>();
+            for (Snapshot snapshot : executorSnaps)
+            {
+                executorSharedSpaces.addAll(sharedRscMgr.getSharedSpNames(snapshot));
+            }
+            Iterator<Snapshot> deferredSnapsIt = deferredSnaps.iterator();
+            while (deferredSnapsIt.hasNext())
+            {
+                Snapshot snapshot = deferredSnapsIt.next();
+                Set<SharedStorPoolName> uncoveredSpaces = sharedRscMgr.getExternallyLockedSpNames(snapshot);
+                uncoveredSpaces.removeAll(executorSharedSpaces);
+                if (!uncoveredSpaces.isEmpty())
+                {
+                    executorSharedSpaces.addAll(sharedRscMgr.getSharedSpNames(snapshot));
+                    executorSnaps.add(snapshot);
+                    deferredSnapsIt.remove();
                 }
             }
 

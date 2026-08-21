@@ -51,6 +51,24 @@ public class SharedResourceManager
     }
 
     /**
+     * Returns the shared storage pool names of the pools backing the given snapshot whose shared
+     * data is serialized by an external lock manager (e.g. lvmlockd) instead of LINSTOR's own
+     * shared storage pool locks. Empty for snapshots on non-shared or LINSTOR-locked pools.
+     */
+    public Set<SharedStorPoolName> getExternallyLockedSpNames(Snapshot snap)
+    {
+        Set<SharedStorPoolName> ret = new TreeSet<>();
+        for (StorPool sp : LayerVlmUtils.getStorPools(snap))
+        {
+            if (sp.isShared() && !sp.usesLinstorLocking())
+            {
+                ret.add(sp.getSharedStorPoolName());
+            }
+        }
+        return ret;
+    }
+
+    /**
      * Returns a per-node snapshot of the given snapshot-definition that is backed by a shared
      * storage pool the given resource also uses - i.e. a snapshot whose data exists on shared data
      * the resource's node has access to. Null if there is no such snapshot, e.g. because the
