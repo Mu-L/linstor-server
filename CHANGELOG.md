@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- ErrorReports now include LINSTOR's cluster-id ("linstor c lp | grep Cluster/LocalID").
+
 ### Changed
 
 - Deploying an external file with a non-whitelisted path now fails with `FAIL_ACC_DENIED_EXT_FILE` instead of

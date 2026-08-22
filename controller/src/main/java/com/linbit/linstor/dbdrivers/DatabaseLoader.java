@@ -7,6 +7,7 @@ import com.linbit.ServiceName;
 import com.linbit.ValueOutOfRangeException;
 import com.linbit.drbd.md.MdException;
 import com.linbit.linstor.CtrlStorPoolResolveHelper;
+import com.linbit.linstor.InternalApiConsts;
 import com.linbit.linstor.LinStorDBRuntimeException;
 import com.linbit.linstor.LinStorException;
 import com.linbit.linstor.annotation.Nullable;
@@ -85,6 +86,8 @@ import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteCtrlDatabaseDrive
 import com.linbit.linstor.layer.LayerPayload;
 import com.linbit.linstor.layer.resource.AbsRscLayerHelper;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
+import com.linbit.linstor.logging.BaseErrorReporter;
+import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.storage.interfaces.categories.resource.AbsRscLayerObject;
@@ -139,6 +142,7 @@ public class DatabaseLoader implements DatabaseDriver
         }
     }
 
+    private final ErrorReporter errorReporter;
     private final PropsCtrlDatabaseDriver propsDriver;
     private final ResourceGroupCtrlDatabaseDriver rscGrpDriver;
     private final NodeCtrlDatabaseDriver nodeDriver;
@@ -185,6 +189,7 @@ public class DatabaseLoader implements DatabaseDriver
 
     @Inject
     public DatabaseLoader(
+        ErrorReporter errorReporterRef,
         PropsCtrlDatabaseDriver propsDriverRef,
         ResourceGroupCtrlDatabaseDriver rscGrpDriverRef,
         NodeCtrlDatabaseDriver nodeDriverRef,
@@ -229,6 +234,7 @@ public class DatabaseLoader implements DatabaseDriver
         CoreModule.ScheduleMap scheduleMapRef
     )
     {
+        errorReporter = errorReporterRef;
         propsDriver = propsDriverRef;
         rscGrpDriver = rscGrpDriverRef;
         nodeDriver = nodeDriverRef;
@@ -308,6 +314,7 @@ public class DatabaseLoader implements DatabaseDriver
 
             // depends on loaded (cached) props
             ctrlConf.loadAll();
+            setClusterIdInErrorReporter();
             stltConf.loadAll();
 
             // load the resource groups
@@ -660,6 +667,26 @@ public class DatabaseLoader implements DatabaseDriver
         finally
         {
             storPoolResolveHelper.setEnableChecks(true);
+        }
+    }
+
+    private void setClusterIdInErrorReporter()
+    {
+        @Nullable String clusterId = ctrlConf.getProp(
+            InternalApiConsts.KEY_CLUSTER_LOCAL_ID,
+            ApiConsts.NAMESPC_CLUSTER
+        );
+        if (errorReporter instanceof BaseErrorReporter baseErrRep)
+        {
+            baseErrRep.setClusterId(clusterId);
+        }
+        else
+        {
+            errorReporter.logWarning(
+                "ErrorReporter is not a BaseErrorReporter. ErrorReports will _not_ include ClusterId! " +
+                    "Local ClusterID: %s",
+                clusterId
+            );
         }
     }
 

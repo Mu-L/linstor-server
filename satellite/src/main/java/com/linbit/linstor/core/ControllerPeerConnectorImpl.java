@@ -10,6 +10,7 @@ import com.linbit.linstor.core.apicallhandler.StltExtToolsChecker;
 import com.linbit.linstor.core.identifier.NodeName;
 import com.linbit.linstor.core.objects.Node;
 import com.linbit.linstor.core.objects.NodeSatelliteFactory;
+import com.linbit.linstor.logging.BaseErrorReporter;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.netcom.PeerOffline;
@@ -36,7 +37,6 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
     private final ReadWriteLock storPoolDfnMapLock;
 
     private final ErrorReporter errorReporter;
-
 
     private final NodeSatelliteFactory nodeFactory;
 
@@ -163,6 +163,14 @@ public class ControllerPeerConnectorImpl implements ControllerPeerConnector
 
             ctrlUuid = ctrlUuidRef;
             controllerPeer = controllerPeerRef;
+            if (errorReporter instanceof BaseErrorReporter baseErrRep)
+            {
+                // we do not update clusterId during disconnect to avoid races (disconnect listener triggering after new
+                // controller already connected, for example). Any error that happens during a reconnect will most
+                // likely be due to the old controller. Also it is already very rare that a satellite changes controller
+                // in the first place.
+                baseErrRep.setClusterId(ctrlUuidRef == null ? null : ctrlUuidRef.toString());
+            }
 
             Node localNode;
             try

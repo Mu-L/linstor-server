@@ -21,6 +21,8 @@ import com.google.common.hash.Hashing;
 
 public abstract class BaseErrorReporter
 {
+    public final static String CLUSTER_ID_UNINITIALIZED = "<uninitialized>";
+
     static final String UNKNOWN_LABEL = "<UNKNOWN>";
 
     static final String ERROR_FIELD_FORMAT = "%-32s    %s\n";
@@ -41,6 +43,7 @@ public abstract class BaseErrorReporter
     // When the linstor server is restarted, the instance ID will change.
     final String instanceId;
     final long instanceEpoch;
+    volatile String clusterId = CLUSTER_ID_UNINITIALIZED;
 
     static
     {
@@ -224,6 +227,7 @@ public abstract class BaseErrorReporter
         {
             output.printf(ERROR_FIELD_FORMAT, "Peer:", client.toString());
         }
+        output.printf(ERROR_FIELD_FORMAT, "Cluster-ID:", clusterId);
         output.println();
         output.print(SECTION_SEPARATOR).print("\n\n");
     }
@@ -504,6 +508,18 @@ public abstract class BaseErrorReporter
                 );
             }
             output.println();
+        }
+    }
+
+    public void setClusterId(@Nullable String clusterIdRef)
+    {
+        if (clusterIdRef == null)
+        {
+            clusterId = CLUSTER_ID_UNINITIALIZED;
+        }
+        else
+        {
+            clusterId = clusterIdRef;
         }
     }
 }
