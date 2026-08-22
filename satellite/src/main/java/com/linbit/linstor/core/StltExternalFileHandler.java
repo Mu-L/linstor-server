@@ -239,9 +239,19 @@ public class StltExternalFileHandler
         boolean whitelisted = stltCfg.getWhitelistedExternalFilePaths().contains(extFilePath.getParent());
         if (!whitelisted)
         {
+            // keep the message text as is: at least LINSTOR Gateway still matches on
+            // "does not have a whitelisted parent" as long as older satellites are around
             throw new StorageException(
                 "The path " + extFilePath + " does not have a whitelisted parent. Allowed parent directories: " +
-                    stltCfg.getWhitelistedExternalFilePaths()
+                    stltCfg.getWhitelistedExternalFilePaths(),
+                null,
+                "The parent directory of the external file is not listed in the satellite's 'allowExtFiles' " +
+                    "configuration",
+                "Add the directory to the 'allowExtFiles' list in the [files] section of the satellite " +
+                    "configuration (usually /etc/linstor/linstor_satellite.toml) and restart the satellite",
+                null,
+                ApiConsts.FAIL_ACC_DENIED_EXT_FILE,
+                null
             );
         }
         return true;

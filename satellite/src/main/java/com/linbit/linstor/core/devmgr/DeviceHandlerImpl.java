@@ -524,10 +524,8 @@ public class DeviceHandlerImpl implements DeviceHandler
         )
         {
             LinStorException linExc = (LinStorException) exc;
-            // TODO add returnCode and message to the classes StorageException, ResourceException and
-            // VolumeException and include them here
-
-            rc = ApiConsts.FAIL_UNKNOWN_ERROR;
+            @Nullable Long numericCode = linExc.getNumericCode();
+            rc = numericCode != null ? numericCode : ApiConsts.FAIL_UNKNOWN_ERROR;
             errMsg = exc.getMessage();
 
             cause = linExc.getCauseText();

@@ -37,4 +37,17 @@ public class StorageException extends LinStorException
     {
         super(message, descriptionText, causeText, correctionText, detailsText, cause);
     }
+
+    public StorageException(
+        String message,
+        @Nullable String descriptionText,
+        @Nullable String causeText,
+        @Nullable String correctionText,
+        @Nullable String detailsText,
+        @Nullable Long numericCode,
+        @Nullable Throwable cause
+    )
+    {
+        super(message, descriptionText, causeText, correctionText, detailsText, numericCode, cause);
+    }
 }
