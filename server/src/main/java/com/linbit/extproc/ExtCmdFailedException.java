@@ -1,12 +1,13 @@
 package com.linbit.extproc;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
 import com.linbit.ChildProcessTimeoutException;
 import com.linbit.extproc.ExtCmd.OutputData;
 import com.linbit.linstor.LinStorException;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.utils.ShellUtils;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public class ExtCmdFailedException extends LinStorException
 {
@@ -16,6 +17,11 @@ public class ExtCmdFailedException extends LinStorException
     private static final String EXCEPTION_DETAILS_FORMAT = "The full command line executed was:\n%s";
     private static final String EXCEPTION_STDOUT_DATA = "The external command sent the following output data:";
     private static final String EXCEPTION_STDERR_DATA = "The external command sent the following error information:";
+
+    /**
+     * Null if a timeout or IOException happened.
+     */
+    private final transient @Nullable OutputData outputData;
 
     public ExtCmdFailedException(String[] command, ChildProcessTimeoutException cause)
     {
@@ -40,6 +46,7 @@ public class ExtCmdFailedException extends LinStorException
                 waitedSecondsText(cause, "\nThe command was given up on after waiting %s seconds."),
             cause
         );
+        outputData = null;
     }
 
     /**
@@ -71,14 +78,15 @@ public class ExtCmdFailedException extends LinStorException
             String.format(EXCEPTION_DETAILS_FORMAT, ShellUtils.joinShellQuote(command)),
             cause
         );
+        outputData = null;
     }
 
-    public ExtCmdFailedException(String[] command, OutputData outputData)
+    public ExtCmdFailedException(String[] command, OutputData outputDataRef)
     {
         super(
-            String.format("The external command '%s' exited with error code %d\n", command[0], outputData.exitCode),
+            String.format("The external command '%s' exited with error code %d\n", command[0], outputDataRef.exitCode),
             String.format(EXCEPTION_DESCR_FORMAT, command[0]),
-            String.format("The external command exited with error code %d.", outputData.exitCode),
+            String.format("The external command exited with error code %d.", outputDataRef.exitCode),
             """
             - Check whether the external program is operating properly.
             - Check whether the command line is correct.
@@ -89,8 +97,14 @@ public class ExtCmdFailedException extends LinStorException
                 "\n\n",
                 ShellUtils.joinShellQuote(command)
             ) +
-            EXCEPTION_STDOUT_DATA + "\n" + new String(outputData.stdoutData, StandardCharsets.UTF_8) + "\n\n" +
-            EXCEPTION_STDERR_DATA + "\n" + new String(outputData.stderrData, StandardCharsets.UTF_8) + "\n"
+                EXCEPTION_STDOUT_DATA + "\n" + new String(outputDataRef.stdoutData, StandardCharsets.UTF_8) + "\n\n" +
+                EXCEPTION_STDERR_DATA + "\n" + new String(outputDataRef.stderrData, StandardCharsets.UTF_8) + "\n"
         );
+        outputData = outputDataRef;
+    }
+
+    public @Nullable OutputData getOutputData()
+    {
+        return outputData;
     }
 }

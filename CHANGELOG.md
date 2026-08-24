@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nodes no longer holding the active copy of a shared storage pool now deactivate snapshot LVs and renamed
   (`_deleted_*`) origin LVs, releasing their LV locks and stale device-mapper state
 
+### Fixed
+
+- Fixed race while unsetting "DrbdOptions/ExactSize" which could cause "Resize not allowed during resync" ErrorReports.
+
 ## [1.35.0-rc.1] - 2026-08-13
 
 ### Added

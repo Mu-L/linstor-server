@@ -47,6 +47,7 @@ import com.linbit.linstor.layer.drbd.drbdstate.DrbdStateTracker;
 import com.linbit.linstor.layer.drbd.drbdstate.DrbdVolume;
 import com.linbit.linstor.layer.drbd.drbdstate.NoInitialStateException;
 import com.linbit.linstor.layer.drbd.drbdstate.ResourceObserver;
+import com.linbit.linstor.layer.drbd.helper.DrbdadmAdjust;
 import com.linbit.linstor.layer.drbd.helper.ReadyForPrimaryNotifier;
 import com.linbit.linstor.layer.drbd.resfiles.ConfFileBuilder;
 import com.linbit.linstor.layer.drbd.resfiles.DrbdResourceFileUtils;
@@ -893,20 +894,11 @@ public class DrbdLayer implements DeviceLayer
                         // be up and running but the new port might still be blocked by something else
                         checkBlockedPorts(drbdRscData);
                     }
-                    try
-                    {
-                        drbdUtils.adjust(
-                            drbdRscData,
-                            false,
-                            skipDisk,
-                            false
-                        );
-                    }
-                    catch (ExtCmdFailedException extCmdExc)
-                    {
-                        drbdResFileUtils.restoreBackupResFile(drbdRscData);
-                        throw extCmdExc;
-                    }
+                    adjustBuilder(drbdRscData)
+                        .withSkipDisk(skipDisk)
+                        .withRetryOnResizeNotAllowedDuringResync(true)
+                        .withRestoreResFileOnFailure(true)
+                        .adjust();
                 }
 
                 if (drbdRscData.getAbsResource()
@@ -948,6 +940,11 @@ public class DrbdLayer implements DeviceLayer
             }
         }
         return contProcess;
+    }
+
+    private DrbdadmAdjust adjustBuilder(DrbdRscData<Resource> drbdRscDataRef)
+    {
+        return new DrbdadmAdjust(errorReporter, drbdUtils, drbdResFileUtils, drbdRscDataRef);
     }
 
     private void runPostInitializationIfNeeded(DrbdRscData<Resource> drbdRscDataRef)
