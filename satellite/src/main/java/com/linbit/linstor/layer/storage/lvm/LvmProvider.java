@@ -89,6 +89,16 @@ public class LvmProvider
 
     private static final String DFLT_RESTORE_DD_BLOCKSIZE = "64k";
 
+    /**
+     * The lvmlockd lock mode each LV was last activated with, keyed "&lt;vg&gt;/&lt;lv&gt;". Only
+     * maintained for volumes in externally locked storage pools (non-default lock modes): converting
+     * an already held lock is a noop for lvmlockd, but costs an external lvchange call per volume per
+     * dispatch, so the conversion is skipped while the LV is active and the required mode was applied
+     * before. Entries are dropped when the LV is deactivated (which also releases its lock), deleted
+     * or renamed.
+     */
+    private final Map<String, LvmLockMode> appliedLockModes = new HashMap<>();
+
     protected LvmProvider(
         AbsStorageProviderInit superInitRef,
         String subTypeDescr,
@@ -282,9 +292,12 @@ public class LvmProvider
             /*
              * With a non-default lock mode the activation command is also run for an already active
              * LV: it converts the persistent lvmlockd LV lock if it is held in the other mode and is
-             * a noop otherwise.
+             * a noop otherwise. The noop case is skipped based on the last applied mode, saving an
+             * external lvchange call per volume on every dispatch.
              */
-            if (setDevicePath && (!lvActive || lockMode != LvmLockMode.DEFAULT))
+            String lockKey = lockModeKey(vlmDataRef.getVolumeGroup(), vlmDataRef.getIdentifier());
+            boolean convertLock = lockMode != LvmLockMode.DEFAULT && lockMode != appliedLockModes.get(lockKey);
+            if (setDevicePath && (!lvActive || convertLock))
             {
                 final LvmLockMode lockModeFinal = lockMode;
                 LvmUtils.execWithRetry(
@@ -298,6 +311,10 @@ public class LvmProvider
                         lockModeFinal
                     )
                 );
+                if (lockMode != LvmLockMode.DEFAULT)
+                {
+                    appliedLockModes.put(lockKey, lockMode);
+                }
                 if (!lvActive)
                 {
                     LvmUtils.recacheNextLvs();
@@ -416,6 +433,13 @@ public class LvmProvider
                 config
             )
         );
+        // deactivating also releases the lvmlockd LV lock
+        appliedLockModes.remove(lockModeKey(volumeGroupRef, lvIdRef));
+    }
+
+    private String lockModeKey(String volumeGroupRef, String lvIdRef)
+    {
+        return volumeGroupRef + "/" + lvIdRef;
     }
 
     private void updateStripesPropIfNeeded(LvmData<?> vlmDataRef, @Nullable Integer stripesRef)
@@ -644,6 +668,13 @@ public class LvmProvider
          */
         @Nullable String devicePath = vlmData.getDevicePath();
         @Nullable String volumeGroup = vlmData.getVolumeGroup();
+
+        // the LV gets deleted or renamed away - a possible later re-creation of the same LV id
+        // starts with a fresh lvmlockd lock
+        if (volumeGroup != null)
+        {
+            appliedLockModes.remove(lockModeKey(volumeGroup, oldLvmId));
+        }
 
         if (volumeGroup != null && hasThickSnapshots(volumeGroup, oldLvmId))
         {
