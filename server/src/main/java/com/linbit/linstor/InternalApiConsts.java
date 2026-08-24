@@ -272,6 +272,8 @@ public class InternalApiConsts
     public static final String CLONE_NS = "Clone";
     public static final String CLONE_FOR_PREFIX = "CF_";
     public static final String CLONE_PROP_PREFIX = CLONE_NS + "/" + CLONE_FOR_PREFIX;
+    public static final String NAMESPC_INTERNAL_CLONE = NAMESPC_INTERNAL + "/" + CLONE_NS;
+    public static final String KEY_CLONE_PENDING_RESIZE = "PendingResize";
 
     // ebs
     public static final String EBS_REMOTE_NAME = "EbsRemoteName";

@@ -783,6 +783,7 @@ public class CtrlRscDfnApiCallHandler
         @Nullable byte[] clonedExtName,
         @Nullable Boolean useZfsClone,
         @Nullable List<String> volumePassphrases,
+        @Nullable List<Long> volumeSizes,
         @Nullable List<String> layerList,
         @Nullable String intoRscGrpName,
         Map<String, String> overrideProps,
@@ -822,6 +823,7 @@ public class CtrlRscDfnApiCallHandler
                                                 clonedExtName,
                                                 useZfsClone,
                                                 volumePassphrases,
+                                                volumeSizes,
                                                 layerList,
                                                 context,
                                                 thinFreeCapacities,
@@ -1228,6 +1230,85 @@ public class CtrlRscDfnApiCallHandler
         }
     }
 
+    /**
+     * Validates the requested clone volume sizes (grow-only) and stores sizes larger than the source
+     * as pending-resize props on the cloned volume definitions. The actual resize is done by
+     * RscDfnInternalCallHandler once all volumes finished cloning, before an optional
+     * BalanceAfterClone placement.
+     *
+     * @return the requested target size per volume number for all volumes that will be grown
+     */
+    private Map<VolumeNumber, Long> storeVolumeSizesToVlmDfn(
+        ResourceDefinition rscDfn,
+        @Nullable List<Long> volumeSizes
+    )
+        throws InvalidValueException
+    {
+        Map<VolumeNumber, Long> pendingResizes = new TreeMap<>();
+        if (!CollectionUtils.isEmpty(volumeSizes))
+        {
+            if (rscDfn.getVolumeDfnCount() != volumeSizes.size())
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.simpleEntry(
+                            ApiConsts.FAIL_INVLD_REQUEST,
+                            "Volume size count doesn't match specified volume count."
+                        )
+                        .setCorrection(
+                            "Please provide the same amount of volume sizes as volumes for this resource-definition, " +
+                                "use 0 to keep the source size of a volume")
+                        .setSkipErrorReport(true));
+            }
+
+            Iterator<VolumeDefinition> itVlmDfn = rscDfn.iterateVolumeDfn();
+            int idx = 0;
+            while (itVlmDfn.hasNext())
+            {
+                VolumeDefinition vlmDfn = itVlmDfn.next();
+
+                @Nullable Long size = volumeSizes.get(idx);
+                if (size != null && size != 0 && size != vlmDfn.getVolumeSize())
+                {
+                    if (size < vlmDfn.getVolumeSize())
+                    {
+                        throw new ApiRcException(
+                            ApiCallRcImpl.simpleEntry(
+                                    ApiConsts.FAIL_INVLD_VLM_SIZE,
+                                    String.format(
+                                        "Volume size %dKiB of volume %d is smaller than the source volume size %dKiB.",
+                                        size,
+                                        vlmDfn.getVolumeNumber().getValue(),
+                                        vlmDfn.getVolumeSize())
+                                )
+                                .setCorrection("Only growing the cloned volumes is supported, " +
+                                    "use 0 to keep the source size of a volume")
+                                .setSkipErrorReport(true));
+                    }
+
+                    try
+                    {
+                        vlmDfn.getProps().setProp(
+                            InternalApiConsts.KEY_CLONE_PENDING_RESIZE,
+                            Long.toString(size),
+                            InternalApiConsts.NAMESPC_INTERNAL_CLONE
+                        );
+                    }
+                    catch (InvalidKeyException exc)
+                    {
+                        throw new ImplementationError(exc);
+                    }
+                    catch (DatabaseException exc)
+                    {
+                        throw new ApiDatabaseException(exc);
+                    }
+                    pendingResizes.put(vlmDfn.getVolumeNumber(), size);
+                }
+                idx++;
+            }
+        }
+        return pendingResizes;
+    }
+
     private LayerPayload createRscDfnPayload(ResourceDefinition srcRscDfn)
     {
         LayerPayload payload = new LayerPayload();
@@ -1385,6 +1466,7 @@ public class CtrlRscDfnApiCallHandler
         byte[] clonedExtName,
         @Nullable Boolean useZfsClone,
         @Nullable List<String> volumePassphrases,
+        @Nullable List<Long> volumeSizes,
         @Nullable List<String> layerList,
         ResponseContext context,
         Map<StorPool.Key, Long> thinFreeCapacities,
@@ -1488,6 +1570,7 @@ public class CtrlRscDfnApiCallHandler
             responses.addEntries(copyVlmDfn(srcRscDfn, clonedRscDfn));
 
             storeVolumePassphrasesToVlmDfn(clonedRscDfn, volumePassphrases);
+            Map<VolumeNumber, Long> pendingResizes = storeVolumeSizesToVlmDfn(clonedRscDfn, volumeSizes);
 
             Set<Resource> deployedResources = new TreeSet<>();
             List<Resource> srcResources = new ArrayList<>();
@@ -1501,7 +1584,7 @@ public class CtrlRscDfnApiCallHandler
             for (Resource rsc : srcResources)
             {
                 failIfWrongRscState(rsc);
-                checkFreeSpace(rsc, thinFreeCapacities);
+                checkFreeSpace(rsc, pendingResizes, thinFreeCapacities);
 
                 setSuspendIO(rsc);
 
@@ -1632,7 +1715,16 @@ public class CtrlRscDfnApiCallHandler
         return flux;
     }
 
-    private void checkFreeSpace(Resource rscRef, Map<StorPool.Key, Long> thinFreeCapacitiesRef)
+    /**
+     * Checks that the storage pools of the given source resource have enough space for the clone. Volumes that
+     * will be grown after cloning (pendingResizesRef) are checked against their requested size, so that a
+     * resize that cannot work is rejected before any copy work is done.
+     */
+    private void checkFreeSpace(
+        Resource rscRef,
+        Map<VolumeNumber, Long> pendingResizesRef,
+        Map<StorPool.Key, Long> thinFreeCapacitiesRef
+    )
     {
         for (Volume vlm : rscRef.streamVolumes().collect(Collectors.toList()))
         {
@@ -1667,9 +1759,18 @@ public class CtrlRscDfnApiCallHandler
                     scalingFactor = 1;
                 }
 
+                final long srcSize = vlm.getVolumeDefinition().getVolumeSize();
+                // the (thick) snapshot is gone once the copy finished, so the post-clone grow only has to fit
+                // on its own: the peak requirement is the larger of the two phases
+                @Nullable Long targetSize = pendingResizesRef.get(vlm.getVolumeDefinition().getVolumeNumber());
+                final long requiredSize = Math.max(
+                    srcSize * scalingFactor,
+                    targetSize != null ? targetSize : 0L
+                );
+
                 if (!FreeCapacityAutoPoolSelectorUtils
                     .isStorPoolUsable(
-                        vlm.getVolumeDefinition().getVolumeSize() * scalingFactor,
+                        requiredSize,
                         thinFreeCapacitiesRef,
                         true,
                         storPool.getName(),
@@ -1679,17 +1780,27 @@ public class CtrlRscDfnApiCallHandler
                     // allow the volume to be created if the free capacity is unknown
                     .orElse(true))
                 {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.simpleEntry(
-                            ApiConsts.FAIL_INVLD_VLM_SIZE,
-                            String.format(
-                                "Not enough free space available for volume %d of resource '%s'.",
-                                vlm.getVolumeDefinition().getVolumeNumber().value,
-                                vlm.getResourceDefinition().getName().getDisplayName()
-                            ),
-                            true
-                        )
-                    );
+                    final String msg;
+                    if (targetSize != null)
+                    {
+                        msg = String.format(
+                            "Not enough free space available to clone volume %d of resource '%s' " +
+                                "with the requested size of %dKiB on node '%s'.",
+                            vlm.getVolumeDefinition().getVolumeNumber().value,
+                            vlm.getResourceDefinition().getName().getDisplayName(),
+                            targetSize,
+                            storPool.getNode().getName().getDisplayName()
+                        );
+                    }
+                    else
+                    {
+                        msg = String.format(
+                            "Not enough free space available for volume %d of resource '%s'.",
+                            vlm.getVolumeDefinition().getVolumeNumber().value,
+                            vlm.getResourceDefinition().getName().getDisplayName()
+                        );
+                    }
+                    throw new ApiRcException(ApiCallRcImpl.simpleEntry(ApiConsts.FAIL_INVLD_VLM_SIZE, msg, true));
                 }
             }
         }

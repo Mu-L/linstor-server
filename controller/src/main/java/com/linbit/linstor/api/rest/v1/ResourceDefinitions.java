@@ -370,6 +370,7 @@ public class ResourceDefinitions
                         requestData.external_name.getBytes(StandardCharsets.UTF_8) : null,
                     requestData.use_zfs_clone,
                     requestData.volume_passphrases,
+                    requestData.volume_sizes,
                     requestData.layer_list,
                     requestData.resource_group,
                     requestData.override_props,

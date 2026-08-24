@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - ErrorReports now include LINSTOR's cluster-id ("linstor c lp | grep Cluster/LocalID").
+- Resource-definition clone: optional `volume_sizes` grows the cloned volumes as part of the clone (before a
+  `Clone/BalanceAfterClone` placement)
 
 ### Changed
 

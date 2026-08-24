@@ -3,6 +3,8 @@ package com.linbit.linstor.core.apicallhandler.controller.internal;
 import com.linbit.ImplementationError;
 import com.linbit.InvalidNameException;
 import com.linbit.ValueOutOfRangeException;
+import com.linbit.linstor.InternalApiConsts;
+import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.api.ApiCallRc;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
@@ -10,6 +12,7 @@ import com.linbit.linstor.core.apicallhandler.controller.CtrlApiDataLoader;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscAutoBalanceHelper;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlRscCrtApiHelper;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlTransactionHelper;
+import com.linbit.linstor.core.apicallhandler.controller.CtrlVlmDfnModifyApiCallHandler;
 import com.linbit.linstor.core.apicallhandler.controller.utils.ResourceDataUtils;
 import com.linbit.linstor.core.apicallhandler.response.ApiDatabaseException;
 import com.linbit.linstor.core.apicallhandler.response.CtrlResponseUtils;
@@ -18,10 +21,12 @@ import com.linbit.linstor.core.identifier.VolumeNumber;
 import com.linbit.linstor.core.objects.Resource;
 import com.linbit.linstor.core.objects.ResourceDefinition;
 import com.linbit.linstor.core.objects.Volume;
+import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.dbdrivers.DatabaseException;
 import com.linbit.linstor.layer.resource.CtrlRscLayerDataFactory;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.netcom.Peer;
+import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.locks.LockGuardFactory;
 
 import static com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller.notConnectedError;
@@ -31,6 +36,7 @@ import javax.inject.Provider;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -47,6 +53,7 @@ public class RscDfnInternalCallHandler
     private final ScopeRunner scopeRunner;
     private final LockGuardFactory lockGuardFactory;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
+    private final CtrlVlmDfnModifyApiCallHandler ctrlVlmDfnModifyApiCallHandler;
 
     private final CtrlRscLayerDataFactory ctrlRscLayerDataFactory;
 
@@ -61,6 +68,7 @@ public class RscDfnInternalCallHandler
         ScopeRunner scopeRunnerRef,
         LockGuardFactory lockGuardFactoryRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
+        CtrlVlmDfnModifyApiCallHandler ctrlVlmDfnModifyApiCallHandlerRef,
         CtrlRscLayerDataFactory ctrlRscLayerDataFactoryRef
     )
     {
@@ -73,6 +81,7 @@ public class RscDfnInternalCallHandler
         scopeRunner = scopeRunnerRef;
         lockGuardFactory = lockGuardFactoryRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
+        ctrlVlmDfnModifyApiCallHandler = ctrlVlmDfnModifyApiCallHandlerRef;
         ctrlRscLayerDataFactory = ctrlRscLayerDataFactoryRef;
     }
 
@@ -99,7 +108,6 @@ public class RscDfnInternalCallHandler
         {
             throw new ApiDatabaseException(dbExc);
         }
-
         ctrlTransactionHelper.commit();
 
         return ctrlSatelliteUpdateCaller
@@ -220,6 +228,7 @@ public class RscDfnInternalCallHandler
                         "Notified {0} that {1} is being updated on Node(s)"
                         )
                     )
+                    .concatWith(resizeAfterClone(resourceName))
                     .concatWith(ctrlRscAutoBalanceHelper.balanceAfterOperation(
                         rscDfn, ApiConsts.KEY_BALANCE_AFTER_CLONE, ApiConsts.NAMESPC_CLONE)
                     ).concatWith(
@@ -244,11 +253,71 @@ public class RscDfnInternalCallHandler
         return flux;
     }
 
+    /**
+     * Grows the cloned volume definitions to the sizes requested in the clone request (persisted as
+     * pending-resize props at clone start). Runs after the clone replicas were brought up but before an
+     * optional BalanceAfterClone placement, so the resize only involves the (UpToDate by construction)
+     * original clone replicas and the balance replica syncs at the final size.
+     */
+    private Flux<ApiCallRc> resizeAfterClone(ResourceName rscName)
+    {
+        return scopeRunner
+            .fluxInTransactionalScope(
+                "Resize cloned volume definitions",
+                lockGuardFactory.create()
+                    .read(LockGuardFactory.LockObj.RSC_DFN_MAP)
+                    .buildDeferred(),
+                () -> resizeAfterCloneInTransaction(rscName)
+            );
+    }
+
+    private Flux<ApiCallRc> resizeAfterCloneInTransaction(ResourceName rscName)
+    {
+        ResourceDefinition rscDfn = ctrlApiDataLoader.loadRscDfn(rscName);
+        Flux<ApiCallRc> flux = Flux.empty();
+        try
+        {
+            Iterator<VolumeDefinition> itVlmDfn = rscDfn.iterateVolumeDfn();
+            while (itVlmDfn.hasNext())
+            {
+                VolumeDefinition vlmDfn = itVlmDfn.next();
+                @Nullable String pendingSizeStr = vlmDfn.getProps().getProp(
+                    InternalApiConsts.KEY_CLONE_PENDING_RESIZE, InternalApiConsts.NAMESPC_INTERNAL_CLONE);
+                // the size check makes re-running this step idempotent (e.g. satellite re-notify)
+                if (pendingSizeStr != null && Long.parseLong(pendingSizeStr) > vlmDfn.getVolumeSize())
+                {
+                    // sequential per volume: the resize state machine updates satellites rscDfn-wide,
+                    // concurrent per-volume resizes would interleave the RESIZE/DRBD_RESIZE stages
+                    flux = flux.concatWith(
+                        ctrlVlmDfnModifyApiCallHandler.resizeVlmDfn(
+                            rscDfn.getName(),
+                            vlmDfn.getVolumeNumber(),
+                            Long.parseLong(pendingSizeStr),
+                            false
+                        )
+                    );
+                }
+            }
+        }
+        catch (InvalidKeyException exc)
+        {
+            throw new ImplementationError(exc);
+        }
+        return flux;
+    }
+
     public Flux<ApiCallRc> disableCloningFlagInTransaction(ResourceDefinition rscDfn)
     {
         try
         {
             rscDfn.getFlags().disableFlags(ResourceDefinition.Flags.CLONING);
+
+            Iterator<VolumeDefinition> itVlmDfn = rscDfn.iterateVolumeDfn();
+            while (itVlmDfn.hasNext())
+            {
+                itVlmDfn.next().getProps().removeProp(
+                    InternalApiConsts.KEY_CLONE_PENDING_RESIZE, InternalApiConsts.NAMESPC_INTERNAL_CLONE);
+            }
 
             final Set<Resource> resources = rscDfn.streamResource().collect(Collectors.toSet());
             for (Resource rsc : resources)
@@ -270,7 +339,7 @@ public class RscDfnInternalCallHandler
                 )
                 .concatWith(ctrlRscCrtHelper.setInitialized(resources));
         }
-        catch (DatabaseException exc)
+        catch (DatabaseException | InvalidKeyException exc)
         {
             throw new ImplementationError(exc);
         }

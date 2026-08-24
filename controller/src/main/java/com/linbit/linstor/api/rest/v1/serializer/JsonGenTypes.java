@@ -14,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 public class JsonGenTypes
 {
-    public static final String REST_API_VERSION = "1.29.0";
+    public static final String REST_API_VERSION = "1.29.1";
 
     /**
      * Common api reply structure
@@ -1961,6 +1961,12 @@ public class JsonGenTypes
          * For volumes with encryption's, you can provide your own passphrases here.
          */
         public List<String> volume_passphrases = Collections.emptyList();
+        /**
+         * Sizes (in KiB) to grow the cloned volume-definitions to, per volume number.
+         * 0 or omitted keeps the source volume size. Sizes smaller than the source are rejected.
+         * The resize happens as part of the clone before an optional BalanceAfterClone placement.
+         */
+        public List<Long> volume_sizes = Collections.emptyList();
         /**
          * Place clone into the given resource group and use storage pools of this group.
          */

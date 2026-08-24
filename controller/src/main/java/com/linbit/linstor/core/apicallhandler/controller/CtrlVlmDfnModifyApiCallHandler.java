@@ -13,7 +13,6 @@ import com.linbit.linstor.api.ApiCallRcImpl;
 import com.linbit.linstor.api.ApiConsts;
 import com.linbit.linstor.api.prop.LinStorObject;
 import com.linbit.linstor.core.BackupInfoManager;
-import com.linbit.linstor.core.CoreModule;
 import com.linbit.linstor.core.apicallhandler.ScopeRunner;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlPropsHelper.PropertyChangedListener;
 import com.linbit.linstor.core.apicallhandler.controller.helpers.EncryptionHelper;
@@ -49,7 +48,7 @@ import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.stateflags.FlagsHelper;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 import com.linbit.linstor.utils.layer.LayerRscUtils;
-import com.linbit.locks.LockGuard;
+import com.linbit.locks.LockGuardFactory;
 import com.linbit.utils.Base64;
 import com.linbit.utils.PairNonNull;
 import com.linbit.utils.TimeUtils;
@@ -58,7 +57,6 @@ import static com.linbit.linstor.core.apicallhandler.controller.CtrlVlmDfnApiCal
 import static com.linbit.linstor.core.apicallhandler.controller.CtrlVlmDfnApiCallHandler.makeVlmDfnContext;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
@@ -74,7 +72,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -94,7 +91,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
     private final CtrlApiDataLoader ctrlApiDataLoader;
     private final CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCaller;
     private final ResponseConverter responseConverter;
-    private final ReadWriteLock rscDfnMapLock;
+    private final LockGuardFactory lockGuardFactory;
     private final BackupInfoManager backupInfoMgr;
     private final EbsStatusManagerService ebsStatusMgr;
     private final Provider<PropsChangedListenerBuilder> propsChangeListenerBuilder;
@@ -109,7 +106,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         CtrlApiDataLoader ctrlApiDataLoaderRef,
         CtrlSatelliteUpdateCaller ctrlSatelliteUpdateCallerRef,
         ResponseConverter responseConverterRef,
-        @Named(CoreModule.RSC_DFN_MAP_LOCK) ReadWriteLock rscDfnMapLockRef,
+        LockGuardFactory lockGuardFactoryRef,
         BackupInfoManager backupInfoMgrRef,
         EbsStatusManagerService ebsStatusMgrRef,
         Provider<PropsChangedListenerBuilder> propsChangeListenerBuilderRef,
@@ -124,7 +121,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         ctrlApiDataLoader = ctrlApiDataLoaderRef;
         ctrlSatelliteUpdateCaller = ctrlSatelliteUpdateCallerRef;
         responseConverter = responseConverterRef;
-        rscDfnMapLock = rscDfnMapLockRef;
+        lockGuardFactory = lockGuardFactoryRef;
         backupInfoMgr = backupInfoMgrRef;
         ebsStatusMgr = ebsStatusMgrRef;
         propsChangeListenerBuilder = propsChangeListenerBuilderRef;
@@ -173,7 +170,9 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         return scopeRunner
             .fluxInTransactionalScope(
                 "Modify volume definition",
-                LockGuard.createDeferred(rscDfnMapLock.writeLock()),
+                lockGuardFactory.create()
+                    .write(LockGuardFactory.LockObj.RSC_DFN_MAP)
+                    .buildDeferred(),
                 () -> modifyVlmDfnInTransaction(
                     vlmDfnUuid,
                     rscName,
@@ -330,25 +329,7 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         {
             VolumeDefinitionResizeCheckUtils.ensureNoThickLvmSnapshots(vlmDfn);
             VolumeDefinitionResizeCheckUtils.ensureSharedDataNotActiveOnMultipleNodes(vlmDfn);
-
-            Iterator<Resource> itRsc = vlmDfn.getResourceDefinition().iterateResource();
-            while (itRsc.hasNext())
-            {
-                final Resource rsc = itRsc.next();
-                if (!rsc.isDiskless() &&
-                    rsc.hasDrbd() &&
-                    !SatelliteResourceStateDrbdUtils.allVolumesUpToDate(rsc, false))
-                {
-                    throw new ApiRcException(
-                        ApiCallRcImpl.entryBuilder(
-                            ApiConsts.FAIL_NOT_ALL_UPTODATE,
-                            "Cannot resize volume, because we have a non-UpToDate DRBD device."
-                        )
-                            .setSkipErrorReport(true)
-                            .build()
-                    );
-                }
-            }
+            ensureAllDrbdVolumesUpToDate(vlmDfn);
 
             /*
              * If the VlmDfn will grow in size, we have to
@@ -392,6 +373,103 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
             .concatWith(Flux.merge(specialPropFluxes));
     }
 
+    /**
+     * Internal entry point for growing a volume definition, e.g. from the clone flow.
+     * In contrast to {@link #modifyVlmDfn}, errors are propagated as error signals instead of being
+     * converted into response entries, so a calling flux chain can react to failures.
+     */
+    public Flux<ApiCallRc> resizeVlmDfn(
+        ResourceName rscName,
+        VolumeNumber vlmNr,
+        long newSizeKib,
+        boolean checkDrbdUpToDate
+    )
+    {
+        return scopeRunner
+            .fluxInTransactionalScope(
+                "Resize volume definition",
+                lockGuardFactory.create()
+                    .write(LockGuardFactory.LockObj.RSC_DFN_MAP)
+                    .buildDeferred(),
+                () -> resizeVlmDfnInTransaction(rscName, vlmNr, newSizeKib, checkDrbdUpToDate)
+            );
+    }
+
+    private Flux<ApiCallRc> resizeVlmDfnInTransaction(
+        ResourceName rscName,
+        VolumeNumber vlmNr,
+        long newSizeKib,
+        boolean checkDrbdUpToDate
+    )
+    {
+        VolumeDefinition vlmDfn = ctrlApiDataLoader.loadVlmDfn(rscName, vlmNr);
+
+        long diffSize = newSizeKib - getVlmDfnSize(vlmDfn);
+        if (diffSize < 0)
+        {
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.FAIL_INVLD_VLM_SIZE,
+                    "Cannot resize " + getVlmDfnDescriptionInline(vlmDfn) + " to " + newSizeKib +
+                        "KiB, shrinking is not supported here."
+                )
+            );
+        }
+
+        Flux<ApiCallRc> flux = Flux.empty();
+        if (diffSize > 0)
+        {
+            VolumeDefinitionResizeCheckUtils.ensureAllStorPoolsHaveEnoughFreeSpace(vlmDfn, diffSize);
+            VolumeDefinitionResizeCheckUtils.ensureExactSizeIsUnset(vlmDfn);
+            VolumeDefinitionResizeCheckUtils.ensureNoThickLvmSnapshots(vlmDfn);
+            VolumeDefinitionResizeCheckUtils.ensureSharedDataNotActiveOnMultipleNodes(vlmDfn);
+            if (checkDrbdUpToDate)
+            {
+                ensureAllDrbdVolumesUpToDate(vlmDfn);
+            }
+
+            setVlmDfnSize(vlmDfn, newSizeKib);
+            if (iterateVolumes(vlmDfn).hasNext())
+            {
+                markVlmDfnResize(vlmDfn);
+            }
+
+            ctrlTransactionHelper.commit();
+
+            errorReporter.logInfo(
+                "Volume definition resized %s/%d to %dKiB",
+                rscName.displayValue,
+                vlmNr.getValue(),
+                newSizeKib
+            );
+
+            flux = updateSatellites(rscName, vlmNr);
+        }
+        return flux;
+    }
+
+    private void ensureAllDrbdVolumesUpToDate(VolumeDefinition vlmDfn)
+    {
+        Iterator<Resource> itRsc = vlmDfn.getResourceDefinition().iterateResource();
+        while (itRsc.hasNext())
+        {
+            final Resource rsc = itRsc.next();
+            if (!rsc.isDiskless() &&
+                rsc.hasDrbd() &&
+                !SatelliteResourceStateDrbdUtils.allVolumesUpToDate(rsc, false))
+            {
+                throw new ApiRcException(
+                    ApiCallRcImpl.entryBuilder(
+                        ApiConsts.FAIL_NOT_ALL_UPTODATE,
+                        "Cannot resize volume, because we have a non-UpToDate DRBD device."
+                    )
+                        .setSkipErrorReport(true)
+                        .build()
+                );
+            }
+        }
+    }
+
     public Flux<ApiCallRc> modifyVlmDfnPassphrase(
         String rscName,
         int vlmNr,
@@ -407,7 +485,9 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         return scopeRunner
             .fluxInTransactionalScope(
                 "Modify volume definition passphrase",
-                LockGuard.createDeferred(rscDfnMapLock.writeLock()),
+                lockGuardFactory.create()
+                    .write(LockGuardFactory.LockObj.RSC_DFN_MAP)
+                    .buildDeferred(),
                 () -> modifyVlmDfnPassphraseInTransaction(
                     rscName,
                     vlmNr,
@@ -580,7 +660,9 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         return scopeRunner
             .fluxInTransactionalScope(
                 "Update for volume definition modification",
-                LockGuard.createDeferred(rscDfnMapLock.writeLock()),
+                lockGuardFactory.create()
+                    .write(LockGuardFactory.LockObj.RSC_DFN_MAP)
+                    .buildDeferred(),
                 () -> updateSatellitesInScope(rscName, vlmNr)
             );
     }
@@ -681,7 +763,9 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         return scopeRunner
             .fluxInTransactionalScope(
                 "Resize DRBD",
-                LockGuard.createDeferred(rscDfnMapLock.writeLock()),
+                lockGuardFactory.create()
+                    .write(LockGuardFactory.LockObj.RSC_DFN_MAP)
+                    .buildDeferred(),
                 () -> resizeDrbdInTransaction(rscName, vlmNr)
             );
     }
@@ -726,7 +810,9 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         return scopeRunner
             .fluxInTransactionalScope(
                 "Resize Non DRBD",
-                LockGuard.createDeferred(rscDfnMapLock.writeLock()),
+                lockGuardFactory.create()
+                    .write(LockGuardFactory.LockObj.RSC_DFN_MAP)
+                    .buildDeferred(),
                 () -> resizeNonDrbdInTransaction(rscName, vlmNr)
             );
     }
@@ -783,7 +869,9 @@ public class CtrlVlmDfnModifyApiCallHandler implements CtrlSatelliteConnectionLi
         return scopeRunner
             .fluxInTransactionalScope(
                 "Clean up after resize",
-                LockGuard.createDeferred(rscDfnMapLock.writeLock()),
+                lockGuardFactory.create()
+                    .write(LockGuardFactory.LockObj.RSC_DFN_MAP)
+                    .buildDeferred(),
                 () -> finishResizeInTransaction(rscName, vlmNr)
             );
     }

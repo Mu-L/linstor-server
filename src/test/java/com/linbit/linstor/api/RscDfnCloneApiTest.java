@@ -22,6 +22,7 @@ import com.linbit.linstor.core.objects.ResourceGroup;
 import com.linbit.linstor.core.objects.StorPool;
 import com.linbit.linstor.core.objects.StorPoolDefinition;
 import com.linbit.linstor.core.objects.Volume;
+import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.types.LsIpAddress;
 import com.linbit.linstor.netcom.Peer;
 import com.linbit.linstor.satellitestate.SatelliteState;
@@ -396,6 +397,36 @@ public class RscDfnCloneApiTest extends ApiTestBase
     }
 
     @Test
+    public void cloneVolumeSizeCountMismatch() throws Exception
+    {
+        // the source has one volume definition, but two sizes are given
+        evaluateTest(
+            new CloneRscDfnCall(ApiConsts.FAIL_INVLD_REQUEST)
+                .setVolumeSizes(2 * TEST_VLM_SIZE, 2 * TEST_VLM_SIZE)
+        );
+    }
+
+    @Test
+    public void cloneVolumeSizeShrinkRejected() throws Exception
+    {
+        evaluateTest(
+            new CloneRscDfnCall(ApiConsts.FAIL_INVLD_VLM_SIZE)
+                .setVolumeSizes(TEST_VLM_SIZE / 2)
+        );
+    }
+
+    @Test
+    public void cloneVolumeSizeNotEnoughSpace() throws Exception
+    {
+        // the test storage pools have 10_000_000 KiB; the grow is rejected before any copy work
+        evaluateTest(
+            new CloneRscDfnCall(ApiConsts.FAIL_INVLD_VLM_SIZE)
+                .setVolumeSizes(20_000_000L)
+        );
+        assertThat(rscDfnMap.get(cloneRscName)).isNull();
+    }
+
+    @Test
     public void cloneInvalidOverrideProp() throws Exception
     {
         evaluateTest(
@@ -632,6 +663,45 @@ public class RscDfnCloneApiTest extends ApiTestBase
         assertThat(srcRscDfn.getProps().getProp(copiedKey)).isEqualTo("srcValue");
     }
 
+    @Test
+    public void cloneSuccessWithVolumeSizes() throws Exception
+    {
+        evaluateTest(
+            new CloneRscDfnCall(cloneSuccessRcs())
+                .setVolumeSizes(2 * TEST_VLM_SIZE)
+        );
+
+        ResourceDefinition clonedRscDfn = rscDfnMap.get(cloneRscName);
+        assertThat(clonedRscDfn).isNotNull();
+        VolumeDefinition clonedVlmDfn = clonedRscDfn.getVolumeDfn(new VolumeNumber(0));
+        // the clone is created at the source size; the grow runs once all volumes finished cloning
+        assertThat(clonedVlmDfn.getVolumeSize()).isEqualTo(TEST_VLM_SIZE);
+        assertThat(
+            clonedVlmDfn.getProps().getProp(
+                InternalApiConsts.KEY_CLONE_PENDING_RESIZE, InternalApiConsts.NAMESPC_INTERNAL_CLONE
+            )
+        ).isEqualTo(Long.toString(2 * TEST_VLM_SIZE));
+    }
+
+    @Test
+    public void cloneVolumeSizeZeroKeepsSourceSize() throws Exception
+    {
+        evaluateTest(
+            new CloneRscDfnCall(cloneSuccessRcs())
+                .setVolumeSizes(0L)
+        );
+
+        ResourceDefinition clonedRscDfn = rscDfnMap.get(cloneRscName);
+        assertThat(clonedRscDfn).isNotNull();
+        VolumeDefinition clonedVlmDfn = clonedRscDfn.getVolumeDfn(new VolumeNumber(0));
+        assertThat(clonedVlmDfn.getVolumeSize()).isEqualTo(TEST_VLM_SIZE);
+        assertThat(
+            clonedVlmDfn.getProps().getProp(
+                InternalApiConsts.KEY_CLONE_PENDING_RESIZE, InternalApiConsts.NAMESPC_INTERNAL_CLONE
+            )
+        ).isNull();
+    }
+
     private class CloneRscDfnCall extends AbsApiCallTester
     {
         private String srcName;
@@ -639,6 +709,7 @@ public class RscDfnCloneApiTest extends ApiTestBase
         private byte[] extName;
         private Boolean useZfsClone;
         private List<String> volumePassphrases;
+        private List<Long> volumeSizes;
         private List<String> layerList;
         private String intoRscGrpName;
         private final Map<String, String> overrideProps;
@@ -658,6 +729,7 @@ public class RscDfnCloneApiTest extends ApiTestBase
             extName = null;
             useZfsClone = null;
             volumePassphrases = null;
+            volumeSizes = null;
             layerList = null;
             intoRscGrpName = null;
             overrideProps = new TreeMap<>();
@@ -675,6 +747,7 @@ public class RscDfnCloneApiTest extends ApiTestBase
                 extName,
                 useZfsClone,
                 volumePassphrases,
+                volumeSizes,
                 layerList,
                 intoRscGrpName,
                 overrideProps,
@@ -714,6 +787,12 @@ public class RscDfnCloneApiTest extends ApiTestBase
         CloneRscDfnCall setVolumePassphrases(String... passphrases)
         {
             volumePassphrases = new ArrayList<>(Arrays.asList(passphrases));
+            return this;
+        }
+
+        CloneRscDfnCall setVolumeSizes(Long... sizes)
+        {
+            volumeSizes = new ArrayList<>(Arrays.asList(sizes));
             return this;
         }
 

@@ -4,6 +4,9 @@ All notable changes to Linstor OPENAPI(REST) will be documented in this file.
 
 ## [unreleased]
 
+### Added
+  - Added `volume_sizes` to ResourceDefinitionCloneRequest
+
 ## [1.29.0]
 
 ### Added
