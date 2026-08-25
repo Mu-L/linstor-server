@@ -226,9 +226,11 @@ public class LvmProvider
         boolean setDevicePath;
         String lvcreateOptions;
         LvmLockMode lockMode = LvmLockMode.DEFAULT;
+        @Nullable LvmData<Resource> rscVlmData = null;
         if (vlmDataRef.getVolume() instanceof Volume)
         {
             LvmData<Resource> vlmData = (LvmData<Resource>) vlmDataRef;
+            rscVlmData = vlmData;
             vlmDataRef.setIdentifier(asLvIdentifier(vlmData));
             setDevicePath = !vlmData.getVolume().getAbsResource().getStateFlags()
                 .isSet(Resource.Flags.INACTIVE);
@@ -265,6 +267,10 @@ public class LvmProvider
             vlmDataRef.setAllocatedSize(-1);
             // vlmData.setUsableSize(-1);
             vlmDataRef.setAttributes(null);
+            if (rscVlmData != null)
+            {
+                rscVlmData.setActive(false);
+            }
 
             List<String> additionalOptions = ShellUtils.shellSplit(lvcreateOptions);
             String[] additionalOptionsArr = new String[additionalOptions.size()];
@@ -322,6 +328,18 @@ public class LvmProvider
             }
             // deactivating a volume MUST NOT happen within the prepare step
             // as other layers might still hold the device open
+
+            if (rscVlmData != null)
+            {
+                /*
+                 * After the block above the LV is active whenever setDevicePath is set, even if "lvs"
+                 * reported it inactive. Still active renamed origins count as active so the volume
+                 * takes the deactivation path, releasing their device nodes and lvmlockd locks.
+                 */
+                rscVlmData.setActive(
+                    setDevicePath || lvActive || !getActiveRenamedOrigins(rscVlmData).isEmpty()
+                );
+            }
 
             updateStripesPropIfNeeded(vlmDataRef, info.stripes);
         }
@@ -805,10 +823,26 @@ public class LvmProvider
      * active copy of a shared storage pool, but once the volume is deactivated here the node must
      * release its device nodes and, on externally locked storage pools, its lvmlockd locks: they
      * would block the removal of the renamed LV together with its last snapshot from every other
-     * node. Reached on every dispatch of an INACTIVE copy, so leftovers are also cleaned up late.
+     * node. {@link #updateInfo} counts active renamed origins as an active volume, so an INACTIVE
+     * copy stays in the deactivation path until the leftovers are cleaned up.
      */
     private void deactivateRenamedOrigins(LvmData<Resource> vlmDataRef) throws StorageException
     {
+        String volumeGroup = vlmDataRef.getVolumeGroup();
+        for (String renamedOriginId : getActiveRenamedOrigins(vlmDataRef))
+        {
+            deactivateLv(volumeGroup, renamedOriginId);
+        }
+    }
+
+    /**
+     * The renamed ("_deleted_") origins of the given volume that are still active on this node,
+     * based on the possibly stale cached "lvs" data. Only shared storage pools rename deleted or
+     * restored origins, so anywhere else the result is empty.
+     */
+    private List<String> getActiveRenamedOrigins(LvmData<Resource> vlmDataRef)
+    {
+        List<String> activeRenamedOrigins = new ArrayList<>();
         if (vlmDataRef.getStorPool().isShared())
         {
             String volumeGroup = vlmDataRef.getVolumeGroup();
@@ -819,10 +853,11 @@ public class LvmProvider
                     isRenamedOrigin(renamedPrefix, info.identifier) &&
                     info.attributes.contains("a"))
                 {
-                    deactivateLv(volumeGroup, info.identifier);
+                    activeRenamedOrigins.add(info.identifier);
                 }
             }
         }
+        return activeRenamedOrigins;
     }
 
     /**
