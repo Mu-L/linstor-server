@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `DrbdOptions/Resource/*` (e.g. `cpu-mask`) and `DrbdOptions/Handlers/*` properties can now be set on node level
 - Deploying an external file with a non-whitelisted path now fails with `FAIL_ACC_DENIED_EXT_FILE` instead of
   `FAIL_UNKNOWN_ERROR`
 - Shared storage pools with external locking (e.g. lvmlockd) are now treated like other shared storage pools:
