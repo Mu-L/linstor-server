@@ -88,7 +88,7 @@ RUN yum -y update-minimal --security --sec-severity=Important --sec-severity=Cri
 ENV PSK=https://packages.linbit.com/package-signing-pubkey.asc
 RUN curl "$PSK" >/tmp/psk.asc && rpm --import /tmp/psk.asc && rm /tmp/psk.asc
 ENV INTERNAL_REPO=/etc/yum.repos.d/linbit-internal.repo
-# =lbbuild RUN printf '[linbit-internal]\nname=LINBIT Internal - $basearch\nbaseurl=https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8/drbd-9/$basearch\nenabled=1\ngpgcheck=1\ngpgkey=%s\n' "$PSK" | tee "$INTERNAL_REPO"
+# =lbbuild RUN printf '[linbit-internal]\nname=LINBIT Internal - $basearch\nbaseurl=https://pkg-linbit.cache.at.linbit.com/yum/rhel8/drbd-9/$basearch\nenabled=1\ngpgcheck=1\ngpgkey=%s\n' "$PSK" | tee "$INTERNAL_REPO"
 # =lbbuild RUN yum install -y thin-send-recv ktls-utils && yum clean all -y && rm "$INTERNAL_REPO"
 
 # extra tools not in UBI images
@@ -100,7 +100,8 @@ ENV INTERNAL_REPO=/etc/yum.repos.d/linbit-internal.repo
 # e2fsprogs e2fsprogs-libs: LINSTOR can create file systems; ext4 deps
 # device-mapper-multipath device-mapper-multipath-libs: exos layer
 # lsscsi: exos layer
-# =lbbuild RUN curl -fsSL https://nexus.at.linbit.com/repository/lbbuild/from_rhel_repos.sh | bash -s -- cryptsetup nvme-cli zstd xfsprogs e2fsprogs device-mapper-multipath lsscsi
+# install from RHEL repos within the UBI image using LINBIT's temporary RHEL entitlement secrets; always remove them again
+# =lbbuild RUN curl -fsSL https://pulp.at.linbit.com/pulp/content/file/lbbuild/rhel-secrets/secrets-$(uname -m).tar.gz | tar xzC /run && dnf install -y cryptsetup nvme-cli zstd xfsprogs e2fsprogs device-mapper-multipath lsscsi && dnf clean all -y && rm -rf /run/secrets
 # zfs ("tools"): zfs layer
 # =lbbuild RUN if [ "$(uname -m)" = "x86_64" ]; then dnf install -y https://zfsonlinux.org/epel/zfs-release-2-2$(rpm --eval "%{dist}").noarch.rpm && dnf config-manager --disable zfs && dnf config-manager --enable zfs-kmod && dnf repoquery --requires --resolve -q --archlist $(uname -m),noarch zfs | grep -v ^kmod-zfs | xargs dnf install -y && mkdir /tmp/zfs && cd /tmp/zfs && dnf download zfs && rpm -Uvh --nodeps ./zfs*.rpm && cd / && rm -rf /tmp/zfs; fi
 

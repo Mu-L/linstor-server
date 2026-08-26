@@ -75,7 +75,7 @@ ENV PSK=https://packages.linbit.com/package-signing-pubkey.asc
 RUN curl "$PSK" >/tmp/psk.asc && rpm --import /tmp/psk.asc && rm /tmp/psk.asc
 ENV INTERNAL_REPO=/etc/yum.repos.d/linbit-internal.repo
 # keep on long lines
-# =lbbuild RUN printf '[linbit-internal]\nname=LINBIT Internal - $basearch\nbaseurl=https://nexus.at.linbit.com/repository/packages-linbit-com/yum/rhel8/drbd-9/$basearch\nenabled=1\ngpgcheck=1\ngpgkey=%s\n' "$PSK" | tee "$INTERNAL_REPO"
+# =lbbuild RUN printf '[linbit-internal]\nname=LINBIT Internal - $basearch\nbaseurl=https://pkg-linbit.cache.at.linbit.com/yum/rhel8/drbd-9/$basearch\nenabled=1\ngpgcheck=1\ngpgkey=%s\n' "$PSK" | tee "$INTERNAL_REPO"
 # =lbbuild RUN yum install -y linstor-gui linstor-client && yum clean all -y && rm "$INTERNAL_REPO"
 
 ARG ARCH=amd64

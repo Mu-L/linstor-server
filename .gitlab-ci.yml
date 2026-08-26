@@ -124,16 +124,6 @@ workflow:
 #        -F "relative_path=linstor-server-$LINSTOR_VERSION.tar.gz" \
 #        -F "file=@linstor-server-$LINSTOR_VERSION.tar.gz" \
 #        "https://pulp.at.linbit.com/pulp/api/v3/content/file/files/"
-# workaround a nexus bug not regenerating metadata
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel10/x86_64/linstor-controller-$LINSTOR_VERSION-1.noarch.rpm
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel10/x86_64/linstor-common-$LINSTOR_VERSION-1.noarch.rpm
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel10/x86_64/linstor-satellite-$LINSTOR_VERSION-1.noarch.rpm
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel9/x86_64/linstor-controller-$LINSTOR_VERSION-1.noarch.rpm
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel9/x86_64/linstor-common-$LINSTOR_VERSION-1.noarch.rpm
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel9/x86_64/linstor-satellite-$LINSTOR_VERSION-1.noarch.rpm
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel8/x86_64/linstor-controller-$LINSTOR_VERSION-1.noarch.rpm
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel8/x86_64/linstor-common-$LINSTOR_VERSION-1.noarch.rpm
-    - curl -X DELETE -u $LINBIT_REGISTRY_USER:$LINBIT_REGISTRY_PASSWORD $LINBIT_REGISTRY_URL/repository/ci-yum/rhel8/x86_64/linstor-satellite-$LINSTOR_VERSION-1.noarch.rpm
     - lbbuildctl build linstor-server --arch amd64 --ci -v "$LINSTOR_VERSION"
       -e LINBIT_REGISTRY_USER=$LINBIT_REGISTRY_USER
       -e LINBIT_REGISTRY_PASSWORD=$LINBIT_REGISTRY_PASSWORD
@@ -146,12 +136,12 @@ workflow:
         if [[ ${dist} == rhel* ]] ; then
           echo "  ${dist%%.*}:"
           for linstor_comp in linstor-controller linstor-satellite linstor-common; do
-            echo "    ${linstor_comp/-/_}: \"https://nexus.at.linbit.com/repository/ci-yum/${dist%%.*}/x86_64/${linstor_comp}-${LINSTOR_VERSION}-1.noarch.rpm\""
+            echo "    ${linstor_comp/-/_}: \"https://pulp.at.linbit.com/pulp/content/rpm/${dist%%.*}/Packages/l/${linstor_comp}-${LINSTOR_VERSION}-1.noarch.rpm\""
           done
         elif [[ ${dist} == ubuntu* || ${dist} == debian* ]] ; then
         echo "  ${dist/-/_}:"
           for linstor_comp in linstor-controller linstor-satellite linstor-common; do
-            echo "    ${linstor_comp/-/_}: \"https://nexus.at.linbit.com/repository/${dist}/pool/l/${linstor_comp}/${linstor_comp}_${LINSTOR_VERSION}-1_all.deb\""
+            echo "    ${linstor_comp/-/_}: \"https://pulp.at.linbit.com/pulp/content/deb/${dist}/pool/upload/l/linstor-server/${linstor_comp}_${LINSTOR_VERSION}-1_all.deb\""
           done
         else
           echo "unknown distribution: ${dist}"
@@ -322,7 +312,7 @@ run-lbbuild-master:
   rules:
     - if: $CI_COMMIT_BRANCH == 'master'
   before_script:
-    - curl -sSL $LINBIT_REGISTRY_URL/repository/lbbuild/lbbuildctl-latest -o /usr/local/bin/lbbuildctl
+    - curl -sSfL https://pulp.at.linbit.com/pulp/content/file/lbbuild/lbbuildctl-latest -o /usr/local/bin/lbbuildctl
     - chmod +x /usr/local/bin/lbbuildctl
   variables:
     LINSTOR_VERSION: 1.99.0.latest
@@ -337,7 +327,7 @@ run-lbbuild:
     - if: $CI_COMMIT_BRANCH == 'master'
     - if: $CI_COMMIT_BRANCH == "jenkins"
   before_script:
-    - curl -sSL $LINBIT_REGISTRY_URL/repository/lbbuild/lbbuildctl-latest -o /usr/local/bin/lbbuildctl
+    - curl -sSfL https://pulp.at.linbit.com/pulp/content/file/lbbuild/lbbuildctl-latest -o /usr/local/bin/lbbuildctl
     - chmod +x /usr/local/bin/lbbuildctl
   variables:
     LINSTOR_VERSION: 1.99.0.$CI_COMMIT_SHORT_SHA
