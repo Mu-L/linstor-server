@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the daily log archiving aborting when the log directory contains unexpected entries (e.g. a directory named
+  like an error-report); such entries are now skipped, and archived reports are only deleted after tar succeeded
 - Fixed race while unsetting "DrbdOptions/ExactSize" which could cause "Resize not allowed during resync" ErrorReports.
 - Fixed rare race-condition finding the devicePath in NvmeUtils while deleting a volume-definition.
 

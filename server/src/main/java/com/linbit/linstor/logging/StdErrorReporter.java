@@ -493,7 +493,8 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
         }
     }
 
-    private void archiveLogsOlderThan(final Instant beforeDate)
+    // package-private for testing
+    void archiveLogsOlderThan(final Instant beforeDate)
     {
         try (Stream<Path> files = Files.list(getLogDirectory()))
         {
@@ -518,19 +519,28 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
                     }
                     else
                     {
-                        ret = fileName.toString().startsWith("ErrorReport");
+                        ret = fileName.toString().startsWith(RPT_PREFIX) &&
+                            fileName.toString().endsWith(RPT_SUFFIX);
                     }
                     return ret;
                 })
                 .filter(file ->
                 {
-                    // only archive files older than the given age
+                    // only archive regular files older than the given age. unexpected entries like
+                    // directories are skipped entirely - neither archived nor deleted
                     @Nullable BasicFileAttributes attr = getAttributes(file);
                     boolean use = false;
                     if (attr != null)
                     {
-                        Instant createDate = Instant.ofEpochMilli(attr.creationTime().toMillis());
-                        use = createDate.isBefore(beforeDate);
+                        if (attr.isRegularFile())
+                        {
+                            Instant createDate = Instant.ofEpochMilli(attr.creationTime().toMillis());
+                            use = createDate.isBefore(beforeDate);
+                        }
+                        else
+                        {
+                            logWarning("LogArchive: Skipping unexpected non-file entry: %s", file);
+                        }
                     }
                     return use;
                 })
@@ -571,11 +581,34 @@ public final class StdErrorReporter extends BaseErrorReporter implements ErrorRe
                 ).start();
                 try
                 {
-                    createTar.waitFor();
-
-                    for (Path logFile : monthGroup.get(month))
+                    int tarExitCode = createTar.waitFor();
+                    if (tarExitCode == 0)
                     {
-                        Files.delete(logFile);
+                        for (Path logFile : monthGroup.get(month))
+                        {
+                            try
+                            {
+                                Files.delete(logFile);
+                            }
+                            catch (IOException exc)
+                            {
+                                logWarning(
+                                    "LogArchive: Unable to delete archived error-report %s: %s",
+                                    logFile,
+                                    exc
+                                );
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // do not delete anything that might not have made it into the archive
+                        logWarning(
+                            "LogArchive: tar returned exit code %d creating %s, keeping the error-reports " +
+                                "of this month",
+                            tarExitCode,
+                            tarFile
+                        );
                     }
                 }
                 catch (InterruptedException exc)
