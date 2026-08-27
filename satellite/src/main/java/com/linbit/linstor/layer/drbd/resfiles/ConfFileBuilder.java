@@ -28,6 +28,7 @@ import com.linbit.linstor.core.objects.Volume;
 import com.linbit.linstor.core.objects.VolumeDefinition;
 import com.linbit.linstor.core.types.LsIpAddress;
 import com.linbit.linstor.core.types.TcpPortNumber;
+import com.linbit.linstor.layer.drbd.DrbdLayer;
 import com.linbit.linstor.layer.drbd.resfiles.ConfFileBuilderAutoRules.AutoRule;
 import com.linbit.linstor.logging.ErrorReporter;
 import com.linbit.linstor.propscon.InvalidKeyException;
@@ -1120,13 +1121,21 @@ public class ConfFileBuilder
                     if (backingDiskPath.trim().isEmpty())
                     {
                         throw new LinStorRuntimeException(
-                            "Local volume does an empty block device. This might be result of an other error.",
-                            "The storage driver returned an empty string instead of the path of the backing device",
-                            "This is either an implementation error or just a side effect of an other " +
-                                "recently occurred error. Please check the error logs and try to solve the other " +
-                                "other errors first",
-                            null,
-                            vlmData.toString()
+                            String.format(
+                                "Cannot write the DRBD configuration file for resource '%s', " +
+                                    "volume %d, because the path of the backing block device is empty",
+                                vlmData.getRscLayerObject().getSuffixedResourceName(),
+                                vlmData.getVlmNr().value
+                            ),
+                            DrbdLayer.getAbortMsg(vlmData.getRscLayerObject()),
+                            "The layer below DRBD did not report a usable device path for this " +
+                                "volume. In most cases an earlier step of this operation failed " +
+                                "to create or activate the backing device, or an external " +
+                                "storage command reported no device path for it.",
+                            "Check the error reports on this satellite for errors that occurred " +
+                                "before this one and resolve those first. If no earlier error " +
+                                "was reported, create an SOS report before reporting the problem.",
+                            vlmData.getVolume().toString()
                         );
                     }
                     disk = backingDiskPath;

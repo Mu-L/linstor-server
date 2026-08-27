@@ -142,7 +142,7 @@ public class LinStorRuntimeException extends RuntimeException implements ErrorCo
     @Override
     public String getErrorContext()
     {
-        StringBuilder sb = new StringBuilder("ErrorContext: ");
+        StringBuilder sb = new StringBuilder("ErrorContext:\n");
         if (excDescription != null)
         {
             sb.append("  Description: ").append(excDescription).append("\n");
