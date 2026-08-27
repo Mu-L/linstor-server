@@ -1,3 +1,52 @@
+linstor-server (1.35.0-1) experimental; urgency=medium
+
+  [ Rene Peinthor ]
+  * changelog: remove duplicated line
+  * gitlab: bump virter and vmshed versions
+  * gitlab-ci: use latest build-helpers
+  * h2: do not set DB_CLOSE_ON_EXIT=FALSE if AUTO_SERVER is enabled
+  * gitlab-ci: fetch build-helpers from pulp test-suite repo
+  * controller: split CtrlApiDataLoader load* methods into throwing and Or [...]
+  * Allow DrbdOptions/Resource and Handlers properties on node level
+  * gitlab: remove remaining nexus usage
+  * gitlab: drop nexus upload of the upstream tarball
+  * Add optional volume_sizes to the resource-definition clone API
+
+  [ Liang Li ]
+  * Capitalize LINSTOR and say GUI on the REST API landing page
+  * Add the waited time to external command timeout ErrorReports
+  * Reject place counts that DRBD can never deploy
+  * Replace 'not whitelisted' with a helpful invalid-property-key message
+  * Explain the placeholder disk path in generated res files
+  * Return a specific error code for non-whitelisted external file paths
+  * Reword the error message for an empty backing disk path
+  * Skip unexpected entries when archiving error-reports
+
+  [ LINBOT ]
+  * Update dependency com.github.spotbugs:spotbugs-annotations to v4.10.4
+  * Update dependency ch.qos.logback:logback-classic to v1.6.3
+  * Update dependency checkstyle to v14
+  * Update actions/setup-java action to v6
+
+  [ Gabor Hernadi ]
+  * ErrorReport: Include ClusterId
+  * Drbd: Retry adjust on "Resize not allowed during resync"
+  * Nvme: Only set devicePath when not deleting
+
+  [ Moritz Tanner ]
+  * Split data sharedness from LINSTOR locking
+  * Support dual-primary on externally locked shared SPs
+  * Refuse dual-active while snapshots or clone exist
+  * Refuse snapshot and clone while dual-active
+  * Activate restore source snapshot before copying
+  * Release renamed origins on volume deactivation
+  * Hold exclusive LV lock for snapshot operations
+  * Stagger snapshot deletion on externally locked SPs
+  * Cache applied lvmlockd LV lock modes
+  * Skip deactivation of already inactive LVs
+
+ -- Rene Peinthor <rene.peinthor@linbit.com>  Thu, 27 Aug 2026 11:02:43 +0000
+
 linstor-server (1.35.0~rc.1-1) experimental; urgency=medium
 
   [ Rene Peinthor ]

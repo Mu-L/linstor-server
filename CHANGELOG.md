@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-08-27
+
 ### Added
 
 - ErrorReports now include LINSTOR's cluster-id ("linstor c lp | grep Cluster/LocalID").
