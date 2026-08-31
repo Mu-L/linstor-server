@@ -107,7 +107,7 @@ ENV INTERNAL_REPO=/etc/yum.repos.d/linbit-internal.repo
 
 # custom tools
 # losetup-container: fixes an edge case when reporting the backing file for a loop device
-ARG LOSETUP_CONTAINER_VERSION=v1.0.1
+ARG LOSETUP_CONTAINER_VERSION=v1.1.0
 RUN curl -fsSL "https://github.com/LINBIT/losetup-container/releases/download/${LOSETUP_CONTAINER_VERSION}/losetup-container-$(uname -m)-unknown-linux-gnu.tar.gz" | tar -xvz -C /usr/local/sbin && \
   printf '#!/bin/sh\nLOSETUP_CONTAINER_ORIGINAL_LOSETUP=%s exec /usr/local/sbin/losetup-container "$@"\n' $(command -v losetup) > /usr/local/sbin/losetup && \
   chmod +x /usr/local/sbin/losetup
