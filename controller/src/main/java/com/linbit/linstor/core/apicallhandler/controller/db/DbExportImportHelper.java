@@ -35,8 +35,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -288,7 +290,11 @@ public class DbExportImportHelper
                 );
             }
 
-            DbExportPojoData exportPojoData = loadExportWithData(fileNameRef, exportPojoMeta);
+            DbExportPojoDataDeserializationHelper deserializerHelper = new DbExportPojoDataDeserializationHelper(
+                errorReporter,
+                exportPojoMeta.genCrdVersion
+            );
+            DbExportPojoData exportPojoData = loadExportWithData(fileNameRef, deserializerHelper);
 
             String dbConnectionUrl = ctrlCfg.getDbConnectionUrl();
             switch (currentDbEngine.getType())
@@ -312,8 +318,14 @@ public class DbExportImportHelper
             Collections.reverse(invertedTables);
             currentDbEngine.truncateAllData(invertedTables);
 
+            // taken from the export's schema version, since the import runs against that version
+            DatabaseTable.SelfReferencingForeignKey[] selfRefFks = deserializerHelper
+                .getSelfReferencingForeignKeys();
             for (DbExportPojoData.Table tbl : exportPojoData.tables)
             {
+                // exports do not guarantee that referenced entries of self-referencing tables are
+                // positioned before the entries referencing them
+                reorderSelfReferencingEntries(tbl, selfRefFks);
                 errorReporter.logTrace("Importing %d entries for table %s", tbl.data.size(), tbl.name);
                 currentDbEngine.importData(tbl);
             }
@@ -332,6 +344,94 @@ public class DbExportImportHelper
         }
     }
 
+    /**
+     * Since the database does not guarantee any specific order of the entries within a table, an entry of a
+     * self-referencing table might end up before the entry it references in the export (for example a
+     * snapshot-definition before its resource-definition), which would cause a foreign key violation during
+     * import. Therefore entries of self-referencing tables need to be reordered such that every entry is
+     * positioned after the entry it references.<br/>
+     * <br/>
+     * The given <code>selfRefFksRef</code> must describe the self-referencing foreign keys of the schema
+     * version the export was created with (see
+     * {@link DbExportPojoDataDeserializationHelper#getSelfReferencingForeignKeys()}), since
+     * {@link #importDb(String)} first migrates the database to exactly that schema version.
+     */
+    static void reorderSelfReferencingEntries(
+        DbExportPojoData.Table tblRef,
+        DatabaseTable.SelfReferencingForeignKey[] selfRefFksRef
+    )
+    {
+        for (DatabaseTable.SelfReferencingForeignKey selfRefFk : selfRefFksRef)
+        {
+            if (tblRef.name.equals(selfRefFk.tableName()))
+            {
+                reorderReferencedEntriesFirst(
+                    tblRef,
+                    selfRefFk.referencedClmName(),
+                    selfRefFk.referencingClmName()
+                );
+            }
+        }
+    }
+
+    private static void reorderReferencedEntriesFirst(
+        DbExportPojoData.Table tblRef,
+        String uuidClmNameRef,
+        String parentUuidClmNameRef
+    )
+    {
+        boolean parentUuidClmExists = false;
+        for (DbExportPojoData.Column clm : tblRef.columnDescription)
+        {
+            if (clm.name.equals(parentUuidClmNameRef))
+            {
+                parentUuidClmExists = true;
+                break;
+            }
+        }
+        // exports from before the introduction of the parent-column cannot contain such references
+        if (parentUuidClmExists)
+        {
+            List<LinstorSpec<?, ?>> unsorted = new ArrayList<>(tblRef.data);
+            Set<Object> unsortedUuids = new HashSet<>();
+            for (LinstorSpec<?, ?> spec : unsorted)
+            {
+                unsortedUuids.add(spec.getByColumn(uuidClmNameRef));
+            }
+
+            List<LinstorSpec<?, ?>> sorted = new ArrayList<>(tblRef.data.size());
+            boolean progress = true;
+            while (!unsorted.isEmpty() && progress)
+            {
+                progress = false;
+                List<LinstorSpec<?, ?>> stillUnsorted = new ArrayList<>();
+                for (LinstorSpec<?, ?> spec : unsorted)
+                {
+                    @Nullable Object parentUuid = spec.getByColumn(parentUuidClmNameRef);
+                    // an entry referencing a uuid that does not exist at all is also taken right away, since
+                    // such an entry will violate the foreign key regardless of its position
+                    if (parentUuid == null || !unsortedUuids.contains(parentUuid))
+                    {
+                        sorted.add(spec);
+                        unsortedUuids.remove(spec.getByColumn(uuidClmNameRef));
+                        progress = true;
+                    }
+                    else
+                    {
+                        stillUnsorted.add(spec);
+                    }
+                }
+                unsorted = stillUnsorted;
+            }
+            // if the remaining entries reference each other cyclically, keep their original order and let the
+            // database report the violation instead of silently dropping them
+            sorted.addAll(unsorted);
+
+            tblRef.data.clear();
+            tblRef.data.addAll(sorted);
+        }
+    }
+
     private Version parseVersion(String linstorVersionRef) throws DatabaseException
     {
         Matcher matcher = LINSTOR_VERSION_PATTERN.matcher(linstorVersionRef);
@@ -347,7 +447,10 @@ public class DbExportImportHelper
         );
     }
 
-    private DbExportPojoData loadExportWithData(String fileNameRef, DbExportPojoMeta pojoMetaRef)
+    private DbExportPojoData loadExportWithData(
+        String fileNameRef,
+        DbExportPojoDataDeserializationHelper deserialzerHelper
+    )
         throws DatabaseException
     {
         /*
@@ -369,10 +472,6 @@ public class DbExportImportHelper
         ObjectMapper om = new ObjectMapper();
         SimpleModule module = new SimpleModule();
 
-        DbExportPojoDataDeserializationHelper deserialzerHelper = new DbExportPojoDataDeserializationHelper(
-            errorReporter,
-            pojoMetaRef.genCrdVersion
-        );
         module.addDeserializer(DbExportPojoData.Table.class, deserialzerHelper.getDbExportTableDeserializer());
         module.addDeserializer(LinstorSpec.class, deserialzerHelper.getLinstorSpecDeserializer());
         om.registerModule(module);

@@ -11084,6 +11084,15 @@ public class GenCrdV1_31_1
         public static final VolumeDefinitions VOLUME_DEFINITIONS = new VolumeDefinitions();
         public static final VolumeGroups VOLUME_GROUPS = new VolumeGroups();
 
+        /**
+         * The order of the entries within a table is not guaranteed during a database export. Entries of
+         * the tables listed here therefore need to be reordered during import such that referenced entries
+         * are inserted before the entries referencing them.
+         */
+        public static final DatabaseTable.SelfReferencingForeignKey[] SELF_REFERENCING_FOREIGN_KEYS = {
+            new DatabaseTable.SelfReferencingForeignKey("RESOURCE_DEFINITIONS", "UUID", "PARENT_UUID")
+        };
+
         static
         {
             ALL_TABLES = new DatabaseTable[] {

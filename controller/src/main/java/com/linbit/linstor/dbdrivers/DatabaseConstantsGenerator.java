@@ -16,6 +16,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -78,6 +79,7 @@ public final class DatabaseConstantsGenerator
     private int indentLevel = 0;
     private TreeMap<String, Table> tbls = new TreeMap<>();
     private List<String> tblsOrder;
+    private List<DatabaseTable.SelfReferencingForeignKey> selfRefForeignKeys;
 
     static
     {
@@ -91,6 +93,69 @@ public final class DatabaseConstantsGenerator
         PairNonNull<TreeMap<String, Table>, List<String>> pair = extractTables(conRef, IGNORED_TABLES);
         tbls = pair.objA;
         tblsOrder = pair.objB;
+        selfRefForeignKeys = extractSelfReferencingForeignKeys(conRef, IGNORED_TABLES);
+    }
+
+    public static List<DatabaseTable.SelfReferencingForeignKey> extractSelfReferencingForeignKeys(
+        Connection con,
+        Set<String> ignoredTables
+    )
+        throws SQLException
+    {
+        // fkName and keySeq are only collected to ensure a deterministic order of the generated entries
+        record SelfRefFkRaw(String tblName, String fkName, short keySeq, String pkClmName, String fkClmName)
+        {
+        }
+        List<SelfRefFkRaw> rawList = new ArrayList<>();
+        try (
+            ResultSet metaTables = con.getMetaData().getTables(
+                null,
+                DB_SCHEMA,
+                null,
+                new String[]{TYPE_TABLE}
+            );
+        )
+        {
+            while (metaTables.next())
+            {
+                String tblName = metaTables.getString("TABLE_NAME");
+                if (!ignoredTables.contains(tblName))
+                {
+                    try (ResultSet crossRefs = con.getMetaData().getImportedKeys(null, DB_SCHEMA, tblName))
+                    {
+                        while (crossRefs.next())
+                        {
+                            if (tblName.equals(crossRefs.getString("PKTABLE_NAME")))
+                            {
+                                rawList.add(
+                                    new SelfRefFkRaw(
+                                        tblName,
+                                        crossRefs.getString("FK_NAME"),
+                                        crossRefs.getShort("KEY_SEQ"),
+                                        crossRefs.getString("PKCOLUMN_NAME"),
+                                        crossRefs.getString("FKCOLUMN_NAME")
+                                    )
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rawList.sort(
+            Comparator.comparing(SelfRefFkRaw::tblName)
+                .thenComparing(SelfRefFkRaw::fkName)
+                .thenComparingInt(SelfRefFkRaw::keySeq)
+        );
+
+        List<DatabaseTable.SelfReferencingForeignKey> selfRefFks = new ArrayList<>();
+        for (SelfRefFkRaw raw : rawList)
+        {
+            selfRefFks.add(
+                new DatabaseTable.SelfReferencingForeignKey(raw.tblName(), raw.pkClmName(), raw.fkClmName())
+            );
+        }
+        return selfRefFks;
     }
 
     public static PairNonNull<TreeMap<String, Table>, List<String>> extractTables(
@@ -267,6 +332,42 @@ public final class DatabaseConstantsGenerator
                     tbl.name,
                     tblNameCamelCase
                 );
+            }
+
+            appendEmptyLine();
+            appendLine("/**");
+            appendLine(" * The order of the entries within a table is not guaranteed during a database export. Entries of");
+            appendLine(" * the tables listed here therefore need to be reordered during import such that referenced entries");
+            appendLine(" * are inserted before the entries referencing them.");
+            appendLine(" */");
+            if (selfRefForeignKeys.isEmpty())
+            {
+                appendLine(
+                    "public static final %s.SelfReferencingForeignKey[] SELF_REFERENCING_FOREIGN_KEYS = {};",
+                    INTERFACE_NAME_SQL
+                );
+            }
+            else
+            {
+                appendLine(
+                    "public static final %s.SelfReferencingForeignKey[] SELF_REFERENCING_FOREIGN_KEYS = {",
+                    INTERFACE_NAME_SQL
+                );
+                try (IndentLevel selfRefFkInitIndent = new IndentLevel("", "", false, false))
+                {
+                    for (DatabaseTable.SelfReferencingForeignKey selfRefFk : selfRefForeignKeys)
+                    {
+                        appendLine(
+                            "new %s.SelfReferencingForeignKey(\"%s\", \"%s\", \"%s\"),",
+                            INTERFACE_NAME_SQL,
+                            selfRefFk.tableName(),
+                            selfRefFk.referencedClmName(),
+                            selfRefFk.referencingClmName()
+                        );
+                    }
+                    cutLastAndAppend(2, "\n");
+                }
+                appendLine("};");
             }
 
             /*

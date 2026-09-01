@@ -1,7 +1,10 @@
 package com.linbit.linstor.core.apicallhandler.controller.db;
 
+import com.linbit.ImplementationError;
 import com.linbit.linstor.annotation.Nullable;
 import com.linbit.linstor.core.ClassPathLoader;
+import com.linbit.linstor.dbdrivers.DatabaseException;
+import com.linbit.linstor.dbdrivers.DatabaseTable;
 import com.linbit.linstor.dbdrivers.k8s.crd.GenCrd;
 import com.linbit.linstor.dbdrivers.k8s.crd.GenCrdCurrent;
 import com.linbit.linstor.dbdrivers.k8s.crd.LinstorCrd;
@@ -32,12 +35,17 @@ import com.fasterxml.jackson.databind.node.ValueNode;
  */
 public class DbExportPojoDataDeserializationHelper
 {
+    private static final String NESTED_GEN_DB_TABLES_CLASS_NAME = "GeneratedDatabaseTables";
+    private static final String SELF_REF_FKS_FIELD_NAME = "SELF_REFERENCING_FOREIGN_KEYS";
+
     private @Nullable String currentTable = null;
 
     private final Map<String, Class<? extends LinstorSpec<?, ?>>> jsonLinstorSpecMapping;
     private final Map<String, Class<? extends LinstorCrd<?>>> jsonLinstorCrdMapping;
     private final LinstorSpecDeserializer linstorSpecDeserializer = new LinstorSpecDeserializer();
     private final TableDeserializer dbExportTableDeserializer = new TableDeserializer();
+    private final String genCrdVersion;
+    private @Nullable Class<?> matchedGenCrdCls = null;
 
     /**
      * Initializes the two deserializers as well as search for the correct GenCrd* class, specified by the string
@@ -47,6 +55,7 @@ public class DbExportPojoDataDeserializationHelper
     @SuppressWarnings("unchecked")
     public DbExportPojoDataDeserializationHelper(ErrorReporter errorReporterRef, String genCrdVersionRef)
     {
+        genCrdVersion = genCrdVersionRef;
 
         ClassPathLoader classPathLoader = new ClassPathLoader(errorReporterRef);
         List<Class<?>> genCrdClasses = classPathLoader.loadClasses(
@@ -62,6 +71,7 @@ public class DbExportPojoDataDeserializationHelper
             GenCrd annot = genCrdCls.getAnnotation(GenCrd.class);
             if (genCrdCls != GenCrdCurrent.class && annot != null && annot.dataVersion().equals(genCrdVersionRef))
             {
+                matchedGenCrdCls = genCrdCls;
                 HashMap<String, String> expectedLowerCaseCrdClassNamesToDbTblName = new HashMap<>();
 
                 for (Class<?> declaredLinstorSpecCls : genCrdCls.getDeclaredClasses())
@@ -104,6 +114,52 @@ public class DbExportPojoDataDeserializationHelper
     public TableDeserializer getDbExportTableDeserializer()
     {
         return dbExportTableDeserializer;
+    }
+
+    /**
+     * Returns the self-referencing foreign keys of the database schema version this helper was created for,
+     * taken from the SELF_REFERENCING_FOREIGN_KEYS constant of the nested GeneratedDatabaseTables copy of the
+     * corresponding GenCrdV* class.
+     */
+    public DatabaseTable.SelfReferencingForeignKey[] getSelfReferencingForeignKeys() throws DatabaseException
+    {
+        if (matchedGenCrdCls == null)
+        {
+            throw new DatabaseException(
+                "No GenCrd* class found for the database export's data version: " + genCrdVersion
+            );
+        }
+        @Nullable Class<?> genDbTablesCls = null;
+        for (Class<?> declaredCls : matchedGenCrdCls.getDeclaredClasses())
+        {
+            if (declaredCls.getSimpleName().equals(NESTED_GEN_DB_TABLES_CLASS_NAME))
+            {
+                genDbTablesCls = declaredCls;
+                break;
+            }
+        }
+        if (genDbTablesCls == null)
+        {
+            throw new ImplementationError(
+                matchedGenCrdCls.getSimpleName() + " does not contain a nested " +
+                    NESTED_GEN_DB_TABLES_CLASS_NAME + " class"
+            );
+        }
+        try
+        {
+            return (DatabaseTable.SelfReferencingForeignKey[]) genDbTablesCls
+                .getField(SELF_REF_FKS_FIELD_NAME)
+                .get(null);
+        }
+        catch (NoSuchFieldException | IllegalAccessException exc)
+        {
+            throw new ImplementationError(
+                "Failed to access " + genDbTablesCls.getName() + "." + SELF_REF_FKS_FIELD_NAME +
+                    ". Every GenCrdV* class' nested " + NESTED_GEN_DB_TABLES_CLASS_NAME +
+                    " class must contain this constant.",
+                exc
+            );
+        }
     }
 
     public LinstorSpecDeserializer getLinstorSpecDeserializer()

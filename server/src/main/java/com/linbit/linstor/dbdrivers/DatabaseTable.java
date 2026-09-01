@@ -24,4 +24,15 @@ public interface DatabaseTable
 
         DatabaseTable getTable();
     }
+
+    /**
+     * Describes a self-referencing foreign key: within the table <code>tableName</code>, the column
+     * <code>referencingClmName</code> references the column <code>referencedClmName</code> of another entry
+     * of the same table. Example: RESOURCE_DEFINITIONS contains resource-definitions as well as
+     * snapshot-definitions, where a snapshot-definition references its resource-definition via
+     * PARENT_UUID -> UUID.
+     */
+    record SelfReferencingForeignKey(String tableName, String referencedClmName, String referencingClmName)
+    {
+    }
 }
