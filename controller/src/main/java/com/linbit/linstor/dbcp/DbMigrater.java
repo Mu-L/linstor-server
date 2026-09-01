@@ -217,31 +217,48 @@ public class DbMigrater
         throws InitializationException
     {
         TreeMap<LinstorMigrationVersion, LinstorMigration> migrations = buildMigrations();
+        TreeSet<LinstorMigrationVersion> appliedVersions = getAppliedVersions(conn, dbInfo);
         TreeMap<LinstorMigrationVersion, LinstorMigration> neededMigrations =
-            getNeededMigrations(migrations, getAppliedVersions(conn, dbInfo));
+            getNeededMigrations(migrations, appliedVersions);
 
-        if (!neededMigrations.isEmpty())
+        @Nullable LinstorMigrationVersion targetVersion;
+        if (targetVersionRef == null)
         {
-            LinstorMigrationVersion targetVersion;
-            try
+            targetVersion = neededMigrations.isEmpty() ? null : neededMigrations.lastKey();
+        }
+        else
+        {
+            targetVersion = LinstorMigrationVersion.fromVersion(targetVersionRef);
+            if (!neededMigrations.containsKey(targetVersion))
             {
-                if (targetVersionRef == null)
+                if (!appliedVersions.isEmpty() && targetVersion.equals(appliedVersions.last()))
                 {
-                    targetVersion = neededMigrations.lastKey();
+                    // the database is already at the target version, no migrations need to run
+                    targetVersion = null;
+                }
+                else if (appliedVersions.contains(targetVersion))
+                {
+                    throw new InitializationException(
+                        "The database is already migrated to version '" + appliedVersions.last() +
+                            "', which is newer than the target version '" + targetVersionRef + "'. " +
+                            "Downgrading the database is not supported. If this occurred while importing a " +
+                            "database export, the database was not empty. Delete the database so that the " +
+                            "import can recreate it with the export's version."
+                    );
                 }
                 else
                 {
-                    targetVersion = LinstorMigrationVersion.fromVersion(targetVersionRef);
-
-                    @Nullable LinstorMigration targetMigration = neededMigrations.get(targetVersion);
-                    if (targetMigration == null)
-                    {
-                        throw new InitializationException(
-                            "Target migration version '" + targetVersionRef + "' does not exist"
-                        );
-                    }
+                    throw new InitializationException(
+                        "Target migration version '" + targetVersionRef + "' does not exist"
+                    );
                 }
+            }
+        }
 
+        if (targetVersion != null)
+        {
+            try
+            {
                 runMigrations(conn, neededMigrations, targetVersion);
             }
             catch (Exception exc)

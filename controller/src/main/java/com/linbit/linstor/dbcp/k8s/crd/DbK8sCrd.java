@@ -213,26 +213,36 @@ public class DbK8sCrd implements ControllerK8sCrdDatabase
             }
         }
 
+        int highestKey;
+        if (targetVersionRef == MIGRATE_TO_MAX_VERSION)
+        {
+            highestKey = migrations.lastKey();
+        }
+        else
+        {
+            highestKey = targetVersionRef;
+
+            @Nullable BaseK8sCrdMigration targetMigration = migrations.get(highestKey);
+            if (targetMigration == null)
+            {
+                throw new InitializationException(
+                    "Target migration version '" + targetVersionRef + "' does not exist"
+                );
+            }
+            if (dbVersion > targetMigration.getNextVersion())
+            {
+                throw new InitializationException(
+                    "The database is already migrated to version '" + (dbVersion - 1) +
+                        "', which is newer than the target version '" + targetVersionRef + "'. " +
+                        "Downgrading the database is not supported. If this occurred while importing a " +
+                        "database export, the database was not empty. Delete the database so that the " +
+                        "import can recreate it with the export's version."
+                );
+            }
+        }
+
         try
         {
-            int highestKey;
-            if (targetVersionRef == MIGRATE_TO_MAX_VERSION)
-            {
-                highestKey = migrations.lastKey();
-            }
-            else
-            {
-                highestKey = targetVersionRef;
-
-                @Nullable BaseK8sCrdMigration targetMigration = migrations.get(highestKey);
-                if (targetMigration == null)
-                {
-                    throw new InitializationException(
-                        "Target migration version '" + targetVersionRef + "' does not exist"
-                    );
-                }
-            }
-
             while (dbVersion <= highestKey)
             {
                 BaseK8sCrdMigration migration = migrations.get(dbVersion);

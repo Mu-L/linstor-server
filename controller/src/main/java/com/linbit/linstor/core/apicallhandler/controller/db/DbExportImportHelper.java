@@ -335,6 +335,17 @@ public class DbExportImportHelper
         {
             throw new ApiDatabaseException(dbExc);
         }
+        catch (InitializationException initExc)
+        {
+            @Nullable String excMsg = initExc.getMessage();
+            throw new ApiRcException(
+                ApiCallRcImpl.simpleEntry(
+                    ApiConsts.MASK_ERROR,
+                    excMsg != null ? excMsg : "Initialization exception occurred during database import"
+                ),
+                initExc
+            );
+        }
         catch (Exception exc)
         {
             throw new ApiRcException(
