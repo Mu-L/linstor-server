@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.sql.Connection;
+import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -108,11 +109,6 @@ public final class DatabaseConstantsGenerator
                     null,
                     new String[]{TYPE_TABLE}
                 );
-                ResultSet crossRefs = con.prepareStatement(
-                    "SELECT PKTABLE_NAME, FKTABLE_NAME " +
-                        "FROM INFORMATION_SCHEMA.CROSS_REFERENCES " +
-                        "WHERE PKTABLE_SCHEMA = 'LINSTOR' "
-                ).executeQuery();
             )
         {
             HashMap<String, Set<String>> references = new HashMap<>();
@@ -152,7 +148,11 @@ public final class DatabaseConstantsGenerator
                                 new Column(
                                     tbl,
                                     clmName,
-                                    metaColumns.getString("TYPE_NAME"),
+                                    // deliberately based on DATA_TYPE instead of TYPE_NAME, since the latter
+                                    // is database-specific (H2 2.x for example reports "CHARACTER VARYING"
+                                    // instead of "VARCHAR") whereas the generated code needs the names of the
+                                    // java.sql.Types constants
+                                    getSqlTypeName(metaColumns.getInt("DATA_TYPE")),
                                     primaryKeys.contains(clmName),
                                     metaColumns.getString("IS_NULLABLE").equalsIgnoreCase("yes")
                                 )
@@ -163,13 +163,19 @@ public final class DatabaseConstantsGenerator
                 }
             }
 
-            while (crossRefs.next())
+            for (String tblName : tables.keySet())
             {
-                String dstTableName = crossRefs.getString("PKTABLE_NAME");
-                String srcTableName = crossRefs.getString("FKTABLE_NAME");
+                try (ResultSet crossRefs = con.getMetaData().getImportedKeys(null, DB_SCHEMA, tblName))
+                {
+                    while (crossRefs.next())
+                    {
+                        String dstTableName = crossRefs.getString("PKTABLE_NAME");
+                        String srcTableName = crossRefs.getString("FKTABLE_NAME");
 
-                references.computeIfAbsent(srcTableName, ignored -> new TreeSet<>()).add(dstTableName);
-                startingTables.remove(dstTableName);
+                        references.computeIfAbsent(srcTableName, ignored -> new TreeSet<>()).add(dstTableName);
+                        startingTables.remove(dstTableName);
+                    }
+                }
             }
 
             buildCrossRefOrderRec(
@@ -180,6 +186,19 @@ public final class DatabaseConstantsGenerator
             );
         }
         return new PairNonNull<>(tables, crossRefOrder);
+    }
+
+    private static String getSqlTypeName(int sqlTypeRef) throws SQLException
+    {
+        try
+        {
+            // JDBCType mirrors the java.sql.Types constants, including their names
+            return JDBCType.valueOf(sqlTypeRef).name();
+        }
+        catch (IllegalArgumentException exc)
+        {
+            throw new SQLException("Unknown java.sql.Types value: " + sqlTypeRef, exc);
+        }
     }
 
     private static void buildCrossRefOrderRec(

@@ -26,7 +26,7 @@ public class GeneratedDatabaseTables
         public static final ColumnImpl ID = new ColumnImpl("ID", Types.INTEGER, true, false);
 
         public static final ColumnImpl TOKEN_HASH = new ColumnImpl("TOKEN_HASH", Types.CHAR, false, false);
-        public static final ColumnImpl DESCRIPTION = new ColumnImpl("DESCRIPTION", Types.CLOB, false, false);
+        public static final ColumnImpl DESCRIPTION = new ColumnImpl("DESCRIPTION", Types.VARCHAR, false, false);
         public static final ColumnImpl IS_ACTIVE = new ColumnImpl("IS_ACTIVE", Types.BOOLEAN, false, false);
         public static final ColumnImpl CREATED_AT = new ColumnImpl("CREATED_AT", Types.TIMESTAMP, false, false);
         public static final ColumnImpl DELETED_AT = new ColumnImpl("DELETED_AT", Types.TIMESTAMP, false, true);
@@ -1042,14 +1042,14 @@ public class GeneratedDatabaseTables
         public static final ColumnImpl DESCRIPTION = new ColumnImpl("DESCRIPTION", Types.VARCHAR, false, true);
         public static final ColumnImpl LAYER_STACK = new ColumnImpl("LAYER_STACK", Types.VARCHAR, false, true);
         public static final ColumnImpl REPLICA_COUNT = new ColumnImpl("REPLICA_COUNT", Types.INTEGER, false, false);
-        public static final ColumnImpl NODE_NAME_LIST = new ColumnImpl("NODE_NAME_LIST", Types.CLOB, false, true);
-        public static final ColumnImpl POOL_NAME = new ColumnImpl("POOL_NAME", Types.CLOB, false, true);
-        public static final ColumnImpl POOL_NAME_DISKLESS = new ColumnImpl("POOL_NAME_DISKLESS", Types.CLOB, false, true);
-        public static final ColumnImpl DO_NOT_PLACE_WITH_RSC_REGEX = new ColumnImpl("DO_NOT_PLACE_WITH_RSC_REGEX", Types.CLOB, false, true);
-        public static final ColumnImpl DO_NOT_PLACE_WITH_RSC_LIST = new ColumnImpl("DO_NOT_PLACE_WITH_RSC_LIST", Types.CLOB, false, true);
-        public static final ColumnImpl REPLICAS_ON_SAME = new ColumnImpl("REPLICAS_ON_SAME", Types.CLOB, false, true);
-        public static final ColumnImpl REPLICAS_ON_DIFFERENT = new ColumnImpl("REPLICAS_ON_DIFFERENT", Types.CLOB, false, true);
-        public static final ColumnImpl X_REPLICAS_ON_DIFFERENT = new ColumnImpl("X_REPLICAS_ON_DIFFERENT", Types.CLOB, false, true);
+        public static final ColumnImpl NODE_NAME_LIST = new ColumnImpl("NODE_NAME_LIST", Types.VARCHAR, false, true);
+        public static final ColumnImpl POOL_NAME = new ColumnImpl("POOL_NAME", Types.VARCHAR, false, true);
+        public static final ColumnImpl POOL_NAME_DISKLESS = new ColumnImpl("POOL_NAME_DISKLESS", Types.VARCHAR, false, true);
+        public static final ColumnImpl DO_NOT_PLACE_WITH_RSC_REGEX = new ColumnImpl("DO_NOT_PLACE_WITH_RSC_REGEX", Types.VARCHAR, false, true);
+        public static final ColumnImpl DO_NOT_PLACE_WITH_RSC_LIST = new ColumnImpl("DO_NOT_PLACE_WITH_RSC_LIST", Types.VARCHAR, false, true);
+        public static final ColumnImpl REPLICAS_ON_SAME = new ColumnImpl("REPLICAS_ON_SAME", Types.VARCHAR, false, true);
+        public static final ColumnImpl REPLICAS_ON_DIFFERENT = new ColumnImpl("REPLICAS_ON_DIFFERENT", Types.VARCHAR, false, true);
+        public static final ColumnImpl X_REPLICAS_ON_DIFFERENT = new ColumnImpl("X_REPLICAS_ON_DIFFERENT", Types.VARCHAR, false, true);
         public static final ColumnImpl ALLOWED_PROVIDER_LIST = new ColumnImpl("ALLOWED_PROVIDER_LIST", Types.VARCHAR, false, true);
         public static final ColumnImpl DISKLESS_ON_REMAINING = new ColumnImpl("DISKLESS_ON_REMAINING", Types.BOOLEAN, false, true);
         public static final ColumnImpl PEER_SLOTS = new ColumnImpl("PEER_SLOTS", Types.SMALLINT, false, true);
