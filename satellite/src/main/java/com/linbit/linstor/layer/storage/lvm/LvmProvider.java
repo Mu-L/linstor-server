@@ -240,7 +240,7 @@ public class LvmProvider
              */
             setDevicePath &= !isCloning(vlmData);
 
-            lockMode = getRequiredLockMode(vlmData);
+            lockMode = getRequiredLockMode(vlmData, info);
             lvcreateOptions = getLvcreateOptions(vlmData);
         }
         else
@@ -356,14 +356,18 @@ public class LvmProvider
      * mode both to create a snapshot and for as long as any snapshot of the LV exists. The lock is
      * therefore upgraded before a (clone-)snapshot is created and only downgraded back to a shared
      * lock once the LV has no snapshot LVs left.
+     *
+     * The same applies to resizing: lvresize needs the LV lock in exclusive mode, so a pending resize
+     * upgrades the lock for the duration of the resize (the controller refuses resizes while the LV
+     * is active on more than one node, so no other leg holds the lock at that point).
      */
-    private LvmLockMode getRequiredLockMode(LvmData<Resource> vlmDataRef)
+    private LvmLockMode getRequiredLockMode(LvmData<Resource> vlmDataRef, @Nullable LvsInfo infoRef)
     {
         LvmLockMode lockMode = LvmLockMode.DEFAULT;
         StorPool storPool = vlmDataRef.getStorPool();
         if (storPool.isExternalLocking() && storPool.getDeviceProviderKind().isSharedVolumeSupported())
         {
-            boolean exclusive = requiresExclusiveLvLock(vlmDataRef) ||
+            boolean exclusive = requiresExclusiveLvLock(vlmDataRef, infoRef) ||
                 !SharedStorageUtils.isNeededBySharedResource(vlmDataRef);
             lockMode = exclusive ? LvmLockMode.EXCLUSIVE : LvmLockMode.SHARED;
         }
@@ -371,15 +375,34 @@ public class LvmProvider
     }
 
     /**
-     * Whether pending snapshot work or existing snapshot LVs force the LV lock of the given volume
-     * into exclusive mode even while another leg of the rsc-dfn shares the LV.
+     * Whether pending snapshot work, existing snapshot LVs or a pending resize force the LV lock of
+     * the given volume into exclusive mode even while another leg of the rsc-dfn shares the LV.
      */
-    private boolean requiresExclusiveLvLock(LvmData<Resource> vlmDataRef)
+    private boolean requiresExclusiveLvLock(LvmData<Resource> vlmDataRef, @Nullable LvsInfo infoRef)
     {
         Resource rsc = vlmDataRef.getRscLayerObject().getAbsResource();
         return !getCloneForKeyProps(rsc).isEmpty() ||
             hasLocalSnapshots(rsc) ||
-            hasCachedSnapshotLvs(extractVolumeGroup(vlmDataRef), asLvIdentifier(vlmDataRef));
+            hasCachedSnapshotLvs(extractVolumeGroup(vlmDataRef), asLvIdentifier(vlmDataRef)) ||
+            isResizePending(vlmDataRef, infoRef);
+    }
+
+    /**
+     * Whether the LV of the given volume is going to be resized in this device manager run, based on
+     * the "lvs" data the run works with. An LV smaller than its volume definition is grown regardless
+     * of the RESIZE flag - this also covers a resize that was deferred while every copy of a shared
+     * storage pool was INACTIVE and is applied by the next activation - while shrinking only happens
+     * with the RESIZE flag set.
+     */
+    private boolean isResizePending(LvmData<Resource> vlmDataRef, @Nullable LvsInfo infoRef)
+    {
+        boolean pending = false;
+        if (infoRef != null)
+        {
+            pending = getUsableSize(infoRef) < vlmDataRef.getExpectedSize() ||
+                ((Volume) vlmDataRef.getVolume()).getFlags().isSet(Volume.Flags.RESIZE);
+        }
+        return pending;
     }
 
     private boolean hasLocalSnapshots(Resource rscRef)

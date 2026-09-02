@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed resizing a volume in a shared storage pool with external locking, refused because of the wrong lock
+  mode.
+
 ## [1.35.0] - 2026-08-27
 
 ### Added
