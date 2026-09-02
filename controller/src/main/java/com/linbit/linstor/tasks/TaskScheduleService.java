@@ -274,13 +274,14 @@ public class TaskScheduleService implements SystemService, Runnable
                                 long firstRunAt = getFirstRunAt(execTask);
                                 if (firstRunAt >= Task.RUN_ASAP)
                                 {
+                                    long scheduledAt = firstRunAt == Task.RUN_ASAP ? now : firstRunAt;
                                     if (firstRunAt <= now)
                                     {
-                                        execute(execTask, firstRunAt == Task.RUN_ASAP ? now : firstRunAt);
+                                        execute(execTask, scheduledAt);
                                     }
                                     else
                                     {
-                                        reschedule(execTask, firstRunAt);
+                                        rescheduleAt(execTask, scheduledAt);
                                     }
                                 }
                             }
@@ -403,63 +404,44 @@ public class TaskScheduleService implements SystemService, Runnable
         // Reschedule the task if a non-negative delay was requested
         if (rescheduleAt >= 0)
         {
-            reschedule(task, rescheduleAt);
-        }
-    }
-
-    private void reschedule(Task task, long rescheduleAt)
-    {
-        tasksLock.lock();
-        try
-        {
-            List<Task> taskList = tasks.get(rescheduleAt);
-            if (taskList == null)
-            {
-                taskList = new ArrayList<>();
-                tasks.put(rescheduleAt, taskList);
-            }
-            taskList.add(task);
-        }
-        finally
-        {
-            tasksLock.unlock();
+            rescheduleAt(task, rescheduleAt);
         }
     }
 
     /**
-     * Reschedules the given task regardless when it would have been scheduled normally.
-     * A negative newDelay will cancel the task completely.
-     * The task will *NOT* be executed when this method is called, especially not in the caller thread of this method.
-     * Even with newDelay = 0 the task is rescheduled in the internal map, which means that the TaskScheduler's internal
-     * thread will be notified to execute the task (if necessary)
+     * <p>Reschedules the given task at the given timestamp ({@code absoluteTimestampInMs}). Unlike
+     * {@link #rescheduleIn(Task, long)}, this method's {@code absoluteTimestampInMs} is an absolute timestamp.</p>
      *
+     * <p>Makes sure the given task gets removed from all scheduled tasks and only (re-) inserted with the given
+     * {@code absoluteTimestampInMs}-timestamp, effectively deduplicates the given task.</p>
+     * <p>The task is only inserted in the internal map if the given {@code absoluteTimestampInMs} parameter is
+     * {@code >= 0}</p>
      */
-    public void rescheduleAt(Task task, long newDelay)
+    public void rescheduleAt(Task task, long absoluteTimestampInMs)
     {
         tasksLock.lock();
         try
         {
-            Long deleteEntry = null;
+            List<Long> entriesToDelete = new ArrayList<>();
             for (Entry<Long, List<Task>> entry : tasks.entrySet())
             {
                 if (entry.getValue().remove(task) && entry.getValue().isEmpty())
                 {
-                    deleteEntry = entry.getKey();
+                    entriesToDelete.add(entry.getKey());
                 }
             }
-            if (deleteEntry != null)
+            for (Long entryToDelete : entriesToDelete)
             {
-                tasks.remove(deleteEntry);
+                tasks.remove(entryToDelete);
             }
 
-            if (newDelay >= 0)
+            if (absoluteTimestampInMs >= Task.RUN_ASAP)
             {
-                long targetTime = newDelay + System.currentTimeMillis();
-                List<Task> taskList = tasks.get(targetTime);
+                List<Task> taskList = tasks.get(absoluteTimestampInMs);
                 if (taskList == null)
                 {
                     taskList = new ArrayList<>();
-                    tasks.put(targetTime, taskList);
+                    tasks.put(absoluteTimestampInMs, taskList);
                 }
                 taskList.add(task);
                 tasksCond.signal();
@@ -469,5 +451,34 @@ public class TaskScheduleService implements SystemService, Runnable
         {
             tasksLock.unlock();
         }
+    }
+
+    /**
+     * <p>Reschedules the given task with the given <b>relative</b> delay to the current time.</p>
+     * <p>The usage is intended as something like <code>rescheduleIn(myTask, 10_000);</code> to reschedule
+     * {@code myTask}
+     * in 10s from now.</p>
+     *
+     * <p>A negative newDelay will cancel the task completely.</p>
+     *
+     * <p>
+     * The task will *NOT* be executed when this method is called, especially not in the caller thread of this method.
+     * Even with newDelay = 0 the task is rescheduled in the internal map, which means that the TaskScheduler's internal
+     * thread will be notified to execute the task (if necessary)</p>
+     */
+    public void rescheduleIn(Task task, long relativeDelayInMs)
+    {
+        rescheduleAt(task, relativeDelayInMs < 0 ? relativeDelayInMs : System.currentTimeMillis() + relativeDelayInMs);
+    }
+
+    /**
+     * <p>Cancels the given {@code Task}.</p>
+     *
+     * <p>If the task is currently being executed, it will <b>not</b> be interrupted. Calling this
+     * {@link #cancel(Task)} method only prevents the given task from being rescheduled.</p>
+     */
+    public void cancel(Task task)
+    {
+        rescheduleAt(task, Task.END_TASK);
     }
 }

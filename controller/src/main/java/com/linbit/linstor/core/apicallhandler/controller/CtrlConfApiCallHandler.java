@@ -807,7 +807,7 @@ public class CtrlConfApiCallHandler
         try
         {
             long newDelay = Long.parseLong(newValue);
-            taskScheduleService.rescheduleAt(balanceResourcesTask, newDelay * 1000L);
+            taskScheduleService.rescheduleIn(balanceResourcesTask, newDelay * 1000L);
         }
         catch (NumberFormatException nfe)
         {

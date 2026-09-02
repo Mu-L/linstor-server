@@ -193,7 +193,7 @@ public class ScheduleBackupService implements SystemService
             {
                 for (ScheduledShippingConfig config : configSet)
                 {
-                    taskScheduleService.rescheduleAt(config.task, Task.END_TASK);
+                    taskScheduleService.cancel(config.task);
                 }
             }
             scheduleLookupMap.clear();
@@ -476,7 +476,7 @@ public class ScheduleBackupService implements SystemService
                         }
                         else
                         {
-                            taskScheduleService.rescheduleAt(task, timeout);
+                            taskScheduleService.rescheduleIn(task, timeout);
                         }
                         if (!confIsActive)
                         {
@@ -542,7 +542,7 @@ public class ScheduleBackupService implements SystemService
                                 conf.timeoutAndTypeCalculatedFrom = now.toEpochSecond() * 1000;
                             }
                         }
-                        taskScheduleService.rescheduleAt(config.task, infoPair.objA);
+                        taskScheduleService.rescheduleIn(config.task, infoPair.objA);
                     }
                 }
             }
@@ -672,14 +672,14 @@ public class ScheduleBackupService implements SystemService
                 {
                     // we missed an incremental. start asap
                     // could also be that now == nextIncrExecFromLastStart, but then we also want to start asap
-                    timeout = 0;
+                    timeout = Task.RUN_ASAP;
                     incr = true;
                 }
             }
             else
             {
                 // we missed a full. start asap
-                timeout = 0;
+                timeout = Task.RUN_ASAP;
                 incr = false;
             }
             if (!lastBackupSucceeded && !skip)
@@ -770,7 +770,7 @@ public class ScheduleBackupService implements SystemService
                         {
                             if (config.equals(conf))
                             {
-                                taskScheduleService.rescheduleAt(config.task, Task.END_TASK);
+                                taskScheduleService.cancel(config.task);
                             }
                         }
                     }

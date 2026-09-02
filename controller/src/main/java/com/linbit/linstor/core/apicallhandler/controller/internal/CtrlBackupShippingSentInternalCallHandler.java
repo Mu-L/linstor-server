@@ -304,7 +304,7 @@ public class CtrlBackupShippingSentInternalCallHandler
                             backgroundRunner,
                             successRef
                         );
-                        taskScheduleService.rescheduleAt(cleanupTask, CLEANUP_AFTER);
+                        taskScheduleService.rescheduleIn(cleanupTask, CLEANUP_AFTER);
                         backupInfoMgr.addTaskToCleanupData(stltRemote, cleanupTask);
                     }
                 }

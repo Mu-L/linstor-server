@@ -54,12 +54,9 @@ import com.linbit.linstor.storage.kinds.ExtTools;
 import com.linbit.linstor.storage.kinds.ExtToolsInfo;
 import com.linbit.linstor.tasks.StltRemoteCleanupTask;
 import com.linbit.linstor.tasks.TaskScheduleService;
-import com.linbit.linstor.tasks.TaskScheduleService.Task;
 import com.linbit.linstor.utils.externaltools.ExtToolsManager;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
-
-import static com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller.notConnectedError;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -82,6 +79,8 @@ import java.util.UUID;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
+
+import static com.linbit.linstor.core.apicallhandler.controller.internal.CtrlSatelliteUpdateCaller.notConnectedError;
 
 /**
  * Creates and ships a backup to a linstor cluster, using the following steps:
@@ -938,7 +937,7 @@ public class CtrlBackupL2LSrcApiCallHandler
             // BackupShippingUtils.BACKUP_SOURCE_PROPS_NAMESPC + "/" + data.getLinstorRemote().getName()
             // );
         }
-        taskScheduleService.rescheduleAt(task, Task.END_TASK);
+        taskScheduleService.cancel(task);
         ctrlTransactionHelper.commit();
         return queueHandler.handleBackupQueues(
             snapDfn,
