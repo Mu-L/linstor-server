@@ -502,6 +502,85 @@ public class TaskScheduleServiceTest
     }
 
     @Test
+    public void cancelDuringRunPreventsReschedule() throws Exception
+    {
+        CountDownLatch ran = new CountDownLatch(1);
+        BlockingTask task = new BlockingTask(ran);
+        service.addTask(task);
+        service.start();
+        assertThat(task.started.await(LATCH_TIMEOUT, TimeUnit.SECONDS)).isTrue();
+
+        // cancel while run() is still executing; the task then asks to be rescheduled soon
+        service.cancel(task);
+        task.firstRunReturns.set(System.currentTimeMillis() + 50);
+        task.release.countDown();
+
+        assertThat(ran.await(LATCH_TIMEOUT, TimeUnit.SECONDS)).isTrue();
+        awaitSchedulerRounds(5);
+        assertThat(task.runCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    public void rescheduleInWithNegativeDelayDuringRunCancelsTask() throws Exception
+    {
+        CountDownLatch ran = new CountDownLatch(1);
+        BlockingTask task = new BlockingTask(ran);
+        service.addTask(task);
+        service.start();
+        assertThat(task.started.await(LATCH_TIMEOUT, TimeUnit.SECONDS)).isTrue();
+
+        service.rescheduleIn(task, Task.END_TASK);
+        task.firstRunReturns.set(System.currentTimeMillis() + 50);
+        task.release.countDown();
+
+        assertThat(ran.await(LATCH_TIMEOUT, TimeUnit.SECONDS)).isTrue();
+        awaitSchedulerRounds(5);
+        assertThat(task.runCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    public void rescheduleAtAfterCancelDuringRunReactivatesTask() throws Exception
+    {
+        CountDownLatch ran = new CountDownLatch(2);
+        BlockingTask task = new BlockingTask(ran);
+        service.addTask(task);
+        service.start();
+        assertThat(task.started.await(LATCH_TIMEOUT, TimeUnit.SECONDS)).isTrue();
+
+        long nextRun = System.currentTimeMillis() + 100;
+        service.cancel(task);
+        service.rescheduleAt(task, nextRun);
+        task.firstRunReturns.set(nextRun);
+        task.release.countDown();
+
+        // the reschedule after the cancel wins, but the task still runs only once more (deduplicated)
+        assertThat(ran.await(LATCH_TIMEOUT, TimeUnit.SECONDS)).isTrue();
+        awaitSchedulerRounds(5);
+        assertThat(task.runCount.get()).isEqualTo(2);
+    }
+
+    @Test
+    public void cancelOfRunningTaskDoesNotStickAfterItEnded() throws Exception
+    {
+        CountDownLatch ran = new CountDownLatch(1);
+        BlockingTask task = new BlockingTask(ran);
+        service.addTask(task);
+        service.start();
+        assertThat(task.started.await(LATCH_TIMEOUT, TimeUnit.SECONDS)).isTrue();
+
+        service.cancel(task);
+        task.firstRunReturns.set(Task.END_TASK);
+        task.release.countDown();
+        assertThat(ran.await(LATCH_TIMEOUT, TimeUnit.SECONDS)).isTrue();
+        awaitSchedulerRounds(2);
+
+        // re-adding the task later must run it normally
+        service.rescheduleAt(task, System.currentTimeMillis());
+        awaitSchedulerRounds(3);
+        assertThat(task.runCount.get()).isEqualTo(2);
+    }
+
+    @Test
     public void rescheduleInSchedulesRelativeToNow() throws Exception
     {
         CountDownLatch ran = new CountDownLatch(2);

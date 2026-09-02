@@ -12,8 +12,10 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -130,6 +132,13 @@ public class TaskScheduleService implements SystemService, Runnable
 
     private final TreeMap<Long, List<Task>> tasks = new TreeMap<>();
     private final List<Task> newTasks = new ArrayList<>();
+    /**
+     * Tasks that are currently inside their {@link Task#run(long)} method. While a task is running it is not part of
+     * {@link #tasks}, so a {@link #cancel(Task)} would not find anything to remove. Such tasks are remembered in
+     * {@link #canceledWhileRunning} instead.
+     */
+    private final Set<Task> runningTasks = new HashSet<>();
+    private final Set<Task> canceledWhileRunning = new HashSet<>();
     private final ErrorReporter errorReporter;
 
     @Inject
@@ -383,6 +392,16 @@ public class TaskScheduleService implements SystemService, Runnable
 
     private void execute(Task task, long scheduledAt)
     {
+        tasksLock.lock();
+        try
+        {
+            runningTasks.add(task);
+        }
+        finally
+        {
+            tasksLock.unlock();
+        }
+
         long rescheduleAt = scheduledAt + DEFAULT_RETRY_DELAY;
         try (var ignore = MDC.putCloseable(ErrorReporter.LOGID, ErrorReporter.getNewLogId()))
         {
@@ -401,10 +420,21 @@ public class TaskScheduleService implements SystemService, Runnable
             );
         }
 
-        // Reschedule the task if a non-negative delay was requested
-        if (rescheduleAt >= 0)
+        tasksLock.lock();
+        try
         {
-            rescheduleAt(task, rescheduleAt);
+            runningTasks.remove(task);
+            boolean canceled = canceledWhileRunning.remove(task);
+            // Reschedule the task if a non-negative timestamp was requested, unless the task was canceled while it
+            // was running
+            if (!canceled && rescheduleAt >= 0)
+            {
+                rescheduleAt(task, rescheduleAt);
+            }
+        }
+        finally
+        {
+            tasksLock.unlock();
         }
     }
 
@@ -415,7 +445,7 @@ public class TaskScheduleService implements SystemService, Runnable
      * <p>Makes sure the given task gets removed from all scheduled tasks and only (re-) inserted with the given
      * {@code absoluteTimestampInMs}-timestamp, effectively deduplicates the given task.</p>
      * <p>The task is only inserted in the internal map if the given {@code absoluteTimestampInMs} parameter is
-     * {@code >= 0}</p>
+     * {@code >= 0}. A negative value cancels the task, see {@link #cancel(Task)}.</p>
      */
     public void rescheduleAt(Task task, long absoluteTimestampInMs)
     {
@@ -437,6 +467,8 @@ public class TaskScheduleService implements SystemService, Runnable
 
             if (absoluteTimestampInMs >= Task.RUN_ASAP)
             {
+                // a reschedule after a cancel reactivates the task, even if it is still running
+                canceledWhileRunning.remove(task);
                 List<Task> taskList = tasks.get(absoluteTimestampInMs);
                 if (taskList == null)
                 {
@@ -445,6 +477,11 @@ public class TaskScheduleService implements SystemService, Runnable
                 }
                 taskList.add(task);
                 tasksCond.signal();
+            }
+            else if (runningTasks.contains(task))
+            {
+                // the task is not in the map right now, so remember to ignore the timestamp its run() returns
+                canceledWhileRunning.add(task);
             }
         }
         finally
@@ -474,8 +511,9 @@ public class TaskScheduleService implements SystemService, Runnable
     /**
      * <p>Cancels the given {@code Task}.</p>
      *
-     * <p>If the task is currently being executed, it will <b>not</b> be interrupted. Calling this
-     * {@link #cancel(Task)} method only prevents the given task from being rescheduled.</p>
+     * <p>If the task is currently being executed, it will <b>not</b> be interrupted. Instead, the timestamp returned
+     * by its {@link Task#run(long)} is ignored so that the task is not rescheduled. A {@link #rescheduleAt(Task, long)}
+     * or {@link #rescheduleIn(Task, long)} with a non-negative value after the cancel reactivates the task.</p>
      */
     public void cancel(Task task)
     {
