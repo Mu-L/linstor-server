@@ -10,7 +10,6 @@ import java.time.temporal.ChronoField;
 
 public class TimeUtils
 {
-
     // this needs to stay the same since journalctl needs the date this way
     public static final DateTimeFormatter JOURNALCTL_DF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     public static final DateTimeFormatter DTF_NO_SPACE = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
@@ -41,7 +40,7 @@ public class TimeUtils
 
     public static String getRenameTime()
     {
-        return getRenameTime(LocalDateTime.now(ZoneOffset.systemDefault()));
+        return getRenameTime(now());
     }
 
     public static String getRenameTime(LocalDateTime nowRef)
@@ -49,9 +48,15 @@ public class TimeUtils
         return DTF_ISO_8601_FOR_RENAME.format(nowRef);
     }
 
+    public static LocalDateTime now()
+    {
+        return LocalDateTime.now(ZoneOffset.systemDefault());
+    }
+
     private TimeUtils()
     {
         // utils-class, do not allow instance
     }
+
 
 }

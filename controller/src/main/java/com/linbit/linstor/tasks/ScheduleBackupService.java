@@ -31,6 +31,7 @@ import com.linbit.linstor.propscon.InvalidKeyException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.tasks.TaskScheduleService.Task;
+import com.linbit.linstor.tasks.utils.CronUtils;
 import com.linbit.locks.LockGuard;
 import com.linbit.locks.LockGuardFactory;
 import com.linbit.locks.LockGuardFactory.LockObj;
@@ -621,11 +622,11 @@ public class ScheduleBackupService implements SystemService
             incrExec = ExecutionTime.forCron(schedule.getIncCron());
         }
 
-        ZonedDateTime nextFullFromNow = nextExec(fullExec, now);
+        ZonedDateTime nextFullFromNow = CronUtils.nextExec(fullExec, now);
         ZonedDateTime nextIncrFromNow;
         if (incExists)
         {
-            nextIncrFromNow = nextExec(incrExec, now);
+            nextIncrFromNow = CronUtils.nextExec(incrExec, now);
         }
         else
         {
@@ -646,12 +647,12 @@ public class ScheduleBackupService implements SystemService
         {
             ZonedDateTime lastStart = ZonedDateTime
                 .ofInstant(Instant.ofEpochMilli(lastStartTime), ZoneId.systemDefault());
-            ZonedDateTime lastFullExecFromNow = lastExec(fullExec, now);
-            ZonedDateTime lastFullExecFromLastStart = lastExec(fullExec, lastStart);
+            ZonedDateTime lastFullExecFromNow = CronUtils.lastExec(fullExec, now);
+            ZonedDateTime lastFullExecFromLastStart = CronUtils.lastExec(fullExec, lastStart);
             ZonedDateTime nextIncrExecFromLastStart;
             if (incExists)
             {
-                nextIncrExecFromLastStart = nextExec(incrExec, lastStart);
+                nextIncrExecFromLastStart = CronUtils.nextExec(incrExec, lastStart);
             }
             else
             {
@@ -867,45 +868,6 @@ public class ScheduleBackupService implements SystemService
                 lookupMap.remove(key);
             }
         }
-    }
-
-    private static ZonedDateTime nextExec(ExecutionTime exec, ZonedDateTime zdt)
-    {
-        return exec(exec, zdt, true);
-    }
-
-    private static ZonedDateTime lastExec(ExecutionTime exec, ZonedDateTime zdt)
-    {
-        return exec(exec, zdt, false);
-    }
-
-    private static ZonedDateTime exec(ExecutionTime exec, ZonedDateTime zdt, boolean next)
-    {
-        ZonedDateTime ret;
-        if (next)
-        {
-            ret = exec.nextExecution(zdt).get();
-        }
-        else
-        {
-            /*
-             * DO NOT use exec.isMatch as that method truncates seconds in CRON_UNIX and CRON4J format
-             */
-            /*
-             * In this else case we are only interested in the previous (last) execution point.
-             * However, we have 2 cases: Either zdt is between two execution points or exactly on one exec point.
-             * If we are exactly on one execution point, going to the last and afterwards to the next point will
-             * result in where we started (zdt).
-             * If zdt is between two exec points, we only need .lastExecution() (therefore the "rollback")
-             */
-            ZonedDateTime tmp = exec.lastExecution(zdt).get();
-            ret = exec.nextExecution(tmp).get();
-            if (!ret.equals(zdt))
-            {
-                ret = tmp;
-            }
-        }
-        return ret;
     }
 
     public static class ScheduledShippingConfig implements Comparable<ScheduledShippingConfig>

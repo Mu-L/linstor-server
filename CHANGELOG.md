@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added automatic database exports. Default: every day at 4am. Added configuration properties:
+  - "AutoDbExport/Cron": The cron when the auto-export should run. Default: "0 4 * * *". Use "off" to disable feature
+  - "AutoDbExport/Keep": How many exported database exports should be kept. Default: 7
+  - "AutoDbExport/Path": The path where the exported files should land. Default: "/var/lib/linstor"
+  - "AutoDbExport/Compress": True/False whether the export should be compressed or not
+
 ### Changed
 
 - "linstor-database export-db" compresses the export if the target file name ends with ".gz"

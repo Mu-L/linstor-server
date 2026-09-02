@@ -1,5 +1,6 @@
 package com.linbit.linstor.dbdrivers;
 
+import com.linbit.linstor.ControllerK8sCrdDatabase;
 import com.linbit.linstor.core.objects.AuthTokenDbDriver;
 import com.linbit.linstor.core.objects.ExternalFileDbDriver;
 import com.linbit.linstor.core.objects.KeyValueStoreDbDriver;
@@ -42,6 +43,7 @@ import com.linbit.linstor.core.objects.remotes.LinstorRemoteDbDriver;
 import com.linbit.linstor.core.objects.remotes.S3RemoteDbDriver;
 import com.linbit.linstor.dbcp.DbConnectionPoolInitializer;
 import com.linbit.linstor.dbcp.DbInitializer;
+import com.linbit.linstor.dbcp.k8s.crd.DbK8sCrd;
 import com.linbit.linstor.dbdrivers.interfaces.AuthTokenCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.ExternalFileCtrlDatabaseDriver;
 import com.linbit.linstor.dbdrivers.interfaces.ExternalFileDatabaseDriver;
@@ -118,7 +120,13 @@ import com.linbit.linstor.dbdrivers.interfaces.remotes.S3RemoteDatabaseDriver;
 import com.linbit.linstor.dbdrivers.sql.SQLEngine;
 import com.linbit.linstor.storage.kinds.DeviceLayerKind;
 
+import javax.inject.Singleton;
+
+import java.util.Map;
+
 import com.google.inject.AbstractModule;
+import com.google.inject.Injector;
+import com.google.inject.Provides;
 import com.google.inject.multibindings.MapBinder;
 
 public class TestDbModule extends AbstractModule
@@ -235,5 +243,13 @@ public class TestDbModule extends AbstractModule
         bind(LayerBCacheVlmDatabaseDriver.class).to(LayerBCacheVlmDbDriver.class);
 
         bind(DbInitializer.class).to(DbConnectionPoolInitializer.class);
+        bind(ControllerK8sCrdDatabase.class).to(DbK8sCrd.class);
+    }
+
+    @Provides
+    @Singleton
+    public static Map<DatabaseTable, AbsDatabaseDriver<?, ?, ?>> getAllDbDrivers(Injector injector)
+    {
+        return ControllerDbModule.getAllDbDrivers(injector);
     }
 }

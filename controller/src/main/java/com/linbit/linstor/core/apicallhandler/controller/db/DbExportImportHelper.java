@@ -25,6 +25,10 @@ import com.linbit.linstor.storage.kinds.ExtToolsInfo.Version;
 import com.linbit.linstor.transaction.manager.TransactionMgr;
 import com.linbit.linstor.transaction.manager.TransactionMgrGenerator;
 import com.linbit.linstor.transaction.manager.TransactionMgrUtil;
+import com.linbit.locks.LockGuard;
+import com.linbit.locks.LockGuardFactory;
+import com.linbit.locks.LockGuardFactory.LockObj;
+import com.linbit.locks.LockGuardFactory.LockType;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -78,6 +82,7 @@ public class DbExportImportHelper
     private final Provider<TransactionMgr> txMgrProvider;
     private final CtrlConfig ctrlCfg;
     private final LinStorScope linstorScope;
+    private final LockGuardFactory lockGuardFactory;
 
     @Inject
     public DbExportImportHelper(
@@ -89,6 +94,7 @@ public class DbExportImportHelper
         Provider<TransactionMgrGenerator> txMgrGeneratorRef,
         Provider<TransactionMgr> txMgrProviderRef,
         LinStorScope linstorScopeRef,
+        LockGuardFactory lockGuardFactoryRef,
         CtrlConfig ctrlCfgRef
     )
     {
@@ -101,6 +107,7 @@ public class DbExportImportHelper
         txMgrGenerator = txMgrGeneratorRef;
         txMgrProvider = txMgrProviderRef;
         linstorScope = linstorScopeRef;
+        lockGuardFactory = lockGuardFactoryRef;
         ctrlCfg = ctrlCfgRef;
     }
 
@@ -161,7 +168,7 @@ public class DbExportImportHelper
             tables
         );
 
-        try
+        try (LockGuard lg = lockGuardFactory.build(LockType.WRITE, LockObj.values()))
         {
             for (DatabaseTable table : GeneratedDatabaseTables.ALL_TABLES)
             {

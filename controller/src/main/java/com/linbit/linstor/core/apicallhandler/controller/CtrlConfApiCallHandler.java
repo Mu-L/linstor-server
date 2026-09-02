@@ -66,6 +66,7 @@ import com.linbit.linstor.propscon.InvalidValueException;
 import com.linbit.linstor.propscon.Props;
 import com.linbit.linstor.propscon.ReadOnlyProps;
 import com.linbit.linstor.range.Range;
+import com.linbit.linstor.tasks.AutoDbExportTask;
 import com.linbit.linstor.tasks.AutoDiskfulTask;
 import com.linbit.linstor.tasks.AutoSnapshotTask;
 import com.linbit.linstor.tasks.BalanceResourcesTask;
@@ -132,6 +133,7 @@ public class CtrlConfApiCallHandler
     private final LockGuardFactory lockGuardFactory;
     private final AutoDiskfulTask autoDiskfulTask;
     private final ReconnectorTask reconnectorTask;
+    private final AutoDbExportTask autoDbExportTask;
     private final CtrlRscDfnAutoVerifyAlgoHelper ctrlRscDfnAutoVerifyAlgoHelper;
 
     private final AutoSnapshotTask autoSnapshotTask;
@@ -147,6 +149,7 @@ public class CtrlConfApiCallHandler
 
     private final CtrlRscAutoHelper ctrlRscAutoHelper;
     private final Map<ServiceName, SystemService> systemServicesMap;
+
 
     public enum LinstorEncryptionStatus
     {
@@ -192,6 +195,7 @@ public class CtrlConfApiCallHandler
         CtrlNodeApiCallHandler ctrlNodeApiCallHandlerRef,
         AutoDiskfulTask autoDiskfulTaskRef,
         ReconnectorTask reconnectorTaskRef,
+        AutoDbExportTask autoDbExportTaskRef,
         CoreModule.ResourceDefinitionMap rscDfnMapRef,
         CtrlRscDfnAutoVerifyAlgoHelper ctrlRscDfnAutoVerifyAlgoHelperRef,
         AutoSnapshotTask autoSnapshotTaskRef,
@@ -214,6 +218,7 @@ public class CtrlConfApiCallHandler
         transMgrProvider = transMgrProviderRef;
 
         nodesMap = nodesMapRef;
+        autoDbExportTask = autoDbExportTaskRef;
         rscDfnMap = rscDfnMapRef;
         ctrlStltSrzl = ctrlStltSrzlRef;
         whitelistProps = whitelistPropsRef;
@@ -993,6 +998,14 @@ public class CtrlConfApiCallHandler
                             // no need to update stlts
                             setCtrlProp(key, normalized, namespace, propChangedListener);
                             break;
+                        case AutoDbExportTask.FULL_KEY_CRON: // fall-through
+                        case AutoDbExportTask.FULL_KEY_KEEP: // fall-through
+                        case AutoDbExportTask.FULL_KEY_PATH: // fall-through
+                        case AutoDbExportTask.FULL_KEY_COMPRESS:
+                            setCtrlProp(key, normalized, namespace, propChangedListener);
+                            autoDbExportTask.updateProps(apiCallRc);
+                            break;
+
                         case ApiConsts.KEY_EXT_CMD_WAIT_TO: // deprecated
                             String mappedKey = ApiConsts.NAMESPC_EXT_CMD + "/" + ApiConsts.KEY_WAIT_TO;
                             apiCallRc.add(ApiCallRcImpl.simpleEntry(
@@ -1506,6 +1519,10 @@ public class CtrlConfApiCallHandler
                             apiCallRc.addEntries(result.objA);
                             changedRscs.addAll(result.objB);
                         }
+                        case AutoDbExportTask.FULL_KEY_CRON, AutoDbExportTask.FULL_KEY_KEEP, // continued
+                            AutoDbExportTask.FULL_KEY_PATH, AutoDbExportTask.FULL_KEY_COMPRESS ->
+                            autoDbExportTask.updateProps(apiCallRc);
+
                         // TODO: check for other properties
                         default ->
                         {

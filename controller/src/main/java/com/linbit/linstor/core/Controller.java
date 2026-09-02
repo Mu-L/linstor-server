@@ -59,6 +59,7 @@ import com.linbit.linstor.systemstarter.ResyncAfterInitializer;
 import com.linbit.linstor.systemstarter.ServiceStarter;
 import com.linbit.linstor.systemstarter.SpecStltProcMgrInit;
 import com.linbit.linstor.systemstarter.StartupInitializer;
+import com.linbit.linstor.tasks.AutoDbExportTask;
 import com.linbit.linstor.tasks.AutoDiskfulTask;
 import com.linbit.linstor.tasks.AutoSnapshotTask;
 import com.linbit.linstor.tasks.BalanceResourcesTask;
@@ -142,6 +143,7 @@ public final class Controller
     private final BalanceResourcesTask balanceResourcesTask;
     private final UpdateSpaceInfoTask updateSpaceInfoTask;
     private final QsiClearCacheTask qsiClearCache;
+    private final AutoDbExportTask autoDbExportTask;
 
     private final DebugConsoleCreator debugConsoleCreator;
     private final ControllerNetComInitializer controllerNetComInitializer;
@@ -183,6 +185,7 @@ public final class Controller
         AutoDiskfulTask autoDiskfulTaskRef,
         BalanceResourcesTask balanceResourcesTaskRef,
         QsiClearCacheTask qsiClearCacheRef,
+        AutoDbExportTask autoDbExportTaskRef,
         DebugConsoleCreator debugConsoleCreatorRef,
         ControllerNetComInitializer controllerNetComInitializerRef,
         SpecialSatelliteProcessManager specialStltTargetProcessManagerRef,
@@ -216,6 +219,7 @@ public final class Controller
         autoDiskfulTask = autoDiskfulTaskRef;
         balanceResourcesTask = balanceResourcesTaskRef;
         qsiClearCache = qsiClearCacheRef;
+        autoDbExportTask = autoDbExportTaskRef;
         debugConsoleCreator = debugConsoleCreatorRef;
         controllerNetComInitializer = controllerNetComInitializerRef;
         specStltTargetProcessManager = specialStltTargetProcessManagerRef;
@@ -276,6 +280,7 @@ public final class Controller
             taskScheduleService.addTask(balanceResourcesTask);
             taskScheduleService.addTask(updateSpaceInfoTask);
             taskScheduleService.addTask(qsiClearCache);
+            taskScheduleService.addTask(autoDbExportTask);
 
             systemServicesMap.put(controllerDb.getInstanceName(), controllerDb);
             systemServicesMap.put(taskScheduleService.getInstanceName(), taskScheduleService);

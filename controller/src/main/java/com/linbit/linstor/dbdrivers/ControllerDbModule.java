@@ -293,7 +293,7 @@ public class ControllerDbModule extends AbstractModule
 
     @Provides
     @Singleton
-    public Map<DatabaseTable, AbsDatabaseDriver<?, ?, ?>> getAllDbDrivers(Injector injector)
+    public static Map<DatabaseTable, AbsDatabaseDriver<?, ?, ?>> getAllDbDrivers(Injector injector)
     {
         Map<DatabaseTable, AbsDatabaseDriver<?, ?, ?>> alldbDrivers = new HashMap<>();
         for (Key<?> key : injector.getAllBindings().keySet())
