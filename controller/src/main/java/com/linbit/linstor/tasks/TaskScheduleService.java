@@ -263,9 +263,9 @@ public class TaskScheduleService implements SystemService, Runnable
 
                     // Handle existing tasks
                     long waitTime;
-                    Long entryTime = tasks.firstKey();
-                    if (entryTime != null)
+                    if (!tasks.isEmpty())
                     {
+                        @Nullable Long entryTime = tasks.firstKey();
                         long now = System.currentTimeMillis();
 
                         while (entryTime != null && entryTime <= now)
@@ -281,7 +281,7 @@ public class TaskScheduleService implements SystemService, Runnable
                             }
                             tasksLock.lock();
 
-                            entryTime = tasks.firstKey();
+                            entryTime = tasks.isEmpty() ? null : tasks.firstKey();
                             if (entryTime != null && entryTime > now)
                             {
                                 now = System.currentTimeMillis();
@@ -290,12 +290,12 @@ public class TaskScheduleService implements SystemService, Runnable
 
                         // Set the waitTime to suspend this thread until the
                         // next task list's target time is reached, or if there
-                        // are no more tasks, wait until a wakeup event occurs (0)
-                        waitTime = entryTime != null ? entryTime - now : 0;
+                        // are no more tasks, wait for DEFAULT_RETRY_DELAY
+                        waitTime = entryTime != null ? entryTime - now : DEFAULT_RETRY_DELAY;
                     }
                     else
                     {
-                        waitTime = 0;
+                        waitTime = DEFAULT_RETRY_DELAY;
                     }
 
                     if (!shutdown && newTasks.isEmpty())
