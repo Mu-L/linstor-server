@@ -16,6 +16,7 @@ import com.linbit.linstor.api.protobuf.ProtobufApiCall;
 import com.linbit.linstor.api.protobuf.ProtobufApiType;
 import com.linbit.linstor.core.apicallhandler.ApiCallHandlerModule;
 import com.linbit.linstor.core.apicallhandler.controller.CtrlApiCallHandlerModule;
+import com.linbit.linstor.core.apicallhandler.controller.db.DbExportFileUtils;
 import com.linbit.linstor.core.apicallhandler.controller.db.DbExportImportHelper;
 import com.linbit.linstor.core.cfg.CtrlConfig;
 import com.linbit.linstor.core.cfg.CtrlConfigModule;
@@ -111,7 +112,10 @@ public class LinstorDatabaseTool
         )
         private boolean migrateBeforeExport = false;
 
-        @CommandLine.Parameters(description = "Path to the exported database file")
+        @CommandLine.Parameters(
+            description = "Path to the exported database file. The export is gzip compressed if the file name ends " +
+                "with '" + DbExportFileUtils.GZIP_SUFFIX + "'"
+        )
         private @Nullable String dbExportPath;
 
         @Override
@@ -146,7 +150,9 @@ public class LinstorDatabaseTool
         )
         private @Nullable String logDirectory = null;
 
-        @CommandLine.Parameters(description = "Path to the exported database file")
+        @CommandLine.Parameters(
+            description = "Path to the exported database file, plain or gzip compressed (detected automatically)"
+        )
         private @Nullable String dbExportPath;
 
         @Override

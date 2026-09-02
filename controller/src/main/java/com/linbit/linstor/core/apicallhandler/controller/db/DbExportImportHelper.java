@@ -30,9 +30,11 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -105,7 +107,8 @@ public class DbExportImportHelper
     /**
      * Highly advised that reconfiguration.writelock is held before calling this method. <br/>
      * <br/>
-     * Calls {@link #exportDb()} and writes the resulting JSON into the given <code>targetFileRef</code>
+     * Calls {@link #exportDb()} and writes the resulting JSON into the given <code>targetFileRef</code>. The output
+     * is gzip compressed if the file name ends with {@value DbExportFileUtils#GZIP_SUFFIX}.
      *
      * @param targetFileRef The file that the resulting {@link DbExportPojoData} will be written into.
      */
@@ -231,16 +234,18 @@ public class DbExportImportHelper
     }
 
     /**
-     * Writes the given {@link DbExportPojoData} into the given <code>targetFileRef</code>
+     * Writes the given {@link DbExportPojoData} into the given <code>targetFileRef</code>. The output is gzip
+     * compressed if the file name ends with {@value DbExportFileUtils#GZIP_SUFFIX}.
+     *
      * @param pojoRef The actual database dump
      * @param targetFileRef The file the database dump should be written into.
      */
     public void writeTo(DbExportPojoData pojoRef, Path targetFileRef)
     {
         ObjectMapper om = new ObjectMapper();
-        try
+        try (OutputStream out = DbExportFileUtils.newExportOutputStream(targetFileRef))
         {
-            om.writeValue(targetFileRef.toFile(), pojoRef);
+            om.writeValue(out, pojoRef);
             errorReporter.logTrace("written db export to: %s", targetFileRef);
         }
         catch (IOException exc)
@@ -255,16 +260,19 @@ public class DbExportImportHelper
         }
     }
 
+    /**
+     * Imports the given export file. Gzip compressed exports are detected by content and decompressed transparently.
+     */
     public void importDb(String fileNameRef)
     {
         ObjectMapper om = new ObjectMapper();
         DbExportPojoMeta exportPojoMeta;
-        try
+        try (InputStream in = DbExportFileUtils.newExportInputStream(Paths.get(fileNameRef)))
         {
             // first, we only parse the meta-part of the export, thus ignoring the "table" field which is only defined
             // in DbExportPojoData
             om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            exportPojoMeta = om.readValue(new File(fileNameRef), DbExportPojoMeta.class);
+            exportPojoMeta = om.readValue(in, DbExportPojoMeta.class);
         }
         catch (IOException exc)
         {
@@ -487,9 +495,9 @@ public class DbExportImportHelper
         module.addDeserializer(LinstorSpec.class, deserialzerHelper.getLinstorSpecDeserializer());
         om.registerModule(module);
 
-        try
+        try (InputStream in = DbExportFileUtils.newExportInputStream(Paths.get(fileNameRef)))
         {
-            return om.readValue(new File(fileNameRef), DbExportPojoData.class);
+            return om.readValue(in, DbExportPojoData.class);
         }
         catch (IOException exc)
         {

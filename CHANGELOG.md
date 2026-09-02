@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- "linstor-database export-db" compresses the export if the target file name ends with ".gz"
+- "linstor-database import-db" detects compressed exports automatically
+
 ### Fixed
 
 - Fixed resizing a volume in a shared storage pool with external locking, refused because of the wrong lock
