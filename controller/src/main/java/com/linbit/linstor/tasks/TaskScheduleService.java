@@ -26,25 +26,34 @@ import org.slf4j.event.Level;
 @Singleton
 public class TaskScheduleService implements SystemService, Runnable
 {
+    /**
+     * <p>When adding a new task via {@link TaskScheduleService#addTask(Task)}, before the first execution of this task
+     * {@link #firstRunAt()} is called. If that method returns {@link #END_TASK}, the task is canceled without being
+     * executed once. If {@link #firstRunAt()} returns {@link #RUN_ASAP}, the task is started as soon as possible. </p>
+     *
+     * <p>When task gets added before the {@link TaskScheduleService} was started, each task's {@link #initialize()} is
+     * called during the initialization phase of {@link TaskScheduleService}. The registered task is further treated
+     * the same as a task that got added via {@link TaskScheduleService#addTask(Task)}.</p>
+     */
     public interface Task
     {
         long END_TASK = -1;
+        long RUN_ASAP = 0;
 
         /**
-         * When a {@link Task} gets registered in {@link TaskScheduleService}, it will be
-         * Immediately executed (calling {@link Task#run()}). <br>
-         * <br>
-         * This method gets called again approximately at the given returned timestamp (unless delayed by other executed
-         * tasks) <br>
-         * If a tasks wants to be executed i.e. "every 10 seconds", the final return statement should include the
+         * <p>This method gets called again approximately at the given returned timestamp (unless delayed by other
+         * executed tasks) </p>
+         * <p>If a tasks wants to be executed i.e. "every 10 seconds", the final return statement should include the
          * parameter scheduledAt (i.e. <code> return scheduledAt + 10_000; </code>) to prevent small but additive
-         * delays caused by other tasks execution time or waiting-inaccuracies
-         * <br>
-         * Any negative return value will prevent the task from being rescheduled.
+         * delays caused by other tasks execution time or waiting-inaccuracies</p>
          *
-         * @param scheduledAt The timestamp when the current execution should have been run, but might have been delayed
-         *     through the execution of previous tasks. In other words, even at the very beginning of the call,
-         *     scheduledAt can largely differ (even seconds or more) from {@link System#currentTimeMillis()}
+         * @param scheduledAt The timestamp (absolute, in millisecond) when the current execution should have been run,
+         *     but might have been delayed through the execution of previous tasks. In other words, even at the very
+         *     beginning of the call, scheduledAt can largely differ (even seconds or more) from
+         *     {@link System#currentTimeMillis()}
+         *
+         * @return The absolute timestamp in milliseconds this method wants to be called next, or {@link #END_TASK} (or
+         * any other negative number) to cancel this task completely.
          */
         long run(long scheduledAt);
 
@@ -57,12 +66,19 @@ public class TaskScheduleService implements SystemService, Runnable
         }
 
         /**
+         * Called before the task is executed the first time to give the task a chance to not run whenever it gets
+         * registered (or right after startup), but start with a delay.
+         */
+        default long firstRunAt()
+        {
+            return RUN_ASAP;
+        }
+
+        /**
          * Calculates the next scheduled timestamp pretending perfect previous scheduled timestamps in order to prevent
          * future executions to get delayed additively. Example:
          * If scheduleAt is 12, rescheduleInRelative is 10 and current timestamp is 41, the returned value would be 42
          * as it is the next higher number that is X * rescheduledInRelative later than scheduleAt.
-         *
-         *
          */
         default long getNextFutureReschedule(long scheduledAt, long rescheduleInRelative)
         {
@@ -255,7 +271,18 @@ public class TaskScheduleService implements SystemService, Runnable
                             tasksLock.unlock();
                             for (Task execTask : execTaskList)
                             {
-                                execute(execTask, now);
+                                long firstRunAt = getFirstRunAt(execTask);
+                                if (firstRunAt >= Task.RUN_ASAP)
+                                {
+                                    if (firstRunAt <= now)
+                                    {
+                                        execute(execTask, firstRunAt == Task.RUN_ASAP ? now : firstRunAt);
+                                    }
+                                    else
+                                    {
+                                        reschedule(execTask, firstRunAt);
+                                    }
+                                }
                             }
                             tasksLock.lock();
                         }
@@ -329,12 +356,36 @@ public class TaskScheduleService implements SystemService, Runnable
         }
     }
 
+    private long getFirstRunAt(Task execTask)
+    {
+        long ret;
+        try
+        {
+            ret = execTask.firstRunAt();
+        }
+        catch (Exception exc)
+        {
+            errorReporter.reportError(
+                Level.ERROR,
+                new ImplementationError(
+                    "Unhandled exception caught in " + TaskScheduleService.class.getName(),
+                    exc
+                ),
+                null,
+                "This exception was generated in the service thread of the service '" + SERVICE_NAME + "' " +
+                    "during firstRunAt check of task '" + execTask.getClass().getSimpleName() + "', '" + execTask + "'."
+            );
+            ret = Task.RUN_ASAP;
+        }
+        return ret;
+    }
+
     private void execute(Task task, long scheduledAt)
     {
-        long delay = scheduledAt + DEFAULT_RETRY_DELAY;
+        long rescheduleAt = scheduledAt + DEFAULT_RETRY_DELAY;
         try (var ignore = MDC.putCloseable(ErrorReporter.LOGID, ErrorReporter.getNewLogId()))
         {
-            delay = task.run(scheduledAt);
+            rescheduleAt = task.run(scheduledAt);
         }
         catch (Exception exc)
         {
@@ -350,27 +401,28 @@ public class TaskScheduleService implements SystemService, Runnable
         }
 
         // Reschedule the task if a non-negative delay was requested
-        if (delay >= 0)
+        if (rescheduleAt >= 0)
         {
-            // If a task list exists for the calculated target time,
-            // add the task to the existing task list; otherwise, register
-            // a new task list for the calculated target time and
-            // add the task to the newly registered task list
-            tasksLock.lock();
-            try
+            reschedule(task, rescheduleAt);
+        }
+    }
+
+    private void reschedule(Task task, long rescheduleAt)
+    {
+        tasksLock.lock();
+        try
+        {
+            List<Task> taskList = tasks.get(rescheduleAt);
+            if (taskList == null)
             {
-                List<Task> taskList = tasks.get(delay);
-                if (taskList == null)
-                {
-                    taskList = new ArrayList<>();
-                    tasks.put(delay, taskList);
-                }
-                taskList.add(task);
+                taskList = new ArrayList<>();
+                tasks.put(rescheduleAt, taskList);
             }
-            finally
-            {
-                tasksLock.unlock();
-            }
+            taskList.add(task);
+        }
+        finally
+        {
+            tasksLock.unlock();
         }
     }
 
