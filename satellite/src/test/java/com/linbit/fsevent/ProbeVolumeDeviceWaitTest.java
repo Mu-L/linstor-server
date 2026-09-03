@@ -1,5 +1,7 @@
 package com.linbit.fsevent;
 
+import com.linbit.ImplementationError;
+import com.linbit.InvalidNameException;
 import com.linbit.Platform;
 import com.linbit.linstor.core.identifier.StorPoolName;
 import com.linbit.linstor.core.objects.Resource;
@@ -50,6 +52,20 @@ import static org.mockito.Mockito.when;
 
 public class ProbeVolumeDeviceWaitTest
 {
+    private static final StorPoolName MOCKED_SP_NAME;
+
+    static
+    {
+        try
+        {
+            MOCKED_SP_NAME = new StorPoolName("data");
+        }
+        catch (InvalidNameException exc)
+        {
+            throw new ImplementationError(exc);
+        }
+    }
+
     @Rule
     public final TemporaryFolder directory = new TemporaryFolder();
 
@@ -76,7 +92,7 @@ public class ProbeVolumeDeviceWaitTest
         watch = new FileSystemWatch(reporter);
         watch.start();
         pool = mock(StorPool.class);
-        when(pool.getName()).thenReturn(new StorPoolName("data"));
+        when(pool.getName()).thenReturn(MOCKED_SP_NAME);
         when(pool.getVolumes()).thenReturn(Collections.emptyList());
         when(pool.getProps()).thenReturn(mock(Props.class));
         provider = new ProbeProvider(new AbsStorageProviderInit(
@@ -236,7 +252,7 @@ public class ProbeVolumeDeviceWaitTest
     {
         provider.delayMillis = -1;
         Thread callingThread = Thread.currentThread();
-        executor.schedule(callingThread::interrupt, 50, TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> interruptableTask = executor.schedule(callingThread::interrupt, 50, TimeUnit.MILLISECONDS);
         try
         {
             assertTrue(probe().isEmpty());
@@ -246,6 +262,7 @@ public class ProbeVolumeDeviceWaitTest
         }
         finally
         {
+            interruptableTask.cancel(false);
             Thread.interrupted();
         }
     }
@@ -256,7 +273,7 @@ public class ProbeVolumeDeviceWaitTest
         provider.delayMillis = -1;
         provider.timeoutMillis = 200;
         Thread callingThread = Thread.currentThread();
-        executor.schedule(callingThread::interrupt, 300, TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> interruptableTask = executor.schedule(callingThread::interrupt, 300, TimeUnit.MILLISECONDS);
         try
         {
             assertTrue(probe().isEmpty());
@@ -266,6 +283,7 @@ public class ProbeVolumeDeviceWaitTest
         }
         finally
         {
+            interruptableTask.cancel(false);
             Thread.interrupted();
         }
     }
@@ -358,7 +376,7 @@ public class ProbeVolumeDeviceWaitTest
             namespace + StorageConstants.BLK_DEV_MIN_IO_SIZE, "4096",
             namespace + StorageConstants.BLK_DEV_OPT_IO_SIZE, "33554432",
             namespace + StorageConstants.BLK_DEV_DISC_GRAN, "16384"
-        ), changesRef.changedStorPoolProps.get(pool.getName()));
+        ), changesRef.changedStorPoolProps.get(MOCKED_SP_NAME));
     }
 
     private void assertCleaned(int attemptsRef)

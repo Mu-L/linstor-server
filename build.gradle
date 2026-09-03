@@ -71,7 +71,8 @@ subprojects {
         }
     }
 
-    compileJava {
+    // "compileJava" would exclude "compileTestJava"
+    tasks.withType(JavaCompile).configureEach {
         options.release = 21
         options.compilerArgs.add("-Werror")
         if (!rootProject.hasProperty('disableErrorProne'))

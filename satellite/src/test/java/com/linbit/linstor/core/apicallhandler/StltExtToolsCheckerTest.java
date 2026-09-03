@@ -121,9 +121,11 @@ public class StltExtToolsCheckerTest
         expect(0, "cryptsetup 2.4.3 flags: UDEV BLKID KEYRING KERNEL_CAPI\n", "", CMD_CRYPTSETUP);
         expect(
             0,
-            "  LVM version:     2.03.11(2) (2021-01-08)\n" +
-                "  Library version: 1.02.175 (2021-01-08)\n" +
-                "  Driver version:  4.45.0\n",
+            """
+              LVM version:     2.03.11(2) (2021-01-08)
+              Library version: 1.02.175 (2021-01-08)
+              Driver version:  4.45.0
+            """,
             "",
             CMD_LVM
         );

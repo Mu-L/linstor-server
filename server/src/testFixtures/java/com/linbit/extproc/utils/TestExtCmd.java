@@ -7,6 +7,7 @@ import com.linbit.timer.GenericTimer;
 
 import java.io.IOException;
 import java.lang.ProcessBuilder.Redirect;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -150,15 +151,14 @@ public class TestExtCmd extends ExtCmd
                     equals = true;
                 }
                 else
-                if (obj instanceof Command)
+                if (obj instanceof Command otherCmd)
                 {
-                    Command otherCmd = (Command) obj;
                     equals = Arrays.equals(commandParts, otherCmd.commandParts);
                 }
                 else
-                if (obj instanceof String[])
+                if (obj instanceof String[] strArr)
                 {
-                    equals = Arrays.equals(commandParts, (String[]) obj);
+                    equals = Arrays.equals(commandParts, strArr);
                 }
             }
             return equals;
@@ -192,14 +192,14 @@ public class TestExtCmd extends ExtCmd
     {
         public TestOutputData(String[] executedCommand, String out, String err, int retCode)
         {
-            super(executedCommand, out.getBytes(), err.getBytes(), retCode);
+            super(executedCommand, out.getBytes(StandardCharsets.UTF_8), err.getBytes(StandardCharsets.UTF_8), retCode);
         }
 
         @Override
         public String toString()
         {
-            return "TestOutputData [stdoutData=[" + new String(stdoutData) + "], stderrData=[" +
-                new String(stderrData) + "], exitCode=" + exitCode + "]";
+            return "TestOutputData [stdoutData=[" + new String(stdoutData, StandardCharsets.UTF_8) + "], stderrData=[" +
+                new String(stderrData, StandardCharsets.UTF_8) + "], exitCode=" + exitCode + "]";
         }
     }
 
@@ -216,7 +216,7 @@ public class TestExtCmd extends ExtCmd
         private Map<Command, OutputData> map = new HashMap<>();
         private Map<Command, Integer> commandsCalled = new HashMap<>();
 
-        public OutputData getOutData(String[] command)
+        private OutputData getOutData(String[] command)
         {
             Command key = new Command(command);
             Integer count = commandsCalled.get(key);
@@ -228,13 +228,13 @@ public class TestExtCmd extends ExtCmd
             return map.get(key);
         }
 
-        public void put(final Command expectedCommand, final OutputData expectedOutputData)
+        private void put(final Command expectedCommand, final OutputData expectedOutputData)
         {
             map.put(expectedCommand, expectedOutputData);
             commandsCalled.put(expectedCommand, 0);
         }
 
-        public void clear()
+        private void clear()
         {
             map.clear();
         }
@@ -245,7 +245,7 @@ public class TestExtCmd extends ExtCmd
             return map.toString();
         }
 
-        public HashSet<Command> getUncalledCommands()
+        private HashSet<Command> getUncalledCommands()
         {
             HashSet<Command> commands = new HashSet<>();
             for (Entry<Command, Integer> entry : commandsCalled.entrySet())
