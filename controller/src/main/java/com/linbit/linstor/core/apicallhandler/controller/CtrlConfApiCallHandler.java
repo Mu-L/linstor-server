@@ -80,8 +80,6 @@ import com.linbit.utils.StringUtils;
 import com.linbit.utils.TripleNonNull;
 import com.linbit.utils.UuidUtils;
 
-import static com.linbit.locks.LockGuardFactory.LockType.WRITE;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
@@ -106,6 +104,8 @@ import java.util.function.BiConsumer;
 import org.slf4j.MDC;
 import org.slf4j.event.Level;
 import reactor.core.publisher.Flux;
+
+import static com.linbit.locks.LockGuardFactory.LockType.WRITE;
 
 @Singleton
 public class CtrlConfApiCallHandler
@@ -983,7 +983,7 @@ public class CtrlConfApiCallHandler
                             // fall-through
                         case ZfsDeleteStrategy.FULL_KEY_ZFS_DELETE_STRATEGY:
                             // fall-through
-                        case ApiConsts.NAMESPC_AUTH + ApiConsts.KEY_TOKEN_AUTH_ENABLED:
+                        case ApiConsts.NAMESPC_AUTH + "/" + ApiConsts.KEY_TOKEN_AUTH_ENABLED:
                             // fall-through
                         case ApiConsts.NAMESPC_LINSTOR_DRBD + "/" + ApiConsts.KEY_DRBD_AUTO_BLOCK_SIZE:
                             // fall-through
