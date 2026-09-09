@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.1] - 2026-09-09
+
 ### Added
 
 - Added automatic database exports. Default: every day at 4am. Added configuration properties:

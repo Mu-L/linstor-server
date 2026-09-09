@@ -1,3 +1,39 @@
+linstor-server (1.35.1-1) experimental; urgency=medium
+
+  [ Moritz Tanner ]
+  * Upgrade lvmlockd LV lock to exclusive for resize
+  * docker: update k8s-await-election
+  * docker: update losetup-container
+
+  [ Yan Bondarenko ]
+  * satellite: wait for probe devices before reading block information
+
+  [ LINBOT ]
+  * Update dependency io.sentry:sentry to v8.55.0
+  * Update dependency org.slf4j:slf4j-api to v2.0.19
+  * Update dependency checkstyle to v14.1.0
+
+  [ Gabor Hernadi ]
+  * CtrlConf: Fix TokenAuthEnabled key
+  * GenerateSql: fix database schema extraction for H2 2.x
+  * Fix import-db: reorder entries of self-referencing tables
+  * Fix import-db error handling for non-empty databases
+  * TaskScheduleService: Prevent busy loop when no tasks are registerd
+  * TaskScheduleService: Add firstRunAt method
+  * TaskScheduleService: Reworked reschedule naming
+  * TaskScheduleService: Honor cancel() for tasks that are currently running
+  * DbExportImportHelper: gzip compressed exports and transparent import
+  * AutoDbExportTask: Added auto-exports of database
+  * Gradle: Enable errorProne (with execptions) for compileTestJava
+
+  [ Robert Altnoeder ]
+  * DrbdLayerSizeCalculator: Ignore BitmapBlockSizeNewResource == null
+
+  [ Rene Peinthor ]
+  * gitlab-ci: Exclude h2v1migration configuration from SBOM
+
+ -- Rene Peinthor <rene.peinthor@linbit.com>  Wed, 09 Sep 2026 09:56:03 +0000
+
 linstor-server (1.35.0-1) experimental; urgency=medium
 
   [ Rene Peinthor ]
